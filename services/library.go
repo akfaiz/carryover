@@ -149,16 +149,34 @@ func (s *LibraryService) Get(id string) (GameView, error) {
 
 // GameInput is the editable part of a game: shared fields plus this device's config.
 type GameInput struct {
-	ID     string               `json:"id"`
-	Name   string               `json:"name"`
-	Slots  []library.SaveSlot   `json:"slots"`
-	Device library.DeviceConfig `json:"device"`
+	ID     string             `json:"id"`
+	Name   string             `json:"name"`
+	Slots  []library.SaveSlot `json:"slots"`
+	Device DeviceInput        `json:"device"`
+}
+
+// DeviceInput is the editor's view of this device's config. Server-managed
+// fields (timestamps, device name, Steam app id) are deliberately absent so
+// the frontend can't send invalid values for them.
+type DeviceInput struct {
+	Paths       map[string]string  `json:"paths"`
+	Exe         string             `json:"exe"`
+	Args        string             `json:"args"`
+	WorkDir     string             `json:"workDir"`
+	Env         map[string]string  `json:"env"`
+	WaitProcess string             `json:"waitProcess"`
+	LaunchMode  library.LaunchMode `json:"launchMode"`
 }
 
 // Save creates or updates a game.
 func (s *LibraryService) Save(in GameInput) (GameView, error) {
 	devID := s.c.DeviceID()
 	g := library.Game{ID: in.ID, Name: strings.TrimSpace(in.Name), Slots: in.Slots}
+	d := library.DeviceConfig{
+		Paths: in.Device.Paths, Exe: strings.TrimSpace(in.Device.Exe), Args: in.Device.Args,
+		WorkDir: strings.TrimSpace(in.Device.WorkDir), Env: in.Device.Env,
+		WaitProcess: strings.TrimSpace(in.Device.WaitProcess), LaunchMode: in.Device.LaunchMode,
+	}
 	if in.ID != "" {
 		old, err := s.c.Library.Get(in.ID)
 		if err != nil {
@@ -167,14 +185,13 @@ func (s *LibraryService) Save(in GameInput) (GameView, error) {
 		g.Cover = old.Cover
 		g.Devices = old.Devices
 		// Steam app id is managed by AddToSteam, not the editor.
-		in.Device.SteamAppID = old.Devices[devID].SteamAppID
+		d.SteamAppID = old.Devices[devID].SteamAppID
 	}
 	for i := range g.Slots {
 		g.Slots[i].Key = strings.TrimSpace(g.Slots[i].Key)
 		g.Slots[i].Include = cleanList(g.Slots[i].Include)
 		g.Slots[i].Exclude = cleanList(g.Slots[i].Exclude)
 	}
-	d := in.Device
 	d.DeviceName = s.c.Settings.Get().DeviceName
 	if d.Paths == nil {
 		d.Paths = map[string]string{}

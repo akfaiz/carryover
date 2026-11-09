@@ -20,6 +20,21 @@ export interface ConflictInfo {
 }
 
 /**
+ * DeviceInput is the editor's view of this device's config. Server-managed
+ * fields (timestamps, device name, Steam app id) are deliberately absent so
+ * the frontend can't send invalid values for them.
+ */
+export interface DeviceInput {
+    "paths": { [_ in string]?: string } | null;
+    "exe": string;
+    "args": string;
+    "workDir": string;
+    "env": { [_ in string]?: string } | null;
+    "waitProcess": string;
+    "launchMode": library$0.LaunchMode;
+}
+
+/**
  * DevicePaths shows another device's config for reference.
  */
 export interface DevicePaths {
@@ -35,7 +50,7 @@ export interface GameInput {
     "id": string;
     "name": string;
     "slots": library$0.SaveSlot[] | null;
-    "device": library$0.DeviceConfig;
+    "device": DeviceInput;
 }
 
 /**

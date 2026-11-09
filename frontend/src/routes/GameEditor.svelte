@@ -2,7 +2,7 @@
   import { onMount } from 'svelte'
   import { app, go } from '../lib/state.svelte'
   import { LibraryService, errMsg } from '../lib/api'
-  import type { DeviceConfig, Token } from '../lib/api'
+  import type { DeviceInput, Token } from '../lib/api'
   import PathInput from '../components/PathInput.svelte'
 
   let { id }: { id: string } = $props()
@@ -11,9 +11,8 @@
 
   let name = $state('')
   let slots = $state<SlotForm[]>([])
-  let device = $state<DeviceConfig>({
-    deviceName: '', paths: {}, exe: '', args: '', workDir: '', env: {}, waitProcess: '',
-    launchMode: 'direct' as any, steamAppId: '', updatedAt: '',
+  let device = $state<DeviceInput>({
+    paths: {}, exe: '', args: '', workDir: '', env: {}, waitProcess: '', launchMode: 'direct' as any,
   })
   let envText = $state('')
   let tokens = $state<Token[]>([])
@@ -36,7 +35,11 @@
       name = g.name
       coverUrl = g.coverUrl
       others = (g.otherDevices ?? []) as any
-      device = { ...g.device, paths: { ...(g.device.paths ?? {}) }, env: { ...(g.device.env ?? {}) } }
+      const d = g.device
+      device = {
+        paths: { ...(d.paths ?? {}) }, exe: d.exe, args: d.args, workDir: d.workDir,
+        env: { ...(d.env ?? {}) }, waitProcess: d.waitProcess, launchMode: d.launchMode || ('direct' as any),
+      }
       envText = Object.entries(device.env ?? {}).map(([k, v]) => `${k}=${v}`).join('\n')
       advanced = !!(device.workDir || device.waitProcess || envText)
       slots = (g.slots ?? []).map((s) => ({

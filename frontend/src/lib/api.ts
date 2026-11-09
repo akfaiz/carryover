@@ -8,6 +8,7 @@ export {
 export type {
   GameView,
   GameInput,
+  DeviceInput,
   Prompt,
   Status,
   PlanView,

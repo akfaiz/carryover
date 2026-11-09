@@ -16,6 +16,7 @@ export {
 
 export type {
     ConflictInfo,
+    DeviceInput,
     DevicePaths,
     GameInput,
     GameStatus,
