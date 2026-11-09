@@ -9,6 +9,7 @@
   import Session from './routes/Session.svelte'
   import PromptDialog from './components/PromptDialog.svelte'
   import Toasts from './components/Toasts.svelte'
+  import logo from './assets/logo.svg'
 
   onMount(() => app.start())
 
@@ -27,7 +28,7 @@
 {:else}
   <div class="shell">
     <aside>
-      <div class="brand"><span class="logo">▶</span> PlayRelay</div>
+      <div class="brand"><img class="logo" src={logo} alt="" /> PlayRelay</div>
       {#each nav as n (n.path)}
         <button class="nav" class:active={active(n.path)} onclick={() => go(n.path)}>
           <span class="icon">{n.icon}</span>{n.label}
@@ -75,7 +76,7 @@
     display: flex; flex-direction: column; padding: 1em .7em; gap: .2em;
   }
   .brand { font-weight: 700; font-size: 1.15rem; padding: .2em .6em 1em; display: flex; align-items: center; gap: .5em; }
-  .logo { background: var(--accent); color: #fff; border-radius: 7px; width: 1.6em; height: 1.6em; display: grid; place-items: center; font-size: .8em; }
+  .logo { width: 1.8em; height: 1.8em; margin: -0.15em; }
   .nav { background: transparent; border-color: transparent; justify-content: flex-start; width: 100%; padding: .6em .8em; }
   .nav.active { background: var(--bg-3); border-color: var(--line); }
   .icon { width: 1.4em; text-align: center; opacity: .8; }

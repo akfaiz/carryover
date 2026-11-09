@@ -1,0 +1,31 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#232838"/>
+      <stop offset="1" stop-color="#0e0f14"/>
+    </linearGradient>
+    <linearGradient id="play" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#7aa3ff"/>
+      <stop offset="1" stop-color="#3d6de0"/>
+    </linearGradient>
+    <linearGradient id="sync" gradientUnits="userSpaceOnUse" x1="200" y1="200" x2="824" y2="824">
+      <stop offset="0" stop-color="#5b8cff"/>
+      <stop offset="1" stop-color="#3ccf91"/>
+    </linearGradient>
+  </defs>
+
+  <!-- background tile -->
+  <rect x="64" y="64" width="896" height="896" rx="200" fill="url(#bg)"/>
+  <rect x="66" y="66" width="892" height="892" rx="198" fill="none" stroke="#ffffff" stroke-opacity="0.08" stroke-width="4"/>
+
+  <!-- sync ring: two clockwise arrows -->
+  <g fill="url(#sync)" stroke="url(#sync)" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M 231.9 436.9 A 290 290 0 0 1 774.8 389.4" fill="none" stroke-width="56"/>
+    <polygon points="833.7,361.9 715.9,416.9 799.8,476.7" stroke-width="16"/>
+    <path d="M 792.1 587.1 A 290 290 0 0 1 249.2 634.6" fill="none" stroke-width="56"/>
+    <polygon points="190.3,662.1 308.1,607.1 224.2,547.3" stroke-width="16"/>
+  </g>
+
+  <!-- play button -->
+  <polygon points="448,392 448,632 656,512" fill="url(#play)" stroke="url(#play)" stroke-width="44" stroke-linejoin="round"/>
+</svg>
