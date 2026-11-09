@@ -1,0 +1,166 @@
+package services
+
+import (
+	"context"
+	"errors"
+	"sync"
+
+	"github.com/akfaiz/playrelay/internal/appdir"
+	"github.com/akfaiz/playrelay/internal/core"
+	"github.com/akfaiz/playrelay/internal/syncer"
+)
+
+// SyncService runs manual syncs, manages backups and settings.
+type SyncService struct {
+	c    *core.Core
+	busy sync.Map // gameID -> struct{}
+}
+
+// NewSyncService creates the service.
+func NewSyncService(c *core.Core) *SyncService { return &SyncService{c: c} }
+
+// GetSettings returns device settings.
+func (s *SyncService) GetSettings() appdir.Settings { return s.c.Settings.Get() }
+
+// SaveSettings updates device settings.
+func (s *SyncService) SaveSettings(st appdir.Settings) (appdir.Settings, error) {
+	if err := s.c.Settings.Update(st); err != nil {
+		return appdir.Settings{}, err
+	}
+	emit(EventLibrary, "")
+	return s.c.Settings.Get(), nil
+}
+
+// PlanView summarises what a sync would do.
+type PlanView struct {
+	Action    string         `json:"action"`
+	Local     syncer.Summary `json:"local"`
+	Remote    syncer.Summary `json:"remote"`
+	HasRemote bool           `json:"hasRemote"`
+}
+
+func (s *SyncService) prepare(gameID string) (*syncer.Engine, syncer.Job, error) {
+	g, err := s.c.Library.Get(gameID)
+	if err != nil {
+		return nil, syncer.Job{}, err
+	}
+	job, err := s.c.Job(g)
+	if err != nil {
+		return nil, syncer.Job{}, err
+	}
+	eng, err := s.c.Engine()
+	return eng, job, err
+}
+
+// Plan compares local and cloud saves without transferring anything.
+func (s *SyncService) Plan(gameID string) (PlanView, error) {
+	eng, job, err := s.prepare(gameID)
+	if err != nil {
+		return PlanView{}, err
+	}
+	p, err := eng.Plan(context.Background(), job)
+	if err != nil {
+		return PlanView{}, err
+	}
+	return PlanView{Action: string(p.Action), Local: p.LocalSummary, Remote: p.RemoteSummary, HasRemote: p.HasRemote}, nil
+}
+
+// Sync syncs one game. resolution: "" (auto), "local" or "cloud".
+// Returns the action performed; "conflict" means nothing was transferred.
+func (s *SyncService) Sync(gameID, resolution string) (string, error) {
+	if _, loaded := s.busy.LoadOrStore(gameID, struct{}{}); loaded {
+		return "", errors.New("a sync for this game is already running")
+	}
+	defer s.busy.Delete(gameID)
+	lock, err := syncer.AcquireLocalLock(s.c.Dirs.StateDir(), gameID)
+	if err != nil {
+		return "", err
+	}
+	defer lock.Release()
+	eng, job, err := s.prepare(gameID)
+	if err != nil {
+		return "", err
+	}
+	_, action, err := eng.Sync(context.Background(), job, syncer.Resolution(resolution))
+	defer emit(EventLibrary, gameID)
+	if errors.Is(err, syncer.ErrConflict) {
+		return string(syncer.ActionConflict), nil
+	}
+	if err != nil {
+		s.c.States.SetError(gameID, err.Error())
+		return string(action), err
+	}
+	return string(action), nil
+}
+
+// SyncResult is the outcome of one game in SyncAll.
+type SyncResult struct {
+	GameID string `json:"gameId"`
+	Name   string `json:"name"`
+	Action string `json:"action"`
+	Error  string `json:"error"`
+}
+
+// SyncAll syncs the library catalog and every ready game.
+func (s *SyncService) SyncAll() ([]SyncResult, error) {
+	if !s.c.CloudConfigured() {
+		return nil, errors.New("no cloud remote configured")
+	}
+	if err := s.c.SyncLibrary(context.Background()); err != nil {
+		return nil, err
+	}
+	emit(EventLibrary, "")
+	var out []SyncResult
+	for _, g := range s.c.Library.List() {
+		if _, err := s.c.Job(g); err != nil {
+			continue // not set up on this device
+		}
+		r := SyncResult{GameID: g.ID, Name: g.Name}
+		a, err := s.Sync(g.ID, "")
+		r.Action = a
+		if err != nil {
+			r.Error = err.Error()
+		}
+		out = append(out, r)
+	}
+	return out, nil
+}
+
+// SyncLibrary merges the cloud library catalog.
+func (s *SyncService) SyncLibrary() error {
+	err := s.c.SyncLibrary(context.Background())
+	emit(EventLibrary, "")
+	return err
+}
+
+// Backups lists a game's backups.
+func (s *SyncService) Backups(gameID string) ([]syncer.Backup, error) {
+	eng, err := s.c.Engine()
+	if err != nil {
+		return nil, err
+	}
+	b, err := eng.ListBackups(context.Background(), gameID)
+	if b == nil {
+		b = []syncer.Backup{}
+	}
+	return b, err
+}
+
+// RestoreBackup restores a backup locally and uploads it as the current cloud version.
+func (s *SyncService) RestoreBackup(gameID, name string) error {
+	if _, loaded := s.busy.LoadOrStore(gameID, struct{}{}); loaded {
+		return errors.New("a sync for this game is already running")
+	}
+	defer s.busy.Delete(gameID)
+	lock, err := syncer.AcquireLocalLock(s.c.Dirs.StateDir(), gameID)
+	if err != nil {
+		return err
+	}
+	defer lock.Release()
+	eng, job, err := s.prepare(gameID)
+	if err != nil {
+		return err
+	}
+	defer emit(EventLibrary, gameID)
+	return eng.RestoreBackup(context.Background(), job, name)
+}

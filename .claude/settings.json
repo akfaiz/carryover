@@ -1,0 +1,17 @@
+{
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Write|Edit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node -e \"let s='';process.stdin.on('data',d=>s+=d).on('end',()=>{try{const j=JSON.parse(s);const f=(j.tool_response&&j.tool_response.filePath)||(j.tool_input&&j.tool_input.file_path)||'';if(f.endsWith('.go'))require('child_process').execFileSync('gofmt',['-w',f],{stdio:'ignore'})}catch(e){}})\"",
+            "timeout": 30,
+            "statusMessage": "gofmt"
+          }
+        ]
+      }
+    ]
+  }
+}
