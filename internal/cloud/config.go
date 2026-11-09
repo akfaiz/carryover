@@ -48,6 +48,8 @@ func Init(configPath string) error {
 type Remote struct {
 	Name string `json:"name"`
 	Type string `json:"type"`
+	// Supported is false for remotes of a provider type PlayRelay doesn't include.
+	Supported bool `json:"supported"`
 }
 
 // ListRemotes returns the remotes in PlayRelay's rclone config.
@@ -57,7 +59,7 @@ func ListRemotes() []Remote {
 	var out []Remote
 	for _, name := range config.GetRemoteNames() {
 		t, _ := config.FileGetValue(name, "type")
-		out = append(out, Remote{Name: name, Type: t})
+		out = append(out, Remote{Name: name, Type: t, Supported: IsSupported(t)})
 	}
 	sort.Slice(out, func(i, j int) bool { return out[i].Name < out[j].Name })
 	return out
@@ -96,13 +98,10 @@ type Provider struct {
 	Options     []ProviderOption `json:"options"`
 }
 
-// featured backends shown first in the UI.
-var featured = []string{"drive", "onedrive", "dropbox", "s3", "webdav", "sftp", "b2", "pcloud", "box", "smb", "ftp", "koofr", "local", "crypt", "alias"}
-
 // Providers returns available backend types with their basic (non-advanced) options.
 func Providers() []Provider {
 	var out []Provider
-	for _, t := range featured {
+	for _, t := range Supported {
 		ri, err := fs.Find(t)
 		if err != nil {
 			continue
@@ -197,8 +196,8 @@ func CreateRemote(ctx context.Context, name, typ string, params map[string]strin
 	if name == "" {
 		return nil, errors.New("remote name is required")
 	}
-	if _, err := fs.Find(typ); err != nil {
-		return nil, fmt.Errorf("unknown provider %q", typ)
+	if !IsSupported(typ) {
+		return nil, fmt.Errorf("unsupported provider %q", typ)
 	}
 	kv := rc.Params{}
 	for k, v := range params {
@@ -237,30 +236,49 @@ func ContinueRemote(ctx context.Context, name, state, result string) (*Question,
 	return q, nil
 }
 
-// ImportConfig copies remotes from an existing rclone.conf file into PlayRelay's config.
-// Existing remotes with the same name are overwritten. Returns imported remote names.
-func ImportConfig(path string) ([]string, error) {
+// ImportResult lists which remotes an import copied and which it left out.
+type ImportResult struct {
+	Imported []string `json:"imported"`
+	Skipped  []string `json:"skipped"` // "name (type)" of unsupported provider types
+}
+
+// ImportConfig copies remotes of supported provider types from an existing
+// rclone.conf into PlayRelay's config. Existing remotes with the same name are
+// overwritten; remotes of other types are skipped.
+func ImportConfig(path string) (ImportResult, error) {
+	res := ImportResult{Imported: []string{}, Skipped: []string{}}
 	b, err := os.ReadFile(path)
 	if err != nil {
-		return nil, err
+		return res, err
 	}
 	if strings.HasPrefix(strings.TrimSpace(string(b)), "RCLONE_ENCRYPT_V0") {
-		return nil, errors.New("encrypted rclone configs are not supported; decrypt it first (rclone config encryption remove)")
+		return res, errors.New("encrypted rclone configs are not supported; decrypt it first (rclone config encryption remove)")
 	}
 	sections := parseINI(string(b))
 	configMu.Lock()
 	defer configMu.Unlock()
 	data := config.LoadedData()
-	var names []string
 	for _, sec := range sections {
+		typ := ""
+		for _, kv := range sec.kvs {
+			if kv[0] == "type" {
+				typ = kv[1]
+			}
+		}
+		if !IsSupported(typ) {
+			res.Skipped = append(res.Skipped, fmt.Sprintf("%s (%s)", sec.name, typ))
+			continue
+		}
 		data.DeleteSection(sec.name)
 		for _, kv := range sec.kvs {
 			data.SetValue(sec.name, kv[0], kv[1])
 		}
-		names = append(names, sec.name)
+		res.Imported = append(res.Imported, sec.name)
 	}
-	config.SaveConfig()
-	return names, nil
+	if len(res.Imported) > 0 {
+		config.SaveConfig()
+	}
+	return res, nil
 }
 
 type iniSection struct {

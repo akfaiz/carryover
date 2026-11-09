@@ -17,7 +17,7 @@ PlayRelay: Wails v3 (Go) + Svelte 5/TypeScript desktop game launcher that syncs 
 - `main.go` embeds `all:frontend/dist`; plain `go build`/`go vet` fail if `frontend/dist` is empty. Keep a placeholder `index.html` there or run `npm run build` first.
 - Every exported method on a `services/*` struct becomes a frontend binding. Don't export methods with channel/func params or returns there (the binding generator warns); use package-level funcs (see `ConfigureWrapper`).
 - `frontend/bindings/` is generated — never edit it by hand. Go nil slices/maps arrive as `null`, so binding types are nullable: use `?? []` / `?.` in the UI.
-- rclone backends are imported explicitly in `internal/cloud/backends.go`. Do not import `backend/all` (it roughly doubles binary size).
+- Only Google Drive, Dropbox, OneDrive, WebDAV, SFTP and SMB are supported (plus `local`, compiled in but hidden — needed to read save folders). Backend imports and the `Supported` list live together in `internal/cloud/backends.go`; keep them in sync (`TestProvidersMatchSupported`). Never import `backend/all`.
 - rclone config is global state: `cloud.Init` once per process; config state-machine calls go through `configMu`.
 - Use `PLAYRELAY_HOME=<dir>` to run the binary against an isolated data dir (settings, library, rclone.conf, state). Never test against the real user config dir.
 - Games are identified by UUID, not name. Per-device data lives in `Game.Devices[deviceID]`; merges are per-device by `UpdatedAt`. `library.Store` returns deep copies — keep it that way.

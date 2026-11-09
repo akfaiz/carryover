@@ -1,8 +1,9 @@
 # PlayRelay
 
 Cross-platform game launcher (Windows, Linux / Steam Deck, macOS) that keeps save games in sync
-through any cloud storage supported by [rclone](https://github.com/rclone/rclone) — embedded as a
-Go library, no separate install. UI built with [Wails v3](https://github.com/wailsapp/wails) + Svelte.
+through cloud storage via [rclone](https://github.com/rclone/rclone) — embedded as a Go library, no
+separate install. Supported: Google Drive, Dropbox, OneDrive, WebDAV (Nextcloud, ownCloud, NAS),
+SFTP and SMB. UI built with [Wails v3](https://github.com/wailsapp/wails) + Svelte.
 
 - **Per-device save paths** — one game, one cloud copy; each device maps it to its own folder
   (`{appdata}/GameA` on Windows, `{proton:shortcut}/AppData/Roaming/GameA` on a Steam Deck).

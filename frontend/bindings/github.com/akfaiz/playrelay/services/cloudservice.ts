@@ -44,9 +44,10 @@ export function DeleteRemote(name: string): $CancellablePromise<void> {
 }
 
 /**
- * ImportConfig imports remotes from an rclone.conf. If path is empty a file dialog is shown.
+ * ImportConfig imports remotes of supported providers from an rclone.conf.
+ * If path is empty a file dialog is shown.
  */
-export function ImportConfig(path: string): $CancellablePromise<string[] | null> {
+export function ImportConfig(path: string): $CancellablePromise<cloud$0.ImportResult> {
     return $Call.ByID(4163899054, path);
 }
 

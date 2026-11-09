@@ -70,8 +70,11 @@
 
   async function importConf(path: string) {
     try {
-      const names = await CloudService.ImportConfig(path)
-      if (names?.length) app.toast(`Imported ${names.join(', ')}`, 'ok')
+      const res = await CloudService.ImportConfig(path)
+      const imported = res.imported ?? [], skipped = res.skipped ?? []
+      if (imported.length) app.toast(`Imported ${imported.join(', ')}`, 'ok')
+      if (skipped.length) app.toast(`Skipped unsupported: ${skipped.join(', ')}`, 'err')
+      else if (!imported.length && path) app.toast('No remotes found in that file', 'err')
       await load()
     } catch (e) {
       app.toast(errMsg(e), 'err')
@@ -130,7 +133,7 @@
       <label class="field"><span>Remote</span>
         <select bind:value={remote}>
           <option value="">— none (sync disabled) —</option>
-          {#each remotes as r (r.name)}<option value={r.name}>{r.name} ({r.type})</option>{/each}
+          {#each remotes as r (r.name)}<option value={r.name} disabled={!r.supported}>{r.name} ({r.type}{r.supported ? '' : ', unsupported'})</option>{/each}
         </select>
       </label>
       <label class="field"><span>Folder</span><input class="mono" bind:value={root} /></label>
@@ -149,14 +152,14 @@
       <button class="primary" onclick={() => (wizard = 'pick')}>＋ Add remote</button>
     </div>
     {#if remotes.length === 0}
-      <p class="muted">No remotes yet. Add one (Google Drive, OneDrive, Dropbox, S3, WebDAV, SFTP, …) or import your existing rclone config.</p>
+      <p class="muted">No remotes yet. Add one (Google Drive, Dropbox, OneDrive, WebDAV/Nextcloud, SFTP or SMB) or import your existing rclone config.</p>
     {:else}
       <table>
         <tbody>
           {#each remotes as r (r.name)}
             <tr>
               <td><strong>{r.name}</strong> {#if r.name === app.settings?.remote}<span class="badge ok">active</span>{/if}</td>
-              <td class="muted">{r.type}</td>
+              <td class="muted">{r.type} {#if !r.supported}<span class="badge warn" title="This provider isn't included in PlayRelay">unsupported</span>{/if}</td>
               <td class="right"><button class="ghost danger small" onclick={() => del(r)}>Delete</button></td>
             </tr>
           {/each}
