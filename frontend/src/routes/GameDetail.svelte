@@ -10,6 +10,7 @@
   const g = $derived(app.game(id))
   const status = $derived(app.status[id])
   const prog = $derived(app.progress[id])
+  const pct = (p: typeof prog) => (p?.totalBytes ? Math.min(100, (100 * p.bytes) / p.totalBytes) : 0)
 
   let busy = $state('')
   let plan = $state<PlanView | null>(null)
@@ -32,6 +33,11 @@
 
   async function run(label: string, fn: () => Promise<any>) {
     busy = label
+    if (label === 'sync' || label === 'restore') {
+      const rest = { ...app.progress }
+      delete rest[id]
+      app.progress = rest
+    }
     try {
       return await fn()
     } catch (e) {
@@ -136,9 +142,18 @@
             </div>
             {#if status.phase !== 'playing'}
               <div class="progress" class:indeterminate={!prog?.totalBytes}>
-                <div style="width:{prog?.totalBytes ? (100 * prog.bytes) / prog.totalBytes : 0}%"></div>
+                <div style="width:{pct(prog)}%"></div>
               </div>
             {/if}
+          </div>
+        {:else if busy === 'sync' || busy === 'restore'}
+          <div class="session card">
+            <div class="row small"><strong>{prog?.message || (busy === 'restore' ? 'Restoring backup…' : 'Syncing…')}</strong><span class="spacer"></span>
+              {#if prog?.totalBytes}<span class="muted">{formatBytes(prog.bytes)} / {formatBytes(prog.totalBytes)} · {Math.round(pct(prog))}%</span>{/if}
+            </div>
+            <div class="progress" class:indeterminate={!prog?.totalBytes}>
+              <div style="width:{pct(prog)}%"></div>
+            </div>
           </div>
         {/if}
       </div>
@@ -171,7 +186,7 @@
               <div class="sides small">
                 <div><div class="muted">This device</div>{plan.local.files} files · {formatBytes(plan.local.bytes)}<br />modified {fmtDate(plan.local.newest)}</div>
                 <div><div class="muted">Cloud {plan.remote.deviceName ? `(from ${plan.remote.deviceName})` : ''}</div>
-                  {#if plan.hasRemote}{plan.remote.files} files · {formatBytes(plan.remote.bytes)}<br />uploaded {fmtDate(plan.remote.time)}{:else}empty{/if}</div>
+                  {#if plan.hasRemote}{plan.remote.files} files · {formatBytes(plan.remote.bytes)}<br />uploaded {fmtDate(plan.remote.time)}{:else}no PlayRelay saves for this game yet{/if}</div>
               </div>
               {#if plan.action === 'conflict' || g.status.conflict}
                 <div class="row">
