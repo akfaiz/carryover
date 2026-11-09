@@ -200,7 +200,7 @@
           <button class="ghost small" onclick={() => (showAll = true)}>Show all options</button>
         {/if}
         {#if prov.oauth}<p class="small muted">After you continue, your browser opens to sign in. Come back here when done.</p>{/if}
-        {#if wizErr}<p class="err small">{wizErr}</p>{/if}
+        {#if wizErr}<p class="err small pre">{wizErr}</p>{/if}
         <div class="row end">
           <button onclick={() => (wizard = 'pick')}>Back</button>
           <button class="primary" onclick={create} disabled={!newName.trim()}>Continue</button>
@@ -209,7 +209,7 @@
         <h2>{prov?.description}</h2>
         <p class="pre">{question.help}</p>
         {#if question.isBool}
-          {#if wizErr}<p class="err small">{wizErr}</p>{/if}
+          {#if wizErr}<p class="err small pre">{wizErr}</p>{/if}
           <div class="row end">
             <button onclick={() => reply('false')}>No</button>
             <button class="primary" onclick={() => reply('true')}>Yes</button>
@@ -221,7 +221,7 @@
             <input type={question.isPassword ? 'password' : 'text'} bind:value={answer} list="q-ex" />
             {#if question.examples?.length}<datalist id="q-ex">{#each question.examples as ex (ex.value)}<option value={ex.value}>{ex.help}</option>{/each}</datalist>{/if}
           {/if}
-          {#if wizErr}<p class="err small">{wizErr}</p>{/if}
+          {#if wizErr}<p class="err small pre">{wizErr}</p>{/if}
           <div class="row end" style="margin-top:1em">
             <button onclick={() => (wizard = 'closed')}>Cancel</button>
             <button class="primary" onclick={() => reply(answer)}>Continue</button>

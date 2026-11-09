@@ -206,11 +206,16 @@ func CreateRemote(ctx context.Context, name, typ string, params map[string]strin
 			kv[k] = v
 		}
 	}
+	if usesOAuth(typ) {
+		if err := CheckOAuthPort(); err != nil {
+			return nil, err
+		}
+	}
 	configMu.Lock()
 	defer configMu.Unlock()
 	out, err := config.CreateRemote(ctx, name, typ, kv, config.UpdateRemoteOpt{NonInteractive: true, Obscure: true})
 	if err != nil {
-		return nil, err
+		return nil, explainOAuthError(err)
 	}
 	return toQuestion(out), nil
 }
@@ -223,9 +228,13 @@ func ContinueRemote(ctx context.Context, name, state, result string) (*Question,
 		NonInteractive: true, Continue: true, State: state, Result: result, Obscure: true,
 	})
 	if err != nil {
-		return nil, err
+		return nil, explainOAuthError(err)
 	}
-	return toQuestion(out), nil
+	q := toQuestion(out)
+	if q.Error != "" {
+		q.Error = explainOAuthError(errors.New(q.Error)).Error()
+	}
+	return q, nil
 }
 
 // ImportConfig copies remotes from an existing rclone.conf file into PlayRelay's config.
