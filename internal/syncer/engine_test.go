@@ -239,3 +239,33 @@ func TestLocalLock(t *testing.T) {
 		t.Fatal(err)
 	}
 }
+
+// Save-path suggestions turn "<winAppData>/Game/<storeUserId>" into the folder
+// plus include ["*", "*/**"]; files inside the per-user folder must sync.
+func TestWildcardFolderFilters(t *testing.T) {
+	cloudDir := setupCloud(t)
+	pc, job := newDevice(t, cloudDir, "pc")
+	saves := job.Slots[0].LocalPath
+	job.Slots[0].Filters = cloud.Filters{Include: []string{"*", "*/**", "*.sav", "*.sav/**"}}
+	write(t, filepath.Join(saves, "76561198000000000"), "ER0000.sl2", "elden")
+	write(t, saves, "top.sav", "top")
+	mustSync(t, pc, job, ResolveAuto, ActionPush)
+	for _, rel := range []string{"76561198000000000/ER0000.sl2", "top.sav"} {
+		if _, err := os.Stat(filepath.Join(cloudDir, "games", "game1", "current", "saves", filepath.FromSlash(rel))); err != nil {
+			t.Errorf("%s not uploaded: %v", rel, err)
+		}
+	}
+
+	// A file-only pattern must not pull in unrelated folders.
+	pc2, job2 := newDevice(t, setupCloud(t), "pc2")
+	job2.Slots[0].Filters = cloud.Filters{Include: []string{"*/*.sav", "*/*.sav/**"}}
+	write(t, filepath.Join(job2.Slots[0].LocalPath, "slot1"), "a.sav", "x")
+	write(t, filepath.Join(job2.Slots[0].LocalPath, "slot1"), "shader.cache", "y")
+	p, err := pc2.Plan(context.Background(), job2)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := p.Local.Files["saves/slot1/a.sav"]; !ok || len(p.Local.Files) != 1 {
+		t.Fatalf("unexpected files: %v", p.Local.Files)
+	}
+}

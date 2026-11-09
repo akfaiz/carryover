@@ -51,14 +51,18 @@ type DeviceConfig struct {
 
 // Game is a library entry.
 type Game struct {
-	ID        string                  `json:"id"`
-	Name      string                  `json:"name"`
-	Cover     string                  `json:"cover"` // file name in the covers dir
-	Slots     []SaveSlot              `json:"slots"`
-	Devices   map[string]DeviceConfig `json:"devices"`
-	Deleted   bool                    `json:"deleted,omitempty"`
-	CreatedAt time.Time               `json:"createdAt"`
-	UpdatedAt time.Time               `json:"updatedAt"`
+	ID    string `json:"id"`
+	Name  string `json:"name"`
+	Cover string `json:"cover"` // file name in the covers dir
+	// StoreAppID is the game's Steam store app id (if it exists on Steam),
+	// used for its title and cover art. Shared across devices. Not to be
+	// confused with DeviceConfig.SteamAppID, the per-device shortcut id.
+	StoreAppID string                  `json:"storeAppId,omitempty"`
+	Slots      []SaveSlot              `json:"slots"`
+	Devices    map[string]DeviceConfig `json:"devices"`
+	Deleted    bool                    `json:"deleted,omitempty"`
+	CreatedAt  time.Time               `json:"createdAt"`
+	UpdatedAt  time.Time               `json:"updatedAt"`
 }
 
 // Device returns the config for a device (zero value if missing).

@@ -23,8 +23,12 @@ export type {
     GameView,
     PlanView,
     Prompt,
+    SaveSuggestion,
     Status,
     SteamInfo,
+    SteamLibraryGame,
+    SuggestInput,
+    SuggestResult,
     SyncResult,
     WrapperState
 } from "./models.js";

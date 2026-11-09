@@ -8,6 +8,7 @@ require (
 	github.com/shirou/gopsutil/v4 v4.26.10
 	github.com/wailsapp/wails/v3 v3.1.0
 	golang.org/x/sys v0.49.0
+	gopkg.in/yaml.v3 v3.0.1
 )
 
 require (
@@ -97,6 +98,5 @@ require (
 	google.golang.org/grpc v1.84.0 // indirect
 	google.golang.org/protobuf v1.36.12 // indirect
 	gopkg.in/natefinch/lumberjack.v2 v2.2.1 // indirect
-	gopkg.in/yaml.v3 v3.0.1 // indirect
 	moul.io/http2curl/v2 v2.3.0 // indirect
 )

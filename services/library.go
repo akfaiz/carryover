@@ -1,19 +1,28 @@
 package services
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"io"
+	"io/fs"
 	"net/http"
 	"os"
+	"path"
 	"path/filepath"
+	"runtime"
+	"sort"
 	"strings"
+	"time"
 
 	"github.com/wailsapp/wails/v3/pkg/application"
 
 	"github.com/akfaiz/playrelay/internal/core"
 	"github.com/akfaiz/playrelay/internal/library"
+	"github.com/akfaiz/playrelay/internal/ludusavi"
 	"github.com/akfaiz/playrelay/internal/pathvar"
+	"github.com/akfaiz/playrelay/internal/steam"
+	"github.com/akfaiz/playrelay/internal/steamstore"
 )
 
 // LibraryService manages games.
@@ -41,6 +50,7 @@ type GameView struct {
 	ID            string               `json:"id"`
 	Name          string               `json:"name"`
 	CoverURL      string               `json:"coverUrl"`
+	StoreAppID    string               `json:"storeAppId"`
 	Slots         []library.SaveSlot   `json:"slots"`
 	Device        library.DeviceConfig `json:"device"`
 	HasDevice     bool                 `json:"hasDevice"`
@@ -63,7 +73,7 @@ func (s *LibraryService) view(g library.Game) GameView {
 	devID := s.c.DeviceID()
 	d, has := g.Device(devID)
 	v := GameView{
-		ID: g.ID, Name: g.Name, Slots: g.Slots, Device: d, HasDevice: has,
+		ID: g.ID, Name: g.Name, StoreAppID: g.StoreAppID, Slots: g.Slots, Device: d, HasDevice: has,
 		ResolvedPaths: map[string]string{}, PathErrors: map[string]string{},
 	}
 	if v.Slots == nil {
@@ -149,10 +159,12 @@ func (s *LibraryService) Get(id string) (GameView, error) {
 
 // GameInput is the editable part of a game: shared fields plus this device's config.
 type GameInput struct {
-	ID     string             `json:"id"`
-	Name   string             `json:"name"`
-	Slots  []library.SaveSlot `json:"slots"`
-	Device DeviceInput        `json:"device"`
+	ID   string `json:"id"`
+	Name string `json:"name"`
+	// StoreAppID optionally links the game to its Steam store entry.
+	StoreAppID string             `json:"storeAppId"`
+	Slots      []library.SaveSlot `json:"slots"`
+	Device     DeviceInput        `json:"device"`
 }
 
 // DeviceInput is the editor's view of this device's config. Server-managed
@@ -171,7 +183,11 @@ type DeviceInput struct {
 // Save creates or updates a game.
 func (s *LibraryService) Save(in GameInput) (GameView, error) {
 	devID := s.c.DeviceID()
-	g := library.Game{ID: in.ID, Name: strings.TrimSpace(in.Name), Slots: in.Slots}
+	in.StoreAppID = strings.TrimSpace(in.StoreAppID)
+	if in.StoreAppID != "" && !steamstore.ValidAppID(in.StoreAppID) {
+		return GameView{}, fmt.Errorf("invalid Steam app id %q", in.StoreAppID)
+	}
+	g := library.Game{ID: in.ID, Name: strings.TrimSpace(in.Name), StoreAppID: in.StoreAppID, Slots: in.Slots}
 	d := library.DeviceConfig{
 		Paths: in.Device.Paths, Exe: strings.TrimSpace(in.Device.Exe), Args: in.Device.Args,
 		WorkDir: strings.TrimSpace(in.Device.WorkDir), Env: in.Device.Env,
@@ -333,4 +349,234 @@ func CoversHandler(c *core.Core, next http.Handler) http.Handler {
 		}
 		next.ServeHTTP(w, r)
 	})
+}
+
+// SearchSteam looks up games on the Steam store by name, for filling in a
+// game's title and cover.
+func (s *LibraryService) SearchSteam(term string) ([]steamstore.Match, error) {
+	term = strings.TrimSpace(term)
+	if len(term) < 2 {
+		return []steamstore.Match{}, nil
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	return steamstore.Search(ctx, term)
+}
+
+// SteamLibraryGame is a game installed through Steam on this device.
+type SteamLibraryGame struct {
+	steam.InstalledApp
+	// GameID is set when the library already has a game linked to this app.
+	GameID string `json:"gameId"`
+}
+
+// SteamLibrary lists games installed through Steam on this device.
+func (s *LibraryService) SteamLibrary() []SteamLibraryGame {
+	linked := map[string]string{}
+	for _, g := range s.c.Library.List() {
+		if g.StoreAppID != "" {
+			linked[g.StoreAppID] = g.ID
+		}
+	}
+	out := []SteamLibraryGame{}
+	for _, a := range steam.InstalledApps(s.c.SteamRoot()) {
+		out = append(out, SteamLibraryGame{InstalledApp: a, GameID: linked[a.AppID]})
+	}
+	return out
+}
+
+// FetchSteamCover downloads the game's cover from Steam (local Steam cache
+// first, then Steam's CDN) using its store app id.
+func (s *LibraryService) FetchSteamCover(id string) (GameView, error) {
+	g, err := s.c.Library.Get(id)
+	if err != nil {
+		return GameView{}, err
+	}
+	if g.StoreAppID == "" {
+		return GameView{}, errors.New("link the game to Steam first")
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	data, err := steamstore.Cover(ctx, s.c.SteamRoot(), g.StoreAppID)
+	if errors.Is(err, steamstore.ErrNotFound) {
+		return GameView{}, errors.New("no cover art on Steam for this game")
+	}
+	if err != nil {
+		return GameView{}, fmt.Errorf("download cover from Steam: %w", err)
+	}
+	if g.Cover != "" {
+		_ = os.Remove(filepath.Join(s.c.Dirs.CoversDir(), g.Cover))
+	}
+	name := g.ID + ".jpg"
+	if err := os.WriteFile(filepath.Join(s.c.Dirs.CoversDir(), name), data, 0o644); err != nil {
+		return GameView{}, err
+	}
+	g.Cover = name
+	saved, err := s.c.Library.Save(g, "")
+	if err != nil {
+		return GameView{}, err
+	}
+	emit(EventLibrary, saved.ID)
+	return s.view(saved), nil
+}
+
+// SuggestInput is the editor's current view of a game (it may not be saved yet).
+type SuggestInput struct {
+	GameID     string             `json:"gameId"`
+	Name       string             `json:"name"`
+	StoreAppID string             `json:"storeAppId"`
+	Exe        string             `json:"exe"`
+	LaunchMode library.LaunchMode `json:"launchMode"`
+}
+
+// SaveSuggestion is a suggested save location, checked on this device.
+type SaveSuggestion struct {
+	ludusavi.Suggestion
+	Resolved string `json:"resolved"` // absolute path on this device
+	Exists   bool   `json:"exists"`
+	Files    int    `json:"files"`
+	Bytes    int64  `json:"bytes"`
+	Newest   string `json:"newest"`
+}
+
+// SuggestResult lists save locations from the Ludusavi manifest.
+type SuggestResult struct {
+	Matched     string           `json:"matched"` // manifest game name; "" if unknown
+	Suggestions []SaveSuggestion `json:"suggestions"`
+}
+
+// SuggestSaves looks the game up in the Ludusavi manifest and returns its save
+// locations for this device, existing folders first.
+func (s *LibraryService) SuggestSaves(in SuggestInput) (SuggestResult, error) {
+	res := SuggestResult{Suggestions: []SaveSuggestion{}}
+	g, err := ludusavi.Find(strings.TrimSpace(in.StoreAppID), in.Name)
+	if err != nil || g == nil {
+		return res, err
+	}
+	res.Matched = g.Name
+
+	steamRoot := s.c.SteamRoot()
+	env := ludusavi.Env{GOOS: runtime.GOOS}
+	if steamRoot != "" {
+		env.SteamRoot = "{steam}"
+	}
+	pctx := pathvar.Context{SteamRoot: steamRoot}
+	var dev library.DeviceConfig
+	if game, err := s.c.Library.Get(in.GameID); err == nil {
+		pctx = s.c.PathContext(game)
+		dev, _ = game.Device(s.c.DeviceID())
+	}
+	// Install folder: Steam's, if the game is installed through Steam here;
+	// otherwise the executable's folder.
+	var steamInstalled bool
+	if in.StoreAppID != "" {
+		for _, a := range steam.InstalledApps(steamRoot) {
+			if a.AppID == in.StoreAppID {
+				env.InstallDir, steamInstalled = a.InstallDir, true
+				break
+			}
+		}
+	}
+	if env.InstallDir == "" && strings.TrimSpace(in.Exe) != "" {
+		if exe, err := pctx.Expand(in.Exe); err == nil && filepath.IsAbs(exe) {
+			env.InstallDir = filepath.Dir(exe)
+		}
+	}
+	if env.InstallDir != "" {
+		env.InstallDir = pctx.Contract(env.InstallDir) // e.g. {steam}/steamapps/common/Game
+	}
+	if runtime.GOOS == "linux" {
+		// A game Steam installed runs in its own app id's prefix; anything else
+		// runs through PlayRelay's non-Steam shortcut.
+		env.Proton = "{proton:shortcut}"
+		if steamInstalled && dev.SteamAppID == "" {
+			env.Proton = "{proton:" + in.StoreAppID + "}"
+		}
+	}
+
+	for _, sg := range ludusavi.Suggest(g, env) {
+		out := SaveSuggestion{Suggestion: sg}
+		if out.Include == nil {
+			out.Include = []string{}
+		}
+		if p, err := pctx.Expand(sg.Path); err == nil {
+			out.Resolved = p
+			out.Exists, out.Files, out.Bytes, out.Newest = scanFolder(p, sg.Include)
+		}
+		res.Suggestions = append(res.Suggestions, out)
+	}
+	sort.SliceStable(res.Suggestions, func(i, j int) bool {
+		a, b := res.Suggestions[i], res.Suggestions[j]
+		if a.Files > 0 != (b.Files > 0) {
+			return a.Files > 0
+		}
+		if a.Exists != b.Exists {
+			return a.Exists
+		}
+		// Unlikely locations last: the Microsoft Store version's folder, and
+		// Steam Cloud's own folder (Steam already syncs that one).
+		if a.MSStore != b.MSStore {
+			return !a.MSStore
+		}
+		return a.Kind != ludusavi.KindSteamCloud && b.Kind == ludusavi.KindSteamCloud
+	})
+	return res, nil
+}
+
+// scanFolder reports whether dir exists and counts matching files (bounded).
+func scanFolder(dir string, include []string) (exists bool, files int, bytes int64, newest string) {
+	fi, err := os.Stat(dir)
+	if err != nil || !fi.IsDir() {
+		return false, 0, 0, ""
+	}
+	var newestT time.Time
+	_ = filepath.WalkDir(dir, func(p string, d fs.DirEntry, walkErr error) error {
+		// Unreadable entries are skipped: this is only a preview.
+		if walkErr != nil || d.IsDir() || files >= 5000 {
+			return nil //nolint:nilerr // best-effort preview
+		}
+		rel, _ := filepath.Rel(dir, p)
+		rel = filepath.ToSlash(rel)
+		if len(include) > 0 && !matchesAny(include, rel) {
+			return nil
+		}
+		info, infoErr := d.Info()
+		if infoErr != nil {
+			return nil //nolint:nilerr // best-effort preview
+		}
+		files++
+		bytes += info.Size()
+		if info.ModTime().After(newestT) {
+			newestT = info.ModTime()
+		}
+		return nil
+	})
+	return true, files, bytes, fmtTime(newestT)
+}
+
+// matchesAny is a light approximation of rclone include globs for previews.
+func matchesAny(globs []string, rel string) bool {
+	for _, g := range globs {
+		if prefix, ok := strings.CutSuffix(g, "/**"); ok {
+			if ok, _ := path.Match(prefix, firstSegments(rel, strings.Count(g, "/"))); ok {
+				return true
+			}
+			continue
+		}
+		if ok, _ := path.Match(g, rel); ok {
+			return true
+		}
+		if ok, _ := path.Match(g, path.Base(rel)); ok && !strings.Contains(g, "/") {
+			return true
+		}
+	}
+	return false
+}
+
+func firstSegments(rel string, n int) string {
+	parts := strings.Split(rel, "/")
+	if len(parts) > n {
+		parts = parts[:n]
+	}
+	return strings.Join(parts, "/")
 }

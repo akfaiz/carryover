@@ -240,7 +240,7 @@
             {#if steam.running}<p class="small warn">Steam is running — restart it after adding so it picks up the change.</p>{/if}
           {/if}
           {#if wrapOpts}
-            <details>
+            <details open={!!g.storeAppId && g.device.launchMode === 'steamwrap'}>
               <summary class="small muted">Already own it on Steam?</summary>
               <p class="small muted">Paste this into the game's Steam launch options to sync around Steam's own launch:</p>
               <div class="row nowrap"><input class="mono small" readonly value={wrapOpts} /><button onclick={() => copy(wrapOpts)}>Copy</button></div>

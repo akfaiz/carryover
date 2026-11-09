@@ -11,6 +11,11 @@ SFTP and SMB. UI built with [Wails v3](https://github.com/wailsapp/wails) + Svel
   is `playrelay run <game>`, so saves are pulled before and pushed after every session, even in Game Mode.
 - **Safe conflicts** — if saves changed on both sides, you choose which to keep; the other side is
   always backed up in the cloud (`games/<id>/backups/`, last N kept) and can be restored.
+- **Title & cover from Steam** — "Find on Steam" fills in the official title and portrait cover (Steam's
+  local cache first, then its CDN); "Add from Steam" imports games installed through Steam.
+- **Save locations suggested** — known save folders for ~21,000 games (from the Ludusavi manifest),
+  translated for each device: Windows folders on a PC, the Proton prefix or native Linux folders on
+  a Steam Deck. Folders that already hold saves are found and shown first.
 - **Shared library** — the game list syncs between devices; a game added on PC shows up on the Deck
   as "needs setup".
 
@@ -62,3 +67,10 @@ go test ./...
 Code map: `internal/syncer` (decision engine, backups), `internal/cloud` (rclone wrapper),
 `internal/steam` (VDF + shortcuts), `internal/pathvar`, `internal/library`, `internal/core`
 (play session), `services/` (Wails bindings), `frontend/src` (Svelte).
+
+## Credits
+
+- The Steam cover lookup (local library cache, CDN host fallbacks, store API quirks) is adapted from
+  [OpenSave](https://github.com/Liquid-co/OpenSave) (MIT).
+- Save locations come from the [Ludusavi manifest](https://github.com/mtkennerly/ludusavi-manifest)
+  (MIT), compiled from [PCGamingWiki](https://www.pcgamingwiki.com/).

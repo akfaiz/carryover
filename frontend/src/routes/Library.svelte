@@ -3,6 +3,9 @@
   import { SessionService, SyncService, errMsg, timeAgo } from '../lib/api'
   import type { GameView } from '../lib/api'
   import StatusBadge from '../components/StatusBadge.svelte'
+  import SteamImport from '../components/SteamImport.svelte'
+
+  let importing = $state(false)
 
   let filter = $state('')
   let syncingAll = $state(false)
@@ -45,6 +48,7 @@
     <button onclick={syncAll} disabled={syncingAll || !app.settings?.remote}>
       {syncingAll ? 'Syncing…' : '⟳ Sync all'}
     </button>
+    <button onclick={() => (importing = true)}>Add from Steam</button>
     <button class="primary" onclick={() => go('/new')}>＋ Add game</button>
   </div>
 
@@ -84,6 +88,8 @@
     {/each}
   </div>
 </div>
+
+{#if importing}<SteamImport onclose={() => (importing = false)} />{/if}
 
 <style>
   .search { max-width: 260px; }

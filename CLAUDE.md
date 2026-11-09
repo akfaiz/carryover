@@ -10,6 +10,7 @@ PlayRelay: Wails v3 (Go) + Svelte 5/TypeScript desktop game launcher that syncs 
 - Dev: `wails3 dev`
 - Regenerate TS bindings after changing anything in `services/` or types they return: `wails3 generate bindings -clean=true -ts -i` (same flags as `wails3 build`; without `-i` the generated types differ and `npm run check` can pass while the real build fails)
 - Frontend: `cd frontend && npm run check && npm run lint`
+- Ludusavi save-path index (`internal/ludusavi/index.json.gz`, embedded) is generated: `go run ./internal/ludusavi/gen` downloads the manifest and rebuilds it. Don't edit it by hand.
 - Go: `golangci-lint run ./...` (config in `.golangci.yml`; `golangci-lint fmt ./...` fixes formatting/imports) and `go test ./...` (syncer tests use a temp-dir `local` remote — no network)
 
 ## Gotchas

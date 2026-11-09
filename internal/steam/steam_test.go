@@ -101,3 +101,28 @@ func TestTextVDF(t *testing.T) {
 		t.Fatalf("got %q", lf.Child("1").Get("path"))
 	}
 }
+
+func TestInstalledApps(t *testing.T) {
+	root := t.TempDir()
+	steamapps := filepath.Join(root, "steamapps")
+	if err := os.MkdirAll(steamapps, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	write := func(id, name, dir string) {
+		acf := "\"AppState\"\n{\n\t\"appid\"\t\t\"" + id + "\"\n\t\"name\"\t\t\"" + name + "\"\n\t\"installdir\"\t\t\"" + dir + "\"\n}\n"
+		if err := os.WriteFile(filepath.Join(steamapps, "appmanifest_"+id+".acf"), []byte(acf), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	write("367520", "Hollow Knight", "Hollow Knight")
+	write("1493710", "Proton Experimental", "Proton - Experimental")
+	write("228980", "Steamworks Common Redistributables", "Steamworks Shared")
+	write("105600", "Terraria", "Terraria")
+	apps := InstalledApps(root)
+	if len(apps) != 2 || apps[0].Name != "Hollow Knight" || apps[1].AppID != "105600" {
+		t.Fatalf("apps = %+v", apps)
+	}
+	if apps[0].InstallDir != filepath.Join(steamapps, "common", "Hollow Knight") {
+		t.Fatalf("install dir = %q", apps[0].InstallDir)
+	}
+}

@@ -9,6 +9,9 @@ export type {
   GameView,
   GameInput,
   DeviceInput,
+  SteamLibraryGame,
+  SaveSuggestion,
+  SuggestResult,
   Prompt,
   Status,
   PlanView,
@@ -18,6 +21,7 @@ export type {
 export type { Settings } from '../../bindings/github.com/akfaiz/playrelay/internal/appdir/models'
 export type { Provider, ProviderOption, Question, Remote } from '../../bindings/github.com/akfaiz/playrelay/internal/cloud/models'
 export type { SaveSlot, DeviceConfig } from '../../bindings/github.com/akfaiz/playrelay/internal/library/models'
+export type { Match as SteamMatch } from '../../bindings/github.com/akfaiz/playrelay/internal/steamstore/models'
 export type { Token } from '../../bindings/github.com/akfaiz/playrelay/internal/pathvar/models'
 export type { Backup, Event as SyncEvent, Summary } from '../../bindings/github.com/akfaiz/playrelay/internal/syncer/models'
 export * as Ev from '../../bindings/events'

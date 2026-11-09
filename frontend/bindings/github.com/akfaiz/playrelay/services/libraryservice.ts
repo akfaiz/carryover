@@ -13,6 +13,9 @@ import { Call as $Call, CancellablePromise as $CancellablePromise } from "@wails
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore: Unused imports
 import * as pathvar$0 from "../internal/pathvar/models.js";
+// eslint-disable-next-line @typescript-eslint/ban-ts-comment
+// @ts-ignore: Unused imports
+import * as steamstore$0 from "../internal/steamstore/models.js";
 
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore: Unused imports
@@ -30,6 +33,14 @@ export function ContractPath(p: string): $CancellablePromise<string> {
  */
 export function Delete(id: string): $CancellablePromise<void> {
     return $Call.ByID(2684387772, id);
+}
+
+/**
+ * FetchSteamCover downloads the game's cover from Steam (local Steam cache
+ * first, then Steam's CDN) using its store app id.
+ */
+export function FetchSteamCover(id: string): $CancellablePromise<$models.GameView> {
+    return $Call.ByID(407412254, id);
 }
 
 /**
@@ -82,10 +93,33 @@ export function Save($in: $models.GameInput): $CancellablePromise<$models.GameVi
 }
 
 /**
+ * SearchSteam looks up games on the Steam store by name, for filling in a
+ * game's title and cover.
+ */
+export function SearchSteam(term: string): $CancellablePromise<steamstore$0.Match[] | null> {
+    return $Call.ByID(2759122549, term);
+}
+
+/**
  * SetCover copies an image file as the game's cover.
  */
 export function SetCover(id: string, src: string): $CancellablePromise<$models.GameView> {
     return $Call.ByID(2846721248, id, src);
+}
+
+/**
+ * SteamLibrary lists games installed through Steam on this device.
+ */
+export function SteamLibrary(): $CancellablePromise<$models.SteamLibraryGame[] | null> {
+    return $Call.ByID(1909212496);
+}
+
+/**
+ * SuggestSaves looks the game up in the Ludusavi manifest and returns its save
+ * locations for this device, existing folders first.
+ */
+export function SuggestSaves($in: $models.SuggestInput): $CancellablePromise<$models.SuggestResult> {
+    return $Call.ByID(172840623, $in);
 }
 
 /**

@@ -50,6 +50,8 @@
         {#key parts[1]}<GameDetail id={parts[1]} />{/key}
       {:else if section === 'edit' && parts[1]}
         {#key parts[1]}<GameEditor id={parts[1]} />{/key}
+      {:else if section === 'new' && parts[1] === 'steam' && parts[2]}
+        {#key parts[2]}<GameEditor id="" steamAppId={parts[2]} />{/key}
       {:else if section === 'new'}
         <GameEditor id="" />
       {:else if section === 'cloud'}

@@ -49,6 +49,11 @@ export interface DevicePaths {
 export interface GameInput {
     "id": string;
     "name": string;
+
+    /**
+     * StoreAppID optionally links the game to its Steam store entry.
+     */
+    "storeAppId": string;
     "slots": library$0.SaveSlot[] | null;
     "device": DeviceInput;
 }
@@ -71,6 +76,7 @@ export interface GameView {
     "id": string;
     "name": string;
     "coverUrl": string;
+    "storeAppId": string;
     "slots": library$0.SaveSlot[] | null;
     "device": library$0.DeviceConfig;
     "hasDevice": boolean;
@@ -119,6 +125,41 @@ export interface Prompt {
 }
 
 /**
+ * SaveSuggestion is a suggested save location, checked on this device.
+ */
+export interface SaveSuggestion {
+    /**
+     * directory, may contain PlayRelay tokens
+     */
+    "path": string;
+
+    /**
+     * file filters relative to Path; empty = whole folder
+     */
+    "include": string[] | null;
+    "kind": string;
+
+    /**
+     * only used by the Microsoft Store / Game Pass version
+     */
+    "msStore": boolean;
+
+    /**
+     * original manifest templates
+     */
+    "sources": string[] | null;
+
+    /**
+     * absolute path on this device
+     */
+    "resolved": string;
+    "exists": boolean;
+    "files": number;
+    "bytes": number;
+    "newest": string;
+}
+
+/**
  * Status is a play-session status update.
  */
 export interface Status {
@@ -141,6 +182,46 @@ export interface SteamInfo {
     "users": steam$0.User[] | null;
     "running": boolean;
     "os": string;
+}
+
+/**
+ * SteamLibraryGame is a game installed through Steam on this device.
+ */
+export interface SteamLibraryGame {
+    "appId": string;
+    "name": string;
+
+    /**
+     * absolute path
+     */
+    "installDir": string;
+
+    /**
+     * GameID is set when the library already has a game linked to this app.
+     */
+    "gameId": string;
+}
+
+/**
+ * SuggestInput is the editor's current view of a game (it may not be saved yet).
+ */
+export interface SuggestInput {
+    "gameId": string;
+    "name": string;
+    "storeAppId": string;
+    "exe": string;
+    "launchMode": library$0.LaunchMode;
+}
+
+/**
+ * SuggestResult lists save locations from the Ludusavi manifest.
+ */
+export interface SuggestResult {
+    /**
+     * manifest game name; "" if unknown
+     */
+    "matched": string;
+    "suggestions": SaveSuggestion[] | null;
 }
 
 /**
