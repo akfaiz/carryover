@@ -88,8 +88,13 @@ tasks:
       - docker run --rm -v "{{.ROOT_DIR}}:/app" {{.DOCKER_MOUNTS}} -e APP_NAME="{{.APP_NAME}}" {{if .EXTRA_TAGS}}-e EXTRA_TAGS="{{.EXTRA_TAGS}}"{{end}} {{if eq .OBFUSCATED "true"}}-e OBFUSCATED=true{{end}} {{if .GARBLE_ARGS}}-e GARBLE_ARGS="{{.GARBLE_ARGS}}"{{end}} "{{.CROSS_IMAGE}}" linux {{.DOCKER_ARCH}}
       - cmd: docker run --rm -v "{{.ROOT_DIR}}:/app" alpine chown -R $(id -u):$(id -g) /app/bin
         platforms: [linux, darwin]
-      - mkdir -p {{.BIN_DIR}}
-      - mv "bin/{{.APP_NAME}}-linux-{{.DOCKER_ARCH}}" "{{.OUTPUT}}"
+      - cmd: mkdir -p {{.BIN_DIR}}
+        platforms: [linux, darwin]
+      - cmd: mv "bin/{{.APP_NAME}}-linux-{{.DOCKER_ARCH}}" "{{.OUTPUT}}"
+        platforms: [linux, darwin]
+      # Windows hosts have no mkdir -p / mv in Task's shell.
+      - cmd: powershell -NoProfile -Command "Move-Item -Force 'bin/{{.APP_NAME}}-linux-{{.DOCKER_ARCH}}' '{{.OUTPUT}}'"
+        platforms: [windows]
     vars:
       DOCKER_ARCH: '{{.ARCH | default "amd64"}}'
       DEFAULT_OUTPUT: '{{.BIN_DIR}}/{{.APP_NAME}}'
@@ -169,7 +174,10 @@ tasks:
     summary: Generates a `.desktop` file
     dir: build
     cmds:
-      - mkdir -p {{.ROOT_DIR}}/build/linux/appimage
+      - cmd: mkdir -p {{.ROOT_DIR}}/build/linux/appimage
+        platforms: [linux, darwin]
+      - cmd: powershell -NoProfile -Command "New-Item -ItemType Directory -Force '{{.ROOT_DIR}}/build/linux/appimage' | Out-Null"
+        platforms: [windows]
       - wails3 generate .desktop -name "{{.APP_NAME}}" -exec "{{.EXEC}}" -icon "{{.ICON}}" -outputfile "{{.ROOT_DIR}}/build/linux/{{.APP_NAME}}.desktop" -categories "{{.CATEGORIES}}"
     vars:
       APP_NAME: '{{.APP_NAME}}'
