@@ -23,4 +23,10 @@ export interface Settings {
      * mirror library catalog to the cloud
      */
     "syncLibrary": boolean;
+
+    /**
+     * SteamGridDBKey is the user's own SteamGridDB API key (optional), used
+     * to find cover art. Stored only on this device.
+     */
+    "steamGridDbKey"?: string;
 }

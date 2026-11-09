@@ -15,6 +15,9 @@ import { Call as $Call, CancellablePromise as $CancellablePromise } from "@wails
 import * as pathvar$0 from "../internal/pathvar/models.js";
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore: Unused imports
+import * as steamgrid$0 from "../internal/steamgrid/models.js";
+// eslint-disable-next-line @typescript-eslint/ban-ts-comment
+// @ts-ignore: Unused imports
 import * as steamstore$0 from "../internal/steamstore/models.js";
 
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
@@ -48,6 +51,21 @@ export function FetchSteamCover(id: string): $CancellablePromise<$models.GameVie
  */
 export function Get(id: string): $CancellablePromise<$models.GameView> {
     return $Call.ByID(4248645241, id);
+}
+
+/**
+ * GridCovers lists portrait covers on SteamGridDB, for a SteamGridDB game id
+ * or (when gridGameID is 0) a Steam app id.
+ */
+export function GridCovers(gridGameID: number, steamAppID: string): $CancellablePromise<steamgrid$0.Grid[] | null> {
+    return $Call.ByID(332513259, gridGameID, steamAppID);
+}
+
+/**
+ * HasSteamGridKey reports whether a SteamGridDB API key is configured.
+ */
+export function HasSteamGridKey(): $CancellablePromise<boolean> {
+    return $Call.ByID(3973583830);
 }
 
 /**
@@ -93,6 +111,13 @@ export function Save($in: $models.GameInput): $CancellablePromise<$models.GameVi
 }
 
 /**
+ * SearchGridGames finds games on SteamGridDB by name.
+ */
+export function SearchGridGames(term: string): $CancellablePromise<steamgrid$0.Game[] | null> {
+    return $Call.ByID(938137574, term);
+}
+
+/**
  * SearchSteam looks up games on the Steam store by name, for filling in a
  * game's title and cover.
  */
@@ -108,6 +133,13 @@ export function SetCover(id: string, src: string): $CancellablePromise<$models.G
 }
 
 /**
+ * SetCoverFromURL downloads a SteamGridDB image and makes it the game's cover.
+ */
+export function SetCoverFromURL(id: string, imageURL: string): $CancellablePromise<$models.GameView> {
+    return $Call.ByID(2681569, id, imageURL);
+}
+
+/**
  * SteamLibrary lists games installed through Steam on this device.
  */
 export function SteamLibrary(): $CancellablePromise<$models.SteamLibraryGame[] | null> {
@@ -120,6 +152,13 @@ export function SteamLibrary(): $CancellablePromise<$models.SteamLibraryGame[] |
  */
 export function SuggestSaves($in: $models.SuggestInput): $CancellablePromise<$models.SuggestResult> {
     return $Call.ByID(172840623, $in);
+}
+
+/**
+ * TestSteamGridKey checks a SteamGridDB API key without saving it.
+ */
+export function TestSteamGridKey(key: string): $CancellablePromise<void> {
+    return $Call.ByID(2243889828, key);
 }
 
 /**

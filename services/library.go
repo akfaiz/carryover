@@ -22,6 +22,7 @@ import (
 	"github.com/akfaiz/playrelay/internal/ludusavi"
 	"github.com/akfaiz/playrelay/internal/pathvar"
 	"github.com/akfaiz/playrelay/internal/steam"
+	"github.com/akfaiz/playrelay/internal/steamgrid"
 	"github.com/akfaiz/playrelay/internal/steamstore"
 )
 
@@ -399,15 +400,26 @@ func (s *LibraryService) FetchSteamCover(id string) (GameView, error) {
 	defer cancel()
 	data, err := steamstore.Cover(ctx, s.c.SteamRoot(), g.StoreAppID)
 	if errors.Is(err, steamstore.ErrNotFound) {
+		// Steam has no portrait art; SteamGridDB often does (needs the user's key).
+		if key := s.c.Settings.Get().SteamGridDBKey; key != "" {
+			if grids, gerr := steamgrid.New(key).GridsForSteam(ctx, g.StoreAppID); gerr == nil && len(grids) > 0 {
+				return s.SetCoverFromURL(id, grids[0].URL)
+			}
+		}
 		return GameView{}, errors.New("no cover art on Steam for this game")
 	}
 	if err != nil {
 		return GameView{}, fmt.Errorf("download cover from Steam: %w", err)
 	}
+	return s.storeCover(g, data, ".jpg")
+}
+
+// storeCover saves image bytes as the game's cover, replacing any previous one.
+func (s *LibraryService) storeCover(g library.Game, data []byte, ext string) (GameView, error) {
 	if g.Cover != "" {
 		_ = os.Remove(filepath.Join(s.c.Dirs.CoversDir(), g.Cover))
 	}
-	name := g.ID + ".jpg"
+	name := g.ID + ext
 	if err := os.WriteFile(filepath.Join(s.c.Dirs.CoversDir(), name), data, 0o644); err != nil {
 		return GameView{}, err
 	}
@@ -418,6 +430,73 @@ func (s *LibraryService) FetchSteamCover(id string) (GameView, error) {
 	}
 	emit(EventLibrary, saved.ID)
 	return s.view(saved), nil
+}
+
+func (s *LibraryService) gridClient() (*steamgrid.Client, error) {
+	key := s.c.Settings.Get().SteamGridDBKey
+	if key == "" {
+		return nil, errors.New("add your SteamGridDB API key in Settings first")
+	}
+	return steamgrid.New(key), nil
+}
+
+// HasSteamGridKey reports whether a SteamGridDB API key is configured.
+func (s *LibraryService) HasSteamGridKey() bool {
+	return s.c.Settings.Get().SteamGridDBKey != ""
+}
+
+// TestSteamGridKey checks a SteamGridDB API key without saving it.
+func (s *LibraryService) TestSteamGridKey(key string) error {
+	if strings.TrimSpace(key) == "" {
+		return errors.New("enter an API key")
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	defer cancel()
+	return steamgrid.New(key).Validate(ctx)
+}
+
+// SearchGridGames finds games on SteamGridDB by name.
+func (s *LibraryService) SearchGridGames(term string) ([]steamgrid.Game, error) {
+	c, err := s.gridClient()
+	if err != nil {
+		return nil, err
+	}
+	if strings.TrimSpace(term) == "" {
+		return []steamgrid.Game{}, nil
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	defer cancel()
+	return c.SearchGames(ctx, strings.TrimSpace(term))
+}
+
+// GridCovers lists portrait covers on SteamGridDB, for a SteamGridDB game id
+// or (when gridGameID is 0) a Steam app id.
+func (s *LibraryService) GridCovers(gridGameID int, steamAppID string) ([]steamgrid.Grid, error) {
+	c, err := s.gridClient()
+	if err != nil {
+		return nil, err
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	defer cancel()
+	if gridGameID > 0 {
+		return c.Grids(ctx, gridGameID)
+	}
+	return c.GridsForSteam(ctx, steamAppID)
+}
+
+// SetCoverFromURL downloads a SteamGridDB image and makes it the game's cover.
+func (s *LibraryService) SetCoverFromURL(id, imageURL string) (GameView, error) {
+	g, err := s.c.Library.Get(id)
+	if err != nil {
+		return GameView{}, err
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	defer cancel()
+	data, ext, err := steamgrid.Download(ctx, &http.Client{Timeout: 60 * time.Second}, imageURL)
+	if err != nil {
+		return GameView{}, err
+	}
+	return s.storeCover(g, data, ext)
 }
 
 // SuggestInput is the editor's current view of a game (it may not be saved yet).

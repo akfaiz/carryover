@@ -54,6 +54,9 @@ type Settings struct {
 	RemoteRoot      string `json:"remoteRoot"` // folder inside the remote
 	BackupRetention int    `json:"backupRetention"`
 	SyncLibrary     bool   `json:"syncLibrary"` // mirror library catalog to the cloud
+	// SteamGridDBKey is the user's own SteamGridDB API key (optional), used
+	// to find cover art. Stored only on this device.
+	SteamGridDBKey string `json:"steamGridDbKey,omitempty"`
 }
 
 // CloudBase returns the rclone path of PlayRelay's cloud folder, or "" if no remote is configured.

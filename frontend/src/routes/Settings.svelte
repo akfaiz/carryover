@@ -1,9 +1,25 @@
 <script lang="ts">
   import { app } from '../lib/state.svelte'
-  import { SyncService, errMsg } from '../lib/api'
+  import { LibraryService, SyncService, errMsg } from '../lib/api'
   import type { Settings } from '../lib/api'
 
   let form = $state<Settings | null>(null)
+  let keyTest = $state<{ ok: boolean; msg: string } | null>(null)
+  let testingKey = $state(false)
+
+  async function testKey() {
+    if (!form) return
+    testingKey = true
+    keyTest = null
+    try {
+      await LibraryService.TestSteamGridKey(form.steamGridDbKey ?? '')
+      keyTest = { ok: true, msg: 'Key works.' }
+    } catch (e) {
+      keyTest = { ok: false, msg: errMsg(e) }
+    } finally {
+      testingKey = false
+    }
+  }
   $effect(() => {
     if (app.settings && !form) form = { ...app.settings }
   })
@@ -34,6 +50,21 @@
       <label class="row check"><input type="checkbox" bind:checked={form.syncLibrary} /> Share the game library between devices through the cloud</label>
       <p class="small muted">When enabled, games added on one device appear on the others; each device only needs to set its own paths.</p>
     </div>
+    <div class="card narrow">
+      <h2>Cover art</h2>
+      <label class="field"><span>SteamGridDB API key (optional)</span>
+        <div class="row nowrap">
+          <input type="password" class="mono" autocomplete="off" bind:value={form.steamGridDbKey} placeholder="Paste your key" />
+          <button onclick={testKey} disabled={testingKey || !form.steamGridDbKey}>{testingKey ? 'Testing…' : 'Test'}</button>
+        </div>
+      </label>
+      {#if keyTest}<p class="small" class:ok={keyTest.ok} class:err={!keyTest.ok}>{keyTest.msg}</p>{/if}
+      <p class="small muted">
+        Lets you search community covers for any game, including ones not on Steam, and fills in covers Steam doesn't have.
+        Get a free key at <span class="mono">steamgriddb.com/profile/preferences/api</span> (log in with Steam).
+        The key is stored only on this device.
+      </p>
+    </div>
     <div class="row"><button class="primary" onclick={save}>Save</button></div>
 
     <div class="card narrow cli">
@@ -49,6 +80,7 @@ playrelay list</pre>
 <style>
   .narrow { max-width: 620px; }
   .check { margin-bottom: .4em; }
+  .nowrap { flex-wrap: nowrap; }
   .cli { margin-top: 2em; }
   pre { background: var(--bg); padding: .8em; border-radius: 8px; border: 1px solid var(--line); overflow-x: auto; }
 </style>

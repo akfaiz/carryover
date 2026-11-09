@@ -12,7 +12,9 @@ SFTP and SMB. UI built with [Wails v3](https://github.com/wailsapp/wails) + Svel
 - **Safe conflicts** — if saves changed on both sides, you choose which to keep; the other side is
   always backed up in the cloud (`games/<id>/backups/`, last N kept) and can be restored.
 - **Title & cover from Steam** — "Find on Steam" fills in the official title and portrait cover (Steam's
-  local cache first, then its CDN); "Add from Steam" imports games installed through Steam.
+  local cache first, then its CDN); "Add from Steam" imports games installed through Steam. With
+  your own free [SteamGridDB](https://www.steamgriddb.com) API key (Settings), "Find cover…" searches
+  community covers for any game, and fills in covers Steam doesn't have.
 - **Save locations suggested** — known save folders for ~21,000 games (from the Ludusavi manifest),
   translated for each device: Windows folders on a PC, the Proton prefix or native Linux folders on
   a Steam Deck. Folders that already hold saves are found and shown first.

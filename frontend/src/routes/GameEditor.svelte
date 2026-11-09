@@ -2,8 +2,9 @@
   import { onMount } from 'svelte'
   import { app, go } from '../lib/state.svelte'
   import { LibraryService, errMsg, formatBytes, timeAgo } from '../lib/api'
-  import type { DeviceInput, SaveSuggestion, SteamMatch, SuggestResult, Token } from '../lib/api'
+  import type { DeviceInput, Grid, SaveSuggestion, SteamMatch, SuggestResult, Token } from '../lib/api'
   import PathInput from '../components/PathInput.svelte'
+  import CoverPicker from '../components/CoverPicker.svelte'
 
   // steamAppId pre-fills a new game from the installed Steam library.
   let { id, steamAppId = '' }: { id: string; steamAppId?: string } = $props()
@@ -18,6 +19,10 @@
   let envText = $state('')
   let tokens = $state<Token[]>([])
   let coverSrc = $state('')
+  // A cover chosen on SteamGridDB; downloaded when the game is saved.
+  let gridPick = $state<Grid | null>(null)
+  let pickingCover = $state(false)
+  let hasGridKey = $state(false)
   let coverUrl = $state('')
   let storeAppId = $state('')
   let originalStoreAppId = $state('')
@@ -27,7 +32,7 @@
   let suggest = $state<SuggestResult | null>(null)
   let suggesting = $state(false)
   // Shown when there is no own cover yet but the game is linked to Steam.
-  const steamPreview = $derived(storeAppId && !coverUrl && !coverSrc && !steamPreviewFailed
+  const steamPreview = $derived(storeAppId && !coverUrl && !coverSrc && !gridPick && !steamPreviewFailed
     ? `https://cdn.cloudflare.steamstatic.com/steam/apps/${storeAppId}/library_600x900.jpg` : '')
   let others = $state<{ deviceName: string; paths: Record<string, string | undefined>; exe: string }[]>([])
   let saving = $state(false)
@@ -37,6 +42,7 @@
 
   onMount(async () => {
     tokens = (await LibraryService.Tokens(id)) ?? []
+    hasGridKey = await LibraryService.HasSteamGridKey()
     if (!id) {
       slots = [{ key: 'saves', label: 'Saves', include: '', exclude: '', path: '', isNew: true }]
       if (steamAppId) await prefillFromSteamLibrary(steamAppId)
@@ -184,7 +190,16 @@
 
   async function pickCover() {
     const p = await LibraryService.PickFile('Choose cover image', 'Images', '*.png;*.jpg;*.jpeg;*.webp')
-    if (p) coverSrc = p
+    if (p) {
+      coverSrc = p
+      gridPick = null
+    }
+  }
+
+  function pickGrid(g: Grid) {
+    gridPick = g
+    coverSrc = ''
+    pickingCover = false
   }
 
   async function save() {
@@ -207,6 +222,8 @@
       })
       if (coverSrc) {
         await LibraryService.SetCover(g.id, coverSrc)
+      } else if (gridPick) {
+        await LibraryService.SetCoverFromURL(g.id, gridPick.url).catch((e) => app.toast('Cover: ' + errMsg(e), 'err'))
       } else if (storeAppId && (!coverUrl || storeAppId !== originalStoreAppId)) {
         // Best effort: a missing cover must not block saving the game.
         await LibraryService.FetchSteamCover(g.id).catch((e) => app.toast('Cover: ' + errMsg(e), 'err'))
@@ -260,18 +277,24 @@
         <div class="row cover-row">
           <div class="cover-prev" style={coverUrl && !coverSrc ? `background-image:url('${coverUrl}')` : ''}>
             {#if coverSrc}<span class="small mono">{coverSrc.split(/[\\/]/).pop()}</span>
+            {:else if gridPick}<img src={gridPick.thumb || gridPick.url} alt="" />
             {:else if steamPreview}<img src={steamPreview} alt="" onerror={() => (steamPreviewFailed = true)} />
             {:else if !coverUrl}<span class="muted small">No cover</span>{/if}
           </div>
           <div>
-            <button onclick={pickCover}>Choose cover…</button>
+            <div class="row">
+              <button onclick={pickCover}>Choose file…</button>
+              {#if hasGridKey}<button onclick={() => (pickingCover = true)}>Find cover…</button>{/if}
+            </div>
             {#if id && storeAppId && storeAppId === originalStoreAppId && coverUrl}
               <button class="ghost small" onclick={refreshSteamCover}>Use Steam cover</button>
             {/if}
             <p class="small muted">
               {#if storeAppId && !coverSrc && !coverUrl}Steam's cover is downloaded when you save, unless you choose your own.
+              {:else if gridPick}SteamGridDB cover — downloaded when you save.
               {:else}Portrait image (600×900 works well). Also used as Steam grid art.{/if}
             </p>
+            {#if !hasGridKey}<p class="small muted">Add a <a href="#/settings">SteamGridDB API key</a> to search community covers.</p>{/if}
           </div>
         </div>
       </div>
@@ -379,6 +402,10 @@
     <button class="primary" onclick={save} disabled={saving || !name.trim()}>{saving ? 'Saving…' : 'Save'}</button>
   </div>
 </div>
+
+{#if pickingCover}
+  <CoverPicker term={name} steamAppId={storeAppId} onpick={pickGrid} onclose={() => (pickingCover = false)} />
+{/if}
 
 <style>
   .layout { display: grid; grid-template-columns: 1fr 1fr; gap: 1em; align-items: start; }
