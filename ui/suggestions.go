@@ -56,7 +56,9 @@ func newSuggestionList(gameName string, res *services.SuggestResult, onUse, onAd
 }
 
 // CreateRenderer implements fyne.Widget.
-func (l *suggestionList) CreateRenderer() fyne.WidgetRenderer { return widget.NewSimpleRenderer(l.content) }
+func (l *suggestionList) CreateRenderer() fyne.WidgetRenderer {
+	return widget.NewSimpleRenderer(l.content)
+}
 
 func suggestionRow(s services.SaveSuggestion, onUse, onAdd func(services.SaveSuggestion)) fyne.CanvasObject {
 	text := s.Path
