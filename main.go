@@ -11,6 +11,7 @@ import (
 	"os/signal"
 	"path/filepath"
 	"strings"
+	"syscall"
 
 	"github.com/akfaiz/carryover/internal/core"
 	"github.com/akfaiz/carryover/internal/syncer"
@@ -89,6 +90,7 @@ func cmdRun(args []string) int {
 	}
 	opts := core.RunOptions{Command: command, NoSync: *noSync}
 	gameID := fset.Arg(0)
+	survivePolite()
 	if *headless {
 		c := openCore()
 		log.Printf("run %s (headless)", gameID)
@@ -102,6 +104,20 @@ func cmdRun(args []string) int {
 		return res.ExitCode
 	}
 	return runGUI(gameID, opts)
+}
+
+// survivePolite keeps the wrapper alive when it is asked to terminate (SIGTERM/
+// SIGHUP, e.g. Steam's "Stop" button signals the whole process tree). The game
+// receives the same signal and exits by itself; the wrapper must outlive it to
+// run the post-play sync. Steam may still SIGKILL the tree after a grace period.
+func survivePolite() {
+	ch := make(chan os.Signal, 4)
+	signal.Notify(ch, syscall.SIGTERM, syscall.SIGHUP)
+	go func() {
+		for s := range ch {
+			log.Printf("received %v: waiting for the game to exit, then syncing", s)
+		}
+	}()
 }
 
 // reorder moves flags before positional args so "run <id> --headless" works.
