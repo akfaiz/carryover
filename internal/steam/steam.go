@@ -352,17 +352,51 @@ func RemoveShortcuts(root, userID string, match func(Shortcut) bool) (int, error
 	return removed, saveShortcuts(root, userID, doc)
 }
 
-// SetGridImage copies an image as the portrait capsule art (<appid>p.ext) for a shortcut.
-func SetGridImage(root, userID string, appID uint32, imagePath string) error {
+// gridSuffix is the file-name suffix Steam uses for each kind of grid art.
+var gridSuffix = map[string]string{
+	"cover": "p",     // <appid>p.ext      portrait capsule
+	"wide":  "",      // <appid>.ext       wide capsule
+	"hero":  "_hero", // <appid>_hero.ext  library background
+	"logo":  "_logo", // <appid>_logo.ext
+	"icon":  "_icon", // <appid>_icon.ext
+}
+
+// GridDir is the folder holding a user's custom grid art.
+func GridDir(root, userID string) string {
+	return filepath.Join(root, "userdata", userID, "config", "grid")
+}
+
+// SetGridArt copies an image into the user's grid folder as the art of a given
+// kind ("cover", "wide", "hero", "logo" or "icon") for a shortcut, replacing
+// any earlier file of the same kind (whatever its extension). It returns the
+// destination path.
+func SetGridArt(root, userID string, appID uint32, kind, imagePath string) (string, error) {
+	suffix, ok := gridSuffix[kind]
+	if !ok {
+		return "", fmt.Errorf("unknown grid art kind %q", kind)
+	}
 	ext := strings.ToLower(filepath.Ext(imagePath))
 	if ext == "" {
 		ext = ".png"
 	}
-	dir := filepath.Join(root, "userdata", userID, "config", "grid")
+	dir := GridDir(root, userID)
 	if err := os.MkdirAll(dir, 0o755); err != nil {
-		return err
+		return "", err
 	}
-	return copyFile(imagePath, filepath.Join(dir, fmt.Sprintf("%dp%s", appID, ext)))
+	base := fmt.Sprintf("%d%s", appID, suffix)
+	for _, e := range []string{".png", ".jpg", ".jpeg", ".webp"} {
+		if e != ext {
+			_ = os.Remove(filepath.Join(dir, base+e))
+		}
+	}
+	dst := filepath.Join(dir, base+ext)
+	return dst, copyFile(imagePath, dst)
+}
+
+// SetGridImage copies an image as the portrait capsule art (<appid>p.ext) for a shortcut.
+func SetGridImage(root, userID string, appID uint32, imagePath string) error {
+	_, err := SetGridArt(root, userID, appID, "cover", imagePath)
+	return err
 }
 
 func copyFile(src, dst string) error {

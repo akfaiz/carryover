@@ -99,3 +99,41 @@ func TestAllowedImageURL(t *testing.T) {
 		t.Fatal("download from foreign host allowed")
 	}
 }
+
+func TestArtKinds(t *testing.T) {
+	var gotPath string
+	var gotQuery map[string][]string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotPath, gotQuery = r.URL.Path, r.URL.Query()
+		_, _ = w.Write([]byte(`{"success":true,"data":[{"id":1,"url":"https://cdn2.steamgriddb.com/x.png","thumb":"https://cdn2.steamgriddb.com/t.png","author":{"name":"a"}}]}`))
+	}))
+	t.Cleanup(srv.Close)
+	c := New("k")
+	c.Base = srv.URL
+	for kind, want := range map[Kind]struct{ path, dims string }{
+		KindWide: {"/grids/game/7", wideDimensions},
+		KindHero: {"/heroes/game/7", heroDimensions},
+		KindLogo: {"/logos/game/7", ""},
+		KindIcon: {"/icons/game/7", ""},
+	} {
+		got, err := c.Art(context.Background(), kind, 7, "")
+		if err != nil || len(got) != 1 || got[0].Author != "a" {
+			t.Fatalf("%s: %+v, %v", kind, got, err)
+		}
+		if gotPath != want.path {
+			t.Errorf("%s: path %s, want %s", kind, gotPath, want.path)
+		}
+		if d := strings.Join(gotQuery["dimensions"], ""); d != want.dims {
+			t.Errorf("%s: dimensions %q, want %q", kind, d, want.dims)
+		}
+	}
+	if _, err := c.Art(context.Background(), KindHero, 0, "x"); err == nil {
+		t.Fatal("bad Steam app id accepted")
+	}
+	if _, err := c.Art(context.Background(), Kind("bogus"), 7, ""); err == nil {
+		t.Fatal("unknown kind accepted")
+	}
+	if _, err := c.Art(context.Background(), KindLogo, 0, "367520"); err != nil || gotPath != "/logos/steam/367520" {
+		t.Fatalf("steam logo: %v %s", err, gotPath)
+	}
+}

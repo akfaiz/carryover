@@ -21,6 +21,12 @@ const DefaultBase = "https://www.steamgriddb.com/api/v2"
 // portraitDimensions are the 2:3 grid sizes SteamGridDB offers.
 const portraitDimensions = "600x900,342x482,660x930"
 
+// wideDimensions are the wide capsule sizes (460x215 is Steam's own).
+const wideDimensions = "460x215,920x430"
+
+// heroDimensions are the library background (hero) sizes.
+const heroDimensions = "1920x620,3840x1240,1600x650"
+
 // ErrUnauthorized means the API key was missing or rejected.
 var ErrUnauthorized = errors.New("SteamGridDB rejected the API key")
 
@@ -47,7 +53,7 @@ type Game struct {
 	Verified bool   `json:"verified"`
 }
 
-// Grid is one piece of grid (capsule) art.
+// Grid is one piece of artwork (a grid capsule, hero, logo or icon).
 type Grid struct {
 	ID     int    `json:"id"`
 	URL    string `json:"url"`
@@ -130,23 +136,69 @@ func (c *Client) SearchGames(ctx context.Context, term string) ([]Game, error) {
 	return out, nil
 }
 
-func gridQuery() url.Values {
-	return url.Values{
-		"dimensions": {portraitDimensions},
-		"types":      {"static"},
-		"nsfw":       {"false"},
-		"humor":      {"false"},
+// Kind is a type of Steam artwork.
+type Kind string
+
+// Artwork kinds. KindCover is the portrait capsule; the others are the wide
+// capsule, the library background ("hero"), the logo and the shortcut icon.
+const (
+	KindCover Kind = "cover"
+	KindWide  Kind = "wide"
+	KindHero  Kind = "hero"
+	KindLogo  Kind = "logo"
+	KindIcon  Kind = "icon"
+)
+
+// ArtKinds are the kinds beyond the cover, in display order.
+var ArtKinds = []Kind{KindWide, KindHero, KindLogo, KindIcon}
+
+// Valid reports whether k is a known kind.
+func (k Kind) Valid() bool {
+	switch k {
+	case KindCover, KindWide, KindHero, KindLogo, KindIcon:
+		return true
 	}
+	return false
 }
 
-func (c *Client) grids(ctx context.Context, path string) ([]Grid, error) {
+// endpoint is the API collection for the kind.
+func (k Kind) endpoint() string {
+	switch k {
+	case KindHero:
+		return "heroes"
+	case KindLogo:
+		return "logos"
+	case KindIcon:
+		return "icons"
+	}
+	return "grids"
+}
+
+func (k Kind) query() url.Values {
+	q := url.Values{
+		"types": {"static"},
+		"nsfw":  {"false"},
+		"humor": {"false"},
+	}
+	switch k {
+	case KindCover:
+		q.Set("dimensions", portraitDimensions)
+	case KindWide:
+		q.Set("dimensions", wideDimensions)
+	case KindHero:
+		q.Set("dimensions", heroDimensions)
+	}
+	return q
+}
+
+func (c *Client) art(ctx context.Context, kind Kind, path string) ([]Grid, error) {
 	var raw []struct {
 		Grid
 		Author struct {
 			Name string `json:"name"`
 		} `json:"author"`
 	}
-	if err := c.get(ctx, path, gridQuery(), &raw); err != nil {
+	if err := c.get(ctx, path, kind.query(), &raw); err != nil {
 		if errors.Is(err, ErrNotFound) {
 			return []Grid{}, nil
 		}
@@ -161,17 +213,29 @@ func (c *Client) grids(ctx context.Context, path string) ([]Grid, error) {
 	return out, nil
 }
 
+// Art returns artwork of a kind for a SteamGridDB game id (gameID > 0) or, when
+// gameID is 0, for a Steam app id, best scored first.
+func (c *Client) Art(ctx context.Context, kind Kind, gameID int, steamAppID string) ([]Grid, error) {
+	if !kind.Valid() {
+		return nil, fmt.Errorf("unknown artwork kind %q", kind)
+	}
+	if gameID > 0 {
+		return c.art(ctx, kind, "/"+kind.endpoint()+"/game/"+strconv.Itoa(gameID))
+	}
+	if _, err := strconv.ParseUint(steamAppID, 10, 32); err != nil {
+		return nil, fmt.Errorf("invalid Steam app id %q", steamAppID)
+	}
+	return c.art(ctx, kind, "/"+kind.endpoint()+"/steam/"+steamAppID)
+}
+
 // Grids returns portrait grid art for a SteamGridDB game id, best scored first.
 func (c *Client) Grids(ctx context.Context, gameID int) ([]Grid, error) {
-	return c.grids(ctx, "/grids/game/"+strconv.Itoa(gameID))
+	return c.Art(ctx, KindCover, gameID, "")
 }
 
 // GridsForSteam returns portrait grid art for a Steam app id.
 func (c *Client) GridsForSteam(ctx context.Context, appID string) ([]Grid, error) {
-	if _, err := strconv.ParseUint(appID, 10, 32); err != nil {
-		return nil, fmt.Errorf("invalid Steam app id %q", appID)
-	}
-	return c.grids(ctx, "/grids/steam/"+appID)
+	return c.Art(ctx, KindCover, 0, appID)
 }
 
 // Validate checks the API key with a cheap request.

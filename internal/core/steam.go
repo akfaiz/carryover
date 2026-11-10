@@ -3,6 +3,7 @@ package core
 import (
 	"errors"
 	"fmt"
+	"os"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -27,6 +28,19 @@ func shortcutMatcher(gameID string) func(steam.Shortcut) bool {
 	return func(s steam.Shortcut) bool {
 		return strings.Contains(s.LaunchOptions, " "+gameID) || strings.HasPrefix(s.LaunchOptions, "run "+gameID)
 	}
+}
+
+// artFile returns the stored image of an extra artwork kind, or "" if none.
+func (c *Core) artFile(g library.Game, kind string) string {
+	name := g.Art[kind]
+	if name == "" {
+		return ""
+	}
+	p := filepath.Join(c.Dirs.CoversDir(), name)
+	if _, err := os.Stat(p); err != nil {
+		return ""
+	}
+	return p
 }
 
 // AddToSteamResult describes what was written.
@@ -82,12 +96,24 @@ func (c *Core) AddToSteam(gameID, userID string, mode library.LaunchMode) (AddTo
 		sc.Exe, sc.StartDir = quote(self), quote(filepath.Dir(self))
 		sc.LaunchOptions = "run " + game.ID
 	}
+	// The icon is referenced from the shortcut itself, so it is written first.
+	if icon := c.artFile(game, "icon"); icon != "" {
+		id := steam.ShortcutAppID(sc.Exe, sc.AppName)
+		if dst, err := steam.SetGridArt(root, userID, id, "icon", icon); err == nil {
+			sc.Icon = dst
+		}
+	}
 	appID, err := steam.UpsertShortcut(root, userID, sc, shortcutMatcher(game.ID))
 	if err != nil {
 		return res, err
 	}
 	if game.Cover != "" {
 		_ = steam.SetGridImage(root, userID, appID, filepath.Join(c.Dirs.CoversDir(), game.Cover))
+	}
+	for _, kind := range []string{"wide", "hero", "logo"} {
+		if f := c.artFile(game, kind); f != "" {
+			_, _ = steam.SetGridArt(root, userID, appID, kind, f)
+		}
 	}
 	res.AppID = strconv.FormatUint(uint64(appID), 10)
 	if _, err := c.Library.UpdateDevice(game.ID, c.DeviceID(), func(d *library.DeviceConfig) {

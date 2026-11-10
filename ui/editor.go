@@ -35,6 +35,9 @@ type editor struct {
 	gridPick           *steamgrid.Grid // SteamGridDB cover, downloaded on save
 	hasGridKey         bool
 	coverPath          string
+	art                map[steamgrid.Kind]*artEdit // extra Steam artwork
+	gridGameID         int                         // SteamGridDB game picked in this editor session
+	gridGameName       string
 	coverVersion       int64
 	storeAppID         string
 	originalStoreAppID string
@@ -96,6 +99,10 @@ func (e *editor) view() fyne.CanvasObject {
 		if g := l.game; g != nil {
 			e.name = g.Name
 			e.coverPath, e.coverVersion = g.CoverPath, g.CoverVersion
+			for kind, f := range g.Art {
+				a := e.artEdit(steamgrid.Kind(kind))
+				a.path, a.version = f.Path, f.Version
+			}
 			e.storeAppID, e.originalStoreAppID = g.StoreAppID, g.StoreAppID
 			e.others = g.OtherDevices
 			d := g.Device
@@ -273,7 +280,7 @@ func (e *editor) render() {
 	}
 	e.saveBtn = nil
 	left := vbox(e.gameCard(), e.launchCard())
-	right := vbox(e.savesCard())
+	right := vbox(e.savesCard(), e.artworkCard())
 	bottom := vbox()
 	if e.errText != "" {
 		bottom.Add(colored(e.errText, widget.DangerImportance))
@@ -360,10 +367,7 @@ func (e *editor) gameCard() fyne.CanvasObject {
 	}))
 	if e.hasGridKey {
 		btns.Add(widget.NewButton(lang.L("Find cover…"), func() {
-			showCoverPicker(u, e.name, e.storeAppID, func(g steamgrid.Grid) {
-				e.gridPick, e.coverSrc = &g, ""
-				e.render()
-			})
+			e.openArtPicker(steamgrid.KindCover)
 		}))
 	}
 	side := vbox(btns)
@@ -500,7 +504,8 @@ func (e *editor) save() {
 	in := services.GameInput{ID: e.id, Name: e.name, StoreAppID: e.storeAppID, Slots: slots, Device: dev}
 	coverSrc, gridPick, coverPath, origStore := e.coverSrc, e.gridPick, e.coverPath, e.originalStoreAppID
 
-	var coverErr error
+	artJobs := e.artworkJobs()
+	var coverErr, artErr error
 	async(func() (services.GameView, error) {
 		g, err := u.lib.Save(in)
 		if err != nil {
@@ -517,6 +522,7 @@ func (e *editor) save() {
 			// Best effort: a missing cover must not block saving the game.
 			_, coverErr = u.lib.FetchSteamCover(g.ID)
 		}
+		artErr = applyArtwork(u.lib, g.ID, artJobs)
 		return g, nil
 	}, func(g services.GameView, err error) {
 		e.saving = false
@@ -527,6 +533,9 @@ func (e *editor) save() {
 		}
 		if coverErr != nil {
 			u.toast(lang.L("Cover: {{.Err}}", map[string]any{"Err": coverErr}), toastErr)
+		}
+		if artErr != nil {
+			u.toast(lang.L("Artwork: {{.Err}}", map[string]any{"Err": artErr}), toastErr)
 		}
 		u.refresh()
 		u.toast(lang.L("Saved"), toastOK)

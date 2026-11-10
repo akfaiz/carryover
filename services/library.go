@@ -53,6 +53,7 @@ type GameView struct {
 	CoverPath     string               `json:"coverPath"`    // absolute file, "" if none
 	CoverVersion  int64                `json:"coverVersion"` // cover file mtime (image cache key)
 	StoreAppID    string               `json:"storeAppId"`
+	Art           map[string]ArtFile   `json:"art"` // extra Steam artwork by kind (wide, hero, logo, icon)
 	Slots         []library.SaveSlot   `json:"slots"`
 	Device        library.DeviceConfig `json:"device"`
 	HasDevice     bool                 `json:"hasDevice"`
@@ -62,6 +63,12 @@ type GameView struct {
 	PathErrors    map[string]string    `json:"pathErrors"`
 	OtherDevices  []DevicePaths        `json:"otherDevices"`
 	Status        GameStatus           `json:"status"`
+}
+
+// ArtFile is a stored artwork image.
+type ArtFile struct {
+	Path    string `json:"path"`
+	Version int64  `json:"version"` // file mtime (image cache key)
 }
 
 // DevicePaths shows another device's config for reference.
@@ -77,6 +84,13 @@ func (s *LibraryService) view(g library.Game) GameView {
 	v := GameView{
 		ID: g.ID, Name: g.Name, StoreAppID: g.StoreAppID, Slots: g.Slots, Device: d, HasDevice: has,
 		ResolvedPaths: map[string]string{}, PathErrors: map[string]string{},
+		Art: map[string]ArtFile{},
+	}
+	for kind, name := range g.Art {
+		p := filepath.Join(s.c.Dirs.CoversDir(), name)
+		if fi, err := os.Stat(p); err == nil {
+			v.Art[kind] = ArtFile{Path: p, Version: fi.ModTime().UnixNano()}
+		}
 	}
 	if v.Slots == nil {
 		v.Slots = []library.SaveSlot{}
@@ -201,6 +215,7 @@ func (s *LibraryService) Save(in GameInput) (GameView, error) {
 			return GameView{}, err
 		}
 		g.Cover = old.Cover
+			g.Art = old.Art
 		g.Devices = old.Devices
 		// Steam app id is managed by AddToSteam, not the editor.
 		d.SteamAppID = old.Devices[devID].SteamAppID
@@ -460,19 +475,16 @@ func (s *LibraryService) SearchGridGames(term string) ([]steamgrid.Game, error) 
 	return c.SearchGames(ctx, strings.TrimSpace(term))
 }
 
-// GridCovers lists portrait covers on SteamGridDB, for a SteamGridDB game id
-// or (when gridGameID is 0) a Steam app id.
-func (s *LibraryService) GridCovers(gridGameID int, steamAppID string) ([]steamgrid.Grid, error) {
+// GridArt lists SteamGridDB artwork of a kind ("cover", "wide", "hero", "logo"
+// or "icon"), for a SteamGridDB game id or (when gridGameID is 0) a Steam app id.
+func (s *LibraryService) GridArt(kind string, gridGameID int, steamAppID string) ([]steamgrid.Grid, error) {
 	c, err := s.gridClient()
 	if err != nil {
 		return nil, err
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 	defer cancel()
-	if gridGameID > 0 {
-		return c.Grids(ctx, gridGameID)
-	}
-	return c.GridsForSteam(ctx, steamAppID)
+	return c.Art(ctx, steamgrid.Kind(kind), gridGameID, steamAppID)
 }
 
 // SetCoverFromURL downloads a SteamGridDB image and makes it the game's cover.
@@ -488,6 +500,101 @@ func (s *LibraryService) SetCoverFromURL(id, imageURL string) (GameView, error) 
 		return GameView{}, err
 	}
 	return s.storeCover(g, data, ext)
+}
+
+func artKind(kind string) error {
+	for _, k := range steamgrid.ArtKinds {
+		if string(k) == kind {
+			return nil
+		}
+	}
+	return fmt.Errorf("unknown artwork kind %q", kind)
+}
+
+// storeArt saves image bytes as the game's artwork of a kind, replacing any previous one.
+func (s *LibraryService) storeArt(g library.Game, kind string, data []byte, ext string) (GameView, error) {
+	name := g.ID + "_" + kind + ext
+	if err := os.WriteFile(filepath.Join(s.c.Dirs.CoversDir(), name), data, 0o644); err != nil {
+		return GameView{}, err
+	}
+	return s.saveArt(g, kind, name)
+}
+
+// saveArt points the game's artwork of a kind at a file ("" removes it) and
+// deletes the file it replaces.
+func (s *LibraryService) saveArt(g library.Game, kind, name string) (GameView, error) {
+	if old := g.Art[kind]; old != "" && old != name {
+		_ = os.Remove(filepath.Join(s.c.Dirs.CoversDir(), old))
+	}
+	art := map[string]string{}
+	for k, v := range g.Art {
+		art[k] = v
+	}
+	if name == "" {
+		delete(art, kind)
+	} else {
+		art[kind] = name
+	}
+	g.Art = art
+	saved, err := s.c.Library.Save(g, "")
+	if err != nil {
+		return GameView{}, err
+	}
+	s.bus.libraryChanged(saved.ID)
+	return s.view(saved), nil
+}
+
+// SetArt copies an image file as the game's artwork of a kind ("wide", "hero",
+// "logo" or "icon").
+func (s *LibraryService) SetArt(id, kind, src string) (GameView, error) {
+	if err := artKind(kind); err != nil {
+		return GameView{}, err
+	}
+	g, err := s.c.Library.Get(id)
+	if err != nil {
+		return GameView{}, err
+	}
+	ext := strings.ToLower(filepath.Ext(src))
+	switch ext {
+	case ".png", ".jpg", ".jpeg", ".webp":
+	default:
+		return GameView{}, errors.New("image must be a PNG, JPEG or WebP file")
+	}
+	data, err := os.ReadFile(src)
+	if err != nil {
+		return GameView{}, err
+	}
+	return s.storeArt(g, kind, data, ext)
+}
+
+// SetArtFromURL downloads a SteamGridDB image as the game's artwork of a kind.
+func (s *LibraryService) SetArtFromURL(id, kind, imageURL string) (GameView, error) {
+	if err := artKind(kind); err != nil {
+		return GameView{}, err
+	}
+	g, err := s.c.Library.Get(id)
+	if err != nil {
+		return GameView{}, err
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	defer cancel()
+	data, ext, err := steamgrid.Download(ctx, &http.Client{Timeout: 60 * time.Second}, imageURL)
+	if err != nil {
+		return GameView{}, err
+	}
+	return s.storeArt(g, kind, data, ext)
+}
+
+// ClearArt removes the game's artwork of a kind.
+func (s *LibraryService) ClearArt(id, kind string) (GameView, error) {
+	if err := artKind(kind); err != nil {
+		return GameView{}, err
+	}
+	g, err := s.c.Library.Get(id)
+	if err != nil {
+		return GameView{}, err
+	}
+	return s.saveArt(g, kind, "")
 }
 
 // SuggestInput is the editor's current view of a game (it may not be saved yet).

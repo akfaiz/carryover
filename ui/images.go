@@ -132,6 +132,7 @@ type coverSource struct {
 	version int64
 	url     string
 	name    string // placeholder initial
+	contain bool   // show the whole image instead of filling (logos, icons)
 }
 
 // coverView shows a cover image (2:3) with a letter placeholder.
@@ -149,6 +150,9 @@ func coverView(src coverSource, size fyne.Size) fyne.CanvasObject {
 	}
 	img := canvas.NewImageFromImage(nil)
 	img.FillMode = canvas.ImageFillCover
+	if src.contain {
+		img.FillMode = canvas.ImageFillContain
+	}
 	img.CornerRadius = 8
 	img.Hide()
 	set := func(i image.Image) {

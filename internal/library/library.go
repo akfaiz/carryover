@@ -54,6 +54,10 @@ type Game struct {
 	ID    string `json:"id"`
 	Name  string `json:"name"`
 	Cover string `json:"cover"` // file name in the covers dir
+	// Art is extra Steam artwork by kind ("wide", "hero", "logo", "icon") ->
+	// file name in the covers dir. Written to Steam's grid folder when the game
+	// is added to Steam.
+	Art map[string]string `json:"art,omitempty"`
 	// StoreAppID is the game's Steam store app id (if it exists on Steam),
 	// used for its title and cover art. Shared across devices. Not to be
 	// confused with DeviceConfig.SteamAppID, the per-device shortcut id.
@@ -157,6 +161,9 @@ func clone(g Game) Game {
 	}
 	g.Devices = devs
 	g.Slots = append([]SaveSlot(nil), g.Slots...)
+	if g.Art != nil {
+		g.Art = maps.Clone(g.Art)
+	}
 	return g
 }
 

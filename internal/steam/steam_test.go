@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -124,5 +125,31 @@ func TestInstalledApps(t *testing.T) {
 	}
 	if apps[0].InstallDir != filepath.Join(steamapps, "common", "Hollow Knight") {
 		t.Fatalf("install dir = %q", apps[0].InstallDir)
+	}
+}
+
+func TestSetGridArt(t *testing.T) {
+	root, src := t.TempDir(), filepath.Join(t.TempDir(), "a.jpg")
+	if err := os.WriteFile(src, []byte("img"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	dir := GridDir(root, "42")
+	for kind, name := range map[string]string{
+		"cover": "100p.jpg", "wide": "100.jpg", "hero": "100_hero.jpg", "logo": "100_logo.jpg", "icon": "100_icon.jpg",
+	} {
+		// A stale file of another extension must be replaced, not left beside it.
+		stale := filepath.Join(dir, strings.TrimSuffix(name, ".jpg")+".png")
+		_ = os.MkdirAll(dir, 0o755)
+		_ = os.WriteFile(stale, []byte("old"), 0o644)
+		dst, err := SetGridArt(root, "42", 100, kind, src)
+		if err != nil || filepath.Base(dst) != name {
+			t.Fatalf("%s: %s, %v", kind, dst, err)
+		}
+		if _, err := os.Stat(stale); err == nil {
+			t.Errorf("%s: stale %s kept", kind, stale)
+		}
+	}
+	if _, err := SetGridArt(root, "42", 100, "bogus", src); err == nil {
+		t.Fatal("unknown kind accepted")
 	}
 }
