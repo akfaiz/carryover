@@ -1,16 +1,16 @@
 # Carryover
 
 Cross-platform game launcher (Windows, Linux / Steam Deck, macOS) that keeps save games in sync
-through cloud storage via [rclone](https://github.com/rclone/rclone) — embedded as a Go library, no
-separate install. Supported: Google Drive, Dropbox, OneDrive, WebDAV (Nextcloud, ownCloud, NAS),
-SFTP and SMB. Go UI built with [Fyne](https://fyne.io) — no webview or browser runtime needed.
+through cloud storage. It embeds [rclone](https://github.com/rclone/rclone) as a Go library, so there is
+nothing else to install. Supported storage: Google Drive, Dropbox, OneDrive, WebDAV (Nextcloud, ownCloud, NAS),
+SFTP and SMB. The UI is built with [Fyne](https://fyne.io) and needs no webview or browser runtime.
 
 - **Per-device save paths** — one game, one cloud copy; each device maps it to its own folder
   (`{appdata}/GameA` on Windows, `{proton:shortcut}/AppData/Roaming/GameA` on a Steam Deck).
 - **Play from the launcher or from Steam** — "Add to Steam" creates a non-Steam shortcut whose command
   is `carryover run <game>`, so saves are pulled before and pushed after every session, even in Game Mode.
 - **Safe conflicts** — if saves changed on both sides, you choose which to keep; the other side is
-  always backed up in the cloud (`games/<id>/backups/`, last N kept) and can be restored.
+  always backed up in the cloud (`games/<id>/backups/`, the last N are kept) and can be restored.
 - **Title & cover from Steam** — "Find on Steam" fills in the official title and portrait cover (Steam's
   local cache first, then its CDN); "Add from Steam" imports games installed through Steam. With
   your own free [SteamGridDB](https://www.steamgriddb.com) API key (Settings), "Find cover…" searches
@@ -20,6 +20,35 @@ SFTP and SMB. Go UI built with [Fyne](https://fyne.io) — no webview or browser
   a Steam Deck. Folders that already hold saves are found and shown first.
 - **Shared library** — the game list syncs between devices; a game added on PC shows up on the Deck
   as "needs setup".
+
+## How it works
+
+Each game has one copy of its saves in the cloud. Every device keeps a record of the cloud state it saw at its
+last successful sync, and compares three things: its local save files, the cloud copy and that record.
+
+1. **Before playing**, Carryover scans the local save folders and reads the cloud manifest (the file list with a
+   SHA-256 for each file). It also writes a lock in the cloud ("being played on `<device>`") so another device
+   knows the game is in use.
+2. **It decides what to do:**
+
+   | Local | Cloud | Result |
+   |---|---|---|
+   | unchanged | unchanged | nothing to do |
+   | unchanged | newer | **pull** the cloud saves |
+   | changed | unchanged | **push** the local saves |
+   | changed | changed (and different) | **conflict**, you choose which side to keep |
+
+   A device that has never synced the game pulls if it has no local saves, pushes if the cloud has none, and
+   reports a conflict if both have different saves.
+3. **Only the difference is transferred.** Files are compared by size and SHA-256, so unchanged files are not
+   uploaded or downloaded again, and files that were deleted on one side are removed on the other.
+4. **The side being overwritten is backed up first**, as one zip in `games/<id>/backups/`. The last N backups are
+   kept, and you can restore any of them from the launcher.
+5. **After you quit the game**, the new local saves are pushed and the lock is released.
+
+In Steam, the shortcut `carryover run <game>` does the same steps around the game process, so it works in Game
+Mode too. You can cancel a sync while it runs, but never the game itself. With `--headless`, conflicts are
+skipped instead of asking, and both sides stay untouched until you resolve them in the launcher.
 
 ## Path variables
 
@@ -43,8 +72,8 @@ carryover sync <game>|--all [--push|--pull] manual sync (exit code 3 = conflict)
 carryover list
 ```
 
-`--headless` never blocks: conflicts are skipped (both sides kept and flagged in the UI).
-Set `CARRYOVER_HOME` to use a different data directory (default: user config dir / `Carryover`).
+`--headless` never waits for input: conflicts are skipped, both sides are kept and the game is flagged in the UI.
+Set `CARRYOVER_HOME` to use a different data directory (default: `Carryover` in the user config dir).
 
 ## Cloud layout
 
@@ -56,40 +85,9 @@ Set `CARRYOVER_HOME` to use a different data directory (default: user config dir
 <remote>:<folder>/games/<id>/lock.json            "being played on <device>"
 ```
 
-## Development
+## Building from source
 
-Fyne needs cgo. On Windows install a MinGW gcc (MSYS2: `pacman -S mingw-w64-ucrt-x86_64-gcc`, then put
-`C:\msys64\ucrt64\bin` on `PATH`); on Linux install the GL/X11 development packages
-(see [Fyne's prerequisites](https://docs.fyne.io/started/)).
-
-```
-CGO_ENABLED=1 go build -ldflags "-H windowsgui" -o bin/carryover.exe .   # Windows
-CGO_ENABLED=1 go build -o bin/carryover .                                # Linux
-go tool fyne package --os windows --release --name carryover             # Windows release exe with icon
-go run github.com/fyne-io/fyne-cross@latest linux -arch=amd64 \
-  -app-id com.akfaiz.carryover -name carryover                           # Linux / Steam Deck from any OS (Docker)
-packaging/appimage/build.sh                                               # AppImage from the fyne-cross binary (Linux, needs appimagetool)
-CARRYOVER_HOME=/tmp/pr go run .                                          # run against an isolated data dir
-go test ./...
-```
-
-### Linux packaging
-
-`fyne-cross` writes a bare binary (`fyne-cross/bin/linux-amd64/carryover`) and a `carryover.tar.xz` with a
-`.desktop` file and icon. A bare binary has no icon of its own; install the `.desktop` file and PNG, or use the
-AppImage, which carries both. Build it on Linux (WSL or the Steam Deck) with
-[appimagetool](https://github.com/AppImage/appimagetool/releases) on `PATH`:
-
-```
-packaging/appimage/build.sh        # -> bin/Carryover-x86_64.AppImage
-```
-
-Keep the AppImage in a fixed place (e.g. `~/Applications/`): the Steam shortcut points at its path, and moving
-it breaks the shortcut until you use "Update Steam shortcut".
-
-Code map: `internal/syncer` (decision engine, backups), `internal/cloud` (rclone wrapper),
-`internal/steam` (VDF + shortcuts), `internal/pathvar`, `internal/library`, `internal/core`
-(play session), `services/` (API used by the GUI), `ui/` (Fyne GUI).
+See [CONTRIBUTING.md](CONTRIBUTING.md) for build, test and Linux / Steam Deck packaging instructions.
 
 ## Credits
 

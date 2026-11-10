@@ -2,13 +2,13 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-Carryover: Go desktop game launcher with a Fyne GUI (`ui/`) that syncs saves via rclone embedded as a Go library. See README.md for features and cloud layout.
+Carryover: Go desktop game launcher with a Fyne GUI (`ui/`) that syncs saves through rclone, embedded as a Go library. See README.md for features and the cloud layout, and CONTRIBUTING.md for build and packaging steps.
 
 ## Commands
 
 - Fyne needs cgo: `CGO_ENABLED=1` and a C compiler. On Windows use MSYS2 MinGW (`C:\msys64\ucrt64\bin` on `PATH`; install with `pacman -S mingw-w64-ucrt-x86_64-gcc`).
-- Build app (Windows): `go build -ldflags "-H windowsgui" -o bin/carryover.exe .` (`-H windowsgui` hides the console; `attachConsole` re-attaches it for CLI subcommands). Release build with exe icon/version info: `go tool fyne package --os windows --release --name carryover` (writes `./carryover.exe` and bumps `Build` in `FyneApp.toml`).
-- Build app (Linux / Steam Deck) from any host: `go run github.com/fyne-io/fyne-cross@latest linux -arch=amd64 -app-id com.akfaiz.carryover -name carryover` (Docker) → `fyne-cross/bin/linux-amd64/carryover`; on Linux itself plain `go build` works with the GL/X11 dev packages installed.
+- Build app (Windows): `go build -trimpath -ldflags "-s -w -H windowsgui" -o bin/carryover.exe .` (`-s -w` strips debug info, giving ~46 MB instead of ~84 MB; drop it only when debugging. `-H windowsgui` hides the console, and `attachConsole` re-attaches it for CLI subcommands). Release build with exe icon/version info: `go tool fyne package --os windows --release --name carryover` (writes `./carryover.exe` and bumps `Build` in `FyneApp.toml`).
+- Build app (Linux / Steam Deck) from any host: `go run github.com/fyne-io/fyne-cross@latest linux -arch=amd64 -app-id com.akfaiz.carryover -name carryover` (needs Docker) and writes `fyne-cross/bin/linux-amd64/carryover`. On Linux itself plain `go build` works once the GL/X11 dev packages are installed.
 - Ludusavi save-path index (`internal/ludusavi/index.json.gz`, embedded) is generated: `go run ./internal/ludusavi/gen` downloads the manifest and rebuilds it. Don't edit it by hand.
 - Go: `golangci-lint run ./...` (config in `.golangci.yml`; `golangci-lint fmt ./...` fixes formatting/imports) and `go test ./...` (syncer tests use a temp-dir `local` remote — no network)
 
