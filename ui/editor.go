@@ -3,7 +3,6 @@ package ui
 import (
 	"fmt"
 	"path/filepath"
-	"regexp"
 	"slices"
 	"strings"
 
@@ -246,8 +245,6 @@ func (e *editor) searchSteam() {
 	})
 }
 
-var exeSuffix = regexp.MustCompile(`(?i)\.(exe|sh|x86_64|AppImage)$`)
-
 func (e *editor) pickFile(title string, exts []string, done func(string)) {
 	d := dialog.NewFileOpen(func(r fyne.URIReadCloser, err error) {
 		if err != nil || r == nil {
@@ -433,9 +430,15 @@ func (e *editor) launchCard() fyne.CanvasObject {
 		e.pickFile("Choose game executable", nil, func(p string) {
 			e.dev.Exe = p
 			e.exeEntry.SetText(p)
-			if e.name == "" {
-				e.nameEntry.SetText(exeSuffix.ReplaceAllString(filepath.Base(p), ""))
+			if e.name != "" {
+				return
 			}
+			// Name it after the exe if it's a known game, else its folder.
+			async(func() (string, error) { return e.u.lib.GuessName(p), nil }, func(name string, _ error) {
+				if e.name == "" && name != "" {
+					e.nameEntry.SetText(name)
+				}
+			})
 		})
 	})
 	args := widget.NewEntry()
