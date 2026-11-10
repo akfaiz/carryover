@@ -1,4 +1,16 @@
-# Carryover
+<p align="center">
+  <img src="ui/assets/appicon.svg" alt="Carryover logo" width="128" height="128">
+</p>
+
+<h1 align="center">Carryover</h1>
+
+<p align="center">
+  <strong>Carry your game saves between PCs and Steam Deck using your own cloud storage.</strong>
+</p>
+
+<p align="center">
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="License: MIT"></a>
+</p>
 
 Cross-platform game launcher (Windows, Linux / Steam Deck, macOS) that keeps save games in sync
 through cloud storage. It embeds [rclone](https://github.com/rclone/rclone) as a Go library, so there is
@@ -88,6 +100,10 @@ Set `CARRYOVER_HOME` to use a different data directory (default: `Carryover` in 
 ## Building from source
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for build, test and Linux / Steam Deck packaging instructions.
+
+## License
+
+[MIT](LICENSE) © 2026 Ahmad Faiz Kamaludin
 
 ## Credits
 
