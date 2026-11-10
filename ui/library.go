@@ -94,53 +94,10 @@ func (p *libraryPage) renderGrid() {
 		if !strings.Contains(strings.ToLower(g.Name), f) {
 			continue
 		}
-		grid.Add(p.tile(g))
+		grid.Add(newGameTile(p.u, g))
 	}
 	p.gridHost.Objects = []fyne.CanvasObject{grid}
 	p.gridHost.Refresh()
-}
-
-func (p *libraryPage) tile(g services.GameView) fyne.CanvasObject {
-	u := p.u
-	open := func() { u.navigate("/game/" + g.ID) }
-	cover := newTappable(coverView(coverSource{path: g.CoverPath, version: g.CoverVersion, name: g.Name}, fyne.NewSize(160, 240)), open)
-	name := widget.NewLabelWithStyle(g.Name, fyne.TextAlignLeading, fyne.TextStyle{Bold: true})
-	name.Truncation = fyne.TextTruncateEllipsis
-	label := "▶ Play"
-	switch {
-	case g.Status.Running:
-		label = "Running"
-	case !g.Ready:
-		label = "Set up"
-	}
-	var play *widget.Button
-	play = widget.NewButton(label, func() {
-		if !g.Ready {
-			u.navigate("/edit/" + g.ID)
-			return
-		}
-		play.Disable()
-		async0(func() error { return u.sess.Play(g.ID) }, func(err error) {
-			if err != nil {
-				u.toastErr(err)
-				play.Enable()
-				return
-			}
-			u.navigate("/game/" + g.ID)
-		})
-	})
-	if g.Ready && !g.Status.Running {
-		play.Importance = widget.HighImportance
-	}
-	if g.Status.Running || (g.Ready && g.Device.LaunchMode == "steamwrap") {
-		play.Disable()
-	}
-	when := ""
-	if g.Ready {
-		when = timeAgo(g.Status.LastSyncAt)
-	}
-	meta := hbox(statusBadge(g), small(when))
-	return vbox(cover, name, meta, play)
 }
 
 func (p *libraryPage) syncAll() {
