@@ -56,7 +56,7 @@ func (p *sessionPage) view() fyne.CanvasObject {
 				img.Refresh()
 			}
 		})
-		shade := canvas.NewLinearGradient(color.NRGBA{0x0e, 0x0f, 0x14, 0x80}, colBg, 0)
+		shade := canvas.NewLinearGradient(color.NRGBA{colBg.R, colBg.G, colBg.B, 0x80}, colBg, 0)
 		bg = container.NewStack(canvas.NewRectangle(colBg), img, shade)
 	}
 	return container.NewStack(bg, container.NewBorder(nil, content, nil, nil))

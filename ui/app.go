@@ -150,7 +150,8 @@ func Run(c *core.Core, wrapGameID string, opts core.RunOptions) int {
 func start(c *core.Core) *UI {
 	initTranslations()
 	a := app.NewWithID(AppID)
-	a.Settings().SetTheme(darkTheme{})
+	setPalette(c.Settings.Get().Theme)
+	a.Settings().SetTheme(appTheme{})
 	a.SetIcon(fyne.NewStaticResource("appicon.png", appIcon))
 	return newUI(c, a, services.NewBus())
 }
@@ -160,15 +161,7 @@ func (u *UI) buildMain() {
 	u.win = u.app.NewWindow("Carryover")
 	u.win.Resize(fyne.NewSize(1180, 760))
 	u.win.SetMaster()
-	u.content = container.NewStack()
-	u.sidebar = container.NewVBox()
-	bg := canvas.NewRectangle(colBg2)
-	sep := canvas.NewRectangle(colLine)
-	sep.SetMinSize(fyne.NewSize(1, 0))
-	side := container.NewStack(bg, container.NewPadded(u.sidebar))
-	main := container.NewBorder(nil, nil, container.NewHBox(fixedWidth(200, side), sep), nil, u.content)
-	u.win.SetContent(container.NewStack(main, u.toasts.layer))
-	u.renderSidebar()
+	u.buildLayout()
 	u.show("/")
 	u.refresh()
 	go func() {
@@ -179,6 +172,35 @@ func (u *UI) buildMain() {
 			}
 		})
 	}()
+}
+
+// buildLayout creates the window content (sidebar + page area); the palette
+// colours are read here, so it is rebuilt when the theme changes.
+func (u *UI) buildLayout() {
+	u.content = container.NewStack()
+	u.sidebar = container.NewVBox()
+	u.navBtns = map[string]*widget.Button{}
+	bg := canvas.NewRectangle(colBg2)
+	sep := canvas.NewRectangle(colLine)
+	sep.SetMinSize(fyne.NewSize(1, 0))
+	side := container.NewStack(bg, container.NewPadded(u.sidebar))
+	main := container.NewBorder(nil, nil, container.NewHBox(fixedWidth(200, side), sep), nil, u.content)
+	u.win.SetContent(container.NewStack(main, u.toasts.layer))
+	u.renderSidebar()
+}
+
+// applyTheme switches between the dark and light palette and rebuilds the UI.
+func (u *UI) applyTheme(name string) {
+	if (name == themeLight) == lightOn {
+		return
+	}
+	setPalette(name)
+	u.app.Settings().SetTheme(appTheme{})
+	if u.win == nil {
+		return
+	}
+	u.buildLayout()
+	u.show(u.route)
 }
 
 func (u *UI) renderSidebar() {

@@ -40,6 +40,14 @@ func (p *settingsPage) form(st appdir.Settings) fyne.CanvasObject {
 		_, err := parseRetention(s)
 		return err
 	}
+	themeSel := widget.NewRadioGroup([]string{lang.L("Dark"), lang.L("Light")}, nil)
+	themeSel.Horizontal = true
+	themeSel.Required = true
+	if st.Theme == themeLight {
+		themeSel.SetSelected(lang.L("Light"))
+	} else {
+		themeSel.SetSelected(lang.L("Dark"))
+	}
 	share := widget.NewCheck(lang.L("Share the game library between devices through the cloud"), nil)
 	share.SetChecked(st.SyncLibrary)
 
@@ -63,6 +71,10 @@ func (p *settingsPage) form(st appdir.Settings) fyne.CanvasObject {
 		next.DeviceName = name.Text
 		next.BackupRetention = n
 		next.SyncLibrary = share.Checked
+		next.Theme = themeDark
+		if themeSel.Selected == lang.L("Light") {
+			next.Theme = themeLight
+		}
 		next.SteamGridDBKey = strings.TrimSpace(key.Text)
 		async(func() (appdir.Settings, error) { return u.sync.SaveSettings(next) }, func(saved appdir.Settings, err error) {
 			if err != nil {
@@ -70,6 +82,7 @@ func (p *settingsPage) form(st appdir.Settings) fyne.CanvasObject {
 				return
 			}
 			st = saved
+			u.applyTheme(saved.Theme)
 			u.refresh()
 			u.toast(lang.L("Settings saved"), toastOK)
 		})
@@ -79,6 +92,8 @@ func (p *settingsPage) form(st appdir.Settings) fyne.CanvasObject {
 	narrow := func(o fyne.CanvasObject) fyne.CanvasObject { return maxWidth(640, o) }
 	return vbox(
 		pageHead(nil, lang.L("Settings")),
+		narrow(card(lang.L("Appearance"),
+			field(lang.L("Theme"), themeSel))),
 		narrow(card(lang.L("This device"),
 			field(lang.L("Device name (shown on other devices and in backups)"), name),
 			field(lang.L("Device ID"), id))),

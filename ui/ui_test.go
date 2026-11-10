@@ -34,7 +34,7 @@ func TestPagesRender(t *testing.T) {
 	t.Cleanup(func() { onUI = fyne.Do })
 
 	a := test.NewApp()
-	a.Settings().SetTheme(darkTheme{})
+	a.Settings().SetTheme(appTheme{})
 	u := newUI(c, a, services.NewBus())
 
 	g, err := u.lib.Save(services.GameInput{
