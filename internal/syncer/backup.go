@@ -284,12 +284,17 @@ func (e *Engine) RestoreBackup(ctx context.Context, job Job, name string) error 
 	if err != nil {
 		return err
 	}
-	if len(local.Files) > 0 && e.Retention > 0 {
+	// A restore overwrites local saves, so it always backs them up first, even
+	// when backups are off (Retention 0). Pruning is skipped then: it would
+	// delete this very backup.
+	if len(local.Files) > 0 {
 		if err := e.backupLocal(ctx, job, local); err != nil {
 			return fmt.Errorf("backup local saves: %w", err)
 		}
-		if err := e.prune(ctx, job.GameID); err != nil {
-			return err
+		if e.Retention > 0 {
+			if err := e.prune(ctx, job.GameID); err != nil {
+				return err
+			}
 		}
 	}
 	if isZip[name] {

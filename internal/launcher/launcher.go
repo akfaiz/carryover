@@ -105,9 +105,26 @@ func processRunning(name string) bool {
 	}
 	for _, p := range procs {
 		n, err := p.Name()
-		if err == nil && strings.EqualFold(n, name) {
+		if err == nil && nameMatches(n, name) {
 			return true
 		}
+	}
+	return false
+}
+
+// linuxCommLen is the longest process name Linux reports (TASK_COMM_LEN - 1).
+const linuxCommLen = 15
+
+// nameMatches compares a process name with the wanted one, ignoring case. The
+// Linux kernel cuts names to 15 characters, and under Wine/Proton the full
+// name can't be recovered from the command line (it is a Windows path), so a
+// cut name matches when it is a prefix of the wanted one.
+func nameMatches(got, want string) bool {
+	if strings.EqualFold(got, want) {
+		return true
+	}
+	if len(got) == linuxCommLen && len(want) > linuxCommLen {
+		return strings.EqualFold(got, want[:linuxCommLen])
 	}
 	return false
 }

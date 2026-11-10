@@ -480,3 +480,43 @@ func TestDiscardPartialBackup(t *testing.T) {
 		t.Fatalf("partial backup still there, err=%v", err)
 	}
 }
+
+// Restoring a backup keeps the current saves as a backup even when backups
+// are off, and doesn't prune that backup away.
+func TestRestoreBacksUpLocalWhenRetentionOff(t *testing.T) {
+	cloudDir := setupCloud(t)
+	pc, job := newDevice(t, cloudDir, "pc")
+	ctx := context.Background()
+	write(t, job.Slots[0].LocalPath, "a.sav", "a-1")
+	mustSync(t, pc, job, ResolveAuto, ActionPush)
+	write(t, job.Slots[0].LocalPath, "a.sav", "a-2")
+	mustSync(t, pc, job, ResolveAuto, ActionPush) // backs up a-1 (cloud)
+	backups, err := pc.ListBackups(ctx, "game1")
+	if err != nil || len(backups) != 1 {
+		t.Fatalf("backups = %+v, %v", backups, err)
+	}
+	pc.Retention = 0
+	if err := pc.RestoreBackup(ctx, job, backups[0].Name); err != nil {
+		t.Fatal(err)
+	}
+	if got := read(t, job.Slots[0].LocalPath, "a.sav"); got != "a-1" {
+		t.Fatalf("restored a.sav = %q, want a-1", got)
+	}
+	after, _ := pc.ListBackups(ctx, "game1")
+	if len(after) != 2 {
+		t.Fatalf("backups after restore = %+v, want the old one plus a local backup of a-2", after)
+	}
+}
+
+// A truncated state file counts as "never synced" instead of failing syncs.
+func TestCorruptStateIsIgnored(t *testing.T) {
+	dir := t.TempDir()
+	s := &StateStore{Dir: dir}
+	if err := os.WriteFile(filepath.Join(dir, "g.json"), []byte(`{"lastSyn`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	st, err := s.Load("g")
+	if err != nil || st.LastSynced != nil {
+		t.Fatalf("Load = %+v, %v", st, err)
+	}
+}

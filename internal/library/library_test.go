@@ -79,3 +79,26 @@ func TestValidateSlots(t *testing.T) {
 		t.Fatal("expected invalid key error")
 	}
 }
+
+// Two processes share one library file: a write by one must not drop what the
+// other wrote in the meantime.
+func TestPersistKeepsOtherProcessWrites(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "library.json")
+	a, _ := Open(path)
+	b, _ := Open(path)
+	ga, err := a.Save(Game{Name: "A"}, "pc")
+	if err != nil {
+		t.Fatal(err)
+	}
+	gb, err := b.Save(Game{Name: "B"}, "pc") // b never saw A in memory
+	if err != nil {
+		t.Fatal(err)
+	}
+	c, _ := Open(path)
+	if _, err := c.Get(ga.ID); err != nil {
+		t.Errorf("game A was lost: %v", err)
+	}
+	if _, err := c.Get(gb.ID); err != nil {
+		t.Errorf("game B was lost: %v", err)
+	}
+}

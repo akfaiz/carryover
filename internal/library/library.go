@@ -338,6 +338,21 @@ func validateSlots(slots []SaveSlot) error {
 	return nil
 }
 
+// persist writes the library. Another Carryover process (the GUI and a `run`
+// wrapper are separate processes) may have written the file since this one
+// loaded it, so what is on disk is merged in first, by timestamp, instead of
+// being overwritten.
 func (s *Store) persist() error {
+	var disk Catalog
+	if ok, err := appdir.ReadJSON(s.path, &disk); err == nil && ok {
+		for _, dg := range disk.Games {
+			dg = normalize(dg)
+			if mg, ok := s.games[dg.ID]; ok {
+				s.games[dg.ID] = MergeGame(mg, dg)
+			} else {
+				s.games[dg.ID] = dg
+			}
+		}
+	}
 	return appdir.WriteJSONAtomic(s.path, s.catalogLocked())
 }

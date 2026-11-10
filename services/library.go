@@ -7,6 +7,7 @@ import (
 	"io"
 	"io/fs"
 	"log"
+	"maps"
 	"net/http"
 	"os"
 	"path"
@@ -215,7 +216,7 @@ func (s *LibraryService) Save(in GameInput) (GameView, error) {
 			return GameView{}, err
 		}
 		g.Cover = old.Cover
-			g.Art = old.Art
+		g.Art = old.Art
 		g.Devices = old.Devices
 		// Steam app id is managed by AddToSteam, not the editor.
 		d.SteamAppID = old.Devices[devID].SteamAppID
@@ -293,12 +294,16 @@ func (s *LibraryService) SetCover(id, src string) (GameView, error) {
 	default:
 		return GameView{}, errors.New("cover must be a PNG, JPEG or WebP image")
 	}
-	if g.Cover != "" {
-		_ = os.Remove(filepath.Join(s.c.Dirs.CoversDir(), g.Cover))
-	}
 	name := g.ID + ext
-	if err := copyFile(src, filepath.Join(s.c.Dirs.CoversDir(), name)); err != nil {
-		return GameView{}, err
+	dst := filepath.Join(s.c.Dirs.CoversDir(), name)
+	if filepath.Clean(src) != filepath.Clean(dst) {
+		// Copy first, so a failure keeps the current cover.
+		if err := copyFile(src, dst); err != nil {
+			return GameView{}, err
+		}
+	}
+	if g.Cover != "" && g.Cover != name {
+		_ = os.Remove(filepath.Join(s.c.Dirs.CoversDir(), g.Cover))
 	}
 	g.Cover = name
 	saved, err := s.c.Library.Save(g, "")
@@ -527,9 +532,7 @@ func (s *LibraryService) saveArt(g library.Game, kind, name string) (GameView, e
 		_ = os.Remove(filepath.Join(s.c.Dirs.CoversDir(), old))
 	}
 	art := map[string]string{}
-	for k, v := range g.Art {
-		art[k] = v
-	}
+	maps.Copy(art, g.Art)
 	if name == "" {
 		delete(art, kind)
 	} else {

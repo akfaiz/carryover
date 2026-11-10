@@ -2,8 +2,10 @@ package syncer
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"sort"
@@ -292,6 +294,14 @@ func (e *Engine) push(ctx context.Context, p *Plan) (*Manifest, string, error) {
 		copied += len(d.copy)
 		deleted += len(d.del)
 	}
+	// Another device may have pushed since this plan was made (a conflict
+	// prompt can keep a plan waiting): don't stack our files on top of theirs.
+	var cur Manifest
+	if found, err := e.Client.ReadJSON(ctx, manifestPath(id), &cur); err != nil {
+		return nil, "", fmt.Errorf("read cloud manifest: %w", err)
+	} else if (found != (p.Remote != nil)) || (found && cur.Revision != p.Remote.Revision) {
+		return nil, "", errors.New("the cloud saves changed while syncing (another device synced); sync again")
+	}
 	m := &Manifest{
 		Revision:   uuid.NewString(),
 		Device:     e.Device.ID,
@@ -341,6 +351,19 @@ func (e *Engine) pull(ctx context.Context, p *Plan) (string, error) {
 		for _, rel := range d.del {
 			if err := os.Remove(filepath.Join(s.LocalPath, filepath.FromSlash(rel))); err != nil && !errors.Is(err, os.ErrNotExist) {
 				return "", fmt.Errorf("delete %s: %w", rel, err)
+			}
+		}
+		// A cloud folder can be ahead of its manifest (a push that was
+		// interrupted before writing it): don't record content we didn't
+		// expect as the synced state.
+		for _, rel := range d.copy {
+			want := p.Remote.Files[s.Key+"/"+rel]
+			got, err := hashFile(filepath.Join(s.LocalPath, filepath.FromSlash(rel)))
+			if err != nil {
+				return "", fmt.Errorf("verify %s: %w", rel, err)
+			}
+			if got != want.Hash {
+				return "", fmt.Errorf("downloaded %s doesn't match the cloud manifest (another device may be uploading); try again", rel)
 			}
 		}
 		copied += len(d.copy)
@@ -454,8 +477,16 @@ func (s *StateStore) path(id string) string { return filepath.Join(s.Dir, id+".j
 // Load returns the state for a game (zero value if none).
 func (s *StateStore) Load(id string) (State, error) {
 	var st State
-	_, err := appdir.ReadJSON(s.path(id), &st)
-	return st, err
+	if _, err := appdir.ReadJSON(s.path(id), &st); err != nil {
+		var syn *json.SyntaxError
+		if errors.As(err, &syn) || errors.Is(err, io.ErrUnexpectedEOF) {
+			// Corrupt (e.g. cut short by a power loss): treat the game as never
+			// synced; the next sync recomputes everything from the manifests.
+			return State{}, nil
+		}
+		return State{}, err
+	}
+	return st, nil
 }
 
 // Save writes the state for a game.
