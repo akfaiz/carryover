@@ -34,6 +34,21 @@ golangci-lint fmt ./...    # fixes formatting and imports
 
 The syncer tests use a temporary `local` remote and need no network.
 
+## Running the Linux build on Windows (Docker + WSLg)
+
+To try the Linux version without a Steam Deck, build and run it in a container; the window shows up on your
+Windows desktop through WSLg (Docker Desktop with the WSL2 backend):
+
+```powershell
+.\scripts\linux-docker.ps1 build    # build the image (Dockerfile)
+.\scripts\linux-docker.ps1 run      # open the GUI; `run list` runs a CLI subcommand
+.\scripts\linux-docker.ps1 shell    # bash inside the image
+.\scripts\linux-docker.ps1 export   # copy the binary to bin\linux\carryover
+.\scripts\linux-docker.ps1 appimage # build bin\Carryover-x86_64.AppImage (no WSL or FUSE needed)
+```
+
+Data is kept in `.docker-data/` (git-ignored), separate from your real config.
+
 ## Building for Linux / Steam Deck with fyne-cross
 
 [fyne-cross](https://github.com/fyne-io/fyne-cross) builds the Linux binary inside a Docker image that already

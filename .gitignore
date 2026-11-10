@@ -3,3 +3,4 @@ fyne-cross
 # written by `fyne package` at the repo root
 /carryover.exe
 /carryover.tar.xz
+.docker-data
