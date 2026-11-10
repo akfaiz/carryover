@@ -322,6 +322,12 @@ func copyFiles(ctx context.Context, fdst fs.Fs, dstDir string, fsrc fs.Fs, srcDi
 		if failed {
 			break
 		}
+		if err := ctx.Err(); err != nil { // cancelled: start no more files
+			mu.Lock()
+			firstErr = err
+			mu.Unlock()
+			break
+		}
 		sem <- struct{}{}
 		wg.Add(1)
 		go func(name string) {

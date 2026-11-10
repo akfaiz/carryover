@@ -10,11 +10,58 @@ import (
 	"github.com/akfaiz/playrelay/internal/syncer"
 )
 
+// ErrSyncCancelled is returned when the user cancels a sync or restore.
+var ErrSyncCancelled = errors.New("sync cancelled")
+
 // SyncService runs manual syncs, manages backups and settings.
 type SyncService struct {
 	c    *core.Core
 	bus  *Bus
 	busy sync.Map // gameID -> struct{}
+
+	mu      sync.Mutex
+	cancels map[string]context.CancelFunc // gameID ("" = SyncAll) -> cancel
+}
+
+// start registers a cancelable operation for key ("" for SyncAll).
+func (s *SyncService) start(parent context.Context, key string) (context.Context, func()) {
+	ctx, cancel := context.WithCancel(parent)
+	s.mu.Lock()
+	if s.cancels == nil {
+		s.cancels = map[string]context.CancelFunc{}
+	}
+	s.cancels[key] = cancel
+	s.mu.Unlock()
+	return ctx, func() {
+		s.mu.Lock()
+		delete(s.cancels, key)
+		s.mu.Unlock()
+		cancel()
+	}
+}
+
+// Cancel stops a running sync or restore of a game; "" stops SyncAll and
+// every other running sync. Files already transferred stay; the next sync
+// picks up where it left off. Returns false if nothing was running.
+func (s *SyncService) Cancel(gameID string) bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	found := false
+	for k, cancel := range s.cancels {
+		if gameID == "" || k == gameID {
+			cancel()
+			found = true
+		}
+	}
+	return found
+}
+
+// cancelled maps a context cancellation to ErrSyncCancelled.
+func cancelled(ctx context.Context, err error) error {
+	if err != nil && ctx.Err() != nil {
+		return ErrSyncCancelled
+	}
+	return err
 }
 
 // NewSyncService creates the service. bus may be nil.
@@ -69,6 +116,10 @@ func (s *SyncService) Plan(gameID string) (PlanView, error) {
 // Sync syncs one game. resolution: "" (auto), "local" or "cloud".
 // Returns the action performed; "conflict" means nothing was transferred.
 func (s *SyncService) Sync(gameID, resolution string) (string, error) {
+	return s.sync(context.Background(), gameID, resolution)
+}
+
+func (s *SyncService) sync(parent context.Context, gameID, resolution string) (string, error) {
 	if _, loaded := s.busy.LoadOrStore(gameID, struct{}{}); loaded {
 		return "", errors.New("a sync for this game is already running")
 	}
@@ -82,10 +133,15 @@ func (s *SyncService) Sync(gameID, resolution string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	_, action, err := eng.Sync(context.Background(), job, syncer.Resolution(resolution))
+	ctx, done := s.start(parent, gameID)
+	defer done()
+	_, action, err := eng.Sync(ctx, job, syncer.Resolution(resolution))
 	defer s.bus.libraryChanged(gameID)
 	if errors.Is(err, syncer.ErrConflict) {
 		return string(syncer.ActionConflict), nil
+	}
+	if err = cancelled(ctx, err); errors.Is(err, ErrSyncCancelled) {
+		return string(action), err // not a sync error: nothing to flag
 	}
 	if err != nil {
 		s.c.States.SetError(gameID, err.Error())
@@ -102,13 +158,16 @@ type SyncResult struct {
 	Error  string `json:"error"`
 }
 
-// SyncAll syncs the library catalog and every ready game.
+// SyncAll syncs the library catalog and every ready game. Cancel("") stops
+// it; the games synced so far are returned along with ErrSyncCancelled.
 func (s *SyncService) SyncAll() ([]SyncResult, error) {
 	if !s.c.CloudConfigured() {
 		return nil, errors.New("no cloud remote configured")
 	}
-	if err := s.c.SyncLibrary(context.Background()); err != nil {
-		return nil, err
+	ctx, done := s.start(context.Background(), "")
+	defer done()
+	if err := s.c.SyncLibrary(ctx); err != nil {
+		return nil, cancelled(ctx, err)
 	}
 	s.bus.libraryChanged("")
 	var out []SyncResult
@@ -116,8 +175,14 @@ func (s *SyncService) SyncAll() ([]SyncResult, error) {
 		if _, err := s.c.Job(g); err != nil {
 			continue // not set up on this device
 		}
+		if ctx.Err() != nil {
+			return out, ErrSyncCancelled
+		}
 		r := SyncResult{GameID: g.ID, Name: g.Name}
-		a, err := s.Sync(g.ID, "")
+		a, err := s.sync(ctx, g.ID, "")
+		if errors.Is(err, ErrSyncCancelled) {
+			return out, err
+		}
 		r.Action = a
 		if err != nil {
 			r.Error = err.Error()
@@ -163,5 +228,7 @@ func (s *SyncService) RestoreBackup(gameID, name string) error {
 		return err
 	}
 	defer s.bus.libraryChanged(gameID)
-	return eng.RestoreBackup(context.Background(), job, name)
+	ctx, done := s.start(context.Background(), gameID)
+	defer done()
+	return cancelled(ctx, eng.RestoreBackup(ctx, job, name))
 }

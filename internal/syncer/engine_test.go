@@ -411,3 +411,73 @@ func TestNoOpForcedSyncSkipsBackup(t *testing.T) {
 		t.Fatalf("backups = %+v, want none for no-op syncs", backups)
 	}
 }
+
+// Cancelling a sync mid-backup removes the partial backup, doesn't record a
+// sync, and the next sync completes normally.
+func TestCancelledSyncLeavesNoPartialBackup(t *testing.T) {
+	cloudDir := setupCloud(t)
+	pc, job := newDevice(t, cloudDir, "pc")
+	saves := job.Slots[0].LocalPath
+	write(t, saves, "a.sav", "a-1")
+	write(t, saves, "b.sav", "b-1")
+	mustSync(t, pc, job, ResolveAuto, ActionPush)
+	before, _ := pc.States.Load("game1")
+
+	// Cancel as soon as the backup of the cloud version starts.
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	pc.OnEvent = func(ev Event) {
+		if ev.Phase == "backup" {
+			cancel()
+		}
+	}
+	write(t, saves, "a.sav", "a-2!")
+	if _, _, err := pc.Sync(ctx, job, ResolveAuto); !errors.Is(err, context.Canceled) {
+		t.Fatalf("sync err = %v, want context.Canceled", err)
+	}
+	pc.OnEvent = nil
+
+	backups, err := pc.ListBackups(context.Background(), "game1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(backups) != 0 {
+		t.Fatalf("partial backup left behind: %+v", backups)
+	}
+	after, _ := pc.States.Load("game1")
+	if !after.LastSyncAt.Equal(before.LastSyncAt) || after.LastError != "" {
+		t.Fatalf("cancelled sync changed state: %+v", after)
+	}
+	if got := read(t, cloudSaves(cloudDir), "a.sav"); got != "a-1" {
+		t.Fatalf("cloud a.sav = %q, want untouched", got)
+	}
+
+	// The next sync does the work.
+	mustSync(t, pc, job, ResolveAuto, ActionPush)
+	if got := read(t, cloudSaves(cloudDir), "a.sav"); got != "a-2!" {
+		t.Fatalf("cloud a.sav after retry = %q", got)
+	}
+}
+
+// A cancelled context stops the local scan.
+func TestScanLocalCancelled(t *testing.T) {
+	dir := t.TempDir()
+	write(t, dir, "a.sav", "x")
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	if _, err := ScanLocal(ctx, []Slot{{Key: "s", LocalPath: dir}}, nil); !errors.Is(err, context.Canceled) {
+		t.Fatalf("err = %v, want context.Canceled", err)
+	}
+}
+
+// A backup folder that was partly written (no manifest yet) is deleted.
+func TestDiscardPartialBackup(t *testing.T) {
+	cloudDir := setupCloud(t)
+	pc, _ := newDevice(t, cloudDir, "pc")
+	partial := filepath.Join(cloudDir, "games", "game1", "backups", "20260101T000000.000Z_pc_cloud", "saves")
+	write(t, partial, "a.sav", "half")
+	pc.discardBackup("game1", "20260101T000000.000Z_pc_cloud")
+	if _, err := os.Stat(filepath.Dir(partial)); !os.IsNotExist(err) {
+		t.Fatalf("partial backup still there, err=%v", err)
+	}
+}

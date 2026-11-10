@@ -108,6 +108,7 @@ func newUI(c *core.Core, a fyne.App, bus *services.Bus) *UI {
 		})
 	})
 	bus.OnPrompt(func(p services.Prompt) { onUI(func() { u.prompts.add(p) }) })
+	bus.OnPromptClosed(func(id string) { onUI(func() { u.prompts.remove(id) }) })
 	return u
 }
 

@@ -31,6 +31,22 @@ func (q *promptQueue) add(p services.Prompt) {
 	}
 }
 
+// remove drops a prompt that was withdrawn (its sync was cancelled).
+func (q *promptQueue) remove(id string) {
+	for i, p := range q.queue {
+		if p.ID != id {
+			continue
+		}
+		q.queue = append(q.queue[:i], q.queue[i+1:]...)
+		if i == 0 && q.current != nil {
+			q.current.Hide()
+			q.current = nil
+			q.next()
+		}
+		return
+	}
+}
+
 func (q *promptQueue) next() {
 	if len(q.queue) == 0 || q.u.win == nil {
 		q.current = nil

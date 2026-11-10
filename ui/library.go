@@ -1,6 +1,7 @@
 package ui
 
 import (
+	"errors"
 	"fmt"
 	"strings"
 
@@ -13,14 +14,16 @@ import (
 )
 
 type libraryPage struct {
-	u         *UI
-	filter    string
-	syncing   bool
-	scroll    *container.Scroll
-	search    *widget.Entry
-	syncBtn   *widget.Button
-	gridHost  *fyne.Container
-	emptyHost *fyne.Container
+	u          *UI
+	filter     string
+	syncing    bool
+	cancelling bool
+	scroll     *container.Scroll
+	search     *widget.Entry
+	syncBtn    *widget.Button
+	head       fyne.CanvasObject // header row, refreshed when syncBtn's label changes
+	gridHost   *fyne.Container
+	emptyHost  *fyne.Container
 }
 
 func newLibraryPage(u *UI) *libraryPage { return &libraryPage{u: u} }
@@ -30,7 +33,7 @@ func (p *libraryPage) view() fyne.CanvasObject {
 	p.search.SetPlaceHolder("Search…")
 	p.search.OnChanged = func(s string) { p.filter = s; p.renderGrid() }
 	p.syncBtn = widget.NewButtonWithIcon("Sync all", theme.ViewRefreshIcon(), p.syncAll)
-	head := pageHead(nil, "Library",
+	p.head = pageHead(nil, "Library",
 		// Centered so the row (as tall as the heading) doesn't stretch the entry.
 		container.NewCenter(fixedWidth(220, p.search)),
 		p.syncBtn,
@@ -40,7 +43,7 @@ func (p *libraryPage) view() fyne.CanvasObject {
 	p.gridHost = container.NewStack()
 	p.emptyHost = container.NewStack()
 	p.renderGrid()
-	p.scroll = scrollPage(vbox(head, p.emptyHost, p.gridHost))
+	p.scroll = scrollPage(vbox(p.head, p.emptyHost, p.gridHost))
 	return p.scroll
 }
 
@@ -53,11 +56,23 @@ func (p *libraryPage) stateChanged(what change) {
 
 func (p *libraryPage) renderGrid() {
 	u := p.u
-	setEnabled(p.syncBtn, !p.syncing && u.settings.Remote != "")
-	if p.syncing {
-		p.syncBtn.SetText("Syncing…")
-	} else {
+	// While syncing, the same button cancels the run.
+	switch {
+	case p.cancelling:
+		p.syncBtn.SetText("Cancelling…")
+		p.syncBtn.SetIcon(theme.CancelIcon())
+		p.syncBtn.Disable()
+	case p.syncing:
+		p.syncBtn.SetText("Cancel sync")
+		p.syncBtn.SetIcon(theme.CancelIcon())
+		p.syncBtn.Enable()
+	default:
 		p.syncBtn.SetText("Sync all")
+		p.syncBtn.SetIcon(theme.ViewRefreshIcon())
+		setEnabled(p.syncBtn, u.settings.Remote != "")
+	}
+	if p.head != nil {
+		p.head.Refresh() // the button's label width changed
 	}
 
 	p.emptyHost.Objects = nil
@@ -130,11 +145,23 @@ func (p *libraryPage) tile(g services.GameView) fyne.CanvasObject {
 
 func (p *libraryPage) syncAll() {
 	u := p.u
+	if p.syncing {
+		if u.sync.Cancel("") {
+			p.cancelling = true
+			p.renderGrid()
+		}
+		return
+	}
 	p.syncing = true
 	p.renderGrid()
 	async(u.sync.SyncAll, func(res []services.SyncResult, err error) {
-		p.syncing = false
+		p.syncing, p.cancelling = false, false
 		defer u.refresh()
+		if errors.Is(err, services.ErrSyncCancelled) {
+			u.toast(fmt.Sprintf("Sync cancelled after %d game(s)", len(res)), toastInfo)
+			p.renderGrid()
+			return
+		}
 		if err != nil {
 			u.toastErr(err)
 			p.renderGrid()

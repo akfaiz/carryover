@@ -8,6 +8,7 @@ import (
 	"io"
 	"log"
 	"os"
+	"os/signal"
 	"path/filepath"
 	"strings"
 
@@ -137,7 +138,9 @@ func cmdSync(args []string) int {
 	} else if *pull {
 		res = syncer.ResolveCloud
 	}
-	ctx := context.Background()
+	// Ctrl+C cancels cleanly: transfers stop and partial backups are removed.
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
+	defer stop()
 	if err := c.SyncLibrary(ctx); err != nil {
 		log.Printf("library sync: %v", err)
 	}
@@ -180,6 +183,9 @@ func cmdSync(args []string) int {
 		_, action, err := eng.Sync(ctx, job, res)
 		lock.Release()
 		switch {
+		case ctx.Err() != nil:
+			fmt.Println("  cancelled")
+			return 130
 		case errors.Is(err, syncer.ErrConflict):
 			fmt.Println("  conflict: both local and cloud changed; rerun with --push or --pull")
 			code = 3

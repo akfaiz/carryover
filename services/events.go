@@ -45,6 +45,7 @@ type Bus struct {
 	library []func(gameID string)
 	status  []func(Status)
 	prompt  []func(Prompt)
+	closed  []func(promptID string)
 	sync    []func(syncer.Event)
 }
 
@@ -63,6 +64,14 @@ func (b *Bus) OnStatus(f func(Status)) { b.mu.Lock(); b.status = append(b.status
 
 // OnPrompt subscribes to new prompts.
 func (b *Bus) OnPrompt(f func(Prompt)) { b.mu.Lock(); b.prompt = append(b.prompt, f); b.mu.Unlock() }
+
+// OnPromptClosed subscribes to prompts withdrawn without an answer (the
+// sync that asked was cancelled); the UI should close them.
+func (b *Bus) OnPromptClosed(f func(promptID string)) {
+	b.mu.Lock()
+	b.closed = append(b.closed, f)
+	b.mu.Unlock()
+}
 
 // OnSync subscribes to sync progress events.
 func (b *Bus) OnSync(f func(syncer.Event)) { b.mu.Lock(); b.sync = append(b.sync, f); b.mu.Unlock() }
@@ -97,6 +106,15 @@ func (b *Bus) promptRaised(p Prompt) {
 	}
 	for _, f := range snapshot(b, &b.prompt) {
 		f(p)
+	}
+}
+
+func (b *Bus) promptClosed(id string) {
+	if b == nil {
+		return
+	}
+	for _, f := range snapshot(b, &b.closed) {
+		f(id)
 	}
 }
 
@@ -144,6 +162,7 @@ func (p *prompter) ask(ctx context.Context, pr Prompt) string {
 	case a := <-ch:
 		return a
 	case <-ctx.Done():
+		p.bus.promptClosed(pr.ID)
 		return ""
 	}
 }
@@ -170,10 +189,11 @@ func (p *prompter) list() []Prompt {
 
 // guiUI implements core.SessionUI using GUI prompts.
 type guiUI struct {
-	gameID    string
-	p         *prompter
-	onStatus  func(Status)
-	onRunning func(bool)
+	gameID       string
+	p            *prompter
+	onStatus     func(Status)
+	onRunning    func(bool)
+	onCancelable func(cancel func())
 }
 
 func (u *guiUI) Status(phase, message string) {
@@ -200,6 +220,12 @@ func (u *guiUI) ConfirmLock(ctx context.Context, g library.Game, l *syncer.Lock)
 
 func (u *guiUI) ConfirmSyncFailure(ctx context.Context, g library.Game, err error, before bool) bool {
 	return u.p.ask(ctx, Prompt{Kind: "syncError", GameID: g.ID, GameName: g.Name, Error: err.Error(), BeforePlay: before}) == "yes"
+}
+
+func (u *guiUI) SyncCancelable(cancel func()) {
+	if u.onCancelable != nil {
+		u.onCancelable(cancel)
+	}
 }
 
 func (u *guiUI) GameRunning(running bool) {

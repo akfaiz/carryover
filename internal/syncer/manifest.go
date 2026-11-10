@@ -3,6 +3,7 @@
 package syncer
 
 import (
+	"context"
 	"crypto/sha256"
 	"encoding/hex"
 	"errors"
@@ -84,8 +85,9 @@ type Slot struct {
 }
 
 // ScanLocal hashes the files of all slots. prev, if given, is used to skip
-// re-hashing files whose size and modification time are unchanged.
-func ScanLocal(slots []Slot, prev *Manifest) (*Manifest, error) {
+// re-hashing files whose size and modification time are unchanged. It stops
+// early with ctx's error when ctx is cancelled.
+func ScanLocal(ctx context.Context, slots []Slot, prev *Manifest) (*Manifest, error) {
 	m := &Manifest{Files: map[string]FileInfo{}}
 	for _, sl := range slots {
 		flt, err := sl.Filters.NewFilter()
@@ -105,6 +107,9 @@ func ScanLocal(slots []Slot, prev *Manifest) (*Manifest, error) {
 		}
 		err = filepath.WalkDir(root, func(p string, d fs.DirEntry, err error) error {
 			if err != nil {
+				return err
+			}
+			if err := ctx.Err(); err != nil {
 				return err
 			}
 			if d.IsDir() || !d.Type().IsRegular() {

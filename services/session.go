@@ -22,6 +22,7 @@ type SessionService struct {
 	mu      sync.Mutex
 	running map[string]bool
 	status  map[string]Status
+	cancels map[string]func() // gameID -> cancel for the sync phase in progress
 
 	// Wrapper mode (playrelay run <id>).
 	wrapGameID string
@@ -111,6 +112,17 @@ func (s *SessionService) play(ctx context.Context, gameID string, opts core.RunO
 		if s.OnGameRunning != nil {
 			s.OnGameRunning(r)
 		}
+	}, onCancelable: func(cancel func()) {
+		s.mu.Lock()
+		if s.cancels == nil {
+			s.cancels = map[string]func(){}
+		}
+		if cancel == nil {
+			delete(s.cancels, g.ID)
+		} else {
+			s.cancels[g.ID] = cancel
+		}
+		s.mu.Unlock()
 	}}
 	res, err := s.c.Play(ctx, g.ID, opts, ui)
 	switch {
@@ -118,6 +130,8 @@ func (s *SessionService) play(ctx context.Context, gameID string, opts core.RunO
 		s.setStatus(Status{GameID: g.ID, Phase: "done", Message: "Cancelled"})
 	case err != nil:
 		s.setStatus(Status{GameID: g.ID, Phase: "error", Message: err.Error()})
+	case errors.Is(res.PostError, core.ErrCancelled):
+		s.setStatus(Status{GameID: g.ID, Phase: "done", Message: "Game closed — upload cancelled; your saves will upload on the next sync"})
 	case res.PostError != nil:
 		s.setStatus(Status{GameID: g.ID, Phase: "error", Message: "Game closed, but upload failed: " + res.PostError.Error()})
 	case res.PostAction == syncer.ActionConflict:
@@ -136,6 +150,20 @@ func (s *SessionService) Play(gameID string) error {
 	}
 	go func() { _, _ = s.play(context.Background(), gameID, core.RunOptions{}) }()
 	return nil
+}
+
+// Cancel stops the sync phase of a play session: before the game starts it
+// cancels the launch, after it closes it stops the upload (the game itself is
+// never stopped). Returns false if no sync is running for the game.
+func (s *SessionService) Cancel(gameID string) bool {
+	s.mu.Lock()
+	cancel := s.cancels[gameID]
+	s.mu.Unlock()
+	if cancel == nil {
+		return false
+	}
+	cancel()
+	return true
 }
 
 // Respond answers a prompt. answer: conflict → "local"/"cloud"/"skip"; lock/syncError → "yes"/"no".

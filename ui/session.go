@@ -9,6 +9,7 @@ import (
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/canvas"
 	"fyne.io/fyne/v2/container"
+	"fyne.io/fyne/v2/theme"
 	"fyne.io/fyne/v2/widget"
 
 	"github.com/akfaiz/playrelay/internal/core"
@@ -17,10 +18,12 @@ import (
 
 // sessionPage is the wrapper window's content (playrelay run <game>).
 type sessionPage struct {
-	u    *UI
-	w    services.WrapperState
-	msg  *widget.Label
-	prog *progressBar
+	u      *UI
+	w      services.WrapperState
+	msg    *widget.Label
+	prog   *progressBar
+	cancel *widget.Button
+	phase  string // sync phase the Cancel button belongs to
 }
 
 func (p *sessionPage) view() fyne.CanvasObject {
@@ -33,7 +36,14 @@ func (p *sessionPage) view() fyne.CanvasObject {
 	p.msg.Wrapping = fyne.TextWrapWord
 	p.prog = newProgress()
 	p.prog.set("", 0, 0)
-	content := container.NewPadded(container.NewPadded(vbox(brand, name, p.msg, p.prog)))
+	p.cancel = widget.NewButtonWithIcon("Cancel", theme.CancelIcon(), func() {
+		if p.u.sess.Cancel(p.w.GameID) {
+			p.cancel.SetText("Cancelling…")
+			p.cancel.Disable()
+		}
+	})
+	p.cancel.Hide()
+	content := container.NewPadded(container.NewPadded(vbox(brand, name, p.msg, p.prog, hbox(p.cancel))))
 	var bg fyne.CanvasObject = canvas.NewRectangle(colBg)
 	if p.w.CoverPath != "" {
 		img := canvas.NewImageFromImage(nil)
@@ -67,8 +77,20 @@ func (p *sessionPage) stateChanged(change) {
 		ev := p.u.progress[p.w.GameID]
 		p.prog.set(ev.Message, ev.Bytes, ev.TotalBytes)
 		p.prog.Show()
+		if p.phase != st.Message {
+			// A new sync phase (before or after playing): offer Cancel again.
+			p.phase = st.Message
+			p.cancel.SetText("Cancel upload")
+			if st.Message == "Checking cloud saves…" {
+				p.cancel.SetText("Cancel and don't play")
+			}
+			p.cancel.Enable()
+			p.cancel.Show()
+		}
 	} else {
+		p.phase = ""
 		p.prog.Hide()
+		p.cancel.Hide()
 	}
 }
 

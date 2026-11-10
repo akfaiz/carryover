@@ -1,6 +1,7 @@
 package ui
 
 import (
+	"errors"
 	"fmt"
 
 	"fyne.io/fyne/v2"
@@ -26,6 +27,7 @@ type gameDetail struct {
 	steamMode     string
 	wrapOpts      string
 	confirmDelete bool
+	cancelling    bool // Cancel pressed; waiting for the sync to stop
 	wrapOpen      bool
 	wrapItem      *widget.AccordionItem // to keep its open state across renders
 
@@ -62,6 +64,9 @@ func (p *gameDetail) view() fyne.CanvasObject {
 }
 
 func (p *gameDetail) stateChanged(what change) {
+	if what == changeStatus && p.u.status[p.id].Phase != "sync" && p.busy == "" {
+		p.cancelling = false // the session's sync phase ended
+	}
 	if what == changeProgress && p.prog != nil {
 		p.updateProgress()
 		return
@@ -99,7 +104,13 @@ func (p *gameDetail) run(label string, work func() error, done func(error)) {
 	p.render()
 	async0(work, func(err error) {
 		p.busy = ""
-		if err != nil {
+		p.cancelling = false
+		switch {
+		case errors.Is(err, services.ErrSyncCancelled):
+			p.u.toast("Sync cancelled. Files already transferred are kept; the next sync continues.", toastInfo)
+			err = nil
+			p.plan = nil
+		case err != nil:
 			p.u.toastErr(err)
 		}
 		if done != nil {
@@ -174,11 +185,19 @@ func (p *gameDetail) render() {
 			p.prog.set("", ev.Bytes, ev.TotalBytes)
 			box.Add(p.prog)
 		}
+		if st.Phase == "sync" {
+			// Before the game starts this cancels the launch; afterwards the upload.
+			label := "Cancel upload"
+			if st.Message == "Checking cloud saves…" {
+				label = "Cancel and don't play"
+			}
+			box.Add(hbox(p.cancelButton(label, func() bool { return u.sess.Cancel(p.id) })))
+		}
 		info.Add(fixedWidth(480, card("", box)))
 	} else if p.busy == "sync" || p.busy == "restore" {
 		p.prog, p.progOf = newProgress(), "busy"
 		p.updateProgress()
-		info.Add(fixedWidth(480, card("", p.prog)))
+		info.Add(fixedWidth(480, card("", vbox(p.prog, hbox(p.cancelButton("Cancel", func() bool { return u.sync.Cancel(p.id) }))))))
 	}
 
 	cover := coverView(coverSource{path: g.CoverPath, version: g.CoverVersion, name: g.Name}, fyne.NewSize(170, 255))
@@ -204,6 +223,21 @@ func (p *gameDetail) render() {
 	right.Add(p.deleteCard(g))
 
 	replaceScroll(p.scroll, vbox(hero, newCols(420, []float32{3, 2}, left, right)))
+}
+
+// cancelButton stops a running sync; it shows "Cancelling…" until it stops.
+func (p *gameDetail) cancelButton(label string, cancel func() bool) *widget.Button {
+	if p.cancelling {
+		b := widget.NewButton("Cancelling…", nil)
+		b.Disable()
+		return b
+	}
+	return widget.NewButtonWithIcon(label, theme.CancelIcon(), func() {
+		if cancel() {
+			p.cancelling = true
+			p.render()
+		}
+	})
 }
 
 func labelOf(label, key string) string {

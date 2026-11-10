@@ -113,7 +113,7 @@ func (e *Engine) Plan(ctx context.Context, job Job) (*Plan, error) {
 		return nil, err
 	}
 	e.emit(job.GameID, "scan", "Scanning local saves", cloud.Progress{})
-	local, err := ScanLocal(job.Slots, st.LastSynced)
+	local, err := ScanLocal(ctx, job.Slots, st.LastSynced)
 	if err != nil {
 		return nil, fmt.Errorf("scan local saves: %w", err)
 	}
@@ -369,15 +369,19 @@ func (e *Engine) backupName(kind string) string {
 func (e *Engine) backupCloud(ctx context.Context, id string, m *Manifest) error {
 	name := e.backupName("cloud")
 	e.emit(id, "backup", "Backing up cloud saves", cloud.Progress{})
-	listed, err := e.Client.ListFiles(ctx, currentDir(id))
+	err := func() error {
+		listed, err := e.Client.ListFiles(ctx, currentDir(id))
+		if err != nil {
+			return err
+		}
+		files, total := sortedFiles(listed)
+		if err := e.Client.CopyWithin(ctx, currentDir(id), backupsDir(id)+"/"+name, files, total, e.progress(id, "backup", "Backing up cloud saves")); err != nil {
+			return err
+		}
+		return e.Client.WriteJSON(ctx, backupsDir(id)+"/"+name+"/manifest.json", m)
+	}()
 	if err != nil {
-		return err
-	}
-	files, total := sortedFiles(listed)
-	if err := e.Client.CopyWithin(ctx, currentDir(id), backupsDir(id)+"/"+name, files, total, e.progress(id, "backup", "Backing up cloud saves")); err != nil {
-		return err
-	}
-	if err := e.Client.WriteJSON(ctx, backupsDir(id)+"/"+name+"/manifest.json", m); err != nil {
+		e.discardBackup(id, name)
 		return err
 	}
 	return e.prune(ctx, id)
@@ -386,23 +390,39 @@ func (e *Engine) backupCloud(ctx context.Context, id string, m *Manifest) error 
 func (e *Engine) backupLocal(ctx context.Context, job Job, m *Manifest) error {
 	name := e.backupName("local")
 	e.emit(job.GameID, "backup", "Backing up local saves", cloud.Progress{})
-	for _, s := range job.Slots {
-		sizes := map[string]int64{}
-		for rel, f := range slotFiles(m, s.Key, nil) {
-			sizes[rel] = f.Size
+	err := func() error {
+		for _, s := range job.Slots {
+			sizes := map[string]int64{}
+			for rel, f := range slotFiles(m, s.Key, nil) {
+				sizes[rel] = f.Size
+			}
+			files, total := sortedFiles(sizes)
+			dst := backupsDir(job.GameID) + "/" + name + "/" + s.Key
+			if err := e.Client.Upload(ctx, s.LocalPath, dst, files, total, e.progress(job.GameID, "backup", "Backing up local saves")); err != nil {
+				return err
+			}
 		}
-		files, total := sortedFiles(sizes)
-		dst := backupsDir(job.GameID) + "/" + name + "/" + s.Key
-		if err := e.Client.Upload(ctx, s.LocalPath, dst, files, total, e.progress(job.GameID, "backup", "Backing up local saves")); err != nil {
-			return err
-		}
-	}
-	bm := *m
-	bm.Device, bm.DeviceName, bm.Time = e.Device.ID, e.Device.Name, time.Now().UTC()
-	if err := e.Client.WriteJSON(ctx, backupsDir(job.GameID)+"/"+name+"/manifest.json", &bm); err != nil {
+		bm := *m
+		bm.Device, bm.DeviceName, bm.Time = e.Device.ID, e.Device.Name, time.Now().UTC()
+		return e.Client.WriteJSON(ctx, backupsDir(job.GameID)+"/"+name+"/manifest.json", &bm)
+	}()
+	if err != nil {
+		e.discardBackup(job.GameID, name)
 		return err
 	}
 	return e.prune(ctx, job.GameID)
+}
+
+// discardBackup deletes a backup that couldn't be completed (e.g. the sync
+// was cancelled), so a partial copy is never offered for restore. It uses its
+// own context because the sync's context may be the one that was cancelled.
+func (e *Engine) discardBackup(gameID, name string) {
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
+	defer cancel()
+	if names, err := e.Client.ListDirs(ctx, backupsDir(gameID)); err != nil || !slices.Contains(names, name) {
+		return // nothing was written (or we can't tell): leave it
+	}
+	_ = e.Client.Purge(ctx, backupsDir(gameID)+"/"+name)
 }
 
 func (e *Engine) prune(ctx context.Context, id string) error {
@@ -461,7 +481,7 @@ func (e *Engine) RestoreBackup(ctx context.Context, job Job, name string) error 
 	if err != nil {
 		return err
 	}
-	local, err := ScanLocal(job.Slots, st.LastSynced)
+	local, err := ScanLocal(ctx, job.Slots, st.LastSynced)
 	if err != nil {
 		return err
 	}

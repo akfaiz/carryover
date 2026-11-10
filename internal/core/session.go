@@ -25,6 +25,10 @@ type SessionUI interface {
 	ConfirmSyncFailure(ctx context.Context, game library.Game, err error, beforePlay bool) bool
 	// GameRunning is called while the game process runs (running=false once it exits).
 	GameRunning(running bool)
+	// SyncCancelable is called with a function that cancels the sync phase
+	// in progress (before or after playing), and with nil when it ends. The
+	// game itself is never stopped by it.
+	SyncCancelable(cancel func())
 }
 
 // RunOptions customises a play session.
@@ -44,8 +48,22 @@ type SessionResult struct {
 	PostError  error
 }
 
-// ErrCancelled is returned when the user aborts before the game starts.
+// ErrCancelled is returned when the user aborts before the game starts, and
+// is the SessionResult.PostError when the user cancels the upload afterwards.
 var ErrCancelled = errors.New("cancelled")
+
+// cancelablePhase gives the UI a way to cancel one sync phase. done must be
+// called when the phase ends; it reports whether the user cancelled it.
+func cancelablePhase(parent context.Context, ui SessionUI) (ctx context.Context, done func() (userCancelled bool)) {
+	ctx, cancel := context.WithCancel(parent)
+	ui.SyncCancelable(cancel)
+	return ctx, func() bool {
+		ui.SyncCancelable(nil)
+		userCancelled := ctx.Err() != nil && parent.Err() == nil
+		cancel()
+		return userCancelled
+	}
+}
 
 // Play runs the full pull → play → push cycle for a game.
 func (c *Core) Play(ctx context.Context, gameID string, opt RunOptions, ui SessionUI) (SessionResult, error) {
@@ -80,11 +98,15 @@ func (c *Core) Play(ctx context.Context, gameID string, opt RunOptions, ui Sessi
 	}
 
 	if doSync {
+		preCtx, preDone := cancelablePhase(ctx, ui)
 		ui.Status("sync", "Checking cloud saves…")
-		if err := c.SyncLibrary(ctx); err != nil {
+		if err := c.SyncLibrary(preCtx); err != nil {
 			log.Printf("library sync: %v", err)
 		}
-		action, err := c.syncWithUI(ctx, eng, game, job, ui, true)
+		action, err := c.syncWithUI(preCtx, eng, game, job, ui, true)
+		if preDone() {
+			return res, ErrCancelled // the game isn't launched
+		}
 		res.PreAction = action
 		if err != nil {
 			c.States.SetError(game.ID, err.Error())
@@ -110,8 +132,13 @@ func (c *Core) Play(ctx context.Context, gameID string, opt RunOptions, ui Sessi
 		// Use a fresh context: the game may have been closed because ctx was cancelled.
 		postCtx, cancel := context.WithTimeout(context.Background(), 30*time.Minute)
 		defer cancel()
+		upCtx, upDone := cancelablePhase(postCtx, ui)
 		ui.Status("sync", "Uploading saves…")
-		action, err := c.syncWithUI(postCtx, eng, game, job, ui, false)
+		action, err := c.syncWithUI(upCtx, eng, game, job, ui, false)
+		if upDone() {
+			// Saves stay as they are locally; the next sync uploads them.
+			action, err = syncer.ActionNone, ErrCancelled
+		}
 		res.PostAction, res.PostError = action, err
 		if err != nil && !errors.Is(err, ErrCancelled) {
 			c.States.SetError(game.ID, err.Error())
@@ -196,4 +223,5 @@ func (h HeadlessUI) ConfirmSyncFailure(_ context.Context, g library.Game, err er
 	h.logf("%s: sync failed: %v", g.Name, err)
 	return true
 }
-func (h HeadlessUI) GameRunning(bool) {}
+func (h HeadlessUI) GameRunning(bool)      {}
+func (h HeadlessUI) SyncCancelable(func()) {}
