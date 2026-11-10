@@ -10,6 +10,7 @@ import (
 	"sort"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/rclone/rclone/fs"
 	"github.com/rclone/rclone/fs/cache"
@@ -41,6 +42,9 @@ func Init(configPath string) error {
 		// Saves change rarely and are small: compare by checksum when the
 		// backend supports it so that touching a file doesn't cause re-uploads.
 		ci.CheckSum = true
+		// Opening a remote costs seconds on OneDrive; keep connections
+		// (cloud.Client shares one per remote) for an hour, not 5 minutes.
+		ci.FsCacheExpireDuration = fs.Duration(time.Hour)
 	})
 	return err
 }
@@ -71,7 +75,7 @@ func DeleteRemote(name string) {
 	configMu.Lock()
 	defer configMu.Unlock()
 	config.DeleteRemote(name)
-	cache.ClearConfig(name)
+	cache.Clear()
 }
 
 // ProviderOption is a backend option shown in the setup form.
@@ -215,7 +219,7 @@ func CreateRemote(ctx context.Context, name, typ string, params map[string]strin
 	configMu.Lock()
 	defer configMu.Unlock()
 	out, err := config.CreateRemote(ctx, name, typ, kv, config.UpdateRemoteOpt{NonInteractive: true, Obscure: true})
-	cache.ClearConfig(name) // drop connections made with an older config of this name
+	cache.Clear() // drop connections made with an older config (incl. "name,opt=x:" keys)
 	if err != nil {
 		return nil, explainOAuthError(err)
 	}
@@ -229,7 +233,7 @@ func ContinueRemote(ctx context.Context, name, state, result string) (*Question,
 	out, err := config.UpdateRemote(ctx, name, rc.Params{}, config.UpdateRemoteOpt{
 		NonInteractive: true, Continue: true, State: state, Result: result, Obscure: true,
 	})
-	cache.ClearConfig(name)
+	cache.Clear()
 	if err != nil {
 		return nil, explainOAuthError(err)
 	}
@@ -274,7 +278,7 @@ func ImportConfig(path string) (ImportResult, error) {
 			continue
 		}
 		data.DeleteSection(sec.name)
-		cache.ClearConfig(sec.name)
+		cache.Clear()
 		for _, kv := range sec.kvs {
 			data.SetValue(sec.name, kv[0], kv[1])
 		}

@@ -145,9 +145,8 @@ func TestTwoDeviceSync(t *testing.T) {
 	if localBackup == "" {
 		t.Fatalf("no local backup from pc in %+v", backups)
 	}
-	b, err := os.ReadFile(filepath.Join(cloudDir, "games", "game1", "backups", localBackup, "saves", "slot1.sav"))
-	if err != nil || string(b) != "pc-conflict" {
-		t.Fatalf("backup content = %q, %v", b, err)
+	if got := readZipEntry(t, filepath.Join(cloudDir, "games", "game1", "backups", localBackup+".zip"), "saves/slot1.sav"); got != "pc-conflict" {
+		t.Fatalf("backup content = %q", got)
 	}
 
 	// Restore that backup: becomes local and cloud version.
@@ -470,14 +469,14 @@ func TestScanLocalCancelled(t *testing.T) {
 	}
 }
 
-// A backup folder that was partly written (no manifest yet) is deleted.
+// A backup archive whose upload didn't complete is deleted.
 func TestDiscardPartialBackup(t *testing.T) {
 	cloudDir := setupCloud(t)
 	pc, _ := newDevice(t, cloudDir, "pc")
-	partial := filepath.Join(cloudDir, "games", "game1", "backups", "20260101T000000.000Z_pc_cloud", "saves")
-	write(t, partial, "a.sav", "half")
+	backups := filepath.Join(cloudDir, "games", "game1", "backups")
+	write(t, backups, "20260101T000000.000Z_pc_cloud.zip", "half")
 	pc.discardBackup("game1", "20260101T000000.000Z_pc_cloud")
-	if _, err := os.Stat(filepath.Dir(partial)); !os.IsNotExist(err) {
+	if _, err := os.Stat(filepath.Join(backups, "20260101T000000.000Z_pc_cloud.zip")); !os.IsNotExist(err) {
 		t.Fatalf("partial backup still there, err=%v", err)
 	}
 }

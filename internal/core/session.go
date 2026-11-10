@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"sync"
 	"time"
 
 	"github.com/akfaiz/playrelay/internal/launcher"
@@ -97,13 +98,31 @@ func (c *Core) Play(ctx context.Context, gameID string, opt RunOptions, ui Sessi
 		}
 	}
 
+	lockWritten := make(chan struct{})
 	if doSync {
 		preCtx, preDone := cancelablePhase(ctx, ui)
 		ui.Status("sync", "Checking cloud saves…")
-		if err := c.SyncLibrary(preCtx); err != nil {
-			log.Printf("library sync: %v", err)
-		}
+		// The library catalog and the cloud lock don't depend on this game's
+		// saves: fetch them while the saves are compared (each round trip
+		// costs seconds on some providers).
+		libDone := make(chan struct{})
+		go func() {
+			defer close(libDone)
+			if err := c.SyncLibrary(preCtx); err != nil {
+				log.Printf("library sync: %v", err)
+			}
+		}()
+		var other *syncer.Lock
+		lockChecked := make(chan struct{})
+		go func() {
+			defer close(lockChecked)
+			if l, err := eng.CheckLock(preCtx, game.ID); err == nil {
+				other = l
+			}
+		}()
 		action, err := c.syncWithUI(preCtx, eng, game, job, ui, true)
+		<-libDone
+		<-lockChecked
 		if preDone() {
 			return res, ErrCancelled // the game isn't launched
 		}
@@ -114,12 +133,17 @@ func (c *Core) Play(ctx context.Context, gameID string, opt RunOptions, ui Sessi
 				return res, ErrCancelled
 			}
 		}
-		if other, err := eng.CheckLock(ctx, game.ID); err == nil && other != nil {
-			if !ui.ConfirmLock(ctx, game, other) {
-				return res, ErrCancelled
-			}
+		if other != nil && !ui.ConfirmLock(ctx, game, other) {
+			return res, ErrCancelled
 		}
-		_ = eng.AcquireLock(ctx, game.ID)
+		// Mark the game as being played without delaying its start; the
+		// release afterwards waits for this write.
+		go func() {
+			defer close(lockWritten)
+			_ = eng.AcquireLock(ctx, game.ID)
+		}()
+	} else {
+		close(lockWritten)
 	}
 
 	ui.Status("playing", "Playing "+game.Name)
@@ -144,10 +168,17 @@ func (c *Core) Play(ctx context.Context, gameID string, opt RunOptions, ui Sessi
 			c.States.SetError(game.ID, err.Error())
 			ui.ConfirmSyncFailure(postCtx, game, err, false)
 		}
-		_ = eng.ReleaseLock(postCtx, game.ID)
-		if err := c.SyncLibrary(postCtx); err != nil {
-			log.Printf("library sync: %v", err)
-		}
+		var wg sync.WaitGroup
+		wg.Go(func() {
+			<-lockWritten
+			_ = eng.ReleaseLock(postCtx, game.ID)
+		})
+		wg.Go(func() {
+			if err := c.SyncLibrary(postCtx); err != nil {
+				log.Printf("library sync: %v", err)
+			}
+		})
+		wg.Wait()
 	}
 	if runErr != nil {
 		return res, runErr

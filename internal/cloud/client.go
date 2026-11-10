@@ -15,6 +15,7 @@ import (
 	"github.com/rclone/rclone/fs"
 	"github.com/rclone/rclone/fs/accounting"
 	"github.com/rclone/rclone/fs/cache"
+	"github.com/rclone/rclone/fs/config"
 	"github.com/rclone/rclone/fs/filter"
 	"github.com/rclone/rclone/fs/fspath"
 	"github.com/rclone/rclone/fs/operations"
@@ -75,7 +76,9 @@ func (c *Client) fs(ctx context.Context, rel string) (fs.Fs, string, error) {
 		// to a root; opening it is cheap anyway.
 		if f, err := cache.Get(ctx, name); err == nil && f.Features().IsLocal {
 			c.root, c.prefix = c.Base, ""
+			return
 		}
+		c.root = tuneRemote(name)
 	})
 	if c.err != nil {
 		return nil, "", c.err
@@ -88,6 +91,21 @@ func (c *Client) fs(ctx context.Context, rel string) (fs.Fs, string, error) {
 		return nil, "", err
 	}
 	return f, strings.Trim(path.Join(c.prefix, rel), "/."), nil
+}
+
+// tuneRemote adjusts backend options for PlayRelay's workload (a handful of
+// small files per sync) unless the user set them in the remote's config.
+// name is "remote:".
+func tuneRemote(name string) string {
+	remote := strings.TrimSuffix(name, ":")
+	if typ, _ := config.FileGetValue(remote, "type"); typ == "dropbox" {
+		// Dropbox batches uploads by default and waits for each batch to be
+		// committed: ~3-4s per upload instead of ~1s (measured).
+		if v, _ := config.FileGetValue(remote, "batch_mode"); v == "" {
+			return remote + ",batch_mode=off:"
+		}
+	}
+	return name
 }
 
 func isNotFound(err error) bool {
@@ -173,25 +191,35 @@ func (c *Client) Purge(ctx context.Context, rel string) error {
 
 // ListDirs lists sub-directory names of rel, sorted.
 func (c *Client) ListDirs(ctx context.Context, rel string) ([]string, error) {
+	dirs, _, err := c.List(ctx, rel)
+	return dirs, err
+}
+
+// List lists the sub-directory and file names directly inside rel, each
+// sorted. A missing folder lists as empty.
+func (c *Client) List(ctx context.Context, rel string) (dirs, files []string, err error) {
 	f, p, err := c.fs(ctx, rel)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	entries, err := f.List(ctx, p)
 	if err != nil {
 		if isNotFound(err) {
-			return nil, nil
+			return nil, nil, nil
 		}
-		return nil, err
+		return nil, nil, err
 	}
-	var out []string
 	for _, e := range entries {
-		if _, ok := e.(fs.Directory); ok {
-			out = append(out, path.Base(e.Remote()))
+		switch e.(type) {
+		case fs.Directory:
+			dirs = append(dirs, path.Base(e.Remote()))
+		case fs.Object:
+			files = append(files, path.Base(e.Remote()))
 		}
 	}
-	sort.Strings(out)
-	return out, nil
+	sort.Strings(dirs)
+	sort.Strings(files)
+	return dirs, files, nil
 }
 
 // ListFiles returns the size of every file under rel, keyed by '/'-separated

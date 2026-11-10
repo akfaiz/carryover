@@ -136,3 +136,19 @@ func mustFind(t *testing.T, c *Core, id string) library.Game {
 	}
 	return g
 }
+
+// The lock is written in the background while the game starts; it must be
+// gone again once the session ends.
+func TestPlayReleasesLock(t *testing.T) {
+	c, id, _, cloudDir := newPlayable(t)
+	res, err := c.Play(context.Background(), id, RunOptions{}, &cancelUI{})
+	if err != nil || res.PostError != nil {
+		t.Fatalf("Play = %v, post %v", err, res.PostError)
+	}
+	if res.PreAction != syncer.ActionPush && res.PostAction != syncer.ActionPush {
+		t.Fatalf("expected an upload, got pre %s post %s", res.PreAction, res.PostAction)
+	}
+	if _, err := os.Stat(filepath.Join(cloudDir, "games", id, "lock.json")); !os.IsNotExist(err) {
+		t.Fatalf("lock left behind, err=%v", err)
+	}
+}

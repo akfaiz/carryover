@@ -6,10 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"regexp"
-	"slices"
 	"sort"
-	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -62,7 +59,16 @@ type Plan struct {
 	LocalSummary  Summary `json:"local"`
 	RemoteSummary Summary `json:"remote"`
 	HasRemote     bool    `json:"hasRemote"`
+
+	// cloudFiles lists current/ (keys "<slot>/<path>") as of cloudListedAt;
+	// nil if listing failed. A push reuses it while fresh.
+	cloudFiles    map[string]int64
+	cloudListedAt time.Time
 }
+
+// cloudListingMaxAge is how long a push trusts the plan's cloud listing (a
+// conflict prompt can keep a plan waiting).
+const cloudListingMaxAge = 2 * time.Minute
 
 // Resolution decides what to do on conflict.
 type Resolution string
@@ -112,18 +118,41 @@ func (e *Engine) Plan(ctx context.Context, job Job) (*Plan, error) {
 	if err != nil {
 		return nil, err
 	}
+	// Read the cloud manifest and list the cloud folder while the local saves
+	// are scanned: each cloud round trip can take seconds.
+	var (
+		remote          Manifest
+		found           bool
+		manifestErr     error
+		listed          map[string]int64
+		listErr         error
+		manifestDone    = make(chan struct{})
+		listDone        = make(chan struct{})
+		cloudListedTime = time.Now()
+	)
+	go func() {
+		defer close(manifestDone)
+		found, manifestErr = e.Client.ReadJSON(ctx, manifestPath(job.GameID), &remote)
+	}()
+	go func() {
+		defer close(listDone)
+		listed, listErr = e.Client.ListFiles(ctx, currentDir(job.GameID))
+	}()
 	e.emit(job.GameID, "scan", "Scanning local saves", cloud.Progress{})
 	local, err := ScanLocal(ctx, job.Slots, st.LastSynced)
+	e.emit(job.GameID, "scan", "Checking cloud", cloud.Progress{})
+	<-manifestDone
+	<-listDone
 	if err != nil {
 		return nil, fmt.Errorf("scan local saves: %w", err)
 	}
-	e.emit(job.GameID, "scan", "Checking cloud", cloud.Progress{})
-	var remote Manifest
-	found, err := e.Client.ReadJSON(ctx, manifestPath(job.GameID), &remote)
-	if err != nil {
-		return nil, fmt.Errorf("read cloud manifest: %w", err)
+	if manifestErr != nil {
+		return nil, fmt.Errorf("read cloud manifest: %w", manifestErr)
 	}
 	p := &Plan{Job: job, Local: local, Last: st.LastSynced, HasRemote: found}
+	if listErr == nil {
+		p.cloudFiles, p.cloudListedAt = listed, cloudListedTime
+	}
 	if found {
 		p.Remote = &remote
 	}
@@ -216,10 +245,19 @@ func (e *Engine) progress(gameID, phase, msg string) func(cloud.Progress) {
 
 func (e *Engine) push(ctx context.Context, p *Plan) (*Manifest, string, error) {
 	id := p.Job.GameID
+	// One listing of the cloud folder serves the delta and the backup; the
+	// plan's is reused while fresh.
+	listed := p.cloudFiles
+	if listed == nil || time.Since(p.cloudListedAt) > cloudListingMaxAge {
+		var err error
+		if listed, err = e.Client.ListFiles(ctx, currentDir(id)); err != nil {
+			return nil, "", fmt.Errorf("list cloud saves: %w", err)
+		}
+	}
 	deltas := make([]delta, len(p.Job.Slots))
 	changes := false
 	for i, s := range p.Job.Slots {
-		d, err := e.pushDelta(ctx, p, s)
+		d, err := pushDelta(p, s, cloudSlotFiles(listed, s.Key))
 		if err != nil {
 			return nil, "", fmt.Errorf("upload %s: %w", s.Key, err)
 		}
@@ -227,10 +265,15 @@ func (e *Engine) push(ctx context.Context, p *Plan) (*Manifest, string, error) {
 		changes = changes || !d.empty()
 	}
 	// Back up the cloud side only when something there will change.
-	if changes && p.Remote != nil && len(p.Remote.Files) > 0 && e.Retention > 0 {
-		if err := e.backupCloud(ctx, id, p.Remote); err != nil {
+	if changes && len(listed) > 0 && e.Retention > 0 {
+		remote := p.Remote
+		if remote == nil {
+			remote = &Manifest{}
+		}
+		if err := e.backupCloud(ctx, id, remote, listed); err != nil {
 			return nil, "", fmt.Errorf("backup cloud saves: %w", err)
 		}
+		defer e.pruneInBackground(ctx, id)()
 	}
 	var copied, deleted int
 	for i, s := range p.Job.Slots {
@@ -280,6 +323,7 @@ func (e *Engine) pull(ctx context.Context, p *Plan) (string, error) {
 		if err := e.backupLocal(ctx, p.Job, p.Local); err != nil {
 			return "", fmt.Errorf("backup local saves: %w", err)
 		}
+		defer e.pruneInBackground(ctx, id)()
 	}
 	var copied, deleted int
 	for i, s := range p.Job.Slots {
@@ -305,16 +349,13 @@ func (e *Engine) pull(ctx context.Context, p *Plan) (string, error) {
 	return transferSummary("Downloaded", "on this device", copied, deleted), nil
 }
 
-// pushDelta works out what to upload and delete for one slot. It compares the
+// pushDelta works out what to upload and delete for one slot (listed: what
+// is in the slot's cloud folder, by path relative to it). It compares the
 // local scan with the cloud manifest, but checks the manifest against what is
 // really in the cloud folder: an interrupted upload can leave files there that
 // the manifest doesn't describe, and those are never trusted.
-func (e *Engine) pushDelta(ctx context.Context, p *Plan, s Slot) (delta, error) {
+func pushDelta(p *Plan, s Slot, listed map[string]int64) (delta, error) {
 	flt, err := s.Filters.NewFilter()
-	if err != nil {
-		return delta{}, err
-	}
-	listed, err := e.Client.ListFiles(ctx, currentDir(p.Job.GameID)+"/"+s.Key)
 	if err != nil {
 		return delta{}, err
 	}
@@ -354,196 +395,6 @@ func transferSummary(verb, where string, copied, deleted int) string {
 		return "Deleted " + filesWord(deleted) + " " + where
 	}
 	return verb + " " + filesWord(copied) + ", deleted " + filesWord(deleted) + " " + where
-}
-
-var unsafeChars = regexp.MustCompile(`[^A-Za-z0-9._-]+`)
-
-func (e *Engine) backupName(kind string) string {
-	dev := strings.Trim(unsafeChars.ReplaceAllString(e.Device.Name, "_"), "_")
-	if dev == "" {
-		dev = "device"
-	}
-	return time.Now().UTC().Format(backupTimeLayout) + "_" + dev + "_" + kind
-}
-
-func (e *Engine) backupCloud(ctx context.Context, id string, m *Manifest) error {
-	name := e.backupName("cloud")
-	e.emit(id, "backup", "Backing up cloud saves", cloud.Progress{})
-	err := func() error {
-		listed, err := e.Client.ListFiles(ctx, currentDir(id))
-		if err != nil {
-			return err
-		}
-		files, total := sortedFiles(listed)
-		if err := e.Client.CopyWithin(ctx, currentDir(id), backupsDir(id)+"/"+name, files, total, e.progress(id, "backup", "Backing up cloud saves")); err != nil {
-			return err
-		}
-		return e.Client.WriteJSON(ctx, backupsDir(id)+"/"+name+"/manifest.json", m)
-	}()
-	if err != nil {
-		e.discardBackup(id, name)
-		return err
-	}
-	return e.prune(ctx, id)
-}
-
-func (e *Engine) backupLocal(ctx context.Context, job Job, m *Manifest) error {
-	name := e.backupName("local")
-	e.emit(job.GameID, "backup", "Backing up local saves", cloud.Progress{})
-	err := func() error {
-		for _, s := range job.Slots {
-			sizes := map[string]int64{}
-			for rel, f := range slotFiles(m, s.Key, nil) {
-				sizes[rel] = f.Size
-			}
-			files, total := sortedFiles(sizes)
-			dst := backupsDir(job.GameID) + "/" + name + "/" + s.Key
-			if err := e.Client.Upload(ctx, s.LocalPath, dst, files, total, e.progress(job.GameID, "backup", "Backing up local saves")); err != nil {
-				return err
-			}
-		}
-		bm := *m
-		bm.Device, bm.DeviceName, bm.Time = e.Device.ID, e.Device.Name, time.Now().UTC()
-		return e.Client.WriteJSON(ctx, backupsDir(job.GameID)+"/"+name+"/manifest.json", &bm)
-	}()
-	if err != nil {
-		e.discardBackup(job.GameID, name)
-		return err
-	}
-	return e.prune(ctx, job.GameID)
-}
-
-// discardBackup deletes a backup that couldn't be completed (e.g. the sync
-// was cancelled), so a partial copy is never offered for restore. It uses its
-// own context because the sync's context may be the one that was cancelled.
-func (e *Engine) discardBackup(gameID, name string) {
-	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
-	defer cancel()
-	if names, err := e.Client.ListDirs(ctx, backupsDir(gameID)); err != nil || !slices.Contains(names, name) {
-		return // nothing was written (or we can't tell): leave it
-	}
-	_ = e.Client.Purge(ctx, backupsDir(gameID)+"/"+name)
-}
-
-func (e *Engine) prune(ctx context.Context, id string) error {
-	names, err := e.Client.ListDirs(ctx, backupsDir(id))
-	if err != nil {
-		return err
-	}
-	sort.Strings(names) // timestamp prefix sorts chronologically
-	for len(names) > e.Retention {
-		if err := e.Client.Purge(ctx, backupsDir(id)+"/"+names[0]); err != nil {
-			return err
-		}
-		names = names[1:]
-	}
-	return nil
-}
-
-// Backup describes a stored backup.
-type Backup struct {
-	Name       string    `json:"name"`
-	Time       time.Time `json:"time"`
-	DeviceName string    `json:"deviceName"`
-	Kind       string    `json:"kind"` // "local" (taken before a download) or "cloud" (taken before an upload)
-}
-
-// ListBackups returns backups for a game, newest first.
-func (e *Engine) ListBackups(ctx context.Context, gameID string) ([]Backup, error) {
-	names, err := e.Client.ListDirs(ctx, backupsDir(gameID))
-	if err != nil {
-		return nil, err
-	}
-	var out []Backup
-	for _, n := range slices.Backward(names) {
-		b := Backup{Name: n}
-		parts := strings.Split(n, "_")
-		if len(parts) >= 3 {
-			b.Time, _ = time.Parse(backupTimeLayout, parts[0])
-			b.Kind = parts[len(parts)-1]
-			b.DeviceName = strings.Join(parts[1:len(parts)-1], "_")
-		}
-		out = append(out, b)
-	}
-	return out, nil
-}
-
-// RestoreBackup replaces the local saves with a backup and uploads them as the
-// new cloud version. The current local saves are backed up first.
-func (e *Engine) RestoreBackup(ctx context.Context, job Job, name string) error {
-	if err := validateJob(job); err != nil {
-		return err
-	}
-	if strings.ContainsAny(name, `/\`) || name == "" || name == "." || name == ".." {
-		return errors.New("invalid backup name")
-	}
-	st, err := e.States.Load(job.GameID)
-	if err != nil {
-		return err
-	}
-	local, err := ScanLocal(ctx, job.Slots, st.LastSynced)
-	if err != nil {
-		return err
-	}
-	if len(local.Files) > 0 && e.Retention > 0 {
-		if err := e.backupLocal(ctx, job, local); err != nil {
-			return fmt.Errorf("backup local saves: %w", err)
-		}
-	}
-	for _, s := range job.Slots {
-		if err := os.MkdirAll(s.LocalPath, 0o755); err != nil {
-			return err
-		}
-		if err := e.restoreSlot(ctx, job.GameID, name, s, local); err != nil {
-			return fmt.Errorf("restore %s: %w", s.Key, err)
-		}
-	}
-	_, _, err = e.Sync(ctx, job, ResolveLocal)
-	return err
-}
-
-// restoreSlot makes one slot's local folder match the backup: every file in
-// the backup is downloaded, and local files the backup lacks are deleted
-// (files the slot's filters exclude are left alone on both sides).
-func (e *Engine) restoreSlot(ctx context.Context, gameID, name string, s Slot, local *Manifest) error {
-	flt, err := s.Filters.NewFilter()
-	if err != nil {
-		return err
-	}
-	listed, err := e.Client.ListFiles(ctx, backupsDir(gameID)+"/"+name+"/"+s.Key)
-	if err != nil {
-		return err
-	}
-	for rel, size := range listed {
-		if !flt.Include(rel, size, time.Time{}, nil) {
-			delete(listed, rel)
-		}
-	}
-	files, total := sortedFiles(listed)
-	if err := e.Client.Download(ctx, backupsDir(gameID)+"/"+name+"/"+s.Key, s.LocalPath, files, total, e.progress(gameID, "download", "Restoring "+s.Key)); err != nil {
-		return err
-	}
-	for rel := range slotFiles(local, s.Key, nil) {
-		if _, ok := listed[rel]; ok {
-			continue
-		}
-		if err := os.Remove(filepath.Join(s.LocalPath, filepath.FromSlash(rel))); err != nil && !errors.Is(err, os.ErrNotExist) {
-			return err
-		}
-	}
-	return nil
-}
-
-// sortedFiles returns the names of a path→size map, sorted, and their total size.
-func sortedFiles(sizes map[string]int64) ([]string, int64) {
-	files := make([]string, 0, len(sizes))
-	var total int64
-	for f, n := range sizes {
-		files = append(files, f)
-		total += n
-	}
-	sort.Strings(files)
-	return files, total
 }
 
 // Lock marks a game as being played on a device.
@@ -621,6 +472,3 @@ func (s *StateStore) SetError(id, msg string) {
 	st.LastError = msg
 	_ = s.Save(id, st)
 }
-
-// backupTimeLayout is the timestamp prefix of backup folder names; it sorts chronologically.
-const backupTimeLayout = "20060102T150405.000Z"

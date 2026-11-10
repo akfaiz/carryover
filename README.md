@@ -52,7 +52,7 @@ Set `PLAYRELAY_HOME` to use a different data directory (default: user config dir
 <remote>:<folder>/library.json
 <remote>:<folder>/games/<id>/manifest.json        revision + sha256 of every file
 <remote>:<folder>/games/<id>/current/<slot>/…     the saves
-<remote>:<folder>/games/<id>/backups/<time>_<device>_<local|cloud>/…
+<remote>:<folder>/games/<id>/backups/<time>_<device>_<local|cloud>.zip   manifest.json + <slot>/…
 <remote>:<folder>/games/<id>/lock.json            "being played on <device>"
 ```
 

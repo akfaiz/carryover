@@ -4,6 +4,7 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"slices"
 	"testing"
 
 	_ "github.com/rclone/rclone/backend/memory" // a non-local remote for tests
@@ -74,12 +75,12 @@ func TestSyncAgainstNamedRemote(t *testing.T) {
 	if local == "" || cloudKind == "" {
 		t.Fatalf("want a local and a cloud backup, got %+v", backups)
 	}
-	inCloudBackup, err := pc.Client.ListFiles(ctx, backupsDir("game1")+"/"+cloudKind)
+	_, files, err := pc.Client.List(ctx, backupsDir("game1"))
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, ok := inCloudBackup["saves/a.sav"]; !ok {
-		t.Fatalf("cloud backup files = %v, want saves/a.sav", inCloudBackup)
+	if !slices.Contains(files, cloudKind+".zip") {
+		t.Fatalf("backup files = %v, want %s.zip", files, cloudKind)
 	}
 	if err := pc.RestoreBackup(ctx, pcJob, local); err != nil {
 		t.Fatal(err)
