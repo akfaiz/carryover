@@ -20,14 +20,6 @@ import (
 	"github.com/akfaiz/playrelay/services"
 )
 
-type slotForm struct {
-	key, label, include, exclude, path string
-	isNew                              bool
-	keyBadge                           *fyne.Container
-	filters                            *widget.AccordionItem
-	filtersOpen                        bool
-}
-
 type editor struct {
 	u          *UI
 	id         string
@@ -272,9 +264,7 @@ func (e *editor) render() {
 		e.advanced = e.advItem.Open
 	}
 	for _, s := range e.slots {
-		if s.filters != nil {
-			s.filtersOpen = s.filters.Open
-		}
+		s.rememberOpen()
 	}
 	head := "Add game"
 	if e.id != "" {
@@ -474,13 +464,6 @@ func (e *editor) launchCard() fyne.CanvasObject {
 		acc)
 }
 
-var kindLabel = map[string]string{
-	"native":     "Linux/macOS native",
-	"proton":     "Proton prefix",
-	"install":    "install folder",
-	"steamcloud": "Steam Cloud folder",
-}
-
 func (e *editor) savesCard() fyne.CanvasObject {
 	suggestLabel := "Suggest"
 	if e.suggesting {
@@ -491,111 +474,24 @@ func (e *editor) savesCard() fyne.CanvasObject {
 	c := vbox(cardHead("Save locations", sugBtn, widget.NewButtonWithIcon("Add", theme.ContentAddIcon(), e.addSlot)))
 
 	if e.suggest != nil {
-		sg := vbox()
-		if e.suggest.Matched == "" {
-			sg.Add(muted("No known save locations for “" + e.name + "”. Try “Find on Steam” first, or set the path yourself."))
-		} else {
-			sg.Add(container.NewBorder(nil, nil, nil, lowButton("Hide", func() { e.suggest = nil; e.render() }),
-				muted("Known save locations for "+e.suggest.Matched)))
-			if len(e.suggest.Suggestions) == 0 {
-				sg.Add(muted("None that apply to this device."))
-			}
-			for _, s := range e.suggest.Suggestions {
-				sg.Add(widget.NewSeparator())
-				text := s.Path
-				var inc []string
-				for _, x := range s.Include {
-					if !strings.HasSuffix(x, "/**") {
-						inc = append(inc, x)
-					}
-				}
-				if len(inc) > 0 {
-					text += " · " + strings.Join(inc, ", ")
-				}
-				pl := mono(text)
-				if s.Files > 0 {
-					pl.Importance = widget.SuccessImportance
-				}
-				badges := hbox()
-				switch {
-				case s.Files > 0:
-					badges.Add(badge(fmt.Sprintf("found · %d files · %s · %s", s.Files, formatBytes(s.Bytes), timeAgo(s.Newest)), badgeOK))
-				case s.Exists:
-					badges.Add(badge("folder exists, no saves", badgeNone))
-				default:
-					badges.Add(badge("not on this device", badgeNone))
-				}
-				if l := kindLabel[s.Kind]; l != "" {
-					badges.Add(badge(l, badgeNone))
-				}
-				if s.MSStore {
-					badges.Add(badge("Microsoft Store version", badgeWarn))
-				}
-				actions := hbox(widget.NewButton("Use", func() { e.useSuggestion(s, nil); e.render() }),
-					lowButton("＋ Add", func() { e.addSuggestion(s); e.render() }))
-				sg.Add(pl)
-				sg.Add(container.NewBorder(nil, nil, nil, actions, container.NewHScroll(badges)))
-				if s.Kind == "steamcloud" {
-					sg.Add(muted("Steam Cloud already syncs this for the Steam version; useful for non-Steam copies."))
-				}
-			}
-			sg.Add(hbox(small("From the"), widget.NewHyperlink("Ludusavi manifest", mustURL("https://github.com/mtkennerly/ludusavi-manifest")), small("(PCGamingWiki).")))
-		}
-		c.Add(card("", sg))
+		c.Add(card("", newSuggestionList(e.name, e.suggest,
+			func(s services.SaveSuggestion) { e.useSuggestion(s, nil); e.render() },
+			func(s services.SaveSuggestion) { e.addSuggestion(s); e.render() },
+			func() { e.suggest = nil; e.render() })))
 	}
 	c.Add(muted("Each location is synced to its own cloud folder. Every device sets its own path for the same location — " +
 		"e.g. {appdata}/GameA on Windows and {proton:shortcut}/AppData/Roaming/GameA on a Steam Deck."))
 
 	for i, s := range e.slots {
 		c.Add(widget.NewSeparator())
-		label := widget.NewEntry()
-		label.SetPlaceHolder("Label")
-		label.SetText(s.label)
-		s.keyBadge = container.NewCenter(badge(s.key, badgeNone))
-		label.OnChanged = func(v string) {
-			s.label = v
-			if s.isNew {
-				s.key = e.uniqueKey(slug(v), s)
-				s.keyBadge.Objects = []fyne.CanvasObject{badge(s.key, badgeNone)}
-				s.keyBadge.Refresh()
-			}
-		}
-		right := []fyne.CanvasObject{s.keyBadge}
+		var onRemove func()
 		if len(e.slots) > 1 {
-			rm := widget.NewButtonWithIcon("", theme.DeleteIcon(), func() {
+			onRemove = func() {
 				e.slots = slices.Delete(e.slots, i, i+1)
 				e.render()
-			})
-			rm.Importance = widget.DangerImportance
-			right = append(right, rm)
-		}
-		c.Add(rowFill(label, right...))
-		c.Add(field("Path on this device", newPathInput(e.u, e.id, e.tokens, s.path, "{appdata}/Game/Saves", func(v string) { s.path = v })))
-		for _, o := range e.others {
-			if p := o.Paths[s.key]; p != "" {
-				l := mono("On " + o.DeviceName + ": " + p)
-				l.Importance = widget.LowImportance
-				l.SizeName = theme.SizeNameCaptionText
-				c.Add(l)
 			}
 		}
-		inc := widget.NewMultiLineEntry()
-		inc.TextStyle.Monospace = true
-		inc.SetPlaceHolder("*.sav")
-		inc.SetMinRowsVisible(2)
-		inc.SetText(s.include)
-		inc.OnChanged = func(v string) { s.include = v }
-		exc := widget.NewMultiLineEntry()
-		exc.TextStyle.Monospace = true
-		exc.SetPlaceHolder("*.log\nshadercache/**")
-		exc.SetMinRowsVisible(2)
-		exc.SetText(s.exclude)
-		exc.OnChanged = func(v string) { s.exclude = v }
-		filters := widget.NewAccordionItem("Filters", container.NewGridWithColumns(2,
-			field("Include only (globs, one per line)", inc), field("Exclude (globs)", exc)))
-		filters.Open = s.filtersOpen
-		s.filters = filters
-		c.Add(widget.NewAccordion(filters))
+		c.Add(newSlotEditor(e.u, e.id, e.tokens, s, e.others, e.uniqueKey, onRemove))
 	}
 	return card("", c)
 }
