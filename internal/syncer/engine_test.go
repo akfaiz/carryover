@@ -520,3 +520,148 @@ func TestCorruptStateIsIgnored(t *testing.T) {
 		t.Fatalf("Load = %+v, %v", st, err)
 	}
 }
+
+// "Back up now" works with backups off, pins the backup, and pruning keeps it
+// until it is unpinned.
+func TestManualBackupIsPinned(t *testing.T) {
+	cloudDir := setupCloud(t)
+	pc, job := newDevice(t, cloudDir, "pc")
+	ctx := context.Background()
+	pc.Retention = 0
+	if _, err := pc.BackupNow(ctx, job); err == nil {
+		t.Fatal("BackupNow with no local saves should fail")
+	}
+	write(t, job.Slots[0].LocalPath, "a.sav", "a-1")
+	name, err := pc.BackupNow(ctx, job)
+	if err != nil {
+		t.Fatal(err)
+	}
+	list, err := pc.ListBackups(ctx, "game1")
+	if err != nil || len(list) != 1 || list[0].Name != name || list[0].Kind != "manual" || !list[0].Pinned {
+		t.Fatalf("backups = %+v, %v", list, err)
+	}
+
+	// Backups on, keep 1: later automatic backups rotate, the pinned one stays.
+	pc.Retention = 1
+	for _, c := range []string{"a-2", "a-3", "a-4"} {
+		write(t, job.Slots[0].LocalPath, "a.sav", c)
+		mustSync(t, pc, job, ResolveAuto, ActionPush)
+	}
+	list, _ = pc.ListBackups(ctx, "game1")
+	if len(list) != 2 {
+		t.Fatalf("backups = %+v, want the pinned one plus 1 automatic", list)
+	}
+	var kept bool
+	for _, b := range list {
+		kept = kept || (b.Name == name && b.Pinned)
+	}
+	if !kept {
+		t.Fatalf("pinned backup was pruned: %+v", list)
+	}
+
+	// Unpinned, it is pruned like any other once there are more than Retention.
+	if err := pc.SetBackupPinned(ctx, "game1", name, false); err != nil {
+		t.Fatal(err)
+	}
+	write(t, job.Slots[0].LocalPath, "a.sav", "a-5")
+	mustSync(t, pc, job, ResolveAuto, ActionPush)
+	// Pruning runs in the background of the sync; run it again to be sure.
+	if err := pc.prune(ctx, "game1"); err != nil {
+		t.Fatal(err)
+	}
+	list, _ = pc.ListBackups(ctx, "game1")
+	if len(list) != 1 || list[0].Name == name {
+		t.Fatalf("backups = %+v, want only the latest automatic one", list)
+	}
+	if err := pc.SetBackupPinned(ctx, "game1", "nope", true); err == nil {
+		t.Error("pinning an unknown backup should fail")
+	}
+}
+
+// Retention 0 means backups are off: pruning never deletes anything.
+func TestPruneWithRetentionOffKeepsEverything(t *testing.T) {
+	cloudDir := setupCloud(t)
+	pc, job := newDevice(t, cloudDir, "pc")
+	ctx := context.Background()
+	write(t, job.Slots[0].LocalPath, "a.sav", "a-1")
+	if _, err := pc.BackupNow(ctx, job); err != nil {
+		t.Fatal(err)
+	}
+	if err := pc.SetBackupPinned(ctx, "game1", mustOnlyBackup(t, pc), false); err != nil {
+		t.Fatal(err)
+	}
+	pc.Retention = 0
+	if err := pc.prune(ctx, "game1"); err != nil {
+		t.Fatal(err)
+	}
+	if list, _ := pc.ListBackups(ctx, "game1"); len(list) != 1 {
+		t.Fatalf("backups = %+v, want 1", list)
+	}
+}
+
+func mustOnlyBackup(t *testing.T, e *Engine) string {
+	t.Helper()
+	list, err := e.ListBackups(context.Background(), "game1")
+	if err != nil || len(list) != 1 {
+		t.Fatalf("backups = %+v, %v", list, err)
+	}
+	return list[0].Name
+}
+
+func TestPlanActionFor(t *testing.T) {
+	withRemote := &Plan{Action: ActionConflict, Remote: &Manifest{}}
+	noRemote := &Plan{Action: ActionPush}
+	cases := []struct {
+		p    *Plan
+		res  Resolution
+		want Action
+		err  bool
+	}{
+		{withRemote, ResolveAuto, ActionConflict, false},
+		{withRemote, ResolveLocal, ActionPush, false},
+		{withRemote, ResolveCloud, ActionPull, false},
+		{noRemote, ResolveLocal, ActionPush, false},
+		{noRemote, ResolveCloud, ActionNone, true},
+	}
+	for _, c := range cases {
+		got, err := c.p.ActionFor(c.res)
+		if got != c.want || (err != nil) != c.err {
+			t.Errorf("ActionFor(%q) = %v, %v; want %v (err %v)", c.res, got, err, c.want, c.err)
+		}
+	}
+}
+
+// Deleting a backup removes it (pinned or not) and drops its pin; others stay.
+func TestDeleteBackup(t *testing.T) {
+	cloudDir := setupCloud(t)
+	pc, job := newDevice(t, cloudDir, "pc")
+	ctx := context.Background()
+	write(t, job.Slots[0].LocalPath, "a.sav", "a-1")
+	mustSync(t, pc, job, ResolveAuto, ActionPush) // the cloud has nothing to back up yet
+	pinned, err := pc.BackupNow(ctx, job)
+	if err != nil {
+		t.Fatal(err)
+	}
+	write(t, job.Slots[0].LocalPath, "a.sav", "a-2")
+	mustSync(t, pc, job, ResolveAuto, ActionPush) // automatic backup of the cloud side
+	list, _ := pc.ListBackups(ctx, "game1")
+	if len(list) != 2 {
+		t.Fatalf("backups = %+v, want 2", list)
+	}
+	if err := pc.DeleteBackup(ctx, "game1", pinned); err != nil {
+		t.Fatal(err)
+	}
+	list, _ = pc.ListBackups(ctx, "game1")
+	if len(list) != 1 || list[0].Name == pinned || list[0].Pinned {
+		t.Fatalf("backups after delete = %+v", list)
+	}
+	if pins, _ := pc.readPins(ctx, "game1"); len(pins) != 0 {
+		t.Errorf("pins = %v, want none", pins)
+	}
+	if err := pc.DeleteBackup(ctx, "game1", pinned); err == nil {
+		t.Error("deleting a missing backup should fail")
+	}
+	if err := pc.DeleteBackup(ctx, "game1", "../x"); err == nil {
+		t.Error("invalid name should fail")
+	}
+}

@@ -29,11 +29,21 @@ func saveLocationRow(u *UI, label, resolved, pathErr string) fyne.CanvasObject {
 	return labeledRow(110, name, val)
 }
 
-// backupRow is one cloud backup with a Restore button.
-func backupRow(b syncer.Backup, restoring, canRestore bool, onRestore func()) fyne.CanvasObject {
-	desc := lang.L("{{.Device}}'s local saves", map[string]any{"Device": b.DeviceName})
-	if b.Kind != "local" {
+// backupRow is one cloud backup with Pin, Delete and Restore buttons.
+func backupRow(b syncer.Backup, restoring, canRestore, canPin bool, onRestore, onPin, onDelete func()) fyne.CanvasObject {
+	var desc string
+	switch b.Kind {
+	case "local":
+		desc = lang.L("{{.Device}}'s local saves", map[string]any{"Device": b.DeviceName})
+	case "manual":
+		desc = lang.L("{{.Device}}'s saves (manual backup)", map[string]any{"Device": b.DeviceName})
+	default:
 		desc = lang.L("cloud saves (replaced by {{.Device}})", map[string]any{"Device": b.DeviceName})
+	}
+	pinLabel := lang.L("Pin")
+	if b.Pinned {
+		desc += " · " + lang.L("pinned")
+		pinLabel = lang.L("Unpin")
 	}
 	label := lang.L("Restore")
 	if restoring {
@@ -41,7 +51,11 @@ func backupRow(b syncer.Backup, restoring, canRestore bool, onRestore func()) fy
 	}
 	restore := widget.NewButton(label, onRestore)
 	setEnabled(restore, canRestore)
-	return labeledRow(140, widget.NewLabel(fmtDate(b.Time)), muted(desc), restore)
+	pin := widget.NewButton(pinLabel, onPin)
+	setEnabled(pin, canPin)
+	del := widget.NewButtonWithIcon("", theme.DeleteIcon(), onDelete)
+	setEnabled(del, canPin)
+	return labeledRow(140, widget.NewLabel(fmtDate(b.Time)), muted(desc), pin, del, restore)
 }
 
 // otherDevicesCard lists the save paths other devices use for the game.

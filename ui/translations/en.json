@@ -314,5 +314,17 @@
   "{{.Count}} game has save conflicts": {
     "one": "{{.Count}} game has a save conflict",
     "other": "{{.Count}} games have save conflicts"
-  }
+  },
+  "Back up now": "Back up now",
+  "Backing up…": "Backing up…",
+  "Backup saved and pinned": "Backup saved and pinned",
+  "Pin": "Pin",
+  "Unpin": "Unpin",
+  "pinned": "pinned",
+  "{{.Device}}'s saves (manual backup)": "{{.Device}}'s saves (manual backup)",
+  "Backups you make with “Back up now” are pinned. Pinned backups are never deleted automatically.": "Backups you make with “Back up now” are pinned. Pinned backups are never deleted automatically.",
+  "Delete the backup from {{.When}}? It is shared with all your devices and can't be recovered.": "Delete the backup from {{.When}}? It is shared with all your devices and can't be recovered.",
+  "This backup is pinned. Delete the backup from {{.When}} anyway? It is shared with all your devices and can't be recovered.": "This backup is pinned. Delete the backup from {{.When}} anyway? It is shared with all your devices and can't be recovered.",
+  "Delete backup": "Delete backup",
+  "Backup deleted": "Backup deleted"
 }

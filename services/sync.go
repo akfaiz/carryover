@@ -212,6 +212,50 @@ func (s *SyncService) Backups(gameID string) ([]syncer.Backup, error) {
 	return b, err
 }
 
+// BackupNow stores a pinned backup of this device's current saves, whether or
+// not automatic backups are on.
+func (s *SyncService) BackupNow(gameID string) error {
+	if _, loaded := s.busy.LoadOrStore(gameID, struct{}{}); loaded {
+		return errors.New("a sync for this game is already running")
+	}
+	defer s.busy.Delete(gameID)
+	lock, err := syncer.AcquireLocalLock(s.c.Dirs.StateDir(), gameID)
+	if err != nil {
+		return err
+	}
+	defer lock.Release()
+	eng, job, err := s.prepare(gameID)
+	if err != nil {
+		return err
+	}
+	ctx, done := s.start(context.Background(), gameID)
+	defer done()
+	_, err = eng.BackupNow(ctx, job)
+	return cancelled(ctx, err)
+}
+
+// SetBackupPinned pins or unpins a backup; pinned backups are never pruned.
+func (s *SyncService) SetBackupPinned(gameID, name string, pinned bool) error {
+	eng, err := s.c.Engine()
+	if err != nil {
+		return err
+	}
+	return eng.SetBackupPinned(context.Background(), gameID, name, pinned)
+}
+
+// DeleteBackup permanently deletes a backup, for every device.
+func (s *SyncService) DeleteBackup(gameID, name string) error {
+	if _, loaded := s.busy.LoadOrStore(gameID, struct{}{}); loaded {
+		return errors.New("a sync for this game is already running")
+	}
+	defer s.busy.Delete(gameID)
+	eng, err := s.c.Engine()
+	if err != nil {
+		return err
+	}
+	return eng.DeleteBackup(context.Background(), gameID, name)
+}
+
 // RestoreBackup restores a backup locally and uploads it as the current cloud version.
 func (s *SyncService) RestoreBackup(gameID, name string) error {
 	if _, loaded := s.busy.LoadOrStore(gameID, struct{}{}); loaded {

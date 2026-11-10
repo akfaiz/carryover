@@ -168,15 +168,9 @@ func (e *Engine) Plan(ctx context.Context, job Job) (*Plan, error) {
 // Apply executes a plan. With ResolveLocal/ResolveCloud the plan's action is overridden.
 // It returns the action actually performed.
 func (e *Engine) Apply(ctx context.Context, p *Plan, res Resolution) (Action, error) {
-	action := p.Action
-	switch res {
-	case ResolveLocal:
-		action = ActionPush
-	case ResolveCloud:
-		if p.Remote == nil {
-			return ActionNone, errors.New("there are no cloud saves to restore")
-		}
-		action = ActionPull
+	action, err := p.ActionFor(res)
+	if err != nil {
+		return ActionNone, err
 	}
 	st, err := e.States.Load(p.Job.GameID)
 	if err != nil {
@@ -218,6 +212,21 @@ func (e *Engine) Apply(ctx context.Context, p *Plan, res Resolution) (Action, er
 	}
 	e.emit(p.Job.GameID, "done", done, cloud.Progress{})
 	return action, nil
+}
+
+// ActionFor returns what applying the plan with res would do: the plan's own
+// action, or a push/pull when the resolution forces one.
+func (p *Plan) ActionFor(res Resolution) (Action, error) {
+	switch res {
+	case ResolveLocal:
+		return ActionPush, nil
+	case ResolveCloud:
+		if p.Remote == nil {
+			return ActionNone, errors.New("there are no cloud saves to restore")
+		}
+		return ActionPull, nil
+	}
+	return p.Action, nil
 }
 
 func doneMessage(a Action) string {
@@ -330,7 +339,7 @@ func (e *Engine) pull(ctx context.Context, p *Plan) (string, error) {
 	}
 	// Back up local saves only when something here will change.
 	if changes && len(p.Local.Files) > 0 && e.Retention > 0 {
-		if err := e.backupLocal(ctx, p.Job, p.Local); err != nil {
+		if _, err := e.backupLocal(ctx, p.Job, p.Local, "local"); err != nil {
 			return "", fmt.Errorf("backup local saves: %w", err)
 		}
 		defer e.pruneInBackground(ctx, id)()

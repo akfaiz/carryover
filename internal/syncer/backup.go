@@ -77,14 +77,15 @@ func (e *Engine) backupCloud(ctx context.Context, id string, m *Manifest, listed
 	return e.storeBackup(ctx, id, name, tmp, entries, m)
 }
 
-// backupLocal saves this device's saves (m: the local scan) as a backup
-// before they're overwritten.
-func (e *Engine) backupLocal(ctx context.Context, job Job, m *Manifest) error {
-	name := e.backupName("local")
+// backupLocal saves this device's saves (m: the local scan) as a backup of the
+// given kind ("local": before they're overwritten; "manual": asked for by the
+// user) and returns its name.
+func (e *Engine) backupLocal(ctx context.Context, job Job, m *Manifest, kind string) (string, error) {
+	name := e.backupName(kind)
 	e.emit(job.GameID, "backup", "Backing up local saves", cloud.Progress{})
 	tmp, err := os.MkdirTemp("", "carryover-backup-")
 	if err != nil {
-		return err
+		return "", err
 	}
 	defer os.RemoveAll(tmp)
 	var entries []zipEntry
@@ -96,7 +97,7 @@ func (e *Engine) backupLocal(ctx context.Context, job Job, m *Manifest) error {
 	sort.Slice(entries, func(i, j int) bool { return entries[i].name < entries[j].name })
 	bm := *m
 	bm.Device, bm.DeviceName, bm.Time = e.Device.ID, e.Device.Name, time.Now().UTC()
-	return e.storeBackup(ctx, job.GameID, name, tmp, entries, &bm)
+	return name, e.storeBackup(ctx, job.GameID, name, tmp, entries, &bm)
 }
 
 // storeBackup zips entries and the manifest into tmp and uploads the archive.
@@ -212,19 +213,24 @@ func (e *Engine) pruneInBackground(ctx context.Context, id string) (wait func())
 	return func() { <-done }
 }
 
+// prune deletes the oldest backups beyond the retention. Pinned backups are
+// never deleted and don't count towards it. Retention 0 means backups are off
+// and nothing is pruned.
 func (e *Engine) prune(ctx context.Context, id string) error {
+	if e.Retention <= 0 {
+		return nil
+	}
 	names, isZip, err := e.backupEntries(ctx, id)
 	if err != nil {
 		return err
 	}
+	pins, err := e.readPins(ctx, id)
+	if err != nil {
+		return err
+	}
+	names = slices.DeleteFunc(names, func(n string) bool { return pins[n] })
 	for len(names) > e.Retention {
-		oldest := backupsDir(id) + "/" + names[0]
-		if isZip[names[0]] {
-			err = e.Client.Delete(ctx, oldest+backupExt)
-		} else {
-			err = e.Client.Purge(ctx, oldest)
-		}
-		if err != nil {
+		if err := e.removeBackup(ctx, id, names[0], isZip[names[0]]); err != nil {
 			return err
 		}
 		names = names[1:]
@@ -232,12 +238,125 @@ func (e *Engine) prune(ctx context.Context, id string) error {
 	return nil
 }
 
+// removeBackup deletes one backup: an archive, or an older folder backup.
+func (e *Engine) removeBackup(ctx context.Context, id, name string, isZip bool) error {
+	p := backupsDir(id) + "/" + name
+	if isZip {
+		return e.Client.Delete(ctx, p+backupExt)
+	}
+	return e.Client.Purge(ctx, p)
+}
+
+// DeleteBackup permanently deletes a backup (pinned or not) for every device.
+func (e *Engine) DeleteBackup(ctx context.Context, gameID, name string) error {
+	if strings.ContainsAny(name, `/\`) || name == "" || name == "." || name == ".." {
+		return errors.New("invalid backup name")
+	}
+	names, isZip, err := e.backupEntries(ctx, gameID)
+	if err != nil {
+		return err
+	}
+	if !slices.Contains(names, name) {
+		return fmt.Errorf("backup %s not found", name)
+	}
+	pins, err := e.readPins(ctx, gameID)
+	if err != nil {
+		return err
+	}
+	if err := e.removeBackup(ctx, gameID, name, isZip[name]); err != nil {
+		return err
+	}
+	if !pins[name] {
+		return nil
+	}
+	list := []string{} // the pins of the backups that remain
+	for _, n := range names {
+		if n != name && pins[n] {
+			list = append(list, n)
+		}
+	}
+	return e.Client.WriteJSON(ctx, pinsPath(gameID), list)
+}
+
+// pinsPath holds the names of a game's pinned backups.
+func pinsPath(id string) string { return gameDir(id) + "/pinned.json" }
+
+func (e *Engine) readPins(ctx context.Context, id string) (map[string]bool, error) {
+	var names []string
+	if _, err := e.Client.ReadJSON(ctx, pinsPath(id), &names); err != nil {
+		return nil, fmt.Errorf("read pinned backups: %w", err)
+	}
+	pins := make(map[string]bool, len(names))
+	for _, n := range names {
+		pins[n] = true
+	}
+	return pins, nil
+}
+
+// SetBackupPinned pins or unpins a backup. Pruning never deletes a pinned one.
+func (e *Engine) SetBackupPinned(ctx context.Context, gameID, name string, pinned bool) error {
+	names, _, err := e.backupEntries(ctx, gameID)
+	if err != nil {
+		return err
+	}
+	if !slices.Contains(names, name) {
+		return fmt.Errorf("backup %s not found", name)
+	}
+	pins, err := e.readPins(ctx, gameID)
+	if err != nil {
+		return err
+	}
+	if pinned {
+		pins[name] = true
+	} else {
+		delete(pins, name)
+	}
+	// Keep only backups that still exist.
+	list := []string{}
+	for _, n := range names {
+		if pins[n] {
+			list = append(list, n)
+		}
+	}
+	return e.Client.WriteJSON(ctx, pinsPath(gameID), list)
+}
+
+// BackupNow stores a backup of this device's current saves, whatever the
+// retention setting, and pins it: a backup made on purpose is kept until
+// unpinned. It returns the backup's name.
+func (e *Engine) BackupNow(ctx context.Context, job Job) (string, error) {
+	if err := validateJob(job); err != nil {
+		return "", err
+	}
+	st, err := e.States.Load(job.GameID)
+	if err != nil {
+		return "", err
+	}
+	local, err := ScanLocal(ctx, job.Slots, st.LastSynced)
+	if err != nil {
+		return "", fmt.Errorf("scan local saves: %w", err)
+	}
+	if len(local.Files) == 0 {
+		return "", errors.New("there are no local saves to back up")
+	}
+	name, err := e.backupLocal(ctx, job, local, "manual")
+	if err != nil {
+		return "", fmt.Errorf("back up local saves: %w", err)
+	}
+	if err := e.SetBackupPinned(ctx, job.GameID, name, true); err != nil {
+		return name, fmt.Errorf("pin backup: %w", err)
+	}
+	_ = e.prune(ctx, job.GameID) // the backup is pinned, so it stays
+	return name, nil
+}
+
 // Backup describes a stored backup.
 type Backup struct {
 	Name       string    `json:"name"`
 	Time       time.Time `json:"time"`
 	DeviceName string    `json:"deviceName"`
-	Kind       string    `json:"kind"` // "local" (taken before a download) or "cloud" (taken before an upload)
+	Kind       string    `json:"kind"` // "local" (taken before a download), "cloud" (taken before an upload) or "manual" (taken on request)
+	Pinned     bool      `json:"pinned"`
 }
 
 // ListBackups returns backups for a game, newest first.
@@ -246,9 +365,13 @@ func (e *Engine) ListBackups(ctx context.Context, gameID string) ([]Backup, erro
 	if err != nil {
 		return nil, err
 	}
+	pins, err := e.readPins(ctx, gameID)
+	if err != nil {
+		return nil, err
+	}
 	var out []Backup
 	for _, n := range slices.Backward(names) {
-		b := Backup{Name: n}
+		b := Backup{Name: n, Pinned: pins[n]}
 		parts := strings.Split(n, "_")
 		if len(parts) >= 3 {
 			b.Time, _ = time.Parse(backupTimeLayout, parts[0])
@@ -288,7 +411,7 @@ func (e *Engine) RestoreBackup(ctx context.Context, job Job, name string) error 
 	// when backups are off (Retention 0). Pruning is skipped then: it would
 	// delete this very backup.
 	if len(local.Files) > 0 {
-		if err := e.backupLocal(ctx, job, local); err != nil {
+		if _, err := e.backupLocal(ctx, job, local, "local"); err != nil {
 			return fmt.Errorf("backup local saves: %w", err)
 		}
 		if e.Retention > 0 {

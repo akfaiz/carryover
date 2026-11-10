@@ -5,6 +5,7 @@ import (
 
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/container"
+	"fyne.io/fyne/v2/dialog"
 	"fyne.io/fyne/v2/lang"
 	"fyne.io/fyne/v2/theme"
 	"fyne.io/fyne/v2/widget"
@@ -87,8 +88,11 @@ func (p *gameDetail) updateProgress() {
 		msg := ev.Message
 		if msg == "" {
 			msg = lang.L("Syncing…")
-			if p.busy == "restore" {
+			switch p.busy {
+			case "restore":
 				msg = lang.L("Restoring backup…")
+			case "backup":
+				msg = lang.L("Backing up…")
 			}
 		}
 		p.prog.set(msg, ev.Bytes, ev.TotalBytes)
@@ -98,7 +102,7 @@ func (p *gameDetail) updateProgress() {
 // run marks the page busy while work runs.
 func (p *gameDetail) run(label string, work func() error, done func(error)) {
 	p.busy = label
-	if label == "sync" || label == "restore" {
+	if label == "sync" || label == "restore" || label == "backup" {
 		delete(p.u.progress, p.id)
 	}
 	p.render()
@@ -194,7 +198,7 @@ func (p *gameDetail) render() {
 			box.Add(hbox(p.cancelButton(label, func() bool { return u.sess.Cancel(p.id) })))
 		}
 		info.Add(fixedWidth(480, card("", box)))
-	} else if p.busy == "sync" || p.busy == "restore" {
+	} else if p.busy == "sync" || p.busy == "restore" || p.busy == "backup" {
 		p.prog, p.progOf = newProgress(), "busy"
 		p.updateProgress()
 		info.Add(fixedWidth(480, card("", vbox(p.prog, hbox(p.cancelButton(lang.L("Cancel"), func() bool { return u.sync.Cancel(p.id) }))))))
@@ -307,18 +311,24 @@ func (p *gameDetail) backupsCard(g services.GameView, busy, hasRemote bool) fyne
 	}
 	btn := widget.NewButton(label, p.loadBackups)
 	setEnabled(btn, !busy && hasRemote)
+	nowLabel := lang.L("Back up now")
+	if p.busy == "backup" {
+		nowLabel = lang.L("Backing up…")
+	}
+	nowBtn := widget.NewButton(nowLabel, p.backupNow)
+	setEnabled(nowBtn, !busy && hasRemote && g.Ready && !g.Status.Running)
 	info := lang.L("Backups are off, so only the current save is synced. Set \"Backups to keep per game\" in Settings to enable them.")
 	if n := p.u.settings.BackupRetention; n > 0 {
 		info = lang.N("A backup is taken in the cloud whenever saves are about to be overwritten (keeping the last {{.Count}} backup).", n,
 			map[string]any{"Count": n})
 	}
-	c := vbox(cardHead(lang.L("Backups"), btn), muted(info))
+	c := vbox(cardHead(lang.L("Backups"), nowBtn, btn), muted(info), muted(lang.L("Backups you make with “Back up now” are pinned. Pinned backups are never deleted automatically.")))
 	if p.backupsLoaded {
 		if len(p.backups) == 0 {
 			c.Add(muted(lang.L("No backups yet.")))
 		}
 		for _, b := range p.backups {
-			c.Add(backupRow(b, p.busy == "restore", !busy && g.Ready, func() { p.restore(b) }))
+			c.Add(backupRow(b, p.busy == "restore", !busy && g.Ready, !busy, func() { p.restore(b) }, func() { p.setPinned(b) }, func() { p.deleteBackup(b) }))
 		}
 	}
 	return card("", c)
@@ -332,6 +342,43 @@ func (p *gameDetail) loadBackups() {
 		return err
 	}, func(error) {
 		p.backups, p.backupsLoaded = list, true
+	})
+}
+
+// backupNow stores a pinned backup of this device's saves.
+func (p *gameDetail) backupNow() {
+	p.run("backup", func() error { return p.u.sync.BackupNow(p.id) }, func(err error) {
+		if err == nil {
+			p.u.toast(lang.L("Backup saved and pinned"), toastOK)
+			p.loadBackups()
+		}
+	})
+}
+
+// deleteBackup asks, then permanently deletes a backup for every device.
+func (p *gameDetail) deleteBackup(b syncer.Backup) {
+	msg := lang.L("Delete the backup from {{.When}}? It is shared with all your devices and can't be recovered.", map[string]any{"When": fmtDate(b.Time)})
+	if b.Pinned {
+		msg = lang.L("This backup is pinned. Delete the backup from {{.When}} anyway? It is shared with all your devices and can't be recovered.", map[string]any{"When": fmtDate(b.Time)})
+	}
+	dialog.ShowConfirm(lang.L("Delete backup"), msg, func(ok bool) {
+		if !ok {
+			return
+		}
+		p.run("pin", func() error { return p.u.sync.DeleteBackup(p.id, b.Name) }, func(err error) {
+			if err == nil {
+				p.u.toast(lang.L("Backup deleted"), toastOK)
+				p.loadBackups()
+			}
+		})
+	}, p.u.win)
+}
+
+func (p *gameDetail) setPinned(b syncer.Backup) {
+	p.run("pin", func() error { return p.u.sync.SetBackupPinned(p.id, b.Name, !b.Pinned) }, func(err error) {
+		if err == nil {
+			p.loadBackups()
+		}
 	})
 }
 
