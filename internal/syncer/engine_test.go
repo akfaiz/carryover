@@ -5,6 +5,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"slices"
 	"testing"
 	"time"
 
@@ -267,5 +268,146 @@ func TestWildcardFolderFilters(t *testing.T) {
 	}
 	if _, ok := p.Local.Files["saves/slot1/a.sav"]; !ok || len(p.Local.Files) != 1 {
 		t.Fatalf("unexpected files: %v", p.Local.Files)
+	}
+}
+
+func cloudSaves(cloudDir string) string {
+	return filepath.Join(cloudDir, "games", "game1", "current", "saves")
+}
+
+// A push uploads only files whose checksum changed and deletes removed ones;
+// unchanged files in the cloud are not touched.
+func TestPushTransfersOnlyChangedFiles(t *testing.T) {
+	cloudDir := setupCloud(t)
+	pc, job := newDevice(t, cloudDir, "pc")
+	saves := job.Slots[0].LocalPath
+	write(t, saves, "a.sav", "a-1")
+	write(t, saves, "b.sav", "b-1")
+	mustSync(t, pc, job, ResolveAuto, ActionPush)
+
+	// Mark the cloud copy of b.sav (same size): if b.sav were re-uploaded
+	// the marker would be overwritten.
+	if err := os.WriteFile(filepath.Join(cloudSaves(cloudDir), "b.sav"), []byte("XXX"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	write(t, saves, "a.sav", "a-2!")
+	_, _, err := pc.Sync(context.Background(), job, ResolveAuto)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := read(t, cloudSaves(cloudDir), "a.sav"); got != "a-2!" {
+		t.Fatalf("cloud a.sav = %q, want the changed file uploaded", got)
+	}
+	if got := read(t, cloudSaves(cloudDir), "b.sav"); got != "XXX" {
+		t.Fatalf("cloud b.sav = %q: unchanged file was re-uploaded", got)
+	}
+
+	// A deleted save is removed from the cloud.
+	if err := os.Remove(filepath.Join(saves, "b.sav")); err != nil {
+		t.Fatal(err)
+	}
+	mustSync(t, pc, job, ResolveAuto, ActionPush)
+	if _, err := os.Stat(filepath.Join(cloudSaves(cloudDir), "b.sav")); !os.IsNotExist(err) {
+		t.Fatalf("b.sav still in cloud, err=%v", err)
+	}
+}
+
+// Files in the cloud folder that the manifest doesn't describe (e.g. left by
+// an interrupted upload) are not trusted: stray ones are deleted, and a file
+// whose size doesn't match the manifest is uploaded again.
+func TestPushRepairsUntrustedCloudFiles(t *testing.T) {
+	cloudDir := setupCloud(t)
+	pc, job := newDevice(t, cloudDir, "pc")
+	saves := job.Slots[0].LocalPath
+	write(t, saves, "a.sav", "a-1")
+	write(t, saves, "b.sav", "b-1")
+	mustSync(t, pc, job, ResolveAuto, ActionPush)
+
+	write(t, cloudSaves(cloudDir), "stray.tmp", "partial")
+	write(t, cloudSaves(cloudDir), "b.sav", "trunc") // size differs from manifest
+	write(t, saves, "a.sav", "a-2!")
+	mustSync(t, pc, job, ResolveAuto, ActionPush)
+
+	if _, err := os.Stat(filepath.Join(cloudSaves(cloudDir), "stray.tmp")); !os.IsNotExist(err) {
+		t.Fatalf("stray file not removed, err=%v", err)
+	}
+	if got := read(t, cloudSaves(cloudDir), "b.sav"); got != "b-1" {
+		t.Fatalf("cloud b.sav = %q, want it repaired from local", got)
+	}
+}
+
+// A pull downloads only files whose checksum differs and deletes removed
+// ones; unchanged local files are not rewritten.
+func TestPullTransfersOnlyChangedFiles(t *testing.T) {
+	cloudDir := setupCloud(t)
+	pc, pcJob := newDevice(t, cloudDir, "pc")
+	deck, deckJob := newDevice(t, cloudDir, "deck")
+	pcSaves, deckSaves := pcJob.Slots[0].LocalPath, deckJob.Slots[0].LocalPath
+	write(t, pcSaves, "a.sav", "a-1")
+	write(t, pcSaves, "b.sav", "b-1")
+	mustSync(t, pc, pcJob, ResolveAuto, ActionPush)
+	mustSync(t, deck, deckJob, ResolveAuto, ActionPull)
+
+	// Pin b.sav's mtime on the deck; a re-download would change it.
+	old := time.Date(2020, 1, 2, 3, 4, 5, 0, time.UTC)
+	bPath := filepath.Join(deckSaves, "b.sav")
+	if err := os.Chtimes(bPath, old, old); err != nil {
+		t.Fatal(err)
+	}
+	mustSync(t, deck, deckJob, ResolveAuto, ActionNone) // re-baseline after touching mtime
+
+	write(t, pcSaves, "a.sav", "a-2!")
+	mustSync(t, pc, pcJob, ResolveAuto, ActionPush)
+	mustSync(t, deck, deckJob, ResolveAuto, ActionPull)
+	if got := read(t, deckSaves, "a.sav"); got != "a-2!" {
+		t.Fatalf("deck a.sav = %q", got)
+	}
+	fi, err := os.Stat(bPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !fi.ModTime().Equal(old) {
+		t.Fatalf("b.sav mtime = %v: unchanged file was re-downloaded", fi.ModTime())
+	}
+
+	if err := os.Remove(filepath.Join(pcSaves, "b.sav")); err != nil {
+		t.Fatal(err)
+	}
+	mustSync(t, pc, pcJob, ResolveAuto, ActionPush)
+	mustSync(t, deck, deckJob, ResolveAuto, ActionPull)
+	if _, err := os.Stat(bPath); !os.IsNotExist(err) {
+		t.Fatalf("b.sav not deleted on deck, err=%v", err)
+	}
+}
+
+func TestDiff(t *testing.T) {
+	src := map[string]FileInfo{"same": {Size: 1, Hash: "h"}, "changed": {Size: 1, Hash: "new"}, "added": {Size: 4, Hash: "a"}}
+	dst := map[string]FileInfo{"same": {Size: 1, Hash: "h"}, "changed": {Size: 1, Hash: "old"}, "removed": {Size: 1, Hash: "r"}}
+	d := diff(src, dst)
+	if want := []string{"added", "changed"}; !slices.Equal(d.copy, want) {
+		t.Errorf("copy = %v, want %v", d.copy, want)
+	}
+	if want := []string{"removed"}; !slices.Equal(d.del, want) {
+		t.Errorf("del = %v, want %v", d.del, want)
+	}
+	if d.bytes != 5 {
+		t.Errorf("bytes = %d, want 5", d.bytes)
+	}
+}
+
+// Forcing a sync when nothing differs transfers nothing and takes no backup.
+func TestNoOpForcedSyncSkipsBackup(t *testing.T) {
+	cloudDir := setupCloud(t)
+	pc, job := newDevice(t, cloudDir, "pc")
+	write(t, job.Slots[0].LocalPath, "a.sav", "a-1")
+	mustSync(t, pc, job, ResolveAuto, ActionPush)
+	mustSync(t, pc, job, ResolveLocal, ActionPush)
+	mustSync(t, pc, job, ResolveCloud, ActionPull)
+	backups, err := pc.ListBackups(context.Background(), "game1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(backups) != 0 {
+		t.Fatalf("backups = %+v, want none for no-op syncs", backups)
 	}
 }

@@ -22,7 +22,8 @@ PlayRelay: Go desktop game launcher with a Fyne GUI (`ui/`) that syncs saves via
 - rclone config is global state: `cloud.Init` once per process; config state-machine calls go through `configMu`.
 - Use `PLAYRELAY_HOME=<dir>` to run the binary against an isolated data dir (settings, library, rclone.conf, state). Never test against the real user config dir.
 - Games are identified by UUID, not name. Per-device data lives in `Game.Devices[deviceID]`; merges are per-device by `UpdatedAt`. `library.Store` returns deep copies — keep it that way.
-- The sync decision logic is `syncer.Decide`; always back up the side being overwritten before push/pull. Backup folder names are timestamp-prefixed (ms precision) and must stay sortable.
+- The sync decision logic is `syncer.Decide`; always back up the side being overwritten before push/pull (skipped only when the transfer changes nothing). Backup folder names are timestamp-prefixed (ms precision) and must stay sortable.
+- Push/pull transfer only the difference: `syncer.diff` compares the local scan and the cloud manifest by size + SHA-256, then `cloud.CopyFiles` copies exactly those files and `cloud.DeleteFiles` removes the rest. Don't go back to `rclone sync` for this (it compares by modtime/size and re-transfers or, on backends without modtimes, misses same-size changes). On push, manifest entries are checked against a listing of the cloud folder, so files left by an interrupted upload are repaired or removed.
 - `shortcuts.vdf` is binary VDF; writes must keep the `.playrelay.bak` backup. Steam overwrites it on exit, so users must restart Steam.
 
 ## Platforms

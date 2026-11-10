@@ -188,14 +188,87 @@ func CopyDir(ctx context.Context, dst, src string, flt Filters, onProgress func(
 	return transfer(ctx, dst, src, flt, onProgress, false)
 }
 
-func transfer(ctx context.Context, dst, src string, flt Filters, onProgress func(Progress), del bool) error {
-	group := "playrelay-" + time.Now().Format("150405.000000000")
-	ctx = accounting.WithStatsGroup(ctx, group)
-	defer func() {
-		if call := rc.Calls.Get("core/stats-delete"); call != nil {
-			_, _ = call.Fn(context.Background(), rc.Params{"group": group})
+// CopyFiles copies exactly the listed files ('/'-separated paths relative to
+// src) from src to dst, overwriting whatever is there. The caller has already
+// decided (by checksum) that they differ, so the destination isn't checked;
+// nothing else in src is listed or transferred.
+func CopyFiles(ctx context.Context, dst, src string, files []string, onProgress func(Progress)) error {
+	if len(files) == 0 {
+		return nil
+	}
+	fi, err := filter.NewFilter(nil)
+	if err != nil {
+		return err
+	}
+	for _, f := range files {
+		if err := fi.AddFile(f); err != nil {
+			return err
 		}
-	}()
+	}
+	ctx = filter.ReplaceConfig(ctx, fi)
+	ctx, ci := fs.AddConfig(ctx)
+	ci.NoCheckDest = true // copy regardless of what dst has
+	ci.NoTraverse = true  // look up only the listed files
+	return run(ctx, dst, src, onProgress, func(ctx context.Context, fdst, fsrc fs.Fs) error {
+		return sync.CopyDir(ctx, fdst, fsrc, false)
+	})
+}
+
+// DeleteFiles deletes the listed files ('/'-separated paths relative to dir).
+// Files that are already gone are ignored.
+func DeleteFiles(ctx context.Context, dir string, files []string) error {
+	if len(files) == 0 {
+		return nil
+	}
+	f, err := fs.NewFs(ctx, dir)
+	if err != nil {
+		if isNotFound(err) {
+			return nil
+		}
+		return err
+	}
+	for _, p := range files {
+		o, err := f.NewObject(ctx, p)
+		if isNotFound(err) {
+			continue
+		}
+		if err != nil {
+			return err
+		}
+		if err := operations.DeleteFile(ctx, o); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// ListFiles returns the size of every file under dir, keyed by '/'-separated
+// relative path. A missing dir yields an empty map.
+func ListFiles(ctx context.Context, dir string) (map[string]int64, error) {
+	out := map[string]int64{}
+	f, err := fs.NewFs(ctx, dir)
+	if err != nil {
+		if isNotFound(err) {
+			return out, nil
+		}
+		return nil, err
+	}
+	// A missing folder (e.g. before the first upload) is normal; check it
+	// directly so rclone's walker doesn't log it as an error.
+	if _, err := f.List(ctx, ""); err != nil {
+		if isNotFound(err) {
+			return out, nil
+		}
+		return nil, err
+	}
+	err = operations.ListFn(ctx, f, func(o fs.Object) { out[o.Remote()] = o.Size() })
+	if err != nil && !isNotFound(err) {
+		return nil, err
+	}
+	return out, nil
+}
+
+func transfer(ctx context.Context, dst, src string, flt Filters, onProgress func(Progress), del bool) error {
 	if !flt.Empty() {
 		fi, err := flt.NewFilter()
 		if err != nil {
@@ -203,6 +276,24 @@ func transfer(ctx context.Context, dst, src string, flt Filters, onProgress func
 		}
 		ctx = filter.ReplaceConfig(ctx, fi)
 	}
+	return run(ctx, dst, src, onProgress, func(ctx context.Context, fdst, fsrc fs.Fs) error {
+		if del {
+			return sync.Sync(ctx, fdst, fsrc, false)
+		}
+		return sync.CopyDir(ctx, fdst, fsrc, false)
+	})
+}
+
+// run opens src (creating it if missing) and dst, and runs op while
+// reporting transfer progress.
+func run(ctx context.Context, dst, src string, onProgress func(Progress), op func(ctx context.Context, fdst, fsrc fs.Fs) error) error {
+	group := "playrelay-" + time.Now().Format("150405.000000000")
+	ctx = accounting.WithStatsGroup(ctx, group)
+	defer func() {
+		if call := rc.Calls.Get("core/stats-delete"); call != nil {
+			_, _ = call.Fn(context.Background(), rc.Params{"group": group})
+		}
+	}()
 	fsrc, err := fs.NewFs(ctx, src)
 	if err != nil {
 		return err
@@ -229,11 +320,7 @@ func transfer(ctx context.Context, dst, src string, flt Filters, onProgress func
 			}
 		}()
 	}
-	if del {
-		err = sync.Sync(ctx, fdst, fsrc, false)
-	} else {
-		err = sync.CopyDir(ctx, fdst, fsrc, false)
-	}
+	err = op(ctx, fdst, fsrc)
 	close(done)
 	if onProgress != nil {
 		onProgress(readStats(ctx, group))

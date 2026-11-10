@@ -151,6 +151,7 @@ func (e *Engine) Apply(ctx context.Context, p *Plan, res Resolution) (Action, er
 	if err != nil {
 		return ActionNone, err
 	}
+	done := doneMessage(action)
 	switch action {
 	case ActionConflict:
 		st.Conflict = true
@@ -163,15 +164,18 @@ func (e *Engine) Apply(ctx context.Context, p *Plan, res Resolution) (Action, er
 			st.LastSynced = &adopted
 		}
 	case ActionPush:
-		m, err := e.push(ctx, p)
+		m, summary, err := e.push(ctx, p)
 		if err != nil {
 			return action, err
 		}
 		st.LastSynced = m
+		done = summary
 	case ActionPull:
-		if err := e.pull(ctx, p); err != nil {
+		summary, err := e.pull(ctx, p)
+		if err != nil {
 			return action, err
 		}
+		done = summary
 		st.LastSynced = p.Remote
 	}
 	st.Conflict = false
@@ -181,7 +185,7 @@ func (e *Engine) Apply(ctx context.Context, p *Plan, res Resolution) (Action, er
 	if err := e.States.Save(p.Job.GameID, st); err != nil {
 		return action, err
 	}
-	e.emit(p.Job.GameID, "done", doneMessage(action), cloud.Progress{})
+	e.emit(p.Job.GameID, "done", done, cloud.Progress{})
 	return action, nil
 }
 
@@ -210,18 +214,40 @@ func (e *Engine) progress(gameID, phase, msg string) func(cloud.Progress) {
 	return func(pr cloud.Progress) { e.emit(gameID, phase, msg, pr) }
 }
 
-func (e *Engine) push(ctx context.Context, p *Plan) (*Manifest, error) {
+func (e *Engine) push(ctx context.Context, p *Plan) (*Manifest, string, error) {
 	id := p.Job.GameID
-	if p.Remote != nil && len(p.Remote.Files) > 0 && e.Retention > 0 {
+	deltas := make([]delta, len(p.Job.Slots))
+	changes := false
+	for i, s := range p.Job.Slots {
+		d, err := e.pushDelta(ctx, p, s)
+		if err != nil {
+			return nil, "", fmt.Errorf("upload %s: %w", s.Key, err)
+		}
+		deltas[i] = d
+		changes = changes || !d.empty()
+	}
+	// Back up the cloud side only when something there will change.
+	if changes && p.Remote != nil && len(p.Remote.Files) > 0 && e.Retention > 0 {
 		if err := e.backupCloud(ctx, id, p.Remote); err != nil {
-			return nil, fmt.Errorf("backup cloud saves: %w", err)
+			return nil, "", fmt.Errorf("backup cloud saves: %w", err)
 		}
 	}
-	for _, s := range p.Job.Slots {
-		msg := "Uploading " + s.Key
-		if err := cloud.SyncDir(ctx, e.Client.Path(currentDir(id), s.Key), s.LocalPath, s.Filters, e.progress(id, "upload", msg)); err != nil {
-			return nil, fmt.Errorf("upload %s: %w", s.Key, err)
+	var copied, deleted int
+	for i, s := range p.Job.Slots {
+		d := deltas[i]
+		if d.empty() {
+			continue
 		}
+		dir := e.Client.Path(currentDir(id), s.Key)
+		msg := "Uploading " + filesWord(len(d.copy)) + " (" + s.Key + ")"
+		if err := cloud.CopyFiles(ctx, dir, s.LocalPath, d.copy, e.progress(id, "upload", msg)); err != nil {
+			return nil, "", fmt.Errorf("upload %s: %w", s.Key, err)
+		}
+		if err := cloud.DeleteFiles(ctx, dir, d.del); err != nil {
+			return nil, "", fmt.Errorf("delete removed %s files from cloud: %w", s.Key, err)
+		}
+		copied += len(d.copy)
+		deleted += len(d.del)
 	}
 	m := &Manifest{
 		Revision:   uuid.NewString(),
@@ -231,28 +257,103 @@ func (e *Engine) push(ctx context.Context, p *Plan) (*Manifest, error) {
 		Files:      p.Local.Files,
 	}
 	if err := e.Client.WriteJSON(ctx, manifestPath(id), m); err != nil {
-		return nil, fmt.Errorf("write cloud manifest: %w", err)
+		return nil, "", fmt.Errorf("write cloud manifest: %w", err)
 	}
-	return m, nil
+	return m, transferSummary("Uploaded", "from cloud", copied, deleted), nil
 }
 
-func (e *Engine) pull(ctx context.Context, p *Plan) error {
+func (e *Engine) pull(ctx context.Context, p *Plan) (string, error) {
 	id := p.Job.GameID
-	if len(p.Local.Files) > 0 && e.Retention > 0 {
+	deltas := make([]delta, len(p.Job.Slots))
+	changes := false
+	for i, s := range p.Job.Slots {
+		flt, err := s.Filters.NewFilter()
+		if err != nil {
+			return "", err
+		}
+		// The local scan is fresh, so both sides' checksums are exact.
+		deltas[i] = diff(slotFiles(p.Remote, s.Key, flt), slotFiles(p.Local, s.Key, nil))
+		changes = changes || !deltas[i].empty()
+	}
+	// Back up local saves only when something here will change.
+	if changes && len(p.Local.Files) > 0 && e.Retention > 0 {
 		if err := e.backupLocal(ctx, p.Job, p.Local); err != nil {
-			return fmt.Errorf("backup local saves: %w", err)
+			return "", fmt.Errorf("backup local saves: %w", err)
 		}
 	}
-	for _, s := range p.Job.Slots {
+	var copied, deleted int
+	for i, s := range p.Job.Slots {
+		d := deltas[i]
+		if d.empty() {
+			continue
+		}
 		if err := os.MkdirAll(s.LocalPath, 0o755); err != nil {
-			return err
+			return "", err
 		}
-		msg := "Downloading " + s.Key
-		if err := cloud.SyncDir(ctx, s.LocalPath, e.Client.Path(currentDir(id), s.Key), s.Filters, e.progress(id, "download", msg)); err != nil {
-			return fmt.Errorf("download %s: %w", s.Key, err)
+		msg := "Downloading " + filesWord(len(d.copy)) + " (" + s.Key + ")"
+		if err := cloud.CopyFiles(ctx, s.LocalPath, e.Client.Path(currentDir(id), s.Key), d.copy, e.progress(id, "download", msg)); err != nil {
+			return "", fmt.Errorf("download %s: %w", s.Key, err)
+		}
+		for _, rel := range d.del {
+			if err := os.Remove(filepath.Join(s.LocalPath, filepath.FromSlash(rel))); err != nil && !errors.Is(err, os.ErrNotExist) {
+				return "", fmt.Errorf("delete %s: %w", rel, err)
+			}
+		}
+		copied += len(d.copy)
+		deleted += len(d.del)
+	}
+	return transferSummary("Downloaded", "on this device", copied, deleted), nil
+}
+
+// pushDelta works out what to upload and delete for one slot. It compares the
+// local scan with the cloud manifest, but checks the manifest against what is
+// really in the cloud folder: an interrupted upload can leave files there that
+// the manifest doesn't describe, and those are never trusted.
+func (e *Engine) pushDelta(ctx context.Context, p *Plan, s Slot) (delta, error) {
+	flt, err := s.Filters.NewFilter()
+	if err != nil {
+		return delta{}, err
+	}
+	listed, err := cloud.ListFiles(ctx, e.Client.Path(currentDir(p.Job.GameID), s.Key))
+	if err != nil {
+		return delta{}, err
+	}
+	remote := slotFiles(p.Remote, s.Key, nil)
+	for k, f := range remote {
+		if size, ok := listed[k]; !ok || size != f.Size {
+			delete(remote, k)
 		}
 	}
-	return nil
+	local := slotFiles(p.Local, s.Key, nil)
+	d := diff(local, remote)
+	// Files in the cloud folder the manifest doesn't know about. Excluded
+	// files are kept, like rclone sync does without --delete-excluded.
+	for k, size := range listed {
+		if _, inLocal := local[k]; inLocal {
+			continue
+		}
+		if _, inRemote := remote[k]; inRemote {
+			continue // already in d.del
+		}
+		if flt.Include(k, size, time.Time{}, nil) {
+			d.del = append(d.del, k)
+		}
+	}
+	sort.Strings(d.del)
+	return d, nil
+}
+
+// transferSummary is the "done" message for a push or pull.
+func transferSummary(verb, where string, copied, deleted int) string {
+	switch {
+	case copied == 0 && deleted == 0:
+		return "Saves are up to date (nothing changed)"
+	case deleted == 0:
+		return verb + " " + filesWord(copied)
+	case copied == 0:
+		return "Deleted " + filesWord(deleted) + " " + where
+	}
+	return verb + " " + filesWord(copied) + ", deleted " + filesWord(deleted) + " " + where
 }
 
 var unsafeChars = regexp.MustCompile(`[^A-Za-z0-9._-]+`)
