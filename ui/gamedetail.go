@@ -307,9 +307,12 @@ func (p *gameDetail) backupsCard(g services.GameView, busy, hasRemote bool) fyne
 	}
 	btn := widget.NewButton(label, p.loadBackups)
 	setEnabled(btn, !busy && hasRemote)
-	c := vbox(cardHead(lang.L("Backups"), btn),
-		muted(lang.N("A backup is taken in the cloud whenever saves are about to be overwritten (keeping the last {{.Count}} backup).", p.u.settings.BackupRetention,
-			map[string]any{"Count": p.u.settings.BackupRetention})))
+	info := lang.L("Backups are off, so only the current save is synced. Set \"Backups to keep per game\" in Settings to enable them.")
+	if n := p.u.settings.BackupRetention; n > 0 {
+		info = lang.N("A backup is taken in the cloud whenever saves are about to be overwritten (keeping the last {{.Count}} backup).", n,
+			map[string]any{"Count": n})
+	}
+	c := vbox(cardHead(lang.L("Backups"), btn), muted(info))
 	if p.backupsLoaded {
 		if len(p.backups) == 0 {
 			c.Add(muted(lang.L("No backups yet.")))

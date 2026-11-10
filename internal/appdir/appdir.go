@@ -50,10 +50,10 @@ func (d Dirs) LogsDir() string      { return filepath.Join(d.Root, "logs") }
 type Settings struct {
 	DeviceID        string `json:"deviceId"`
 	DeviceName      string `json:"deviceName"`
-	Remote          string `json:"remote"`     // rclone remote name, without trailing colon
-	RemoteRoot      string `json:"remoteRoot"` // folder inside the remote
-	BackupRetention int    `json:"backupRetention"`
-	SyncLibrary     bool   `json:"syncLibrary"` // mirror library catalog to the cloud
+	Remote          string `json:"remote"`          // rclone remote name, without trailing colon
+	RemoteRoot      string `json:"remoteRoot"`      // folder inside the remote
+	BackupRetention int    `json:"backupRetention"` // 0 = no backups (default)
+	SyncLibrary     bool   `json:"syncLibrary"`     // mirror library catalog to the cloud
 	// SteamGridDBKey is the user's own SteamGridDB API key (optional), used
 	// to find cover art. Stored only on this device.
 	SteamGridDBKey string `json:"steamGridDbKey,omitempty"`
@@ -93,7 +93,10 @@ func OpenSettings(path string) (*SettingsStore, error) {
 	}
 	changed := false
 	if st.s.DeviceID == "" {
+		// First run. BackupRetention stays 0: backups are opt-in because the zip
+		// upload after a play session slows the sync down.
 		st.s.DeviceID = uuid.NewString()
+		st.s.SyncLibrary = true
 		changed = true
 	}
 	if st.s.DeviceName == "" {
@@ -101,11 +104,6 @@ func OpenSettings(path string) (*SettingsStore, error) {
 		if st.s.DeviceName == "" {
 			st.s.DeviceName = "device"
 		}
-		changed = true
-	}
-	if st.s.BackupRetention == 0 {
-		st.s.BackupRetention = 10
-		st.s.SyncLibrary = true
 		changed = true
 	}
 	if st.s.RemoteRoot == "" {

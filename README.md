@@ -22,7 +22,7 @@ SFTP and SMB. The UI is built with [Fyne](https://fyne.io) and needs no webview 
 - **Play from the launcher or from Steam** — "Add to Steam" creates a non-Steam shortcut whose command
   is `carryover run <game>`, so saves are pulled before and pushed after every session, even in Game Mode.
 - **Safe conflicts** — if saves changed on both sides, you choose which to keep; the other side is
-  always backed up in the cloud (`games/<id>/backups/`, the last N are kept) and can be restored.
+  backed up in the cloud when backups are enabled (`games/<id>/backups/`, the last N are kept) and can be restored.
 - **Title & cover from Steam** — "Find on Steam" fills in the official title and portrait cover (Steam's
   local cache first, then its CDN); "Add from Steam" imports games installed through Steam. With
   your own free [SteamGridDB](https://www.steamgriddb.com) API key (Settings), "Find cover…" searches
@@ -54,8 +54,8 @@ last successful sync, and compares three things: its local save files, the cloud
    reports a conflict if both have different saves.
 3. **Only the difference is transferred.** Files are compared by size and SHA-256, so unchanged files are not
    uploaded or downloaded again, and files that were deleted on one side are removed on the other.
-4. **The side being overwritten is backed up first**, as one zip in `games/<id>/backups/`. The last N backups are
-   kept, and you can restore any of them from the launcher.
+4. **If backups are enabled (Settings → backups to keep, off by default), the side being overwritten is backed up first**,
+   as one zip in `games/<id>/backups/`. The last N backups are kept, and you can restore any of them from the launcher.
 5. **After you quit the game**, the new local saves are pushed and the lock is released.
 
 In Steam, the shortcut `carryover run <game>` does the same steps around the game process, so it works in Game
