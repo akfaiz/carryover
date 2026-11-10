@@ -47,6 +47,9 @@ Windows desktop through WSLg (Docker Desktop with the WSL2 backend):
 .\scripts\linux-docker.ps1 appimage # build bin\Carryover-x86_64.AppImage (no WSL or FUSE needed)
 ```
 
+On Linux or macOS use `scripts/linux-docker.sh` with the same commands (`build`, `run`, `shell`, `export`,
+`appimage`). The GUI needs an X11/XWayland session on Linux, or XQuartz on macOS (see the script header).
+
 Data is kept in `.docker-data/` (git-ignored), separate from your real config.
 
 ## Building for Linux / Steam Deck with fyne-cross
