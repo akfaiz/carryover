@@ -68,9 +68,24 @@ CGO_ENABLED=1 go build -o bin/playrelay .                                # Linux
 go tool fyne package --os windows --release --name playrelay             # Windows release exe with icon
 go run github.com/fyne-io/fyne-cross@latest linux -arch=amd64 \
   -app-id com.akfaiz.playrelay -name playrelay                           # Linux / Steam Deck from any OS (Docker)
+packaging/appimage/build.sh                                               # AppImage from the fyne-cross binary (Linux, needs appimagetool)
 PLAYRELAY_HOME=/tmp/pr go run .                                          # run against an isolated data dir
 go test ./...
 ```
+
+### Linux packaging
+
+`fyne-cross` writes a bare binary (`fyne-cross/bin/linux-amd64/playrelay`) and a `playrelay.tar.xz` with a
+`.desktop` file and icon. A bare binary has no icon of its own; install the `.desktop` file and PNG, or use the
+AppImage, which carries both. Build it on Linux (WSL or the Steam Deck) with
+[appimagetool](https://github.com/AppImage/appimagetool/releases) on `PATH`:
+
+```
+packaging/appimage/build.sh        # -> bin/PlayRelay-x86_64.AppImage
+```
+
+Keep the AppImage in a fixed place (e.g. `~/Applications/`): the Steam shortcut points at its path, and moving
+it breaks the shortcut until you use "Update Steam shortcut".
 
 Code map: `internal/syncer` (decision engine, backups), `internal/cloud` (rclone wrapper),
 `internal/steam` (VDF + shortcuts), `internal/pathvar`, `internal/library`, `internal/core`

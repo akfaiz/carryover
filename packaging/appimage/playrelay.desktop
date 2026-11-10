@@ -1,0 +1,11 @@
+[Desktop Entry]
+Type=Application
+Name=PlayRelay
+GenericName=Game launcher
+Comment=Game launcher with rclone cloud saves
+Exec=playrelay
+Icon=playrelay
+Categories=Game;Utility;
+Keywords=saves;sync;steam;rclone;
+StartupWMClass=playrelay
+Terminal=false
