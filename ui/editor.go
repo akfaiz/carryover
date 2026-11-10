@@ -279,9 +279,9 @@ func (e *editor) render() {
 		head = lang.L("Edit game")
 	}
 	e.saveBtn = nil
-	left := vbox(e.gameCard(), e.launchCard())
-	right := vbox(e.savesCard(), e.artworkCard())
-	bottom := vbox()
+	left := stack(e.gameCard(), e.launchCard())
+	right := stack(e.savesCard(), e.artworkCard())
+	bottom := stack()
 	if e.errText != "" {
 		bottom.Add(colored(e.errText, widget.DangerImportance))
 	}
@@ -292,7 +292,7 @@ func (e *editor) render() {
 	e.saveBtn = primary(saveLabel, e.save)
 	setEnabled(e.saveBtn, !e.saving && strings.TrimSpace(e.name) != "")
 	bottom.Add(hbox(widget.NewButton(lang.L("Cancel"), u.back), e.saveBtn))
-	replaceScroll(e.scroll, vbox(pageHead(u.back, head), newCols(440, nil, left, right), bottom))
+	replaceScroll(e.scroll, stack(pageHead(u.back, head), newCols(440, nil, left, right), bottom))
 }
 
 func (e *editor) gameCard() fyne.CanvasObject {

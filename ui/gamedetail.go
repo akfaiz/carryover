@@ -136,7 +136,7 @@ func (p *gameDetail) render() {
 		if u.loaded {
 			msg = lang.L("Game not found.")
 		}
-		replaceScroll(p.scroll, vbox(pageHead(u.back, ""), muted(msg)))
+		replaceScroll(p.scroll, stack(pageHead(u.back, ""), muted(msg)))
 		return
 	}
 	busy := p.busy != ""
@@ -207,14 +207,14 @@ func (p *gameDetail) render() {
 	cover := coverView(coverSource{path: g.CoverPath, version: g.CoverVersion, name: g.Name}, fyne.NewSize(170, 255))
 	hero := container.NewBorder(nil, nil, container.NewVBox(cover), nil, container.NewPadded(info))
 
-	left := vbox(p.savesCard(g, busy, hasRemote), p.backupsCard(g, busy, hasRemote))
-	right := vbox(p.steamCard(g, busy))
+	left := stack(p.savesCard(g, busy, hasRemote), p.backupsCard(g, busy, hasRemote))
+	right := stack(p.steamCard(g, busy))
 	if len(g.OtherDevices) > 0 {
 		right.Add(otherDevicesCard(g))
 	}
 	right.Add(p.deleteCard(g))
 
-	replaceScroll(p.scroll, vbox(hero, newCols(420, []float32{3, 2}, left, right)))
+	replaceScroll(p.scroll, stack(hero, newCols(420, []float32{3, 2}, left, right)))
 }
 
 // cancelButton stops a running sync; it shows "Cancelling…" until it stops.

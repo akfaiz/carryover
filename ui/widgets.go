@@ -16,6 +16,45 @@ import (
 	"github.com/akfaiz/carryover/services"
 )
 
+// pageGap is the space between cards and page sections stacked on a page.
+// Fyne's own VBox leaves only theme.Padding() (4px), which looks cramped next
+// to the page margin.
+const pageGap float32 = 16
+
+// gapVBox stacks objects vertically at full width with gap between them.
+type gapVBox struct{ gap float32 }
+
+func (g gapVBox) Layout(objs []fyne.CanvasObject, size fyne.Size) {
+	y := float32(0)
+	for _, o := range objs {
+		if !o.Visible() {
+			continue
+		}
+		h := o.MinSize().Height
+		o.Move(fyne.NewPos(0, y))
+		o.Resize(fyne.NewSize(size.Width, h))
+		y += h + g.gap
+	}
+}
+
+func (g gapVBox) MinSize(objs []fyne.CanvasObject) fyne.Size {
+	var w, h float32
+	for _, o := range objs {
+		if !o.Visible() {
+			continue
+		}
+		m := o.MinSize()
+		w = max(w, m.Width)
+		h += m.Height + g.gap
+	}
+	return fyne.NewSize(w, max(h-g.gap, 0))
+}
+
+// stack is a vertical stack of cards or page sections, pageGap apart.
+func stack(objs ...fyne.CanvasObject) *fyne.Container {
+	return container.New(gapVBox{pageGap}, objs...)
+}
+
 // card is a rounded panel with an optional heading.
 func card(title string, objs ...fyne.CanvasObject) fyne.CanvasObject {
 	bg := canvas.NewRectangle(colBg2)
@@ -26,7 +65,7 @@ func card(title string, objs ...fyne.CanvasObject) fyne.CanvasObject {
 	if title != "" {
 		items = append([]fyne.CanvasObject{heading(title)}, objs...)
 	}
-	return container.NewStack(bg, container.New(layout.NewCustomPaddedLayout(12, 12, 14, 14), container.NewVBox(items...)))
+	return container.NewStack(bg, container.New(layout.NewCustomPaddedLayout(14, 14, 16, 16), container.NewVBox(items...)))
 }
 
 // cardHead is a card heading with right-aligned actions.
@@ -324,7 +363,7 @@ func (r *responsiveCols) sideBySide(width float32, n int) bool {
 }
 
 func (r *responsiveCols) Layout(objs []fyne.CanvasObject, size fyne.Size) {
-	pad := theme.Padding() * 3
+	pad := pageGap
 	n := len(objs)
 	if n == 0 {
 		return
@@ -363,7 +402,7 @@ func (r *responsiveCols) ratio(i int) float32 {
 
 func (r *responsiveCols) MinSize(objs []fyne.CanvasObject) fyne.Size {
 	var w, h float32
-	pad := theme.Padding() * 3
+	pad := pageGap
 	if r.width > 0 && r.sideBySide(r.width, len(objs)) {
 		for _, o := range objs {
 			m := o.MinSize()

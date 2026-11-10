@@ -90,7 +90,7 @@ func (p *settingsPage) form(st appdir.Settings) fyne.CanvasObject {
 
 	cli := mono("carryover run <game> [--headless] [-- command…]\ncarryover sync <game>|--all [--push|--pull]\ncarryover list")
 	narrow := func(o fyne.CanvasObject) fyne.CanvasObject { return maxWidth(640, o) }
-	return vbox(
+	return stack(
 		pageHead(nil, lang.L("Settings")),
 		narrow(card(lang.L("Appearance"),
 			field(lang.L("Theme"), themeSel))),

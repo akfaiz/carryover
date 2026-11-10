@@ -125,7 +125,7 @@ func (p *cloudPage) render() {
 			}, u.win)
 		}))
 	}
-	replaceScroll(p.scroll, vbox(pageHead(nil, lang.L("Cloud storage")), location, card("", list)))
+	replaceScroll(p.scroll, stack(pageHead(nil, lang.L("Cloud storage")), location, card("", list)))
 }
 
 func (p *cloudPage) saveTarget() {

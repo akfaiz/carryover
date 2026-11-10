@@ -386,15 +386,21 @@ func (u *UI) openFolder(p string) {
 	go func() { _ = cmd.Wait() }()
 }
 
+// pagePadded gives page content the same margin on every side.
+func pagePadded(content fyne.CanvasObject) fyne.CanvasObject {
+	const m = 28
+	return container.New(layout.NewCustomPaddedLayout(m, m, m, m), content)
+}
+
 // scrollPage wraps page content in a padded vertical scroll.
 func scrollPage(content fyne.CanvasObject) *container.Scroll {
-	return container.NewVScroll(container.New(layout.NewCustomPaddedLayout(20, 24, 28, 28), content))
+	return container.NewVScroll(pagePadded(content))
 }
 
 // replaceScroll swaps a scroll's content, keeping its position.
 func replaceScroll(s *container.Scroll, content fyne.CanvasObject) {
 	off := s.Offset
-	s.Content = container.New(layout.NewCustomPaddedLayout(20, 24, 28, 28), content)
+	s.Content = pagePadded(content)
 	s.Refresh()
 	s.Offset = off
 	s.Refresh()
