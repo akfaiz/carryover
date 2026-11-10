@@ -5,7 +5,7 @@ description: Build PlayRelay and run a two-device end-to-end save sync test (pus
 
 Simulates a PC and a Steam Deck with isolated `PLAYRELAY_HOME` dirs sharing one `local`-type remote (the `alias` backend is not compiled in). Use the session scratchpad directory as `$T` (never the real user config dir). Use Python for writing JSON files (Windows paths break shell quoting).
 
-1. Build: `"$(go env GOPATH)/bin/wails3" build` → `bin/playrelay(.exe)`.
+1. Build: `CGO_ENABLED=1 go build -o bin/playrelay.exe .` (Windows: put `C:\msys64\ucrt64\bin` on `PATH` first; on Linux build `bin/playrelay`).
 2. Setup under `$T`: dirs `pc deck cloud pcsaves decksaves`. For each device write:
    - `rclone.conf`: `[cloud]` / `type = local`
    - `settings.json`: `{"deviceId":"<dev>-0000-0000","deviceName":"<dev>","remote":"cloud","remoteRoot":"<absolute $T>/cloud/PlayRelay","backupRetention":5,"syncLibrary":true}` (with a local remote the root must be absolute, otherwise it resolves against the working directory)

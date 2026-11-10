@@ -15,8 +15,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/wailsapp/wails/v3/pkg/application"
-
 	"github.com/akfaiz/playrelay/internal/core"
 	"github.com/akfaiz/playrelay/internal/library"
 	"github.com/akfaiz/playrelay/internal/ludusavi"
@@ -29,12 +27,13 @@ import (
 // LibraryService manages games.
 type LibraryService struct {
 	c       *core.Core
+	bus     *Bus
 	running func(string) bool
 }
 
-// NewLibraryService creates the service.
-func NewLibraryService(c *core.Core, running func(string) bool) *LibraryService {
-	return &LibraryService{c: c, running: running}
+// NewLibraryService creates the service. bus and running may be nil.
+func NewLibraryService(c *core.Core, bus *Bus, running func(string) bool) *LibraryService {
+	return &LibraryService{c: c, bus: bus, running: running}
 }
 
 // GameStatus is the sync state of a game on this device.
@@ -50,7 +49,8 @@ type GameStatus struct {
 type GameView struct {
 	ID            string               `json:"id"`
 	Name          string               `json:"name"`
-	CoverURL      string               `json:"coverUrl"`
+	CoverPath     string               `json:"coverPath"`    // absolute file, "" if none
+	CoverVersion  int64                `json:"coverVersion"` // cover file mtime (image cache key)
 	StoreAppID    string               `json:"storeAppId"`
 	Slots         []library.SaveSlot   `json:"slots"`
 	Device        library.DeviceConfig `json:"device"`
@@ -84,9 +84,9 @@ func (s *LibraryService) view(g library.Game) GameView {
 		v.Device.Paths = map[string]string{}
 	}
 	if g.Cover != "" {
-		v.CoverURL = "/covers/" + g.Cover
-		if fi, err := os.Stat(filepath.Join(s.c.Dirs.CoversDir(), g.Cover)); err == nil {
-			v.CoverURL += fmt.Sprintf("?v=%d", fi.ModTime().Unix())
+		p := filepath.Join(s.c.Dirs.CoversDir(), g.Cover)
+		if fi, err := os.Stat(p); err == nil {
+			v.CoverPath, v.CoverVersion = p, fi.ModTime().UnixNano()
 		}
 	}
 	pctx := s.c.PathContext(g)
@@ -170,7 +170,7 @@ type GameInput struct {
 
 // DeviceInput is the editor's view of this device's config. Server-managed
 // fields (timestamps, device name, Steam app id) are deliberately absent so
-// the frontend can't send invalid values for them.
+// the editor can't send invalid values for them.
 type DeviceInput struct {
 	Paths       map[string]string  `json:"paths"`
 	Exe         string             `json:"exe"`
@@ -224,7 +224,7 @@ func (s *LibraryService) Save(in GameInput) (GameView, error) {
 	if err != nil {
 		return GameView{}, err
 	}
-	emit(EventLibrary, saved.ID)
+	s.bus.libraryChanged(saved.ID)
 	return s.view(saved), nil
 }
 
@@ -243,7 +243,7 @@ func (s *LibraryService) Delete(id string) error {
 	if err := s.c.Library.Delete(id); err != nil {
 		return err
 	}
-	emit(EventLibrary, id)
+	s.bus.libraryChanged(id)
 	return nil
 }
 
@@ -271,7 +271,7 @@ func (s *LibraryService) SetCover(id, src string) (GameView, error) {
 	if err != nil {
 		return GameView{}, err
 	}
-	emit(EventLibrary, saved.ID)
+	s.bus.libraryChanged(saved.ID)
 	return s.view(saved), nil
 }
 
@@ -290,22 +290,6 @@ func copyFile(src, dst string) error {
 		return err
 	}
 	return out.Close()
-}
-
-// PickFile shows an open-file dialog. Returns "" if cancelled.
-func (s *LibraryService) PickFile(title, filterName, pattern string) (string, error) {
-	d := application.Get().Dialog.OpenFile().SetTitle(title).CanChooseFiles(true)
-	if pattern != "" {
-		d = d.AddFilter(filterName, pattern)
-	}
-	return d.PromptForSingleSelection()
-}
-
-// PickFolder shows a choose-folder dialog. Returns "" if cancelled.
-func (s *LibraryService) PickFolder(title string) (string, error) {
-	return application.Get().Dialog.OpenFile().SetTitle(title).
-		CanChooseDirectories(true).CanChooseFiles(false).CanCreateDirectories(true).
-		PromptForSingleSelection()
 }
 
 // Tokens lists path tokens for a game on this device (gameID may be "").
@@ -331,25 +315,13 @@ func (s *LibraryService) ContractPath(p string) string {
 	return pathvar.Context{SteamRoot: s.c.SteamRoot()}.Contract(p)
 }
 
-// OpenFolder opens a folder in the system file manager.
-func (s *LibraryService) OpenFolder(p string) error {
+// CheckFolder returns an error unless p is an existing folder (checked before
+// opening it in the file manager).
+func (s *LibraryService) CheckFolder(p string) error {
 	if fi, err := os.Stat(p); err != nil || !fi.IsDir() {
 		return fmt.Errorf("folder does not exist: %s", p)
 	}
-	return application.Get().Browser.OpenFile(p)
-}
-
-// CoversHandler serves cover images under /covers/ and delegates everything else.
-func CoversHandler(c *core.Core, next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if name, ok := strings.CutPrefix(r.URL.Path, "/covers/"); ok {
-			name = filepath.Base(name)
-			w.Header().Set("Cache-Control", "max-age=31536000")
-			http.ServeFile(w, r, filepath.Join(c.Dirs.CoversDir(), name))
-			return
-		}
-		next.ServeHTTP(w, r)
-	})
+	return nil
 }
 
 // SearchSteam looks up games on the Steam store by name, for filling in a
@@ -428,7 +400,7 @@ func (s *LibraryService) storeCover(g library.Game, data []byte, ext string) (Ga
 	if err != nil {
 		return GameView{}, err
 	}
-	emit(EventLibrary, saved.ID)
+	s.bus.libraryChanged(saved.ID)
 	return s.view(saved), nil
 }
 

@@ -13,11 +13,12 @@ import (
 // SyncService runs manual syncs, manages backups and settings.
 type SyncService struct {
 	c    *core.Core
+	bus  *Bus
 	busy sync.Map // gameID -> struct{}
 }
 
-// NewSyncService creates the service.
-func NewSyncService(c *core.Core) *SyncService { return &SyncService{c: c} }
+// NewSyncService creates the service. bus may be nil.
+func NewSyncService(c *core.Core, bus *Bus) *SyncService { return &SyncService{c: c, bus: bus} }
 
 // GetSettings returns device settings.
 func (s *SyncService) GetSettings() appdir.Settings { return s.c.Settings.Get() }
@@ -27,7 +28,7 @@ func (s *SyncService) SaveSettings(st appdir.Settings) (appdir.Settings, error) 
 	if err := s.c.Settings.Update(st); err != nil {
 		return appdir.Settings{}, err
 	}
-	emit(EventLibrary, "")
+	s.bus.libraryChanged("")
 	return s.c.Settings.Get(), nil
 }
 
@@ -82,7 +83,7 @@ func (s *SyncService) Sync(gameID, resolution string) (string, error) {
 		return "", err
 	}
 	_, action, err := eng.Sync(context.Background(), job, syncer.Resolution(resolution))
-	defer emit(EventLibrary, gameID)
+	defer s.bus.libraryChanged(gameID)
 	if errors.Is(err, syncer.ErrConflict) {
 		return string(syncer.ActionConflict), nil
 	}
@@ -109,7 +110,7 @@ func (s *SyncService) SyncAll() ([]SyncResult, error) {
 	if err := s.c.SyncLibrary(context.Background()); err != nil {
 		return nil, err
 	}
-	emit(EventLibrary, "")
+	s.bus.libraryChanged("")
 	var out []SyncResult
 	for _, g := range s.c.Library.List() {
 		if _, err := s.c.Job(g); err != nil {
@@ -129,7 +130,7 @@ func (s *SyncService) SyncAll() ([]SyncResult, error) {
 // SyncLibrary merges the cloud library catalog.
 func (s *SyncService) SyncLibrary() error {
 	err := s.c.SyncLibrary(context.Background())
-	emit(EventLibrary, "")
+	s.bus.libraryChanged("")
 	return err
 }
 
@@ -161,6 +162,6 @@ func (s *SyncService) RestoreBackup(gameID, name string) error {
 	if err != nil {
 		return err
 	}
-	defer emit(EventLibrary, gameID)
+	defer s.bus.libraryChanged(gameID)
 	return eng.RestoreBackup(context.Background(), job, name)
 }

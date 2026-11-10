@@ -8,11 +8,12 @@ import (
 
 // SteamService integrates with the Steam client.
 type SteamService struct {
-	c *core.Core
+	c   *core.Core
+	bus *Bus
 }
 
-// NewSteamService creates the service.
-func NewSteamService(c *core.Core) *SteamService { return &SteamService{c: c} }
+// NewSteamService creates the service. bus may be nil.
+func NewSteamService(c *core.Core, bus *Bus) *SteamService { return &SteamService{c: c, bus: bus} }
 
 // SteamInfo describes the local Steam installation.
 type SteamInfo struct {
@@ -41,7 +42,7 @@ func (s *SteamService) Info() SteamInfo {
 func (s *SteamService) AddToSteam(gameID, userID, mode string) (core.AddToSteamResult, error) {
 	res, err := s.c.AddToSteam(gameID, userID, library.LaunchMode(mode))
 	if err == nil {
-		emit(EventLibrary, gameID)
+		s.bus.libraryChanged(gameID)
 	}
 	return res, err
 }
@@ -50,7 +51,7 @@ func (s *SteamService) AddToSteam(gameID, userID, mode string) (core.AddToSteamR
 func (s *SteamService) RemoveFromSteam(gameID, userID string) (int, error) {
 	n, err := s.c.RemoveFromSteam(gameID, userID)
 	if err == nil {
-		emit(EventLibrary, gameID)
+		s.bus.libraryChanged(gameID)
 	}
 	return n, err
 }

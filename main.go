@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"embed"
 	"errors"
 	"flag"
 	"fmt"
@@ -11,17 +10,11 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-	"time"
-
-	"github.com/wailsapp/wails/v3/pkg/application"
 
 	"github.com/akfaiz/playrelay/internal/core"
 	"github.com/akfaiz/playrelay/internal/syncer"
-	"github.com/akfaiz/playrelay/services"
+	"github.com/akfaiz/playrelay/ui"
 )
-
-//go:embed all:frontend/dist
-var assets embed.FS
 
 const usage = `PlayRelay — game launcher with rclone cloud saves
 
@@ -214,87 +207,5 @@ func cmdList() int {
 }
 
 func runGUI(wrapGameID string, opts core.RunOptions) int {
-	c := openCore()
-	session := services.NewSessionService(c)
-	wrapper := wrapGameID != ""
-
-	appOpts := application.Options{
-		Name:        "PlayRelay",
-		Description: "Game launcher with rclone cloud saves",
-		Services: []application.Service{
-			application.NewService(services.NewLibraryService(c, session.IsRunning)),
-			application.NewService(services.NewSyncService(c)),
-			application.NewService(services.NewCloudService(c)),
-			application.NewService(services.NewSteamService(c)),
-			application.NewService(session),
-		},
-		Assets: application.AssetOptions{
-			Handler: services.CoversHandler(c, application.AssetFileServerFS(assets)),
-		},
-		Mac: application.MacOptions{ApplicationShouldTerminateAfterLastWindowClosed: true},
-	}
-	if !wrapper {
-		appOpts.SingleInstance = &application.SingleInstanceOptions{
-			UniqueID: "com.akfaiz.playrelay",
-			OnSecondInstanceLaunch: func(application.SecondInstanceData) {
-				if w := application.Get().Window.Current(); w != nil {
-					w.Show()
-					w.Focus()
-				}
-			},
-		}
-	}
-	app := application.New(appOpts)
-
-	winOpts := application.WebviewWindowOptions{
-		Title:            "PlayRelay",
-		Width:            1180,
-		Height:           760,
-		MinWidth:         720,
-		MinHeight:        480,
-		BackgroundColour: application.NewRGB(14, 15, 20),
-		URL:              "/",
-	}
-	if wrapper {
-		winOpts.Width, winOpts.Height = 460, 340
-		winOpts.MinWidth, winOpts.MinHeight = 0, 0
-		winOpts.DisableResize = true
-		winOpts.AlwaysOnTop = true
-		winOpts.URL = "/#/session"
-	}
-	win := app.Window.NewWithOptions(winOpts)
-
-	exitCode := 0
-	if wrapper {
-		done := services.ConfigureWrapper(session, wrapGameID, opts)
-		session.OnGameRunning = func(running bool) {
-			if running {
-				win.Hide()
-			} else {
-				win.Show()
-			}
-		}
-		session.OnPrompt = func() { win.Show(); win.Focus() }
-		go func() {
-			out := <-done
-			exitCode = out.ExitCode
-			if out.Err != nil {
-				log.Printf("run %s: %v", wrapGameID, out.Err)
-				if exitCode == 0 {
-					exitCode = 1
-				}
-				// Leave the error visible briefly.
-				time.Sleep(4 * time.Second)
-			} else {
-				time.Sleep(1200 * time.Millisecond)
-			}
-			app.Quit()
-		}()
-	}
-
-	if err := app.Run(); err != nil {
-		log.Print(err)
-		return 1
-	}
-	return exitCode
+	return ui.Run(openCore(), wrapGameID, opts)
 }

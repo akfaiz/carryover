@@ -23,8 +23,6 @@ linters:
   exclusions:
     presets:
       - std-error-handling
-    paths:
-      - frontend
 
 formatters:
   enable:

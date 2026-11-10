@@ -8,8 +8,6 @@ import (
 	"runtime"
 	"time"
 
-	"github.com/wailsapp/wails/v3/pkg/application"
-
 	"github.com/akfaiz/playrelay/internal/cloud"
 	"github.com/akfaiz/playrelay/internal/core"
 )
@@ -93,15 +91,9 @@ func (s *CloudService) DefaultRcloneConfig() string {
 }
 
 // ImportConfig imports remotes of supported providers from an rclone.conf.
-// If path is empty a file dialog is shown.
 func (s *CloudService) ImportConfig(path string) (cloud.ImportResult, error) {
 	if path == "" {
-		p, err := application.Get().Dialog.OpenFile().SetTitle("Select rclone.conf").
-			AddFilter("rclone config", "*.conf").PromptForSingleSelection()
-		if err != nil || p == "" {
-			return cloud.ImportResult{Imported: []string{}, Skipped: []string{}}, err
-		}
-		path = p
+		return cloud.ImportResult{}, errors.New("choose an rclone.conf file")
 	}
 	return cloud.ImportConfig(path)
 }

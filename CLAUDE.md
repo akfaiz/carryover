@@ -2,22 +2,22 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-PlayRelay: Wails v3 (Go) + Svelte 5/TypeScript desktop game launcher that syncs saves via rclone embedded as a Go library. See README.md for features and cloud layout.
+PlayRelay: Go desktop game launcher with a Fyne GUI (`ui/`) that syncs saves via rclone embedded as a Go library. See README.md for features and cloud layout.
 
 ## Commands
 
-- Build app: `wails3 build` (CLI at `$(go env GOPATH)/bin/wails3`; runs bindings generation, `npm run build`, then `go build`) → `bin/playrelay(.exe)`
-- Dev: `wails3 dev`
-- Regenerate TS bindings after changing anything in `services/` or types they return: `wails3 generate bindings -clean=true -ts -i` (same flags as `wails3 build`; without `-i` the generated types differ and `npm run check` can pass while the real build fails)
-- Frontend: `cd frontend && npm run check && npm run lint`
+- Fyne needs cgo: `CGO_ENABLED=1` and a C compiler. On Windows use MSYS2 MinGW (`C:\msys64\ucrt64\bin` on `PATH`; install with `pacman -S mingw-w64-ucrt-x86_64-gcc`).
+- Build app (Windows): `go build -ldflags "-H windowsgui" -o bin/playrelay.exe .` (`-H windowsgui` hides the console; `attachConsole` re-attaches it for CLI subcommands). Release build with exe icon/version info: `go tool fyne package --os windows --release --name playrelay` (writes `./playrelay.exe` and bumps `Build` in `FyneApp.toml`).
+- Build app (Linux / Steam Deck) from any host: `go run github.com/fyne-io/fyne-cross@latest linux -arch=amd64 -app-id com.akfaiz.playrelay -name playrelay` (Docker) → `fyne-cross/bin/linux-amd64/playrelay`; on Linux itself plain `go build` works with the GL/X11 dev packages installed.
 - Ludusavi save-path index (`internal/ludusavi/index.json.gz`, embedded) is generated: `go run ./internal/ludusavi/gen` downloads the manifest and rebuilds it. Don't edit it by hand.
 - Go: `golangci-lint run ./...` (config in `.golangci.yml`; `golangci-lint fmt ./...` fixes formatting/imports) and `go test ./...` (syncer tests use a temp-dir `local` remote — no network)
 
 ## Gotchas
 
-- `main.go` embeds `all:frontend/dist`; plain `go build`/`go vet` fail if `frontend/dist` is empty. Keep a placeholder `index.html` there or run `npm run build` first.
-- Every exported method on a `services/*` struct becomes a frontend binding. Don't export methods with channel/func params or returns there (the binding generator warns); use package-level funcs (see `ConfigureWrapper`).
-- `frontend/bindings/` is generated — never edit it by hand. Go nil slices/maps arrive as `null`, so binding types are nullable: use `?? []` / `?.` in the UI.
+- `services/` is the GUI's API over `internal/core`; it reports changes through `services.Bus` (library/status/prompt/sync-progress callbacks, called on arbitrary goroutines). `ui/` subscribes in `newUI`.
+- Fyne threading: widgets may only be touched on the UI goroutine. Wrap anything that runs from a goroutine or a `Bus` callback in `fyne.Do`; use the `async`/`async0` helpers in `ui/app.go` for service calls that do I/O so the UI never blocks.
+- Fyne pitfalls seen here: a struct that only embeds `fyne.CanvasObject` is not drawn — make it a widget (`ExtendBaseWidget` + `CreateRenderer`, see `pathInput`); `widget.Label.SizeName` must be a `theme.SizeName*` constant (a wrong name gives text size 0 and panics in wrap-break); wrapping labels inside an HBox collapse — use `small()` or a Border layout.
+- The main GUI is single-instance per data dir (`internal/singleinstance`, loopback TCP + `state/gui.addr`); `playrelay run` wrapper windows skip it.
 - Only Google Drive, Dropbox, OneDrive, WebDAV, SFTP and SMB are supported (plus `local`, compiled in but hidden — needed to read save folders). Backend imports and the `Supported` list live together in `internal/cloud/backends.go`; keep them in sync (`TestProvidersMatchSupported`). Never import `backend/all`.
 - rclone config is global state: `cloud.Init` once per process; config state-machine calls go through `configMu`.
 - Use `PLAYRELAY_HOME=<dir>` to run the binary against an isolated data dir (settings, library, rclone.conf, state). Never test against the real user config dir.
@@ -27,7 +27,7 @@ PlayRelay: Wails v3 (Go) + Svelte 5/TypeScript desktop game launcher that syncs 
 
 ## Platforms
 
-Changes must work on Windows and Linux (Steam Deck/SteamOS, Proton via `-- %command%` wrapping). OS-specific code goes in `_windows.go` / `_other.go` files with build tags; check with `GOOS=linux golangci-lint run --build-tags purego ./...` (the `purego` tag is required when cross-checking from Windows without CGO).
+Changes must work on Windows and Linux (Steam Deck/SteamOS, Proton via `-- %command%` wrapping). OS-specific code goes in `_windows.go` / `_other.go` files with build tags. Fyne's GLFW driver needs cgo, so `GOOS=linux` type-checking from Windows doesn't work for `ui/` and `main`; check the other packages with `GOOS=linux CGO_ENABLED=0 golangci-lint run ./internal/... ./services/...` and verify the GUI with the fyne-cross build.
 
 ## Conventions
 

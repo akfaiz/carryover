@@ -1,4 +1,4 @@
-// Package services exposes PlayRelay to the Wails frontend.
+// Package services is the API the GUI uses on top of internal/core.
 package services
 
 import (
@@ -7,18 +7,9 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/wailsapp/wails/v3/pkg/application"
 
 	"github.com/akfaiz/playrelay/internal/library"
 	"github.com/akfaiz/playrelay/internal/syncer"
-)
-
-// Event names emitted to the frontend.
-const (
-	EventSync    = "sync:progress"
-	EventStatus  = "session:status"
-	EventPrompt  = "session:prompt"
-	EventLibrary = "library:changed"
 )
 
 // Status is a play-session status update.
@@ -47,29 +38,88 @@ type Prompt struct {
 	Error      string        `json:"error,omitempty"`
 }
 
-func init() {
-	application.RegisterEvent[syncer.Event](EventSync)
-	application.RegisterEvent[Status](EventStatus)
-	application.RegisterEvent[Prompt](EventPrompt)
-	application.RegisterEvent[string](EventLibrary)
+// Bus delivers service events to subscribers (the GUI). Handlers run on the
+// goroutine that raised the event; GUI code must hop to its UI thread.
+type Bus struct {
+	mu      sync.Mutex
+	library []func(gameID string)
+	status  []func(Status)
+	prompt  []func(Prompt)
+	sync    []func(syncer.Event)
 }
 
-func emit(name string, data any) {
-	if app := application.Get(); app != nil {
-		app.Event.Emit(name, data)
+// NewBus creates an empty bus.
+func NewBus() *Bus { return &Bus{} }
+
+// OnLibrary subscribes to library changes (gameID is "" for global changes).
+func (b *Bus) OnLibrary(f func(gameID string)) {
+	b.mu.Lock()
+	b.library = append(b.library, f)
+	b.mu.Unlock()
+}
+
+// OnStatus subscribes to play-session status updates.
+func (b *Bus) OnStatus(f func(Status)) { b.mu.Lock(); b.status = append(b.status, f); b.mu.Unlock() }
+
+// OnPrompt subscribes to new prompts.
+func (b *Bus) OnPrompt(f func(Prompt)) { b.mu.Lock(); b.prompt = append(b.prompt, f); b.mu.Unlock() }
+
+// OnSync subscribes to sync progress events.
+func (b *Bus) OnSync(f func(syncer.Event)) { b.mu.Lock(); b.sync = append(b.sync, f); b.mu.Unlock() }
+
+func snapshot[T any](b *Bus, list *[]T) []T {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	return append([]T(nil), *list...)
+}
+
+func (b *Bus) libraryChanged(gameID string) {
+	if b == nil {
+		return
+	}
+	for _, f := range snapshot(b, &b.library) {
+		f(gameID)
 	}
 }
 
-// prompter holds outstanding prompts until the frontend answers.
+func (b *Bus) statusChanged(st Status) {
+	if b == nil {
+		return
+	}
+	for _, f := range snapshot(b, &b.status) {
+		f(st)
+	}
+}
+
+func (b *Bus) promptRaised(p Prompt) {
+	if b == nil {
+		return
+	}
+	for _, f := range snapshot(b, &b.prompt) {
+		f(p)
+	}
+}
+
+func (b *Bus) syncProgress(ev syncer.Event) {
+	if b == nil {
+		return
+	}
+	for _, f := range snapshot(b, &b.sync) {
+		f(ev)
+	}
+}
+
+// prompter holds outstanding prompts until the UI answers.
 type prompter struct {
 	mu      sync.Mutex
 	pending map[string]chan string
 	prompts map[string]Prompt
 	onAsk   func()
+	bus     *Bus
 }
 
-func newPrompter() *prompter {
-	return &prompter{pending: map[string]chan string{}, prompts: map[string]Prompt{}}
+func newPrompter(bus *Bus) *prompter {
+	return &prompter{pending: map[string]chan string{}, prompts: map[string]Prompt{}, bus: bus}
 }
 
 func (p *prompter) ask(ctx context.Context, pr Prompt) string {
@@ -83,7 +133,7 @@ func (p *prompter) ask(ctx context.Context, pr Prompt) string {
 	if onAsk != nil {
 		onAsk()
 	}
-	emit(EventPrompt, pr)
+	p.bus.promptRaised(pr)
 	defer func() {
 		p.mu.Lock()
 		delete(p.pending, pr.ID)
@@ -118,7 +168,7 @@ func (p *prompter) list() []Prompt {
 	return out
 }
 
-// guiUI implements core.SessionUI using frontend prompts.
+// guiUI implements core.SessionUI using GUI prompts.
 type guiUI struct {
 	gameID    string
 	p         *prompter

@@ -17,7 +17,7 @@ func TestSaveNewGameFromEditorPayload(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	svc := NewLibraryService(c, nil)
+	svc := NewLibraryService(c, nil, nil)
 
 	payload := `{"id":"","name":"Game A",
 		"slots":[{"key":"saves","label":"Saves","include":[],"exclude":[]}],

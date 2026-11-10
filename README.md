@@ -3,7 +3,7 @@
 Cross-platform game launcher (Windows, Linux / Steam Deck, macOS) that keeps save games in sync
 through cloud storage via [rclone](https://github.com/rclone/rclone) — embedded as a Go library, no
 separate install. Supported: Google Drive, Dropbox, OneDrive, WebDAV (Nextcloud, ownCloud, NAS),
-SFTP and SMB. UI built with [Wails v3](https://github.com/wailsapp/wails) + Svelte.
+SFTP and SMB. Go UI built with [Fyne](https://fyne.io) — no webview or browser runtime needed.
 
 - **Per-device save paths** — one game, one cloud copy; each device maps it to its own folder
   (`{appdata}/GameA` on Windows, `{proton:shortcut}/AppData/Roaming/GameA` on a Steam Deck).
@@ -58,17 +58,23 @@ Set `PLAYRELAY_HOME` to use a different data directory (default: user config dir
 
 ## Development
 
+Fyne needs cgo. On Windows install a MinGW gcc (MSYS2: `pacman -S mingw-w64-ucrt-x86_64-gcc`, then put
+`C:\msys64\ucrt64\bin` on `PATH`); on Linux install the GL/X11 development packages
+(see [Fyne's prerequisites](https://docs.fyne.io/started/)).
+
 ```
-go install github.com/wailsapp/wails/v3/cmd/wails3@latest
-wails3 dev          # live reload
-wails3 build        # -> bin/playrelay(.exe)
-wails3 package      # installers / AppImage
+CGO_ENABLED=1 go build -ldflags "-H windowsgui" -o bin/playrelay.exe .   # Windows
+CGO_ENABLED=1 go build -o bin/playrelay .                                # Linux
+go tool fyne package --os windows --release --name playrelay             # Windows release exe with icon
+go run github.com/fyne-io/fyne-cross@latest linux -arch=amd64 \
+  -app-id com.akfaiz.playrelay -name playrelay                           # Linux / Steam Deck from any OS (Docker)
+PLAYRELAY_HOME=/tmp/pr go run .                                          # run against an isolated data dir
 go test ./...
 ```
 
 Code map: `internal/syncer` (decision engine, backups), `internal/cloud` (rclone wrapper),
 `internal/steam` (VDF + shortcuts), `internal/pathvar`, `internal/library`, `internal/core`
-(play session), `services/` (Wails bindings), `frontend/src` (Svelte).
+(play session), `services/` (API used by the GUI), `ui/` (Fyne GUI).
 
 ## Credits
 

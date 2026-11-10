@@ -3,6 +3,7 @@ package services
 import (
 	"context"
 	"errors"
+	"path/filepath"
 	"runtime"
 	"sync"
 
@@ -14,8 +15,9 @@ func goos() string { return runtime.GOOS }
 
 // SessionService launches games (pull → play → push) and relays prompts.
 type SessionService struct {
-	c *core.Core
-	p *prompter
+	c   *core.Core
+	p   *prompter
+	bus *Bus
 
 	mu      sync.Mutex
 	running map[string]bool
@@ -38,14 +40,14 @@ type SessionOutcome struct {
 	Err      error
 }
 
-// NewSessionService creates the service.
-func NewSessionService(c *core.Core) *SessionService {
-	s := &SessionService{c: c, p: newPrompter(), running: map[string]bool{}, status: map[string]Status{}}
-	c.SetEventHandler(func(ev syncer.Event) { emit(EventSync, ev) })
+// NewSessionService creates the service and routes core sync progress to bus.
+func NewSessionService(c *core.Core, bus *Bus) *SessionService {
+	s := &SessionService{c: c, p: newPrompter(bus), bus: bus, running: map[string]bool{}, status: map[string]Status{}}
+	c.SetEventHandler(bus.syncProgress)
 	return s
 }
 
-// ConfigureWrapper sets up wrapper mode; the session starts when the frontend calls Start.
+// ConfigureWrapper sets up wrapper mode; the session starts when the UI calls Start.
 func ConfigureWrapper(s *SessionService, gameID string, opts core.RunOptions) <-chan SessionOutcome {
 	s.wrapGameID, s.wrapOpts = gameID, opts
 	s.done = make(chan SessionOutcome, 1)
@@ -81,7 +83,7 @@ func (s *SessionService) setStatus(st Status) {
 	s.mu.Lock()
 	s.status[st.GameID] = st
 	s.mu.Unlock()
-	emit(EventStatus, st)
+	s.bus.statusChanged(st)
 }
 
 func (s *SessionService) play(ctx context.Context, gameID string, opts core.RunOptions) (core.SessionResult, error) {
@@ -97,12 +99,12 @@ func (s *SessionService) play(ctx context.Context, gameID string, opts core.RunO
 	}
 	s.running[g.ID] = true
 	s.mu.Unlock()
-	emit(EventLibrary, g.ID)
+	s.bus.libraryChanged(g.ID)
 	defer func() {
 		s.mu.Lock()
 		delete(s.running, g.ID)
 		s.mu.Unlock()
-		emit(EventLibrary, g.ID)
+		s.bus.libraryChanged(g.ID)
 	}()
 
 	ui := &guiUI{gameID: g.ID, p: s.p, onStatus: s.setStatus, onRunning: func(r bool) {
@@ -141,16 +143,16 @@ func (s *SessionService) Respond(promptID, answer string) bool {
 	return s.p.respond(promptID, answer)
 }
 
-// Prompts returns unanswered prompts (used by the UI on load).
+// Prompts returns unanswered prompts (used by the UI on start).
 func (s *SessionService) Prompts() []Prompt { return s.p.list() }
 
-// WrapperState is the state of wrapper mode for the frontend.
+// WrapperState is the state of wrapper mode for the UI.
 type WrapperState struct {
-	Active   bool   `json:"active"`
-	GameID   string `json:"gameId"`
-	GameName string `json:"gameName"`
-	CoverURL string `json:"coverUrl"`
-	Status   Status `json:"status"`
+	Active    bool   `json:"active"`
+	GameID    string `json:"gameId"`
+	GameName  string `json:"gameName"`
+	CoverPath string `json:"coverPath"`
+	Status    Status `json:"status"`
 }
 
 // Wrapper returns wrapper-mode info (Active=false in launcher mode).
@@ -162,7 +164,7 @@ func (s *SessionService) Wrapper() WrapperState {
 	if g, err := s.c.Library.Find(s.wrapGameID); err == nil {
 		w.GameID, w.GameName = g.ID, g.Name
 		if g.Cover != "" {
-			w.CoverURL = "/covers/" + g.Cover
+			w.CoverPath = filepath.Join(s.c.Dirs.CoversDir(), g.Cover)
 		}
 	}
 	s.mu.Lock()
