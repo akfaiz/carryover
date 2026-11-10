@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bufio"
 	"context"
 	"errors"
 	"flag"
@@ -23,7 +24,9 @@ const usage = `Carryover — game launcher with rclone cloud saves
 Usage:
   carryover                                  open the launcher
   carryover run <game> [--headless] [-- cmd] sync, play, sync (used by Steam shortcuts)
-  carryover sync <game|--all> [--push|--pull]
+  carryover sync <game|--all> [--push|--pull] [--dry-run] [--yes]
+                                             --dry-run shows what would happen; with --all,
+                                             --push/--pull ask first unless --yes is given
   carryover list                             list games and their ids
 
 <game> is a game id or its exact name. With "-- cmd" (e.g. Steam's
@@ -138,6 +141,9 @@ func cmdSync(args []string) int {
 	push := fset.Bool("push", false, "force upload (keep local)")
 	pull := fset.Bool("pull", false, "force download (keep cloud)")
 	all := fset.Bool("all", false, "sync every game set up on this device")
+	dryRun := fset.Bool("dry-run", false, "show what would happen without changing anything")
+	yes := fset.Bool("yes", false, "don't ask before forcing --push/--pull on every game")
+	fset.BoolVar(yes, "y", false, "same as --yes")
 	if err := fset.Parse(reorder(args)); err != nil || (*push && *pull) || (fset.NArg() != 1 && !*all) {
 		_, _ = os.Stderr.WriteString(usage)
 		return 2
@@ -157,8 +163,10 @@ func cmdSync(args []string) int {
 	// Ctrl+C cancels cleanly: transfers stop and partial backups are removed.
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
 	defer stop()
-	if err := c.SyncLibrary(ctx); err != nil {
-		log.Printf("library sync: %v", err)
+	if !*dryRun { // a dry run changes nothing, not even the cloud library
+		if err := c.SyncLibrary(ctx); err != nil {
+			log.Printf("library sync: %v", err)
+		}
 	}
 	eng, err := c.Engine()
 	if err != nil {
@@ -172,6 +180,12 @@ func cmdSync(args []string) int {
 		}
 	} else {
 		games = []string{fset.Arg(0)}
+	}
+	if *all && res != syncer.ResolveAuto && !*dryRun && !*yes {
+		if n := readyGames(c, games); n > 0 && !confirmForce(*push, n) {
+			fmt.Println("aborted; nothing was changed")
+			return 1
+		}
 	}
 	code := 0
 	for _, id := range games {
@@ -190,6 +204,15 @@ func cmdSync(args []string) int {
 			continue
 		}
 		fmt.Printf("%s\n", g.Name)
+		if *dryRun {
+			if rc := dryRunGame(ctx, eng, job, res); rc > code {
+				code = rc
+			}
+			if ctx.Err() != nil {
+				return 130
+			}
+			continue
+		}
 		lock, err := syncer.AcquireLocalLock(c.Dirs.StateDir(), g.ID)
 		if err != nil {
 			log.Printf("%s: %v", g.Name, err)
@@ -214,6 +237,99 @@ func cmdSync(args []string) int {
 		}
 	}
 	return code
+}
+
+// readyGames counts the games (ids) that are set up on this device.
+func readyGames(c *core.Core, ids []string) int {
+	n := 0
+	for _, id := range ids {
+		if g, err := c.Library.Find(id); err == nil {
+			if _, err := c.Job(g); err == nil {
+				n++
+			}
+		}
+	}
+	return n
+}
+
+// confirmForce asks before overwriting one side for many games. Without a
+// terminal to ask on it refuses: pass --yes to force in scripts.
+func confirmForce(push bool, n int) bool {
+	what, over := "download the cloud saves of", "local saves"
+	if push {
+		what, over = "upload the local saves of", "the cloud saves"
+	}
+	refuse := func() bool {
+		fmt.Fprintf(os.Stderr, "refusing to %s %d games without confirmation; rerun with --yes (or --dry-run to preview)\n", what, n)
+		return false
+	}
+	if fi, err := os.Stdin.Stat(); err != nil || fi.Mode()&os.ModeCharDevice == 0 {
+		return refuse()
+	}
+	fmt.Printf("This will %s %d games, overwriting %s even where they differ.\nTip: --dry-run shows what would happen. Continue? [y/N] ", what, n, over)
+	line, err := bufio.NewReader(os.Stdin).ReadString('\n')
+	if err != nil && strings.TrimSpace(line) == "" {
+		// No answer could be read (e.g. NUL, which Windows reports as a
+		// character device): treat it like having no terminal.
+		fmt.Println()
+		return refuse()
+	}
+	line = strings.ToLower(strings.TrimSpace(line))
+	return line == "y" || line == "yes"
+}
+
+// dryRunGame prints what syncing a game would do, without changing anything.
+// It returns the exit code (1 on error, 3 on an unresolved conflict).
+func dryRunGame(ctx context.Context, eng *syncer.Engine, job syncer.Job, res syncer.Resolution) int {
+	plan, err := eng.Plan(ctx, job)
+	if err != nil {
+		log.Printf("  %v", err)
+		return 1
+	}
+	action, err := plan.ActionFor(res)
+	if err != nil {
+		fmt.Printf("  %v\n", err)
+		return 1
+	}
+	local, remote := plan.LocalSummary, plan.RemoteSummary
+	fmt.Printf("  would %s (local: %s; cloud: %s)\n", dryRunVerb(action), describeSummary(local, true), describeSummary(remote, plan.HasRemote))
+	if action == syncer.ActionConflict {
+		fmt.Println("  both sides changed; rerun with --push or --pull to choose")
+		return 3
+	}
+	return 0
+}
+
+func dryRunVerb(a syncer.Action) string {
+	switch a {
+	case syncer.ActionPush:
+		return "upload local saves to the cloud"
+	case syncer.ActionPull:
+		return "download cloud saves, replacing local"
+	case syncer.ActionConflict:
+		return "report a conflict"
+	}
+	return "do nothing, saves are up to date"
+}
+
+func describeSummary(s syncer.Summary, exists bool) string {
+	if !exists {
+		return "none"
+	}
+	return fmt.Sprintf("%d files, %s", s.Files, humanSize(s.Bytes))
+}
+
+func humanSize(n int64) string {
+	const unit = 1024
+	if n < unit {
+		return fmt.Sprintf("%d B", n)
+	}
+	div, exp := int64(unit), 0
+	for m := n / unit; m >= unit; m /= unit {
+		div *= unit
+		exp++
+	}
+	return fmt.Sprintf("%.1f %ciB", float64(n)/float64(div), "KMGTPE"[exp])
 }
 
 func cmdList() int {
