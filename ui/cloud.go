@@ -9,7 +9,6 @@ import (
 	"fyne.io/fyne/v2/container"
 	"fyne.io/fyne/v2/dialog"
 	"fyne.io/fyne/v2/storage"
-	"fyne.io/fyne/v2/theme"
 	"fyne.io/fyne/v2/widget"
 
 	"github.com/akfaiz/playrelay/internal/cloud"
@@ -89,10 +88,7 @@ func (p *cloudPage) render() {
 		p.test.Reset()
 		p.test.SetAllowed(p.remote != "")
 	})
-	root := widget.NewEntry()
-	root.TextStyle.Monospace = true
-	root.SetText(p.root)
-	root.OnChanged = func(s string) { p.root = s }
+	root := monoEntry("", p.root, func(s string) { p.root = s })
 
 	location := card("Sync location",
 		muted("All devices must use the same remote storage and folder. Saves go to <folder>/games/<game>/."),
@@ -114,15 +110,8 @@ func (p *cloudPage) render() {
 		list.Add(muted("No remotes yet. Add one (Google Drive, Dropbox, OneDrive, WebDAV/Nextcloud, SFTP or SMB) or import your existing rclone config."))
 	}
 	for _, r := range p.remotes {
-		name := hbox(widget.NewLabelWithStyle(r.Name, fyne.TextAlignLeading, fyne.TextStyle{Bold: true}))
-		if r.Name == u.settings.Remote {
-			name.Add(container.NewCenter(badge("active", badgeOK)))
-		}
-		typ := hbox(small(r.Type))
-		if !r.Supported {
-			typ.Add(container.NewCenter(badge("unsupported", badgeWarn)))
-		}
-		del := widget.NewButtonWithIcon("Delete", theme.DeleteIcon(), func() {
+		list.Add(widget.NewSeparator())
+		list.Add(newRemoteRow(r, r.Name == u.settings.Remote, func() {
 			dialog.ShowConfirm("Delete remote", "Delete remote “"+r.Name+"”?", func(ok bool) {
 				if !ok {
 					return
@@ -133,9 +122,7 @@ func (p *cloudPage) render() {
 					u.refresh()
 				})
 			}, u.win)
-		})
-		list.Add(widget.NewSeparator())
-		list.Add(container.NewBorder(nil, nil, nil, del, container.NewGridWithColumns(2, name, typ)))
+		}))
 	}
 	replaceScroll(p.scroll, vbox(pageHead(nil, "Cloud storage"), location, card("", list)))
 }

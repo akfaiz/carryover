@@ -14,100 +14,114 @@ import (
 )
 
 // showCoverPicker lets the user pick a SteamGridDB cover.
+// coverPicker is the "Find cover on SteamGridDB" dialog: search for a game,
+// then pick one of its portrait covers.
+type coverPicker struct {
+	u          *UI
+	steamAppID string
+	onPick     func(steamgrid.Grid)
+
+	query    *widget.Entry
+	body     *fyne.Container
+	errLabel *widget.Label
+	d        *dialog.CustomDialog
+	games    []steamgrid.Game // last search results; nil until searched
+}
+
 func showCoverPicker(u *UI, term, steamAppID string, onPick func(steamgrid.Grid)) {
-	query := widget.NewEntry()
-	query.SetPlaceHolder("Game name")
-	query.SetText(term)
-	body := container.NewStack()
-	errLabel := colored("", widget.DangerImportance)
-	errLabel.Hide()
-	var d *dialog.CustomDialog
-	var games []steamgrid.Game
-	var search func()
+	p := &coverPicker{u: u, steamAppID: steamAppID, onPick: onPick}
+	p.query = widget.NewEntry()
+	p.query.SetPlaceHolder("Game name")
+	p.query.SetText(term)
+	p.query.OnSubmitted = func(string) { p.search() }
+	p.body = container.NewStack()
+	p.errLabel = colored("", widget.DangerImportance)
+	p.errLabel.Hide()
 
-	setBody := func(o fyne.CanvasObject) {
-		body.Objects = []fyne.CanvasObject{o}
-		body.Refresh()
-	}
-	showErr := func(err error) {
-		if err == nil {
-			errLabel.Hide()
-			return
-		}
-		errLabel.SetText(err.Error())
-		errLabel.Show()
-	}
-
-	loadGrids := func(id int, name string) {
-		showErr(nil)
-		back := lowButton("← Results", func() {
-			if games == nil && strings.TrimSpace(query.Text) != "" {
-				search()
-				return
-			}
-			showGames(body, games, nil)
-		})
-		crumbs := hbox(back, widget.NewLabelWithStyle(name, fyne.TextAlignLeading, fyne.TextStyle{Bold: true}))
-		setBody(container.NewBorder(crumbs, nil, nil, nil, muted("Loading covers…")))
-		appID := ""
-		if id == 0 {
-			appID = steamAppID
-		}
-		async(func() ([]steamgrid.Grid, error) { return u.lib.GridCovers(id, appID) }, func(grids []steamgrid.Grid, err error) {
-			showErr(err)
-			if len(grids) == 0 {
-				setBody(container.NewBorder(crumbs, nil, nil, nil, muted("No portrait covers for this game yet.")))
-				return
-			}
-			grid := container.NewGridWrap(fyne.NewSize(120, 180))
-			for _, g := range grids {
-				src := g.Thumb
-				if src == "" {
-					src = g.URL
-				}
-				grid.Add(newTappable(coverView(coverSource{url: src}, fyne.NewSize(120, 180)), func() {
-					d.Hide()
-					onPick(g)
-				}))
-			}
-			setBody(container.NewBorder(crumbs, muted("Art by the SteamGridDB community. Click one to use it."), nil, nil,
-				container.NewVScroll(grid)))
-		})
-	}
-
-	showGamesFn := func(list []steamgrid.Game) {
-		showGames(body, list, func(g steamgrid.Game) { loadGrids(g.ID, g.Name) })
-	}
-	search = func() {
-		if strings.TrimSpace(query.Text) == "" {
-			return
-		}
-		showErr(nil)
-		setBody(muted("Searching…"))
-		async(func() ([]steamgrid.Game, error) { return u.lib.SearchGridGames(query.Text) }, func(list []steamgrid.Game, err error) {
-			showErr(err)
-			games = list
-			if list == nil {
-				games = []steamgrid.Game{}
-			}
-			showGamesFn(games)
-		})
-	}
-	query.OnSubmitted = func(string) { search() }
-
-	top := vbox(rowFill(query, widget.NewButton("Search", search)), errLabel)
-	content := container.NewBorder(top, nil, nil, nil, body)
-	d = dialog.NewCustom("Find cover on SteamGridDB", "Close", content, u.win)
-	d.Resize(dialogSize(u.win))
-	d.Show()
+	top := vbox(rowFill(p.query, widget.NewButton("Search", p.search)), p.errLabel)
+	p.d = dialog.NewCustom("Find cover on SteamGridDB", "Close", container.NewBorder(top, nil, nil, nil, p.body), u.win)
+	p.d.Resize(dialogSize(u.win))
+	p.d.Show()
 
 	// A Steam-linked game can show its covers straight away.
 	if steamAppID != "" {
-		loadGrids(0, "Steam app "+steamAppID)
+		p.loadGrids(0, "Steam app "+steamAppID)
 	} else if strings.TrimSpace(term) != "" {
-		search()
+		p.search()
 	}
-	_ = showGamesFn
+}
+
+func (p *coverPicker) setBody(o fyne.CanvasObject) {
+	p.body.Objects = []fyne.CanvasObject{o}
+	p.body.Refresh()
+}
+
+func (p *coverPicker) showErr(err error) {
+	if err == nil {
+		p.errLabel.Hide()
+		return
+	}
+	p.errLabel.SetText(err.Error())
+	p.errLabel.Show()
+}
+
+func (p *coverPicker) showGames(list []steamgrid.Game) {
+	showGames(p.body, list, func(g steamgrid.Game) { p.loadGrids(g.ID, g.Name) })
+}
+
+func (p *coverPicker) search() {
+	if strings.TrimSpace(p.query.Text) == "" {
+		return
+	}
+	p.showErr(nil)
+	p.setBody(muted("Searching…"))
+	term := p.query.Text
+	async(func() ([]steamgrid.Game, error) { return p.u.lib.SearchGridGames(term) }, func(list []steamgrid.Game, err error) {
+		p.showErr(err)
+		if list == nil {
+			list = []steamgrid.Game{}
+		}
+		p.games = list
+		p.showGames(list)
+	})
+}
+
+// loadGrids shows the covers of a SteamGridDB game (id 0: the linked Steam app).
+func (p *coverPicker) loadGrids(id int, name string) {
+	p.showErr(nil)
+	back := lowButton("← Results", func() {
+		if p.games == nil && strings.TrimSpace(p.query.Text) != "" {
+			p.search()
+			return
+		}
+		p.showGames(p.games)
+	})
+	crumbs := hbox(back, widget.NewLabelWithStyle(name, fyne.TextAlignLeading, fyne.TextStyle{Bold: true}))
+	p.setBody(container.NewBorder(crumbs, nil, nil, nil, muted("Loading covers…")))
+	appID := ""
+	if id == 0 {
+		appID = p.steamAppID
+	}
+	async(func() ([]steamgrid.Grid, error) { return p.u.lib.GridCovers(id, appID) }, func(grids []steamgrid.Grid, err error) {
+		p.showErr(err)
+		if len(grids) == 0 {
+			p.setBody(container.NewBorder(crumbs, nil, nil, nil, muted("No portrait covers for this game yet.")))
+			return
+		}
+		grid := container.NewGridWrap(fyne.NewSize(120, 180))
+		for _, g := range grids {
+			src := g.Thumb
+			if src == "" {
+				src = g.URL
+			}
+			grid.Add(newTappable(coverView(coverSource{url: src}, fyne.NewSize(120, 180)), func() {
+				p.d.Hide()
+				p.onPick(g)
+			}))
+		}
+		p.setBody(container.NewBorder(crumbs, muted("Art by the SteamGridDB community. Click one to use it."), nil, nil,
+			container.NewVScroll(grid)))
+	})
 }
 
 func showGames(body *fyne.Container, list []steamgrid.Game, onPick func(steamgrid.Game)) {
@@ -152,14 +166,12 @@ func showSteamImport(u *UI) {
 			if !strings.Contains(strings.ToLower(g.Name), f) {
 				continue
 			}
-			name := widget.NewLabel(g.Name)
-			name.Truncation = fyne.TextTruncateEllipsis
-			var right fyne.CanvasObject = widget.NewLabel("")
+			var right fyne.CanvasObject
 			if g.GameID != "" {
 				right = container.NewCenter(badge("in library", badgeOK))
 			}
-			row := container.NewBorder(nil, nil, coverView(coverSource{url: steamCoverURL(g.AppID)}, fyne.NewSize(36, 54)), right, name)
-			list.Add(newTappable(container.NewPadded(row), func() {
+			lead := coverView(coverSource{url: steamCoverURL(g.AppID)}, fyne.NewSize(36, 54))
+			list.Add(mediaRow(lead, g.Name, right, func() {
 				d.Hide()
 				if g.GameID != "" {
 					u.navigate("/game/" + g.GameID)

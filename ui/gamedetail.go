@@ -29,7 +29,7 @@ type gameDetail struct {
 	confirmDelete bool
 	cancelling    bool // Cancel pressed; waiting for the sync to stop
 	wrapOpen      bool
-	wrapItem      *widget.AccordionItem // to keep its open state across renders
+	wrapSection   *accordionSection // to keep its open state across renders
 
 	scroll *container.Scroll
 	prog   *progressBar // current progress widget, updated in place
@@ -123,8 +123,8 @@ func (p *gameDetail) run(label string, work func() error, done func(error)) {
 func (p *gameDetail) render() {
 	u := p.u
 	p.prog, p.progOf = nil, ""
-	if p.wrapItem != nil {
-		p.wrapOpen = p.wrapItem.Open
+	if p.wrapSection != nil {
+		p.wrapOpen = p.wrapSection.Open()
 	}
 	g, ok := u.game(p.id)
 	if !ok {
@@ -277,7 +277,7 @@ func (p *gameDetail) savesCard(g services.GameView, busy, hasRemote bool) fyne.C
 		default:
 			val = colored("not set on this device", widget.WarningImportance)
 		}
-		rows.Add(container.NewBorder(nil, nil, fixedWidth(110, name), nil, val))
+		rows.Add(labeledRow(110, name, val))
 	}
 	c := vbox(cardHead("Saves", cmp), rows)
 	if p.plan != nil {
@@ -372,7 +372,7 @@ func (p *gameDetail) backupsCard(g services.GameView, busy, hasRemote bool) fyne
 			}
 			restore := widget.NewButton(rl, func() { p.restore(b) })
 			setEnabled(restore, !busy && g.Ready)
-			c.Add(container.NewBorder(nil, nil, fixedWidth(140, widget.NewLabel(fmtDate(b.Time))), restore, muted(desc)))
+			c.Add(labeledRow(140, widget.NewLabel(fmtDate(b.Time)), muted(desc), restore))
 		}
 	}
 	return card("", c)
@@ -475,20 +475,10 @@ func (p *gameDetail) steamCard(g services.GameView, busy bool) fyne.CanvasObject
 		}
 	}
 	if p.wrapOpts != "" {
-		e := widget.NewEntry()
-		e.SetText(p.wrapOpts)
-		e.TextStyle.Monospace = true
-		e.OnChanged = func(string) { e.SetText(p.wrapOpts) } // read-only but selectable
-		copyBtn := widget.NewButtonWithIcon("Copy", theme.ContentCopyIcon(), func() {
-			u.app.Clipboard().SetContent(p.wrapOpts)
-			u.toast("Copied", toastOK)
-		})
-		item := widget.NewAccordionItem("Already own it on Steam?", vbox(
+		p.wrapSection = newAccordionSection("Already own it on Steam?", vbox(
 			muted("Paste this into the game's Steam launch options to sync around Steam's own launch:"),
-			rowFill(e, copyBtn)))
-		item.Open = p.wrapOpen
-		p.wrapItem = item
-		c.Add(widget.NewAccordion(item))
+			newCopyField(u, p.wrapOpts)), p.wrapOpen)
+		c.Add(p.wrapSection)
 	}
 	return card("Steam", c)
 }

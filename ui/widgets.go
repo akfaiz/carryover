@@ -426,6 +426,27 @@ func listRow(name, detail string, onTap func()) fyne.CanvasObject {
 	return newTappable(container.NewBorder(nil, nil, nil, small(detail), n), onTap)
 }
 
+// labeledRow is a fixed-width label, a stretching value and optional objects
+// at the right.
+func labeledRow(labelWidth float32, label, value fyne.CanvasObject, right ...fyne.CanvasObject) fyne.CanvasObject {
+	var r fyne.CanvasObject
+	if len(right) > 0 {
+		r = hbox(right...)
+	}
+	return container.NewBorder(nil, nil, fixedWidth(labelWidth, label), r, value)
+}
+
+// mediaRow is a clickable list entry with a leading image, a truncated name
+// and an optional trailing object (such as a badge).
+func mediaRow(lead fyne.CanvasObject, name string, trailing fyne.CanvasObject, onTap func()) fyne.CanvasObject {
+	n := widget.NewLabel(name)
+	n.Truncation = fyne.TextTruncateEllipsis
+	if trailing == nil {
+		trailing = widget.NewLabel("")
+	}
+	return newTappable(container.NewPadded(container.NewBorder(nil, nil, lead, trailing, n)), onTap)
+}
+
 // small is a non-wrapping grey caption, for use inside rows.
 func small(t string) *widget.Label {
 	l := widget.NewLabel(t)

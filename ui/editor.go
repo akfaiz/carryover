@@ -52,7 +52,7 @@ type editor struct {
 	nameEntry *widget.Entry
 	exeEntry  *widget.Entry
 	saveBtn   *widget.Button
-	advItem   *widget.AccordionItem
+	advItem   *accordionSection
 }
 
 func newEditor(u *UI, id, steamAppID string) *editor {
@@ -261,7 +261,7 @@ func (e *editor) render() {
 	u := e.u
 	// Keep accordion states across re-renders.
 	if e.advItem != nil {
-		e.advanced = e.advItem.Open
+		e.advanced = e.advItem.Open()
 	}
 	for _, s := range e.slots {
 		s.rememberOpen()
@@ -400,10 +400,7 @@ func (e *editor) launchCard() fyne.CanvasObject {
 	modes := &choice{}
 	modes.add(string(library.LaunchDirect), "PlayRelay starts the executable (Windows, native Linux/macOS games)")
 	modes.add(string(library.LaunchSteamWrap), "Steam starts it via Proton; PlayRelay wraps %command% (Steam Deck / Linux)")
-	e.exeEntry = widget.NewEntry()
-	e.exeEntry.TextStyle.Monospace = true
-	e.exeEntry.SetText(e.dev.Exe)
-	e.exeEntry.OnChanged = func(s string) { e.dev.Exe = s }
+	e.exeEntry = monoEntry("", e.dev.Exe, func(s string) { e.dev.Exe = s })
 	setExePlaceholder := func() {
 		if e.dev.LaunchMode == library.LaunchSteamWrap {
 			e.exeEntry.SetPlaceHolder("/home/deck/Games/A/Game.exe")
@@ -431,37 +428,21 @@ func (e *editor) launchCard() fyne.CanvasObject {
 			})
 		})
 	})
-	args := widget.NewEntry()
-	args.TextStyle.Monospace = true
-	args.SetPlaceHolder("-windowed")
-	args.SetText(e.dev.Args)
-	args.OnChanged = func(s string) { e.dev.Args = s }
-
-	wait := widget.NewEntry()
-	wait.TextStyle.Monospace = true
-	wait.SetPlaceHolder("Game-Win64-Shipping.exe")
-	wait.SetText(e.dev.WaitProcess)
-	wait.OnChanged = func(s string) { e.dev.WaitProcess = s }
-	env := widget.NewMultiLineEntry()
-	env.TextStyle.Monospace = true
-	env.SetMinRowsVisible(3)
-	env.SetText(e.envText)
-	env.OnChanged = func(s string) { e.envText = s }
+	args := monoEntry("-windowed", e.dev.Args, func(s string) { e.dev.Args = s })
+	wait := monoEntry("Game-Win64-Shipping.exe", e.dev.WaitProcess, func(s string) { e.dev.WaitProcess = s })
+	env := monoMultiLine("", e.envText, 3, func(s string) { e.envText = s })
 	workDir := newPathInput(e.u, e.id, e.tokens, e.dev.WorkDir, "", func(s string) { e.dev.WorkDir = s })
-	adv := widget.NewAccordionItem("Advanced", vbox(
+	e.advItem = newAccordionSection("Advanced", vbox(
 		field("Working directory (default: executable's folder)", workDir),
 		field("Wait for process (when the exe is a launcher that exits immediately)", wait),
 		field("Environment variables (KEY=value per line)", env),
-	))
-	adv.Open = e.advanced
-	e.advItem = adv
-	acc := widget.NewAccordion(adv)
+	), e.advanced)
 
 	return card("", cardHead("Launch on this device", badge(e.u.settings.DeviceName, badgeNone)),
 		field("How is the game started?", mode),
 		field("Executable", rowFill(e.exeEntry, browse)),
 		field("Arguments", args),
-		acc)
+		e.advItem)
 }
 
 func (e *editor) savesCard() fyne.CanvasObject {

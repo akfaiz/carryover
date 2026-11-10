@@ -29,9 +29,7 @@ func (p *settingsPage) form(st appdir.Settings) fyne.CanvasObject {
 	u := p.u
 	name := widget.NewEntry()
 	name.SetText(st.DeviceName)
-	id := widget.NewEntry()
-	id.TextStyle.Monospace = true
-	id.SetText(st.DeviceID)
+	id := monoEntry("", st.DeviceID, nil)
 	id.Disable()
 
 	retention := widget.NewEntry()

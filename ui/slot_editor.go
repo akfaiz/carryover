@@ -14,14 +14,14 @@ import (
 type slotForm struct {
 	key, label, include, exclude, path string
 	isNew                              bool
-	filters                            *widget.AccordionItem // set while a slotEditor shows this slot
+	filters                            *accordionSection // set while a slotEditor shows this slot
 	filtersOpen                        bool
 }
 
 // rememberOpen keeps the filters section open or closed across re-renders.
 func (s *slotForm) rememberOpen() {
 	if s.filters != nil {
-		s.filtersOpen = s.filters.Open
+		s.filtersOpen = s.filters.Open()
 	}
 }
 
@@ -68,13 +68,11 @@ func newSlotEditor(u *UI, gameID string, tokens []pathvar.Token, s *slotForm, ot
 		}
 	}
 
-	inc := globEntry("*.sav", s.include, func(v string) { s.include = v })
-	exc := globEntry("*.log\nshadercache/**", s.exclude, func(v string) { s.exclude = v })
-	filters := widget.NewAccordionItem("Filters", container.NewGridWithColumns(2,
-		field("Include only (globs, one per line)", inc), field("Exclude (globs)", exc)))
-	filters.Open = s.filtersOpen
-	s.filters = filters
-	c.Add(widget.NewAccordion(filters))
+	inc := monoMultiLine("*.sav", s.include, 2, func(v string) { s.include = v })
+	exc := monoMultiLine("*.log\nshadercache/**", s.exclude, 2, func(v string) { s.exclude = v })
+	s.filters = newAccordionSection("Filters", container.NewGridWithColumns(2,
+		field("Include only (globs, one per line)", inc), field("Exclude (globs)", exc)), s.filtersOpen)
+	c.Add(s.filters)
 
 	e := &slotEditor{content: c}
 	e.ExtendBaseWidget(e)
@@ -83,14 +81,3 @@ func newSlotEditor(u *UI, gameID string, tokens []pathvar.Token, s *slotForm, ot
 
 // CreateRenderer implements fyne.Widget.
 func (e *slotEditor) CreateRenderer() fyne.WidgetRenderer { return widget.NewSimpleRenderer(e.content) }
-
-// globEntry is a two-row monospace entry for one glob per line.
-func globEntry(placeholder, text string, onChange func(string)) *widget.Entry {
-	e := widget.NewMultiLineEntry()
-	e.TextStyle.Monospace = true
-	e.SetPlaceHolder(placeholder)
-	e.SetMinRowsVisible(2)
-	e.SetText(text)
-	e.OnChanged = onChange
-	return e
-}
