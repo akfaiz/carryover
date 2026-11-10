@@ -1,6 +1,7 @@
 package ui
 
 import (
+	"context"
 	"testing"
 	"time"
 
@@ -8,8 +9,10 @@ import (
 	"fyne.io/fyne/v2/canvas"
 	"fyne.io/fyne/v2/layout"
 	"fyne.io/fyne/v2/test"
+	"fyne.io/fyne/v2/widget"
 
 	"github.com/akfaiz/playrelay/internal/appdir"
+	"github.com/akfaiz/playrelay/internal/cloud"
 	"github.com/akfaiz/playrelay/internal/core"
 	"github.com/akfaiz/playrelay/internal/library"
 	"github.com/akfaiz/playrelay/internal/syncer"
@@ -130,4 +133,104 @@ func TestFormat(t *testing.T) {
 	if got := timeAgo(""); got != "never" {
 		t.Errorf("timeAgo(\"\") = %q", got)
 	}
+}
+
+// After saving a different remote, the Cloud page moves the "active" badge.
+func TestCloudActiveBadgeFollowsSavedRemote(t *testing.T) {
+	t.Setenv(appdir.EnvHome, t.TempDir())
+	c, err := core.New()
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, name := range []string{"one", "two"} {
+		if _, err := cloud.CreateRemote(context.Background(), name, "sftp", map[string]string{"host": name + ".invalid"}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	queue := make(chan func(), 1024)
+	onUI = func(f func()) { queue <- f }
+	t.Cleanup(func() { onUI = fyne.Do })
+	u := newUI(c, test.NewApp(), services.NewBus())
+	u.buildMain()
+	settle := func() {
+		for idle := time.After(300 * time.Millisecond); ; {
+			select {
+			case f := <-queue:
+				f()
+				idle = time.After(300 * time.Millisecond)
+				continue
+			case <-idle:
+			}
+			break
+		}
+	}
+	activeRow := func() string {
+		var found string
+		var walk func(o fyne.CanvasObject)
+		walk = func(o fyne.CanvasObject) {
+			switch x := o.(type) {
+			case *fyne.Container:
+				// A remote row: its name label next to an "active" badge.
+				var name string
+				for _, c := range x.Objects {
+					if l, ok := c.(*widget.Label); ok && (l.Text == "one" || l.Text == "two") {
+						name = l.Text
+					}
+				}
+				if name != "" && hasText(x, "active") {
+					found = name
+				}
+				for _, c := range x.Objects {
+					walk(c)
+				}
+			case fyne.Widget:
+				for _, c := range test.WidgetRenderer(x).Objects() {
+					walk(c)
+				}
+			}
+		}
+		walk(u.win.Canvas().Content())
+		return found
+	}
+
+	st := c.Settings.Get()
+	st.Remote = "one"
+	if err := c.Settings.Update(st); err != nil {
+		t.Fatal(err)
+	}
+	u.refresh()
+	u.navigate("/cloud")
+	settle()
+	if got := activeRow(); got != "one" {
+		t.Fatalf("active badge on %q, want one", got)
+	}
+
+	// Pick "two" and save, as the user does.
+	p := u.page.(*cloudPage)
+	p.remote = "two"
+	p.saveTarget()
+	settle()
+	if got := activeRow(); got != "two" {
+		t.Fatalf("after saving: active badge on %q, want two", got)
+	}
+}
+
+func hasText(o fyne.CanvasObject, text string) bool {
+	switch x := o.(type) {
+	case *canvas.Text:
+		return x.Text == text
+	case *fyne.Container:
+		for _, c := range x.Objects {
+			if hasText(c, text) {
+				return true
+			}
+		}
+	case fyne.Widget:
+		for _, c := range test.WidgetRenderer(x).Objects() {
+			if hasText(c, text) {
+				return true
+			}
+		}
+	}
+	return false
 }

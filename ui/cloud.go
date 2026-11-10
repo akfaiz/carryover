@@ -59,6 +59,14 @@ func (p *cloudPage) load(target bool) {
 	})
 }
 
+// stateChanged re-renders when settings reload (e.g. after Save), so the
+// "active" badge follows the saved remote.
+func (p *cloudPage) stateChanged(what change) {
+	if what == changeLibrary && p.scroll != nil {
+		p.render()
+	}
+}
+
 func (p *cloudPage) render() {
 	u := p.u
 	remotes := &choice{}
