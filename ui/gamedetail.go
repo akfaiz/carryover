@@ -206,19 +206,7 @@ func (p *gameDetail) render() {
 	left := vbox(p.savesCard(g, busy, hasRemote), p.backupsCard(g, busy, hasRemote))
 	right := vbox(p.steamCard(g, busy))
 	if len(g.OtherDevices) > 0 {
-		devs := vbox()
-		for _, d := range g.OtherDevices {
-			devs.Add(widget.NewLabelWithStyle(d.DeviceName, fyne.TextAlignLeading, fyne.TextStyle{Bold: true}))
-			for _, s := range g.Slots {
-				if v := d.Paths[s.Key]; v != "" {
-					l := mono(labelOf(s.Label, s.Key) + ": " + v)
-					l.Importance = widget.LowImportance
-					l.SizeName = theme.SizeNameCaptionText
-					devs.Add(l)
-				}
-			}
-		}
-		right.Add(card("Other devices", devs))
+		right.Add(otherDevicesCard(g))
 	}
 	right.Add(p.deleteCard(g))
 
@@ -247,13 +235,6 @@ func labelOf(label, key string) string {
 	return key
 }
 
-var planText = map[string]string{
-	"none":     "Local and cloud saves are identical.",
-	"push":     "Local saves are newer — they will be uploaded.",
-	"pull":     "Cloud saves are newer — they will be downloaded.",
-	"conflict": "Both changed since the last sync. Choose which to keep.",
-}
-
 func (p *gameDetail) savesCard(g services.GameView, busy, hasRemote bool) fyne.CanvasObject {
 	u := p.u
 	cmpLabel := "Compare with cloud"
@@ -264,42 +245,13 @@ func (p *gameDetail) savesCard(g services.GameView, busy, hasRemote bool) fyne.C
 	setEnabled(cmp, !busy && g.Ready && hasRemote)
 	rows := container.NewVBox()
 	for _, s := range g.Slots {
-		name := widget.NewLabelWithStyle(labelOf(s.Label, s.Key), fyne.TextAlignLeading, fyne.TextStyle{Bold: true})
-		var val fyne.CanvasObject
-		switch {
-		case g.PathErrors[s.Key] != "":
-			val = colored(g.PathErrors[s.Key], widget.DangerImportance)
-		case g.ResolvedPaths[s.Key] != "":
-			path := g.ResolvedPaths[s.Key]
-			l := mono(path)
-			l.Importance = widget.HighImportance
-			val = newTappable(container.NewBorder(nil, nil, widget.NewIcon(theme.FolderOpenIcon()), nil, l), func() { u.openFolder(path) })
-		default:
-			val = colored("not set on this device", widget.WarningImportance)
-		}
-		rows.Add(labeledRow(110, name, val))
+		rows.Add(saveLocationRow(u, labelOf(s.Label, s.Key), g.ResolvedPaths[s.Key], g.PathErrors[s.Key]))
 	}
 	c := vbox(cardHead("Saves", cmp), rows)
 	if p.plan != nil {
 		pl := p.plan
 		c.Add(widget.NewSeparator())
-		c.Add(widget.NewLabelWithStyle(planText[pl.Action], fyne.TextAlignLeading, fyne.TextStyle{Bold: true}))
-		local := vbox(muted("This device"),
-			widget.NewLabel(fmt.Sprintf("%d files · %s\nmodified %s", pl.Local.Files, formatBytes(pl.Local.Bytes), fmtDate(pl.Local.Newest))))
-		cloudTitle := "Cloud"
-		if pl.Remote.DeviceName != "" {
-			cloudTitle += " (from " + pl.Remote.DeviceName + ")"
-		}
-		cloudText := "no PlayRelay saves for this game yet"
-		if pl.HasRemote {
-			cloudText = fmt.Sprintf("%d files · %s\nuploaded %s", pl.Remote.Files, formatBytes(pl.Remote.Bytes), fmtDate(pl.Remote.Time))
-		}
-		c.Add(container.NewGridWithColumns(2, local, vbox(muted(cloudTitle), widget.NewLabel(cloudText))))
-		if pl.Action == "conflict" || g.Status.Conflict {
-			keepCloud := widget.NewButton("Keep cloud saves", func() { p.doSync("cloud") })
-			setEnabled(keepCloud, pl.HasRemote)
-			c.Add(hbox(widget.NewButton("Keep this device's saves", func() { p.doSync("local") }), keepCloud))
-		}
+		c.Add(newPlanView(pl, pl.Action == "conflict" || g.Status.Conflict, p.doSync))
 	} else if g.Status.Conflict {
 		c.Add(widget.NewSeparator())
 		c.Add(colored("Unresolved save conflict. Compare with cloud to choose a version.", widget.WarningImportance))
@@ -362,17 +314,7 @@ func (p *gameDetail) backupsCard(g services.GameView, busy, hasRemote bool) fyne
 			c.Add(muted("No backups yet."))
 		}
 		for _, b := range p.backups {
-			desc := b.DeviceName + "'s local saves"
-			if b.Kind != "local" {
-				desc = "cloud saves (replaced by " + b.DeviceName + ")"
-			}
-			rl := "Restore"
-			if p.busy == "restore" {
-				rl = "…"
-			}
-			restore := widget.NewButton(rl, func() { p.restore(b) })
-			setEnabled(restore, !busy && g.Ready)
-			c.Add(labeledRow(140, widget.NewLabel(fmtDate(b.Time)), muted(desc), restore))
+			c.Add(backupRow(b, p.busy == "restore", !busy && g.Ready, func() { p.restore(b) }))
 		}
 	}
 	return card("", c)
@@ -400,39 +342,11 @@ func (p *gameDetail) restore(b syncer.Backup) {
 
 func (p *gameDetail) steamCard(g services.GameView, busy bool) fyne.CanvasObject {
 	u := p.u
-	c := vbox()
-	switch {
-	case p.steam == nil:
-		c.Add(muted("Detecting Steam…"))
-	case !p.steam.Found:
-		c.Add(muted("Steam was not found on this device."))
-	default:
-		c.Add(muted("Add " + g.Name + " to Steam as a non-Steam game. Steam launches it through PlayRelay, so saves sync " +
-			"automatically before and after every session — also in Steam Deck Game Mode."))
-		if len(p.steam.Users) > 1 {
-			users := &choice{}
-			for _, us := range p.steam.Users {
-				users.add(us.ID, us.Name)
-			}
-			c.Add(field("Steam account", selectOf(users, p.steamUser, func(v string) { p.steamUser = v })))
-		}
-		modes := &choice{}
-		modes.add("direct", "Run PlayRelay (it starts the game)")
-		modes.add("steamwrap", "Run the game exe, wrapped by PlayRelay (pick Proton in Steam)")
-		c.Add(field("Shortcut type", selectOf(modes, p.steamMode, func(v string) { p.steamMode = v; p.render() })))
-		if p.steamMode == "steamwrap" {
-			t := "After adding, open the shortcut's Properties → Compatibility in Steam and force a Proton version. " +
-				"Its save prefix is available as {proton:shortcut}"
-			if g.Device.SteamAppID != "" {
-				t += " (app id " + g.Device.SteamAppID + ")"
-			}
-			c.Add(muted(t + "."))
-		}
-		addLabel := "Add to Steam"
-		if g.Device.SteamAppID != "" {
-			addLabel = "Update Steam shortcut"
-		}
-		add := primary(addLabel, func() {
+	c := vbox(newSteamForm(steamFormOpts{
+		Game: g, Info: p.steam, User: p.steamUser, Mode: p.steamMode, Busy: busy,
+		OnUser: func(v string) { p.steamUser = v },
+		OnMode: func(v string) { p.steamMode = v; p.render() },
+		OnAdd: func() {
 			var res core.AddToSteamResult
 			p.run("steam", func() error {
 				var err error
@@ -448,32 +362,22 @@ func (p *gameDetail) steamCard(g services.GameView, busy bool) fyne.CanvasObject
 					u.toast("Added to Steam", toastOK)
 				}
 			})
-		})
-		setEnabled(add, !busy && p.steamUser != "")
-		row := hbox(add)
-		if g.Device.SteamAppID != "" {
-			rm := widget.NewButton("Remove", func() {
-				var n int
-				p.run("steam", func() error {
-					var err error
-					n, err = u.steam.RemoveFromSteam(p.id, p.steamUser)
-					return err
-				}, func(err error) {
-					if err == nil && n > 0 {
-						u.toast("Removed from Steam", toastOK)
-					} else if err == nil {
-						u.toast("No shortcut found", toastOK)
-					}
-				})
+		},
+		OnRemove: func() {
+			var n int
+			p.run("steam", func() error {
+				var err error
+				n, err = u.steam.RemoveFromSteam(p.id, p.steamUser)
+				return err
+			}, func(err error) {
+				if err == nil && n > 0 {
+					u.toast("Removed from Steam", toastOK)
+				} else if err == nil {
+					u.toast("No shortcut found", toastOK)
+				}
 			})
-			setEnabled(rm, !busy)
-			row.Add(rm)
-		}
-		c.Add(row)
-		if p.steam.Running {
-			c.Add(colored("Steam is running — restart it after adding so it picks up the change.", widget.WarningImportance))
-		}
-	}
+		},
+	}))
 	if p.wrapOpts != "" {
 		p.wrapSection = newAccordionSection("Already own it on Steam?", vbox(
 			muted("Paste this into the game's Steam launch options to sync around Steam's own launch:"),
