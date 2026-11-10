@@ -23,7 +23,6 @@ require (
 	github.com/FyshOS/fancyfs v0.0.1 // indirect
 	github.com/Max-Sum/base32768 v0.0.0-20230304063302-18e6ce5945fd // indirect
 	github.com/Microsoft/go-winio v0.6.2 // indirect
-	github.com/aalpar/deheap v1.1.2 // indirect
 	github.com/adrg/xdg v0.5.3 // indirect
 	github.com/akavel/rsrc v0.10.2 // indirect
 	github.com/anthonynsimon/bild v0.14.0 // indirect
