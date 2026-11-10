@@ -32,6 +32,8 @@ type Core struct {
 
 	evMu    sync.RWMutex
 	onEvent func(syncer.Event)
+
+	libMu sync.Mutex // serializes SyncLibrary (read, merge, write)
 }
 
 // New opens PlayRelay's data directory.
@@ -150,8 +152,12 @@ func labelOr(s library.SaveSlot) string {
 
 const catalogPath = "library.json"
 
-// SyncLibrary merges the cloud catalog into the local library and uploads the result.
+// SyncLibrary merges the cloud catalog into the local library and uploads the
+// result. Calls are serialized so a background publish and a manual sync can't
+// overwrite each other's upload.
 func (c *Core) SyncLibrary(ctx context.Context) error {
+	c.libMu.Lock()
+	defer c.libMu.Unlock()
 	s := c.Settings.Get()
 	if !s.SyncLibrary || s.CloudBase() == "" {
 		return nil

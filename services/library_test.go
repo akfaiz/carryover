@@ -2,7 +2,13 @@ package services
 
 import (
 	"encoding/json"
+	"os"
+	"path/filepath"
+	"strings"
 	"testing"
+	"time"
+
+	"github.com/rclone/rclone/fs/config"
 
 	"github.com/akfaiz/playrelay/internal/appdir"
 	"github.com/akfaiz/playrelay/internal/core"
@@ -50,5 +56,42 @@ func TestSaveNewGameFromEditorPayload(t *testing.T) {
 	}
 	if v2.Device.SteamAppID != "123" || v2.Name != "Game A (edited)" {
 		t.Fatalf("edit lost data: %+v", v2.Device)
+	}
+}
+
+// Saving a game uploads the library catalog in the background, so another
+// device sees it without a manual "Sync all".
+func TestSavePublishesLibraryToCloud(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv(appdir.EnvHome, home)
+	c, err := core.New()
+	if err != nil {
+		t.Fatal(err)
+	}
+	config.FileSetValue("cloud", "type", "local")
+	st := c.Settings.Get()
+	cloudDir := filepath.Join(home, "cloud")
+	st.Remote, st.RemoteRoot = "cloud", filepath.ToSlash(cloudDir)
+	if err := c.Settings.Update(st); err != nil {
+		t.Fatal(err)
+	}
+	svc := NewLibraryService(c, NewBus(), nil)
+	if _, err := svc.Save(GameInput{
+		Name:   "Game A",
+		Slots:  []library.SaveSlot{{Key: "saves"}},
+		Device: DeviceInput{Paths: map[string]string{"saves": "{home}/a"}, Exe: "x", LaunchMode: library.LaunchDirect},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	var data []byte
+	deadline := time.Now().Add(10 * time.Second)
+	for time.Now().Before(deadline) {
+		if data, err = os.ReadFile(filepath.Join(cloudDir, "library.json")); err == nil {
+			break
+		}
+		time.Sleep(50 * time.Millisecond)
+	}
+	if err != nil || !strings.Contains(string(data), "Game A") {
+		t.Fatalf("library.json not published: %v %q", err, data)
 	}
 }

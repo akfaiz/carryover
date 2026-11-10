@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"io/fs"
+	"log"
 	"net/http"
 	"os"
 	"path"
@@ -225,7 +226,24 @@ func (s *LibraryService) Save(in GameInput) (GameView, error) {
 		return GameView{}, err
 	}
 	s.bus.libraryChanged(saved.ID)
+	s.publish()
 	return s.view(saved), nil
+}
+
+// publish syncs the library catalog with the cloud in the background, so a
+// game added or changed on this device shows up on the others without
+// pressing "Sync all". Failures (offline, no cloud yet) are not fatal: the
+// change is kept locally and goes out with the next library sync.
+func (s *LibraryService) publish() {
+	go func() {
+		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
+		defer cancel()
+		if err := s.c.SyncLibrary(ctx); err != nil {
+			log.Printf("library sync: %v", err)
+			return
+		}
+		s.bus.libraryChanged("")
+	}()
 }
 
 func cleanList(in []string) []string {
@@ -244,6 +262,7 @@ func (s *LibraryService) Delete(id string) error {
 		return err
 	}
 	s.bus.libraryChanged(id)
+	s.publish()
 	return nil
 }
 

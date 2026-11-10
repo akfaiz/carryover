@@ -132,6 +132,14 @@ func Run(c *core.Core, wrapGameID string, opts core.RunOptions) int {
 		if inst != nil {
 			inst.OnShow(func() { onUI(func() { u.win.Show(); u.win.RequestFocus() }) })
 		}
+		// Pick up games other devices added while this one was closed.
+		u.app.Lifecycle().SetOnStarted(func() {
+			async0(u.sync.SyncLibrary, func(err error) {
+				if err != nil {
+					u.toast("Library sync: "+err.Error(), toastErr)
+				}
+			})
+		})
 		u.win.ShowAndRun()
 		return 0
 	}
