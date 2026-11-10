@@ -1,6 +1,6 @@
 package cloud
 
-// rclone backends compiled into PlayRelay. Keep this list short: every
+// rclone backends compiled into Carryover. Keep this list short: every
 // backend adds to the binary size. Update Supported to match.
 import (
 	"slices"

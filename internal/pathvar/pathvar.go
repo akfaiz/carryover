@@ -11,7 +11,7 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/akfaiz/playrelay/internal/steam"
+	"github.com/akfaiz/carryover/internal/steam"
 )
 
 // Token describes an available path token.

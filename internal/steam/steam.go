@@ -21,7 +21,7 @@ const steamID64Base = 76561197960265728
 
 // FindRoot returns the Steam installation directory, or "" if not found.
 func FindRoot() string {
-	if v := os.Getenv("PLAYRELAY_STEAM_ROOT"); v != "" {
+	if v := os.Getenv("CARRYOVER_STEAM_ROOT"); v != "" {
 		return v
 	}
 	for _, c := range candidateRoots() {
@@ -229,7 +229,7 @@ func saveShortcuts(root, userID string, doc *BinNode) error {
 		return err
 	}
 	if _, err := os.Stat(p); err == nil {
-		if err := copyFile(p, p+".playrelay.bak"); err != nil {
+		if err := copyFile(p, p+".carryover.bak"); err != nil {
 			return fmt.Errorf("backup shortcuts.vdf: %w", err)
 		}
 	}

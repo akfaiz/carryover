@@ -11,10 +11,10 @@ import (
 	"github.com/shirou/gopsutil/v4/process"
 )
 
-// ErrLocked is returned when another PlayRelay process is already syncing/running the game.
-var ErrLocked = errors.New("game is already running or syncing in another PlayRelay process")
+// ErrLocked is returned when another Carryover process is already syncing/running the game.
+var ErrLocked = errors.New("game is already running or syncing in another Carryover process")
 
-// LocalLock is an exclusive per-game lock between PlayRelay processes on one machine.
+// LocalLock is an exclusive per-game lock between Carryover processes on one machine.
 type LocalLock struct {
 	path string
 }

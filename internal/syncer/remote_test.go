@@ -13,11 +13,11 @@ import (
 
 // The cloud client opens a named remote at its root and addresses files
 // relative to it. The local-folder tests don't exercise that, so run a full
-// round trip against rclone's in-memory backend at "mem:PlayRelay".
+// round trip against rclone's in-memory backend at "mem:Carryover".
 func TestSyncAgainstNamedRemote(t *testing.T) {
 	setupCloud(t) // initialises rclone's config
 	config.FileSetValue("mem", "type", "memory")
-	base := "mem:PlayRelay"
+	base := "mem:Carryover"
 	pc, pcJob := newDevice(t, base, "pc")
 	deck, deckJob := newDevice(t, base, "deck")
 	pcSaves, deckSaves := pcJob.Slots[0].LocalPath, deckJob.Slots[0].LocalPath

@@ -12,7 +12,7 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/akfaiz/playrelay/internal/appdir"
+	"github.com/akfaiz/carryover/internal/appdir"
 )
 
 // SaveSlot is a logical save location shared across devices. Each device maps
@@ -31,7 +31,7 @@ const (
 	// LaunchDirect runs Exe directly.
 	LaunchDirect LaunchMode = "direct"
 	// LaunchSteamWrap is used with a Steam shortcut whose launch options are
-	// `playrelay run <id> -- %command%` (e.g. Proton games on Linux / Steam Deck).
+	// `carryover run <id> -- %command%` (e.g. Proton games on Linux / Steam Deck).
 	LaunchSteamWrap LaunchMode = "steamwrap"
 )
 

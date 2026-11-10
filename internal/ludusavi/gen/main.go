@@ -1,4 +1,4 @@
-// Command gen builds the compact save-path index embedded in PlayRelay from the
+// Command gen builds the compact save-path index embedded in Carryover from the
 // Ludusavi manifest (https://github.com/mtkennerly/ludusavi-manifest, MIT).
 //
 // Usage (from the repo root):
@@ -24,7 +24,7 @@ import (
 
 	"gopkg.in/yaml.v3"
 
-	"github.com/akfaiz/playrelay/internal/ludusavi"
+	"github.com/akfaiz/carryover/internal/ludusavi"
 )
 
 const manifestURL = "https://raw.githubusercontent.com/mtkennerly/ludusavi-manifest/master/data/manifest.yaml"
@@ -120,7 +120,7 @@ func isSave(e manifestEntry) bool {
 	return slices.Contains(e.Tags, "save")
 }
 
-// usable drops templates PlayRelay can never resolve.
+// usable drops templates Carryover can never resolve.
 func usable(tpl string) bool {
 	return !strings.Contains(tpl, "<winDir>") && strings.HasPrefix(tpl, "<")
 }

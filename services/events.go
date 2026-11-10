@@ -8,8 +8,8 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/akfaiz/playrelay/internal/library"
-	"github.com/akfaiz/playrelay/internal/syncer"
+	"github.com/akfaiz/carryover/internal/library"
+	"github.com/akfaiz/carryover/internal/syncer"
 )
 
 // Status is a play-session status update.

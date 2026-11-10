@@ -5,9 +5,9 @@ import (
 	"errors"
 	"sync"
 
-	"github.com/akfaiz/playrelay/internal/appdir"
-	"github.com/akfaiz/playrelay/internal/core"
-	"github.com/akfaiz/playrelay/internal/syncer"
+	"github.com/akfaiz/carryover/internal/appdir"
+	"github.com/akfaiz/carryover/internal/core"
+	"github.com/akfaiz/carryover/internal/syncer"
 )
 
 // ErrSyncCancelled is returned when the user cancels a sync or restore.

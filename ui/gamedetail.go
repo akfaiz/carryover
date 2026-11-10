@@ -9,9 +9,9 @@ import (
 	"fyne.io/fyne/v2/theme"
 	"fyne.io/fyne/v2/widget"
 
-	"github.com/akfaiz/playrelay/internal/core"
-	"github.com/akfaiz/playrelay/internal/syncer"
-	"github.com/akfaiz/playrelay/services"
+	"github.com/akfaiz/carryover/internal/core"
+	"github.com/akfaiz/carryover/internal/syncer"
+	"github.com/akfaiz/carryover/services"
 )
 
 type gameDetail struct {

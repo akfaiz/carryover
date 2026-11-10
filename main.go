@@ -12,18 +12,18 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/akfaiz/playrelay/internal/core"
-	"github.com/akfaiz/playrelay/internal/syncer"
-	"github.com/akfaiz/playrelay/ui"
+	"github.com/akfaiz/carryover/internal/core"
+	"github.com/akfaiz/carryover/internal/syncer"
+	"github.com/akfaiz/carryover/ui"
 )
 
-const usage = `PlayRelay — game launcher with rclone cloud saves
+const usage = `Carryover — game launcher with rclone cloud saves
 
 Usage:
-  playrelay                                  open the launcher
-  playrelay run <game> [--headless] [-- cmd] sync, play, sync (used by Steam shortcuts)
-  playrelay sync <game|--all> [--push|--pull]
-  playrelay list                             list games and their ids
+  carryover                                  open the launcher
+  carryover run <game> [--headless] [-- cmd] sync, play, sync (used by Steam shortcuts)
+  carryover sync <game|--all> [--push|--pull]
+  carryover list                             list games and their ids
 
 <game> is a game id or its exact name. With "-- cmd" (e.g. Steam's
 "-- %command%") the given command is launched instead of the configured exe.
@@ -53,15 +53,15 @@ func main() {
 func openCore() *core.Core {
 	c, err := core.New()
 	if err != nil {
-		log.Fatalf("playrelay: %v", err)
+		log.Fatalf("carryover: %v", err)
 	}
 	setupLogFile(c)
 	return c
 }
 
-// setupLogFile mirrors logs to <data>/logs/playrelay.log (useful when launched from Steam).
+// setupLogFile mirrors logs to <data>/logs/carryover.log (useful when launched from Steam).
 func setupLogFile(c *core.Core) {
-	f, err := os.OpenFile(filepath.Join(c.Dirs.LogsDir(), "playrelay.log"), os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0o644)
+	f, err := os.OpenFile(filepath.Join(c.Dirs.LogsDir(), "carryover.log"), os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0o644)
 	if err != nil {
 		return
 	}

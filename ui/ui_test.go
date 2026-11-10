@@ -11,12 +11,12 @@ import (
 	"fyne.io/fyne/v2/test"
 	"fyne.io/fyne/v2/widget"
 
-	"github.com/akfaiz/playrelay/internal/appdir"
-	"github.com/akfaiz/playrelay/internal/cloud"
-	"github.com/akfaiz/playrelay/internal/core"
-	"github.com/akfaiz/playrelay/internal/library"
-	"github.com/akfaiz/playrelay/internal/syncer"
-	"github.com/akfaiz/playrelay/services"
+	"github.com/akfaiz/carryover/internal/appdir"
+	"github.com/akfaiz/carryover/internal/cloud"
+	"github.com/akfaiz/carryover/internal/core"
+	"github.com/akfaiz/carryover/internal/library"
+	"github.com/akfaiz/carryover/internal/syncer"
+	"github.com/akfaiz/carryover/services"
 )
 
 // TestPagesRender builds and paints every page with Fyne's headless test

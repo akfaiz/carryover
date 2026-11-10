@@ -9,8 +9,8 @@ import (
 	"fyne.io/fyne/v2/dialog"
 	"fyne.io/fyne/v2/widget"
 
-	"github.com/akfaiz/playrelay/internal/steamgrid"
-	"github.com/akfaiz/playrelay/services"
+	"github.com/akfaiz/carryover/internal/steamgrid"
+	"github.com/akfaiz/carryover/services"
 )
 
 // showCoverPicker lets the user pick a SteamGridDB cover.
@@ -186,7 +186,7 @@ func showSteamImport(u *UI) {
 
 	top := vbox(
 		muted("Games installed through Steam on this device. The title and cover come from Steam; you still set the save locations. "+
-			"Steam keeps launching the game — PlayRelay syncs around it through the launch options shown on the game page."),
+			"Steam keeps launching the game — Carryover syncs around it through the launch options shown on the game page."),
 		filter)
 	d = dialog.NewCustom("Add from Steam library", "Close", container.NewBorder(top, nil, nil, nil, container.NewVScroll(list)), u.win)
 	d.Resize(dialogSize(u.win))

@@ -24,7 +24,7 @@ import (
 )
 
 // Client performs operations relative to a base rclone path such as
-// "gdrive:PlayRelay".
+// "gdrive:Carryover".
 //
 // Opening an rclone remote at a deep or missing path is slow (OneDrive: ~10s
 // per call), so every operation goes through one Fs opened at the remote's
@@ -93,7 +93,7 @@ func (c *Client) fs(ctx context.Context, rel string) (fs.Fs, string, error) {
 	return f, strings.Trim(path.Join(c.prefix, rel), "/."), nil
 }
 
-// tuneRemote adjusts backend options for PlayRelay's workload (a handful of
+// tuneRemote adjusts backend options for Carryover's workload (a handful of
 // small files per sync) unless the user set them in the remote's config.
 // name is "remote:".
 func tuneRemote(name string) string {
@@ -306,7 +306,7 @@ func (c *Client) CopyWithin(ctx context.Context, src, dst string, files []string
 // replacing existing destination files in place (Google Drive would
 // otherwise keep both as duplicates).
 func copyFiles(ctx context.Context, fdst fs.Fs, dstDir string, fsrc fs.Fs, srcDir string, files []string, total int64, onProgress func(Progress)) error {
-	group := "playrelay-" + time.Now().Format("150405.000000000")
+	group := "carryover-" + time.Now().Format("150405.000000000")
 	ctx = accounting.WithStatsGroup(ctx, group)
 	defer func() {
 		if call := rc.Calls.Get("core/stats-delete"); call != nil {

@@ -4,7 +4,7 @@ import (
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/widget"
 
-	"github.com/akfaiz/playrelay/services"
+	"github.com/akfaiz/carryover/services"
 )
 
 // steamFormOpts configures a steamForm. Info is nil while Steam is still
@@ -37,7 +37,7 @@ func newSteamForm(o steamFormOpts) *steamForm {
 	case !o.Info.Found:
 		c.Add(muted("Steam was not found on this device."))
 	default:
-		c.Add(muted("Add " + g.Name + " to Steam as a non-Steam game. Steam launches it through PlayRelay, so saves sync " +
+		c.Add(muted("Add " + g.Name + " to Steam as a non-Steam game. Steam launches it through Carryover, so saves sync " +
 			"automatically before and after every session — also in Steam Deck Game Mode."))
 		if len(o.Info.Users) > 1 {
 			users := &choice{}
@@ -47,8 +47,8 @@ func newSteamForm(o steamFormOpts) *steamForm {
 			c.Add(field("Steam account", selectOf(users, o.User, o.OnUser)))
 		}
 		modes := &choice{}
-		modes.add("direct", "Run PlayRelay (it starts the game)")
-		modes.add("steamwrap", "Run the game exe, wrapped by PlayRelay (pick Proton in Steam)")
+		modes.add("direct", "Run Carryover (it starts the game)")
+		modes.add("steamwrap", "Run the game exe, wrapped by Carryover (pick Proton in Steam)")
 		c.Add(field("Shortcut type", selectOf(modes, o.Mode, o.OnMode)))
 		if o.Mode == "steamwrap" {
 			t := "After adding, open the shortcut's Properties → Compatibility in Steam and force a Proton version. " +

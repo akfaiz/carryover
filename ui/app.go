@@ -1,4 +1,4 @@
-// Package ui is PlayRelay's desktop GUI, built with Fyne.
+// Package ui is Carryover's desktop GUI, built with Fyne.
 package ui
 
 import (
@@ -18,18 +18,18 @@ import (
 	"fyne.io/fyne/v2/theme"
 	"fyne.io/fyne/v2/widget"
 
-	"github.com/akfaiz/playrelay/internal/appdir"
-	"github.com/akfaiz/playrelay/internal/core"
-	"github.com/akfaiz/playrelay/internal/singleinstance"
-	"github.com/akfaiz/playrelay/internal/syncer"
-	"github.com/akfaiz/playrelay/services"
+	"github.com/akfaiz/carryover/internal/appdir"
+	"github.com/akfaiz/carryover/internal/core"
+	"github.com/akfaiz/carryover/internal/singleinstance"
+	"github.com/akfaiz/carryover/internal/syncer"
+	"github.com/akfaiz/carryover/services"
 )
 
 //go:embed assets/appicon.png
 var appIcon []byte
 
 // AppID identifies the app (Fyne preferences, single instance).
-const AppID = "com.akfaiz.playrelay"
+const AppID = "com.akfaiz.carryover"
 
 // page is one screen of the main window.
 type page interface {
@@ -113,7 +113,7 @@ func newUI(c *core.Core, a fyne.App, bus *services.Bus) *UI {
 }
 
 // Run opens the GUI and blocks until it closes. With wrapGameID set it runs
-// the wrapper session window (playrelay run <game>) and returns the game's
+// the wrapper session window (carryover run <game>) and returns the game's
 // exit code.
 func Run(c *core.Core, wrapGameID string, opts core.RunOptions) int {
 	if wrapGameID == "" {
@@ -155,7 +155,7 @@ func start(c *core.Core) *UI {
 
 // buildMain creates the launcher window.
 func (u *UI) buildMain() {
-	u.win = u.app.NewWindow("PlayRelay")
+	u.win = u.app.NewWindow("Carryover")
 	u.win.Resize(fyne.NewSize(1180, 760))
 	u.win.SetMaster()
 	u.content = container.NewStack()
@@ -183,7 +183,7 @@ func (u *UI) renderSidebar() {
 	logo := canvas.NewImageFromResource(fyne.NewStaticResource("appicon.png", appIcon))
 	logo.FillMode = canvas.ImageFillContain
 	logo.SetMinSize(fyne.NewSize(30, 30))
-	brand := widget.NewLabelWithStyle("PlayRelay", fyne.TextAlignLeading, fyne.TextStyle{Bold: true})
+	brand := widget.NewLabelWithStyle("Carryover", fyne.TextAlignLeading, fyne.TextStyle{Bold: true})
 	brand.SizeName = theme.SizeNameSubHeadingText
 	objs := []fyne.CanvasObject{container.NewHBox(logo, brand), widget.NewSeparator()}
 	for _, n := range []struct{ path, label string }{{"/", "Library"}, {"/cloud", "Cloud"}, {"/settings", "Settings"}} {

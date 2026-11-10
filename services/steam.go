@@ -1,9 +1,9 @@
 package services
 
 import (
-	"github.com/akfaiz/playrelay/internal/core"
-	"github.com/akfaiz/playrelay/internal/library"
-	"github.com/akfaiz/playrelay/internal/steam"
+	"github.com/akfaiz/carryover/internal/core"
+	"github.com/akfaiz/carryover/internal/library"
+	"github.com/akfaiz/carryover/internal/steam"
 )
 
 // SteamService integrates with the Steam client.

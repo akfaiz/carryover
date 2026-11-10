@@ -26,7 +26,7 @@ var (
 	configMu sync.Mutex
 )
 
-// Init points rclone at PlayRelay's own config file. Safe to call more than once;
+// Init points rclone at Carryover's own config file. Safe to call more than once;
 // only the first call has effect.
 func Init(configPath string) error {
 	var err error
@@ -53,11 +53,11 @@ func Init(configPath string) error {
 type Remote struct {
 	Name string `json:"name"`
 	Type string `json:"type"`
-	// Supported is false for remotes of a provider type PlayRelay doesn't include.
+	// Supported is false for remotes of a provider type Carryover doesn't include.
 	Supported bool `json:"supported"`
 }
 
-// ListRemotes returns the remotes in PlayRelay's rclone config.
+// ListRemotes returns the remotes in Carryover's rclone config.
 func ListRemotes() []Remote {
 	configMu.Lock()
 	defer configMu.Unlock()
@@ -251,7 +251,7 @@ type ImportResult struct {
 }
 
 // ImportConfig copies remotes of supported provider types from an existing
-// rclone.conf into PlayRelay's config. Existing remotes with the same name are
+// rclone.conf into Carryover's config. Existing remotes with the same name are
 // overwritten; remotes of other types are skipped.
 func ImportConfig(path string) (ImportResult, error) {
 	res := ImportResult{Imported: []string{}, Skipped: []string{}}

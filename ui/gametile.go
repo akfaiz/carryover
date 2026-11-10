@@ -4,7 +4,7 @@ import (
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/widget"
 
-	"github.com/akfaiz/playrelay/services"
+	"github.com/akfaiz/carryover/services"
 )
 
 // gameTile is a library grid entry: cover, name, sync status and a play

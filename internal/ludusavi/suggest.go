@@ -10,7 +10,7 @@ import (
 // Env describes the device a suggestion is for.
 type Env struct {
 	GOOS string // "windows", "linux" or "darwin"
-	// Proton is the PlayRelay token for the Proton prefix user folder, e.g.
+	// Proton is the Carryover token for the Proton prefix user folder, e.g.
 	// "{proton:shortcut}" or "{proton:367520}". Linux only; "" skips
 	// Windows-only paths.
 	Proton string
@@ -33,9 +33,9 @@ const (
 	KindSteamCloud = "steamcloud"
 )
 
-// Suggestion is a save location in PlayRelay path syntax.
+// Suggestion is a save location in Carryover path syntax.
 type Suggestion struct {
-	Path    string   `json:"path"`    // directory, may contain PlayRelay tokens
+	Path    string   `json:"path"`    // directory, may contain Carryover tokens
 	Include []string `json:"include"` // file filters relative to Path; empty = whole folder
 	Kind    string   `json:"kind"`
 	MSStore bool     `json:"msStore"` // only used by the Microsoft Store / Game Pass version

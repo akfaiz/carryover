@@ -8,8 +8,8 @@ import (
 	"fyne.io/fyne/v2/dialog"
 	"fyne.io/fyne/v2/widget"
 
-	"github.com/akfaiz/playrelay/internal/syncer"
-	"github.com/akfaiz/playrelay/services"
+	"github.com/akfaiz/carryover/internal/syncer"
+	"github.com/akfaiz/carryover/services"
 )
 
 // promptQueue shows session prompts one at a time as modal dialogs.

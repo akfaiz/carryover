@@ -12,11 +12,11 @@ import (
 	"fyne.io/fyne/v2/theme"
 	"fyne.io/fyne/v2/widget"
 
-	"github.com/akfaiz/playrelay/internal/core"
-	"github.com/akfaiz/playrelay/services"
+	"github.com/akfaiz/carryover/internal/core"
+	"github.com/akfaiz/carryover/services"
 )
 
-// sessionPage is the wrapper window's content (playrelay run <game>).
+// sessionPage is the wrapper window's content (carryover run <game>).
 type sessionPage struct {
 	u      *UI
 	w      services.WrapperState
@@ -27,7 +27,7 @@ type sessionPage struct {
 }
 
 func (p *sessionPage) view() fyne.CanvasObject {
-	brand := muted("PlayRelay")
+	brand := muted("Carryover")
 	name := title(p.w.GameName)
 	if p.w.GameName == "" {
 		name.SetText(p.w.GameID)
@@ -98,7 +98,7 @@ func (p *sessionPage) stateChanged(change) {
 // quits when done. It returns the game's exit code.
 func (u *UI) runWrapper(gameID string, opts core.RunOptions) int {
 	done := services.ConfigureWrapper(u.sess, gameID, opts)
-	u.win = u.app.NewWindow("PlayRelay")
+	u.win = u.app.NewWindow("Carryover")
 	u.win.SetMaster()
 	u.win.SetFixedSize(true)
 	u.win.Resize(fyne.NewSize(460, 340))

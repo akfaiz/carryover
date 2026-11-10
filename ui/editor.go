@@ -13,11 +13,11 @@ import (
 	"fyne.io/fyne/v2/theme"
 	"fyne.io/fyne/v2/widget"
 
-	"github.com/akfaiz/playrelay/internal/library"
-	"github.com/akfaiz/playrelay/internal/pathvar"
-	"github.com/akfaiz/playrelay/internal/steamgrid"
-	"github.com/akfaiz/playrelay/internal/steamstore"
-	"github.com/akfaiz/playrelay/services"
+	"github.com/akfaiz/carryover/internal/library"
+	"github.com/akfaiz/carryover/internal/pathvar"
+	"github.com/akfaiz/carryover/internal/steamgrid"
+	"github.com/akfaiz/carryover/internal/steamstore"
+	"github.com/akfaiz/carryover/services"
 )
 
 type editor struct {
@@ -130,7 +130,7 @@ func (e *editor) prefillFromSteam(appID string) {
 		for _, a := range lib {
 			if a.AppID == appID {
 				e.name, e.storeAppID = a.Name, a.AppID
-				// A Steam-installed game is started by Steam; PlayRelay wraps it via launch options.
+				// A Steam-installed game is started by Steam; Carryover wraps it via launch options.
 				e.dev.LaunchMode = library.LaunchSteamWrap
 				e.render()
 				e.suggestSaves(true)
@@ -398,8 +398,8 @@ func (e *editor) gameCard() fyne.CanvasObject {
 
 func (e *editor) launchCard() fyne.CanvasObject {
 	modes := &choice{}
-	modes.add(string(library.LaunchDirect), "PlayRelay starts the executable (Windows, native Linux/macOS games)")
-	modes.add(string(library.LaunchSteamWrap), "Steam starts it via Proton; PlayRelay wraps %command% (Steam Deck / Linux)")
+	modes.add(string(library.LaunchDirect), "Carryover starts the executable (Windows, native Linux/macOS games)")
+	modes.add(string(library.LaunchSteamWrap), "Steam starts it via Proton; Carryover wraps %command% (Steam Deck / Linux)")
 	e.exeEntry = monoEntry("", e.dev.Exe, func(s string) { e.dev.Exe = s })
 	setExePlaceholder := func() {
 		if e.dev.LaunchMode == library.LaunchSteamWrap {

@@ -16,13 +16,13 @@ import (
 	"strings"
 	"time"
 
-	"github.com/akfaiz/playrelay/internal/core"
-	"github.com/akfaiz/playrelay/internal/library"
-	"github.com/akfaiz/playrelay/internal/ludusavi"
-	"github.com/akfaiz/playrelay/internal/pathvar"
-	"github.com/akfaiz/playrelay/internal/steam"
-	"github.com/akfaiz/playrelay/internal/steamgrid"
-	"github.com/akfaiz/playrelay/internal/steamstore"
+	"github.com/akfaiz/carryover/internal/core"
+	"github.com/akfaiz/carryover/internal/library"
+	"github.com/akfaiz/carryover/internal/ludusavi"
+	"github.com/akfaiz/carryover/internal/pathvar"
+	"github.com/akfaiz/carryover/internal/steam"
+	"github.com/akfaiz/carryover/internal/steamgrid"
+	"github.com/akfaiz/carryover/internal/steamstore"
 )
 
 // LibraryService manages games.
@@ -557,7 +557,7 @@ func (s *LibraryService) SuggestSaves(in SuggestInput) (SuggestResult, error) {
 	}
 	if runtime.GOOS == "linux" {
 		// A game Steam installed runs in its own app id's prefix; anything else
-		// runs through PlayRelay's non-Steam shortcut.
+		// runs through Carryover's non-Steam shortcut.
 		env.Proton = "{proton:shortcut}"
 		if steamInstalled && dev.SteamAppID == "" {
 			env.Proton = "{proton:" + in.StoreAppID + "}"

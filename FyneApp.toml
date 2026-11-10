@@ -1,9 +1,9 @@
-Website = "https://github.com/akfaiz/playrelay"
+Website = "https://github.com/akfaiz/carryover"
 
 [Details]
 Icon = "ui/assets/appicon.png"
-Name = "PlayRelay"
-ID = "com.akfaiz.playrelay"
+Name = "Carryover"
+ID = "com.akfaiz.carryover"
 Version = "0.1.0"
 Build = 6
 

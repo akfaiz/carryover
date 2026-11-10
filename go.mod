@@ -1,4 +1,4 @@
-module github.com/akfaiz/playrelay
+module github.com/akfaiz/carryover
 
 go 1.26.0
 

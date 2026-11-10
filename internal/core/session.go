@@ -8,9 +8,9 @@ import (
 	"sync"
 	"time"
 
-	"github.com/akfaiz/playrelay/internal/launcher"
-	"github.com/akfaiz/playrelay/internal/library"
-	"github.com/akfaiz/playrelay/internal/syncer"
+	"github.com/akfaiz/carryover/internal/launcher"
+	"github.com/akfaiz/carryover/internal/library"
+	"github.com/akfaiz/carryover/internal/syncer"
 )
 
 // SessionUI is how a play session interacts with the user.
@@ -243,7 +243,7 @@ func (h HeadlessUI) logf(f string, a ...any) {
 
 func (h HeadlessUI) Status(phase, message string) { h.logf("%s", message) }
 func (h HeadlessUI) ResolveConflict(_ context.Context, g library.Game, _ *syncer.Plan, _ bool) syncer.Resolution {
-	h.logf("%s: save conflict — skipped; resolve it in PlayRelay", g.Name)
+	h.logf("%s: save conflict — skipped; resolve it in Carryover", g.Name)
 	return syncer.ResolveAuto
 }
 func (h HeadlessUI) ConfirmLock(_ context.Context, g library.Game, l *syncer.Lock) bool {

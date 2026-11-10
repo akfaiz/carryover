@@ -1,4 +1,4 @@
-// Package core wires PlayRelay's components together. It is used by both the
+// Package core wires Carryover's components together. It is used by both the
 // GUI services and the command line modes.
 package core
 
@@ -12,12 +12,12 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/akfaiz/playrelay/internal/appdir"
-	"github.com/akfaiz/playrelay/internal/cloud"
-	"github.com/akfaiz/playrelay/internal/library"
-	"github.com/akfaiz/playrelay/internal/pathvar"
-	"github.com/akfaiz/playrelay/internal/steam"
-	"github.com/akfaiz/playrelay/internal/syncer"
+	"github.com/akfaiz/carryover/internal/appdir"
+	"github.com/akfaiz/carryover/internal/cloud"
+	"github.com/akfaiz/carryover/internal/library"
+	"github.com/akfaiz/carryover/internal/pathvar"
+	"github.com/akfaiz/carryover/internal/steam"
+	"github.com/akfaiz/carryover/internal/syncer"
 )
 
 // Core holds application state.
@@ -36,7 +36,7 @@ type Core struct {
 	libMu sync.Mutex // serializes SyncLibrary (read, merge, write)
 }
 
-// New opens PlayRelay's data directory.
+// New opens Carryover's data directory.
 func New() (*Core, error) {
 	dirs, err := appdir.Resolve()
 	if err != nil {
@@ -205,7 +205,7 @@ func catalogsEqual(a, b library.Catalog) bool {
 	return true
 }
 
-// SelfExecutable returns the path Steam should launch for PlayRelay.
+// SelfExecutable returns the path Steam should launch for Carryover.
 func SelfExecutable() (string, error) {
 	if p := os.Getenv("APPIMAGE"); p != "" && runtime.GOOS == "linux" {
 		return p, nil

@@ -1,11 +1,11 @@
 [Desktop Entry]
 Type=Application
-Name=PlayRelay
+Name=Carryover
 GenericName=Game launcher
 Comment=Game launcher with rclone cloud saves
-Exec=playrelay
-Icon=playrelay
+Exec=carryover
+Icon=carryover
 Categories=Game;Utility;
 Keywords=saves;sync;steam;rclone;
-StartupWMClass=playrelay
+StartupWMClass=carryover
 Terminal=false

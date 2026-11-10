@@ -1,4 +1,4 @@
-// Package appdir resolves PlayRelay's on-disk locations and persistent settings.
+// Package appdir resolves Carryover's on-disk locations and persistent settings.
 package appdir
 
 import (
@@ -13,14 +13,14 @@ import (
 )
 
 // EnvHome overrides the root directory (useful for testing and portable installs).
-const EnvHome = "PLAYRELAY_HOME"
+const EnvHome = "CARRYOVER_HOME"
 
-// Dirs holds the paths PlayRelay uses.
+// Dirs holds the paths Carryover uses.
 type Dirs struct {
 	Root string
 }
 
-// Resolve returns the PlayRelay directories, creating the root if needed.
+// Resolve returns the Carryover directories, creating the root if needed.
 func Resolve() (Dirs, error) {
 	root := os.Getenv(EnvHome)
 	if root == "" {
@@ -28,7 +28,7 @@ func Resolve() (Dirs, error) {
 		if err != nil {
 			return Dirs{}, fmt.Errorf("locate config dir: %w", err)
 		}
-		root = filepath.Join(base, "PlayRelay")
+		root = filepath.Join(base, "Carryover")
 	}
 	d := Dirs{Root: root}
 	for _, p := range []string{d.Root, d.StateDir(), d.CoversDir(), d.LogsDir()} {
@@ -59,14 +59,14 @@ type Settings struct {
 	SteamGridDBKey string `json:"steamGridDbKey,omitempty"`
 }
 
-// CloudBase returns the rclone path of PlayRelay's cloud folder, or "" if no remote is configured.
+// CloudBase returns the rclone path of Carryover's cloud folder, or "" if no remote is configured.
 func (s Settings) CloudBase() string {
 	if s.Remote == "" {
 		return ""
 	}
 	root := s.RemoteRoot
 	if root == "" {
-		root = "PlayRelay"
+		root = "Carryover"
 	}
 	return s.Remote + ":" + root
 }
@@ -109,7 +109,7 @@ func OpenSettings(path string) (*SettingsStore, error) {
 		changed = true
 	}
 	if st.s.RemoteRoot == "" {
-		st.s.RemoteRoot = "PlayRelay"
+		st.s.RemoteRoot = "Carryover"
 		changed = true
 	}
 	if changed {

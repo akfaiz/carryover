@@ -8,8 +8,8 @@ import (
 	"fyne.io/fyne/v2/theme"
 	"fyne.io/fyne/v2/widget"
 
-	"github.com/akfaiz/playrelay/internal/syncer"
-	"github.com/akfaiz/playrelay/services"
+	"github.com/akfaiz/carryover/internal/syncer"
+	"github.com/akfaiz/carryover/services"
 )
 
 // saveLocationRow shows one save location of a game on this device: its
@@ -85,7 +85,7 @@ func newPlanView(pl *services.PlanView, resolvable bool, onResolve func(resoluti
 	if pl.Remote.DeviceName != "" {
 		cloudTitle += " (from " + pl.Remote.DeviceName + ")"
 	}
-	cloudText := "no PlayRelay saves for this game yet"
+	cloudText := "no Carryover saves for this game yet"
 	if pl.HasRemote {
 		cloudText = fmt.Sprintf("%d files · %s\nuploaded %s", pl.Remote.Files, formatBytes(pl.Remote.Bytes), fmtDate(pl.Remote.Time))
 	}

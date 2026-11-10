@@ -12,7 +12,7 @@ import (
 	"fyne.io/fyne/v2/theme"
 	"fyne.io/fyne/v2/widget"
 
-	"github.com/akfaiz/playrelay/services"
+	"github.com/akfaiz/carryover/services"
 )
 
 // card is a rounded panel with an optional heading.

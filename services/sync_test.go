@@ -8,10 +8,10 @@ import (
 
 	"github.com/rclone/rclone/fs/config"
 
-	"github.com/akfaiz/playrelay/internal/appdir"
-	"github.com/akfaiz/playrelay/internal/core"
-	"github.com/akfaiz/playrelay/internal/library"
-	"github.com/akfaiz/playrelay/internal/syncer"
+	"github.com/akfaiz/carryover/internal/appdir"
+	"github.com/akfaiz/carryover/internal/core"
+	"github.com/akfaiz/carryover/internal/library"
+	"github.com/akfaiz/carryover/internal/syncer"
 )
 
 // Cancel stops a running manual sync: it reports ErrSyncCancelled, flags no

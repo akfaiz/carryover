@@ -31,4 +31,4 @@ formatters:
   settings:
     goimports:
       local-prefixes:
-        - github.com/akfaiz/playrelay
+        - github.com/akfaiz/carryover

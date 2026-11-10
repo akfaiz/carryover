@@ -7,7 +7,7 @@ import (
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/widget"
 
-	"github.com/akfaiz/playrelay/internal/appdir"
+	"github.com/akfaiz/carryover/internal/appdir"
 )
 
 type settingsPage struct {
@@ -73,7 +73,7 @@ func (p *settingsPage) form(st appdir.Settings) fyne.CanvasObject {
 		})
 	})
 
-	cli := mono("playrelay run <game> [--headless] [-- command…]\nplayrelay sync <game>|--all [--push|--pull]\nplayrelay list")
+	cli := mono("carryover run <game> [--headless] [-- command…]\ncarryover sync <game>|--all [--push|--pull]\ncarryover list")
 	narrow := func(o fyne.CanvasObject) fyne.CanvasObject { return maxWidth(640, o) }
 	return vbox(
 		pageHead(nil, "Settings"),

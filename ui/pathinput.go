@@ -10,7 +10,7 @@ import (
 	"fyne.io/fyne/v2/theme"
 	"fyne.io/fyne/v2/widget"
 
-	"github.com/akfaiz/playrelay/internal/pathvar"
+	"github.com/akfaiz/carryover/internal/pathvar"
 )
 
 // pathInput is a path entry with token insertion, a folder browser and a

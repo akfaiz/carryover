@@ -16,7 +16,7 @@ func TestBinaryRoundTrip(t *testing.T) {
 	e.SetString("AppName", "Game A")
 	e.SetString("Exe", `"C:\Games\A\a.exe"`)
 	tags := &BinNode{Type: TypeMap, Key: "tags"}
-	tags.Children = append(tags.Children, &BinNode{Type: TypeString, Key: "0", Str: "PlayRelay"})
+	tags.Children = append(tags.Children, &BinNode{Type: TypeString, Key: "0", Str: "Carryover"})
 	e.Children = append(e.Children, tags)
 	list.Children = append(list.Children, e)
 
@@ -45,7 +45,7 @@ func TestShortcutsUpsertRemove(t *testing.T) {
 	root := t.TempDir()
 	user := "12345"
 	match := func(s Shortcut) bool { return s.LaunchOptions == "run g1" }
-	id, err := UpsertShortcut(root, user, Shortcut{AppName: "Game A", Exe: `"/usr/bin/playrelay"`, LaunchOptions: "run g1", Tags: []string{"PlayRelay"}}, match)
+	id, err := UpsertShortcut(root, user, Shortcut{AppName: "Game A", Exe: `"/usr/bin/carryover"`, LaunchOptions: "run g1", Tags: []string{"Carryover"}}, match)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -53,7 +53,7 @@ func TestShortcutsUpsertRemove(t *testing.T) {
 		t.Fatalf("appid high bit not set: %x", id)
 	}
 	// Upsert again replaces rather than duplicates.
-	if _, err := UpsertShortcut(root, user, Shortcut{AppName: "Game A2", Exe: `"/usr/bin/playrelay"`, LaunchOptions: "run g1"}, match); err != nil {
+	if _, err := UpsertShortcut(root, user, Shortcut{AppName: "Game A2", Exe: `"/usr/bin/carryover"`, LaunchOptions: "run g1"}, match); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := UpsertShortcut(root, user, Shortcut{AppName: "Other", Exe: `"/x"`}, func(Shortcut) bool { return false }); err != nil {
@@ -74,7 +74,7 @@ func TestShortcutsUpsertRemove(t *testing.T) {
 	if len(list) != 1 || list[0].AppName != "Other" {
 		t.Fatalf("after remove: %+v", list)
 	}
-	if _, err := os.Stat(filepath.Join(root, "userdata", user, "config", "shortcuts.vdf.playrelay.bak")); err != nil {
+	if _, err := os.Stat(filepath.Join(root, "userdata", user, "config", "shortcuts.vdf.carryover.bak")); err != nil {
 		t.Fatal("backup not written")
 	}
 }

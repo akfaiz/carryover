@@ -10,9 +10,9 @@ import (
 
 	"github.com/rclone/rclone/fs/config"
 
-	"github.com/akfaiz/playrelay/internal/appdir"
-	"github.com/akfaiz/playrelay/internal/core"
-	"github.com/akfaiz/playrelay/internal/library"
+	"github.com/akfaiz/carryover/internal/appdir"
+	"github.com/akfaiz/carryover/internal/core"
+	"github.com/akfaiz/carryover/internal/library"
 )
 
 // The editor's payload for a new game must decode and save (regression: an

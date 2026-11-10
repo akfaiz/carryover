@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/akfaiz/playrelay/internal/cloud"
+	"github.com/akfaiz/carryover/internal/cloud"
 )
 
 func setupCloud(t *testing.T) string {

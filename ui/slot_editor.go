@@ -6,8 +6,8 @@ import (
 	"fyne.io/fyne/v2/theme"
 	"fyne.io/fyne/v2/widget"
 
-	"github.com/akfaiz/playrelay/internal/pathvar"
-	"github.com/akfaiz/playrelay/services"
+	"github.com/akfaiz/carryover/internal/pathvar"
+	"github.com/akfaiz/carryover/services"
 )
 
 // slotForm is the editable state of one save location.

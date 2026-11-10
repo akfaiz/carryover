@@ -7,14 +7,14 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/akfaiz/playrelay/internal/library"
-	"github.com/akfaiz/playrelay/internal/steam"
+	"github.com/akfaiz/carryover/internal/library"
+	"github.com/akfaiz/carryover/internal/steam"
 )
 
 func quote(p string) string { return `"` + p + `"` }
 
 // SteamWrapLaunchOptions returns the launch options to paste into a Steam game's
-// properties so PlayRelay wraps it.
+// properties so Carryover wraps it.
 func SteamWrapLaunchOptions(gameID string) (string, error) {
 	self, err := SelfExecutable()
 	if err != nil {
@@ -36,9 +36,9 @@ type AddToSteamResult struct {
 }
 
 // AddToSteam creates (or updates) a non-Steam shortcut for the game.
-// mode LaunchDirect: Steam runs PlayRelay, which launches the configured exe.
+// mode LaunchDirect: Steam runs Carryover, which launches the configured exe.
 // mode LaunchSteamWrap: Steam runs the game exe itself (so Proton can be chosen
-// in Steam) with launch options that route it through PlayRelay.
+// in Steam) with launch options that route it through Carryover.
 func (c *Core) AddToSteam(gameID, userID string, mode library.LaunchMode) (AddToSteamResult, error) {
 	var res AddToSteamResult
 	root := c.SteamRoot()
@@ -54,7 +54,7 @@ func (c *Core) AddToSteam(gameID, userID string, mode library.LaunchMode) (AddTo
 	if err != nil {
 		return res, err
 	}
-	sc := steam.Shortcut{AppName: game.Name, Tags: []string{"PlayRelay"}}
+	sc := steam.Shortcut{AppName: game.Name, Tags: []string{"Carryover"}}
 	switch mode {
 	case library.LaunchSteamWrap:
 		if dev.Exe == "" {

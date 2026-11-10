@@ -11,7 +11,7 @@ import (
 	"fyne.io/fyne/v2/storage"
 	"fyne.io/fyne/v2/widget"
 
-	"github.com/akfaiz/playrelay/internal/cloud"
+	"github.com/akfaiz/carryover/internal/cloud"
 )
 
 type cloudPage struct {
@@ -25,7 +25,7 @@ type cloudPage struct {
 	scroll      *container.Scroll
 }
 
-func newCloudPage(u *UI) *cloudPage { return &cloudPage{u: u, root: "PlayRelay"} }
+func newCloudPage(u *UI) *cloudPage { return &cloudPage{u: u, root: "Carryover"} }
 
 func (p *cloudPage) view() fyne.CanvasObject {
 	p.scroll = scrollPage(muted("Loading…"))
@@ -51,7 +51,7 @@ func (p *cloudPage) load(target bool) {
 			p.remote = st.Remote
 			p.root = st.RemoteRoot
 			if p.root == "" {
-				p.root = "PlayRelay"
+				p.root = "Carryover"
 			}
 		}
 		p.render()
@@ -81,7 +81,7 @@ func (p *cloudPage) render() {
 	sel := selectOf(remotes, p.remote, func(v string) {
 		for _, r := range p.remotes {
 			if r.Name == v && !r.Supported {
-				u.toast("This provider isn't included in PlayRelay", toastErr)
+				u.toast("This provider isn't included in Carryover", toastErr)
 			}
 		}
 		p.remote = v
@@ -133,7 +133,7 @@ func (p *cloudPage) saveTarget() {
 	st.Remote = p.remote
 	st.RemoteRoot = strings.Trim(strings.TrimSpace(p.root), "/")
 	if st.RemoteRoot == "" {
-		st.RemoteRoot = "PlayRelay"
+		st.RemoteRoot = "Carryover"
 	}
 	remote := st.Remote
 	async0(func() error {

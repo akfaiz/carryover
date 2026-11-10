@@ -70,7 +70,7 @@ func signal(addr string) bool {
 		return false
 	}
 	// The instance acknowledges, so an unrelated process on a reused port
-	// isn't mistaken for PlayRelay.
+	// isn't mistaken for Carryover.
 	line, err := bufio.NewReader(conn).ReadString('\n')
 	return err == nil && strings.TrimSpace(line) == "ok"
 }

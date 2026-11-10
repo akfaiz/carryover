@@ -1,4 +1,4 @@
-# PlayRelay
+# Carryover
 
 Cross-platform game launcher (Windows, Linux / Steam Deck, macOS) that keeps save games in sync
 through cloud storage via [rclone](https://github.com/rclone/rclone) — embedded as a Go library, no
@@ -8,7 +8,7 @@ SFTP and SMB. Go UI built with [Fyne](https://fyne.io) — no webview or browser
 - **Per-device save paths** — one game, one cloud copy; each device maps it to its own folder
   (`{appdata}/GameA` on Windows, `{proton:shortcut}/AppData/Roaming/GameA` on a Steam Deck).
 - **Play from the launcher or from Steam** — "Add to Steam" creates a non-Steam shortcut whose command
-  is `playrelay run <game>`, so saves are pulled before and pushed after every session, even in Game Mode.
+  is `carryover run <game>`, so saves are pulled before and pushed after every session, even in Game Mode.
 - **Safe conflicts** — if saves changed on both sides, you choose which to keep; the other side is
   always backed up in the cloud (`games/<id>/backups/`, last N kept) and can be restored.
 - **Title & cover from Steam** — "Find on Steam" fills in the official title and portrait cover (Steam's
@@ -29,22 +29,22 @@ SFTP and SMB. Go UI built with [Fyne](https://fyne.io) — no webview or browser
 
 ## Steam Deck / Proton games
 
-Pick **"Steam starts it via Proton"** as launch mode and **"Run the game exe, wrapped by PlayRelay"**
+Pick **"Steam starts it via Proton"** as launch mode and **"Run the game exe, wrapped by Carryover"**
 when adding to Steam. Steam gets the game `.exe` as target and
-`"<playrelay>" run <id> -- %command%` as launch options; force a Proton version in the shortcut's
+`"<carryover>" run <id> -- %command%` as launch options; force a Proton version in the shortcut's
 Compatibility settings. For games you own on Steam, paste the launch options shown on the game page.
 
 ## Command line
 
 ```
-playrelay                                   open the launcher
-playrelay run <game> [--headless] [-- cmd]  pull → play → push (used by Steam)
-playrelay sync <game>|--all [--push|--pull] manual sync (exit code 3 = conflict)
-playrelay list
+carryover                                   open the launcher
+carryover run <game> [--headless] [-- cmd]  pull → play → push (used by Steam)
+carryover sync <game>|--all [--push|--pull] manual sync (exit code 3 = conflict)
+carryover list
 ```
 
 `--headless` never blocks: conflicts are skipped (both sides kept and flagged in the UI).
-Set `PLAYRELAY_HOME` to use a different data directory (default: user config dir / `PlayRelay`).
+Set `CARRYOVER_HOME` to use a different data directory (default: user config dir / `Carryover`).
 
 ## Cloud layout
 
@@ -63,25 +63,25 @@ Fyne needs cgo. On Windows install a MinGW gcc (MSYS2: `pacman -S mingw-w64-ucrt
 (see [Fyne's prerequisites](https://docs.fyne.io/started/)).
 
 ```
-CGO_ENABLED=1 go build -ldflags "-H windowsgui" -o bin/playrelay.exe .   # Windows
-CGO_ENABLED=1 go build -o bin/playrelay .                                # Linux
-go tool fyne package --os windows --release --name playrelay             # Windows release exe with icon
+CGO_ENABLED=1 go build -ldflags "-H windowsgui" -o bin/carryover.exe .   # Windows
+CGO_ENABLED=1 go build -o bin/carryover .                                # Linux
+go tool fyne package --os windows --release --name carryover             # Windows release exe with icon
 go run github.com/fyne-io/fyne-cross@latest linux -arch=amd64 \
-  -app-id com.akfaiz.playrelay -name playrelay                           # Linux / Steam Deck from any OS (Docker)
+  -app-id com.akfaiz.carryover -name carryover                           # Linux / Steam Deck from any OS (Docker)
 packaging/appimage/build.sh                                               # AppImage from the fyne-cross binary (Linux, needs appimagetool)
-PLAYRELAY_HOME=/tmp/pr go run .                                          # run against an isolated data dir
+CARRYOVER_HOME=/tmp/pr go run .                                          # run against an isolated data dir
 go test ./...
 ```
 
 ### Linux packaging
 
-`fyne-cross` writes a bare binary (`fyne-cross/bin/linux-amd64/playrelay`) and a `playrelay.tar.xz` with a
+`fyne-cross` writes a bare binary (`fyne-cross/bin/linux-amd64/carryover`) and a `carryover.tar.xz` with a
 `.desktop` file and icon. A bare binary has no icon of its own; install the `.desktop` file and PNG, or use the
 AppImage, which carries both. Build it on Linux (WSL or the Steam Deck) with
 [appimagetool](https://github.com/AppImage/appimagetool/releases) on `PATH`:
 
 ```
-packaging/appimage/build.sh        # -> bin/PlayRelay-x86_64.AppImage
+packaging/appimage/build.sh        # -> bin/Carryover-x86_64.AppImage
 ```
 
 Keep the AppImage in a fixed place (e.g. `~/Applications/`): the Steam shortcut points at its path, and moving

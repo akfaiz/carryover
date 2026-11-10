@@ -4,28 +4,27 @@
       <stop offset="0" stop-color="#232838"/>
       <stop offset="1" stop-color="#0e0f14"/>
     </linearGradient>
+    <linearGradient id="hop" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#5b8cff"/>
+      <stop offset="1" stop-color="#3ccf91"/>
+    </linearGradient>
     <linearGradient id="play" x1="0" y1="0" x2="1" y2="1">
       <stop offset="0" stop-color="#7aa3ff"/>
       <stop offset="1" stop-color="#3d6de0"/>
     </linearGradient>
-    <linearGradient id="sync" gradientUnits="userSpaceOnUse" x1="200" y1="200" x2="824" y2="824">
-      <stop offset="0" stop-color="#5b8cff"/>
-      <stop offset="1" stop-color="#3ccf91"/>
-    </linearGradient>
   </defs>
 
   <!-- background tile -->
-  <rect x="64" y="64" width="896" height="896" rx="200" fill="url(#bg)"/>
-  <rect x="66" y="66" width="892" height="892" rx="198" fill="none" stroke="#ffffff" stroke-opacity="0.08" stroke-width="4"/>
+  <path d="M 264 64 H 760 A 200 200 0 0 1 960 264 V 760 A 200 200 0 0 1 760 960 H 264 A 200 200 0 0 1 64 760 V 264 A 200 200 0 0 1 264 64 Z" fill="url(#bg)"/>
+  <path d="M 264 66 H 760 A 198 198 0 0 1 958 264 V 760 A 198 198 0 0 1 760 958 H 264 A 198 198 0 0 1 66 760 V 264 A 198 198 0 0 1 264 66 Z" fill="none" stroke="#ffffff" stroke-opacity="0.08" stroke-width="4"/>
 
-  <!-- sync ring: two clockwise arrows -->
-  <g fill="url(#sync)" stroke="url(#sync)" stroke-linecap="round" stroke-linejoin="round">
-    <path d="M 231.9 436.9 A 290 290 0 0 1 774.8 389.4" fill="none" stroke-width="56"/>
-    <polygon points="833.7,361.9 715.9,416.9 799.8,476.7" stroke-width="16"/>
-    <path d="M 792.1 587.1 A 290 290 0 0 1 249.2 634.6" fill="none" stroke-width="56"/>
-    <polygon points="190.3,662.1 308.1,607.1 224.2,547.3" stroke-width="16"/>
-  </g>
+  <!-- ground the save hops over -->
+  <path d="M 200 800 H 824" stroke="#ffffff" stroke-opacity="0.14" stroke-width="20" stroke-linecap="round"/>
 
-  <!-- play button -->
-  <polygon points="448,392 448,632 656,512" fill="url(#play)" stroke="url(#play)" stroke-width="44" stroke-linejoin="round"/>
+  <!-- the hop: progress carried over from one device to the other -->
+  <path d="M 252 690 V 640 A 260 260 0 0 1 772 640 V 660" fill="none" stroke="url(#hop)" stroke-width="60" stroke-linecap="round" stroke-linejoin="round"/>
+  <polygon points="696,654 848,654 772,766" fill="#3ccf91" stroke="#3ccf91" stroke-width="28" stroke-linejoin="round"/>
+
+  <!-- play button carried under the hop -->
+  <polygon points="468,528 468,688 604,608" fill="url(#play)" stroke="url(#play)" stroke-width="40" stroke-linejoin="round"/>
 </svg>

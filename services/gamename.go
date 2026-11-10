@@ -5,7 +5,7 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/akfaiz/playrelay/internal/ludusavi"
+	"github.com/akfaiz/carryover/internal/ludusavi"
 )
 
 // GuessName suggests a game title for an executable picked in the editor:

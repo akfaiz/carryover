@@ -10,7 +10,7 @@ import (
 	"fyne.io/fyne/v2/theme"
 	"fyne.io/fyne/v2/widget"
 
-	"github.com/akfaiz/playrelay/services"
+	"github.com/akfaiz/carryover/services"
 )
 
 type libraryPage struct {
@@ -82,7 +82,7 @@ func (p *libraryPage) renderGrid() {
 			actions.Add(widget.NewButtonWithIcon("Set up cloud storage", theme.StorageIcon(), func() { u.navigate("/cloud") }))
 		}
 		p.emptyHost.Objects = []fyne.CanvasObject{card("No games yet",
-			muted("Add a game, tell PlayRelay where its saves live on this device, and it will keep them in sync "+
+			muted("Add a game, tell Carryover where its saves live on this device, and it will keep them in sync "+
 				"through your cloud storage every time you play — from here or from Steam."),
 			actions)}
 	}

@@ -2,13 +2,13 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-PlayRelay: Go desktop game launcher with a Fyne GUI (`ui/`) that syncs saves via rclone embedded as a Go library. See README.md for features and cloud layout.
+Carryover: Go desktop game launcher with a Fyne GUI (`ui/`) that syncs saves via rclone embedded as a Go library. See README.md for features and cloud layout.
 
 ## Commands
 
 - Fyne needs cgo: `CGO_ENABLED=1` and a C compiler. On Windows use MSYS2 MinGW (`C:\msys64\ucrt64\bin` on `PATH`; install with `pacman -S mingw-w64-ucrt-x86_64-gcc`).
-- Build app (Windows): `go build -ldflags "-H windowsgui" -o bin/playrelay.exe .` (`-H windowsgui` hides the console; `attachConsole` re-attaches it for CLI subcommands). Release build with exe icon/version info: `go tool fyne package --os windows --release --name playrelay` (writes `./playrelay.exe` and bumps `Build` in `FyneApp.toml`).
-- Build app (Linux / Steam Deck) from any host: `go run github.com/fyne-io/fyne-cross@latest linux -arch=amd64 -app-id com.akfaiz.playrelay -name playrelay` (Docker) → `fyne-cross/bin/linux-amd64/playrelay`; on Linux itself plain `go build` works with the GL/X11 dev packages installed.
+- Build app (Windows): `go build -ldflags "-H windowsgui" -o bin/carryover.exe .` (`-H windowsgui` hides the console; `attachConsole` re-attaches it for CLI subcommands). Release build with exe icon/version info: `go tool fyne package --os windows --release --name carryover` (writes `./carryover.exe` and bumps `Build` in `FyneApp.toml`).
+- Build app (Linux / Steam Deck) from any host: `go run github.com/fyne-io/fyne-cross@latest linux -arch=amd64 -app-id com.akfaiz.carryover -name carryover` (Docker) → `fyne-cross/bin/linux-amd64/carryover`; on Linux itself plain `go build` works with the GL/X11 dev packages installed.
 - Ludusavi save-path index (`internal/ludusavi/index.json.gz`, embedded) is generated: `go run ./internal/ludusavi/gen` downloads the manifest and rebuilds it. Don't edit it by hand.
 - Go: `golangci-lint run ./...` (config in `.golangci.yml`; `golangci-lint fmt ./...` fixes formatting/imports) and `go test ./...` (syncer tests use a temp-dir `local` remote — no network)
 
@@ -17,16 +17,16 @@ PlayRelay: Go desktop game launcher with a Fyne GUI (`ui/`) that syncs saves via
 - `services/` is the GUI's API over `internal/core`; it reports changes through `services.Bus` (library/status/prompt/sync-progress callbacks, called on arbitrary goroutines). `ui/` subscribes in `newUI`.
 - Fyne threading: widgets may only be touched on the UI goroutine. Wrap anything that runs from a goroutine or a `Bus` callback in `fyne.Do`; use the `async`/`async0` helpers in `ui/app.go` for service calls that do I/O so the UI never blocks.
 - Fyne pitfalls seen here: a struct that only embeds `fyne.CanvasObject` is not drawn — make it a widget (`ExtendBaseWidget` + `CreateRenderer`, see `pathInput`); `widget.Label.SizeName` must be a `theme.SizeName*` constant (a wrong name gives text size 0 and panics in wrap-break); wrapping labels inside an HBox collapse — use `small()` or a Border layout.
-- The main GUI is single-instance per data dir (`internal/singleinstance`, loopback TCP + `state/gui.addr`); `playrelay run` wrapper windows skip it.
+- The main GUI is single-instance per data dir (`internal/singleinstance`, loopback TCP + `state/gui.addr`); `carryover run` wrapper windows skip it.
 - Only Google Drive, Dropbox, OneDrive, WebDAV, SFTP and SMB are supported (plus `local`, compiled in but hidden — needed to read save folders). Backend imports and the `Supported` list live together in `internal/cloud/backends.go`; keep them in sync (`TestProvidersMatchSupported`). Never import `backend/all`.
-- Syncs are cancellable through their `context` (`SyncService.Cancel`, `SessionService.Cancel` via `SessionUI.SyncCancelable`, Ctrl+C in `playrelay sync`). Cancelling is not an error (no `SetError`), a partly written backup is deleted (`discardBackup`), and in a play session only the sync phases are cancellable — never the game process.
+- Syncs are cancellable through their `context` (`SyncService.Cancel`, `SessionService.Cancel` via `SessionUI.SyncCancelable`, Ctrl+C in `carryover sync`). Cancelling is not an error (no `SetError`), a partly written backup is deleted (`discardBackup`), and in a play session only the sync phases are cancellable — never the game process.
 - `cloud.Client` opens each remote once at its root (shared via rclone's `fs/cache`) and addresses files relative to it. Don't call `fs.NewFs` per operation or on deep/missing paths: on OneDrive that costs ~10s per call (measured). Folder creation (~4s each) and server-side copies (async, ~9s) are OneDrive's own costs. The cache is cleared when remotes change (`cache.Clear` in config.go). `tuneRemote` turns off Dropbox upload batching (~3-4s → ~1s per upload) unless the remote sets `batch_mode`.
 - rclone config is global state: `cloud.Init` once per process; config state-machine calls go through `configMu`.
-- Use `PLAYRELAY_HOME=<dir>` to run the binary against an isolated data dir (settings, library, rclone.conf, state). Never test against the real user config dir.
+- Use `CARRYOVER_HOME=<dir>` to run the binary against an isolated data dir (settings, library, rclone.conf, state). Never test against the real user config dir.
 - Games are identified by UUID, not name. Per-device data lives in `Game.Devices[deviceID]`; merges are per-device by `UpdatedAt`. `library.Store` returns deep copies — keep it that way.
 - The sync decision logic is `syncer.Decide`; always back up the side being overwritten before push/pull (skipped only when the transfer changes nothing). Backups are one zip each (`backups/<time>_<device>_<kind>.zip`, see `syncer/backup.go`): folder creation and server-side copies are slow on OneDrive. Older folder backups must stay listable/restorable/prunable. Names are timestamp-prefixed (ms precision) and must stay sortable.
 - Push/pull transfer only the difference: `syncer.diff` compares the local scan and the cloud manifest by size + SHA-256, then `Client.Upload`/`Download` copy exactly those files and `Client.DeleteFiles` / `os.Remove` remove the rest. Don't go back to `rclone sync` for this (it compares by modtime/size and re-transfers or, on backends without modtimes, misses same-size changes). On push, manifest entries are checked against a listing of the cloud folder, so files left by an interrupted upload are repaired or removed.
-- `shortcuts.vdf` is binary VDF; writes must keep the `.playrelay.bak` backup. Steam overwrites it on exit, so users must restart Steam.
+- `shortcuts.vdf` is binary VDF; writes must keep the `.carryover.bak` backup. Steam overwrites it on exit, so users must restart Steam.
 
 ## Platforms
 

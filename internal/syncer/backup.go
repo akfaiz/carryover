@@ -16,7 +16,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/akfaiz/playrelay/internal/cloud"
+	"github.com/akfaiz/carryover/internal/cloud"
 )
 
 // Backups live in games/<id>/backups/<time>_<device>_<kind>.zip, holding
@@ -57,7 +57,7 @@ type zipEntry struct {
 func (e *Engine) backupCloud(ctx context.Context, id string, m *Manifest, listed map[string]int64) error {
 	name := e.backupName("cloud")
 	e.emit(id, "backup", "Backing up cloud saves", cloud.Progress{})
-	tmp, err := os.MkdirTemp("", "playrelay-backup-")
+	tmp, err := os.MkdirTemp("", "carryover-backup-")
 	if err != nil {
 		return err
 	}
@@ -82,7 +82,7 @@ func (e *Engine) backupCloud(ctx context.Context, id string, m *Manifest, listed
 func (e *Engine) backupLocal(ctx context.Context, job Job, m *Manifest) error {
 	name := e.backupName("local")
 	e.emit(job.GameID, "backup", "Backing up local saves", cloud.Progress{})
-	tmp, err := os.MkdirTemp("", "playrelay-backup-")
+	tmp, err := os.MkdirTemp("", "carryover-backup-")
 	if err != nil {
 		return err
 	}
@@ -308,7 +308,7 @@ func (e *Engine) RestoreBackup(ctx context.Context, job Job, name string) error 
 // written, and local files it lacks are deleted (files the slot's filters
 // exclude are left alone on both sides).
 func (e *Engine) restoreZip(ctx context.Context, job Job, name string, local *Manifest) error {
-	tmp, err := os.MkdirTemp("", "playrelay-restore-")
+	tmp, err := os.MkdirTemp("", "carryover-restore-")
 	if err != nil {
 		return err
 	}
@@ -360,7 +360,7 @@ func extractFile(zf *zip.File, dst string) error {
 		return err
 	}
 	defer r.Close()
-	tmp := dst + ".playrelay-restore"
+	tmp := dst + ".carryover-restore"
 	w, err := os.Create(tmp)
 	if err != nil {
 		return err

@@ -8,8 +8,8 @@ import (
 	"runtime"
 	"time"
 
-	"github.com/akfaiz/playrelay/internal/cloud"
-	"github.com/akfaiz/playrelay/internal/core"
+	"github.com/akfaiz/carryover/internal/cloud"
+	"github.com/akfaiz/carryover/internal/core"
 )
 
 // CloudService configures rclone remotes.

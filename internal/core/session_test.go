@@ -10,9 +10,9 @@ import (
 
 	"github.com/rclone/rclone/fs/config"
 
-	"github.com/akfaiz/playrelay/internal/appdir"
-	"github.com/akfaiz/playrelay/internal/library"
-	"github.com/akfaiz/playrelay/internal/syncer"
+	"github.com/akfaiz/carryover/internal/appdir"
+	"github.com/akfaiz/carryover/internal/library"
+	"github.com/akfaiz/carryover/internal/syncer"
 )
 
 // cancelUI cancels the sync phase number cancelAt (1 = before playing,
@@ -33,7 +33,7 @@ func (u *cancelUI) SyncCancelable(cancel func()) {
 	}
 }
 
-// newPlayable sets up an isolated PlayRelay with a local "cloud" remote and a
+// newPlayable sets up an isolated Carryover with a local "cloud" remote and a
 // game whose "executable" writes launched.txt into the save folder.
 func newPlayable(t *testing.T) (c *Core, gameID, saves, cloudDir string) {
 	t.Helper()

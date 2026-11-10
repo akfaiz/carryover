@@ -21,7 +21,7 @@ var (
 	colErr    = color.NRGBA{0xff, 0x6b, 0x6b, 0xff}
 )
 
-// darkTheme is PlayRelay's theme: Fyne's dark theme with the app palette.
+// darkTheme is Carryover's theme: Fyne's dark theme with the app palette.
 type darkTheme struct{}
 
 var _ fyne.Theme = darkTheme{}

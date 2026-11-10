@@ -7,8 +7,8 @@ import (
 	"runtime"
 	"sync"
 
-	"github.com/akfaiz/playrelay/internal/core"
-	"github.com/akfaiz/playrelay/internal/syncer"
+	"github.com/akfaiz/carryover/internal/core"
+	"github.com/akfaiz/carryover/internal/syncer"
 )
 
 func goos() string { return runtime.GOOS }
@@ -24,7 +24,7 @@ type SessionService struct {
 	status  map[string]Status
 	cancels map[string]func() // gameID -> cancel for the sync phase in progress
 
-	// Wrapper mode (playrelay run <id>).
+	// Wrapper mode (carryover run <id>).
 	wrapGameID string
 	wrapOpts   core.RunOptions
 	done       chan SessionOutcome
