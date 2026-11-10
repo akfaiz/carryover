@@ -6,6 +6,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -153,9 +154,20 @@ func labelOr(s library.SaveSlot) string {
 const catalogPath = "library.json"
 
 // SyncLibrary merges the cloud catalog into the local library and uploads the
-// result. Calls are serialized so a background publish and a manual sync can't
-// overwrite each other's upload.
+// result, then syncs the cover and artwork images the games refer to. Calls
+// are serialized so a background publish and a manual sync can't overwrite
+// each other's upload.
 func (c *Core) SyncLibrary(ctx context.Context) error {
+	return c.syncLibrary(ctx, true)
+}
+
+// SyncCatalog is SyncLibrary without the images: one round trip less, for
+// when the caller is waiting (before a game starts).
+func (c *Core) SyncCatalog(ctx context.Context) error {
+	return c.syncLibrary(ctx, false)
+}
+
+func (c *Core) syncLibrary(ctx context.Context, withImages bool) error {
 	c.libMu.Lock()
 	defer c.libMu.Unlock()
 	s := c.Settings.Get()
@@ -166,6 +178,19 @@ func (c *Core) SyncLibrary(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
+	if err := c.syncCatalog(ctx, cl); err != nil {
+		return err
+	}
+	if withImages {
+		// Missing images only cost a blank tile: don't fail the library sync.
+		if err := c.syncCovers(ctx, cl); err != nil && ctx.Err() == nil {
+			log.Printf("cover sync: %v", err)
+		}
+	}
+	return nil
+}
+
+func (c *Core) syncCatalog(ctx context.Context, cl *cloud.Client) error {
 	var remote library.Catalog
 	found, err := cl.ReadJSON(ctx, catalogPath, &remote)
 	if err != nil {

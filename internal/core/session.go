@@ -108,7 +108,7 @@ func (c *Core) Play(ctx context.Context, gameID string, opt RunOptions, ui Sessi
 		libDone := make(chan struct{})
 		go func() {
 			defer close(libDone)
-			if err := c.SyncLibrary(preCtx); err != nil {
+			if err := c.SyncCatalog(preCtx); err != nil {
 				log.Printf("library sync: %v", err)
 			}
 		}()

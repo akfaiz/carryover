@@ -311,6 +311,7 @@ func (s *LibraryService) SetCover(id, src string) (GameView, error) {
 		return GameView{}, err
 	}
 	s.bus.libraryChanged(saved.ID)
+	s.publish()
 	return s.view(saved), nil
 }
 
@@ -440,6 +441,7 @@ func (s *LibraryService) storeCover(g library.Game, data []byte, ext string) (Ga
 		return GameView{}, err
 	}
 	s.bus.libraryChanged(saved.ID)
+	s.publish()
 	return s.view(saved), nil
 }
 
@@ -544,6 +546,7 @@ func (s *LibraryService) saveArt(g library.Game, kind, name string) (GameView, e
 		return GameView{}, err
 	}
 	s.bus.libraryChanged(saved.ID)
+	s.publish()
 	return s.view(saved), nil
 }
 

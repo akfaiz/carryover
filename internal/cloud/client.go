@@ -225,7 +225,27 @@ func (c *Client) List(ctx context.Context, rel string) (dirs, files []string, er
 // ListFiles returns the size of every file under rel, keyed by '/'-separated
 // path relative to rel. A missing folder yields an empty map.
 func (c *Client) ListFiles(ctx context.Context, rel string) (map[string]int64, error) {
-	out := map[string]int64{}
+	info, err := c.ListFilesInfo(ctx, rel)
+	if err != nil {
+		return nil, err
+	}
+	out := make(map[string]int64, len(info))
+	for k, st := range info {
+		out[k] = st.Size
+	}
+	return out, nil
+}
+
+// FileStat is the size and modification time of a cloud file.
+type FileStat struct {
+	Size    int64
+	ModTime time.Time
+}
+
+// ListFilesInfo is like ListFiles but also returns each file's modification
+// time (as the backend reports it).
+func (c *Client) ListFilesInfo(ctx context.Context, rel string) (map[string]FileStat, error) {
+	out := map[string]FileStat{}
 	f, p, err := c.fs(ctx, rel)
 	if err != nil {
 		return nil, err
@@ -240,7 +260,7 @@ func (c *Client) ListFiles(ctx context.Context, rel string) (map[string]int64, e
 	err = walk.ListR(ctx, f, p, true, -1, walk.ListObjects, func(entries fs.DirEntries) error {
 		entries.ForObject(func(o fs.Object) {
 			name := strings.TrimPrefix(o.Remote(), p)
-			out[strings.TrimPrefix(name, "/")] = o.Size()
+			out[strings.TrimPrefix(name, "/")] = FileStat{Size: o.Size(), ModTime: o.ModTime(ctx)}
 		})
 		return nil
 	})
