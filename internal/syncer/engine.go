@@ -238,12 +238,12 @@ func (e *Engine) push(ctx context.Context, p *Plan) (*Manifest, string, error) {
 		if d.empty() {
 			continue
 		}
-		dir := e.Client.Path(currentDir(id), s.Key)
+		dir := currentDir(id) + "/" + s.Key
 		msg := "Uploading " + filesWord(len(d.copy)) + " (" + s.Key + ")"
-		if err := cloud.CopyFiles(ctx, dir, s.LocalPath, d.copy, e.progress(id, "upload", msg)); err != nil {
+		if err := e.Client.Upload(ctx, s.LocalPath, dir, d.copy, d.bytes, e.progress(id, "upload", msg)); err != nil {
 			return nil, "", fmt.Errorf("upload %s: %w", s.Key, err)
 		}
-		if err := cloud.DeleteFiles(ctx, dir, d.del); err != nil {
+		if err := e.Client.DeleteFiles(ctx, dir, d.del); err != nil {
 			return nil, "", fmt.Errorf("delete removed %s files from cloud: %w", s.Key, err)
 		}
 		copied += len(d.copy)
@@ -291,7 +291,7 @@ func (e *Engine) pull(ctx context.Context, p *Plan) (string, error) {
 			return "", err
 		}
 		msg := "Downloading " + filesWord(len(d.copy)) + " (" + s.Key + ")"
-		if err := cloud.CopyFiles(ctx, s.LocalPath, e.Client.Path(currentDir(id), s.Key), d.copy, e.progress(id, "download", msg)); err != nil {
+		if err := e.Client.Download(ctx, currentDir(id)+"/"+s.Key, s.LocalPath, d.copy, d.bytes, e.progress(id, "download", msg)); err != nil {
 			return "", fmt.Errorf("download %s: %w", s.Key, err)
 		}
 		for _, rel := range d.del {
@@ -314,7 +314,7 @@ func (e *Engine) pushDelta(ctx context.Context, p *Plan, s Slot) (delta, error) 
 	if err != nil {
 		return delta{}, err
 	}
-	listed, err := cloud.ListFiles(ctx, e.Client.Path(currentDir(p.Job.GameID), s.Key))
+	listed, err := e.Client.ListFiles(ctx, currentDir(p.Job.GameID)+"/"+s.Key)
 	if err != nil {
 		return delta{}, err
 	}
@@ -369,8 +369,12 @@ func (e *Engine) backupName(kind string) string {
 func (e *Engine) backupCloud(ctx context.Context, id string, m *Manifest) error {
 	name := e.backupName("cloud")
 	e.emit(id, "backup", "Backing up cloud saves", cloud.Progress{})
-	dst := e.Client.Path(backupsDir(id), name)
-	if err := cloud.CopyDir(ctx, dst, e.Client.Path(currentDir(id)), cloud.Filters{}, e.progress(id, "backup", "Backing up cloud saves")); err != nil {
+	listed, err := e.Client.ListFiles(ctx, currentDir(id))
+	if err != nil {
+		return err
+	}
+	files, total := sortedFiles(listed)
+	if err := e.Client.CopyWithin(ctx, currentDir(id), backupsDir(id)+"/"+name, files, total, e.progress(id, "backup", "Backing up cloud saves")); err != nil {
 		return err
 	}
 	if err := e.Client.WriteJSON(ctx, backupsDir(id)+"/"+name+"/manifest.json", m); err != nil {
@@ -383,8 +387,13 @@ func (e *Engine) backupLocal(ctx context.Context, job Job, m *Manifest) error {
 	name := e.backupName("local")
 	e.emit(job.GameID, "backup", "Backing up local saves", cloud.Progress{})
 	for _, s := range job.Slots {
-		dst := e.Client.Path(backupsDir(job.GameID), name, s.Key)
-		if err := cloud.CopyDir(ctx, dst, s.LocalPath, s.Filters, e.progress(job.GameID, "backup", "Backing up local saves")); err != nil {
+		sizes := map[string]int64{}
+		for rel, f := range slotFiles(m, s.Key, nil) {
+			sizes[rel] = f.Size
+		}
+		files, total := sortedFiles(sizes)
+		dst := backupsDir(job.GameID) + "/" + name + "/" + s.Key
+		if err := e.Client.Upload(ctx, s.LocalPath, dst, files, total, e.progress(job.GameID, "backup", "Backing up local saves")); err != nil {
 			return err
 		}
 	}
@@ -465,13 +474,56 @@ func (e *Engine) RestoreBackup(ctx context.Context, job Job, name string) error 
 		if err := os.MkdirAll(s.LocalPath, 0o755); err != nil {
 			return err
 		}
-		src := e.Client.Path(backupsDir(job.GameID), name, s.Key)
-		if err := cloud.SyncDir(ctx, s.LocalPath, src, s.Filters, e.progress(job.GameID, "download", "Restoring "+s.Key)); err != nil {
+		if err := e.restoreSlot(ctx, job.GameID, name, s, local); err != nil {
 			return fmt.Errorf("restore %s: %w", s.Key, err)
 		}
 	}
 	_, _, err = e.Sync(ctx, job, ResolveLocal)
 	return err
+}
+
+// restoreSlot makes one slot's local folder match the backup: every file in
+// the backup is downloaded, and local files the backup lacks are deleted
+// (files the slot's filters exclude are left alone on both sides).
+func (e *Engine) restoreSlot(ctx context.Context, gameID, name string, s Slot, local *Manifest) error {
+	flt, err := s.Filters.NewFilter()
+	if err != nil {
+		return err
+	}
+	listed, err := e.Client.ListFiles(ctx, backupsDir(gameID)+"/"+name+"/"+s.Key)
+	if err != nil {
+		return err
+	}
+	for rel, size := range listed {
+		if !flt.Include(rel, size, time.Time{}, nil) {
+			delete(listed, rel)
+		}
+	}
+	files, total := sortedFiles(listed)
+	if err := e.Client.Download(ctx, backupsDir(gameID)+"/"+name+"/"+s.Key, s.LocalPath, files, total, e.progress(gameID, "download", "Restoring "+s.Key)); err != nil {
+		return err
+	}
+	for rel := range slotFiles(local, s.Key, nil) {
+		if _, ok := listed[rel]; ok {
+			continue
+		}
+		if err := os.Remove(filepath.Join(s.LocalPath, filepath.FromSlash(rel))); err != nil && !errors.Is(err, os.ErrNotExist) {
+			return err
+		}
+	}
+	return nil
+}
+
+// sortedFiles returns the names of a path→size map, sorted, and their total size.
+func sortedFiles(sizes map[string]int64) ([]string, int64) {
+	files := make([]string, 0, len(sizes))
+	var total int64
+	for f, n := range sizes {
+		files = append(files, f)
+		total += n
+	}
+	sort.Strings(files)
+	return files, total
 }
 
 // Lock marks a game as being played on a device.

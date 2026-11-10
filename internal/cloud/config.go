@@ -12,6 +12,7 @@ import (
 	"sync"
 
 	"github.com/rclone/rclone/fs"
+	"github.com/rclone/rclone/fs/cache"
 	"github.com/rclone/rclone/fs/config"
 	"github.com/rclone/rclone/fs/config/configfile"
 	"github.com/rclone/rclone/fs/operations"
@@ -70,6 +71,7 @@ func DeleteRemote(name string) {
 	configMu.Lock()
 	defer configMu.Unlock()
 	config.DeleteRemote(name)
+	cache.ClearConfig(name)
 }
 
 // ProviderOption is a backend option shown in the setup form.
@@ -213,6 +215,7 @@ func CreateRemote(ctx context.Context, name, typ string, params map[string]strin
 	configMu.Lock()
 	defer configMu.Unlock()
 	out, err := config.CreateRemote(ctx, name, typ, kv, config.UpdateRemoteOpt{NonInteractive: true, Obscure: true})
+	cache.ClearConfig(name) // drop connections made with an older config of this name
 	if err != nil {
 		return nil, explainOAuthError(err)
 	}
@@ -226,6 +229,7 @@ func ContinueRemote(ctx context.Context, name, state, result string) (*Question,
 	out, err := config.UpdateRemote(ctx, name, rc.Params{}, config.UpdateRemoteOpt{
 		NonInteractive: true, Continue: true, State: state, Result: result, Obscure: true,
 	})
+	cache.ClearConfig(name)
 	if err != nil {
 		return nil, explainOAuthError(err)
 	}
@@ -270,6 +274,7 @@ func ImportConfig(path string) (ImportResult, error) {
 			continue
 		}
 		data.DeleteSection(sec.name)
+		cache.ClearConfig(sec.name)
 		for _, kv := range sec.kvs {
 			data.SetValue(sec.name, kv[0], kv[1])
 		}
