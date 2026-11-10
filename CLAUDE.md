@@ -15,6 +15,7 @@ Carryover: Go desktop game launcher with a Fyne GUI (`ui/`) that syncs saves thr
 ## Gotchas
 
 - `services/` is the GUI's API over `internal/core`; it reports changes through `services.Bus` (library/status/prompt/sync-progress callbacks, called on arbitrary goroutines). `ui/` subscribes in `newUI`.
+- UI text goes through Fyne's `lang` package: write `lang.L("English text")` (templates: `lang.L("Hi {{.Name}}", map[string]any{...})`, counts: `lang.N`) and add the same key to `ui/translations/en.json` (`TestTranslationCatalog` fails otherwise); `lang.N` keys need `one`/`other` forms there. Add a language by copying `en.json` to `<lang>.json`. Never call `lang.L` at package level (catalogs load in `start`); use functions, not maps/consts. `services/` messages are still English-only.
 - Fyne threading: widgets may only be touched on the UI goroutine. Wrap anything that runs from a goroutine or a `Bus` callback in `fyne.Do`; use the `async`/`async0` helpers in `ui/app.go` for service calls that do I/O so the UI never blocks.
 - Fyne pitfalls seen here: a struct that only embeds `fyne.CanvasObject` is not drawn — make it a widget (`ExtendBaseWidget` + `CreateRenderer`, see `pathInput`); `widget.Label.SizeName` must be a `theme.SizeName*` constant (a wrong name gives text size 0 and panics in wrap-break); wrapping labels inside an HBox collapse — use `small()` or a Border layout.
 - The main GUI is single-instance per data dir (`internal/singleinstance`, loopback TCP + `state/gui.addr`); `carryover run` wrapper windows skip it.

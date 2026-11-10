@@ -1,10 +1,12 @@
 package ui
 
 import (
+	"errors"
 	"strconv"
 	"strings"
 
 	"fyne.io/fyne/v2"
+	"fyne.io/fyne/v2/lang"
 	"fyne.io/fyne/v2/widget"
 
 	"github.com/akfaiz/carryover/internal/appdir"
@@ -18,7 +20,7 @@ func newSettingsPage(u *UI) *settingsPage { return &settingsPage{u: u} }
 
 func (p *settingsPage) view() fyne.CanvasObject {
 	u := p.u
-	scroll := scrollPage(muted("Loading…"))
+	scroll := scrollPage(muted(lang.L("Loading…")))
 	async(func() (appdir.Settings, error) { return u.sync.GetSettings(), nil }, func(st appdir.Settings, _ error) {
 		replaceScroll(scroll, p.form(st))
 	})
@@ -38,20 +40,20 @@ func (p *settingsPage) form(st appdir.Settings) fyne.CanvasObject {
 		_, err := parseRetention(s)
 		return err
 	}
-	share := widget.NewCheck("Share the game library between devices through the cloud", nil)
+	share := widget.NewCheck(lang.L("Share the game library between devices through the cloud"), nil)
 	share.SetChecked(st.SyncLibrary)
 
 	key := widget.NewPasswordEntry()
-	key.SetPlaceHolder("Paste your key")
+	key.SetPlaceHolder(lang.L("Paste your key"))
 	key.SetText(st.SteamGridDBKey)
-	keyTest := newTestButton("Test", "Key works.", func() func() error {
+	keyTest := newTestButton(lang.L("Test"), lang.L("Key works."), func() func() error {
 		k := key.Text
 		return func() error { return u.lib.TestSteamGridKey(k) }
 	})
 	keyTest.SetAllowed(st.SteamGridDBKey != "")
 	key.OnChanged = func(s string) { keyTest.SetAllowed(strings.TrimSpace(s) != "") }
 
-	save := primary("Save", func() {
+	save := primary(lang.L("Save"), func() {
 		n, err := parseRetention(retention.Text)
 		if err != nil {
 			u.toastErr(err)
@@ -69,29 +71,28 @@ func (p *settingsPage) form(st appdir.Settings) fyne.CanvasObject {
 			}
 			st = saved
 			u.refresh()
-			u.toast("Settings saved", toastOK)
+			u.toast(lang.L("Settings saved"), toastOK)
 		})
 	})
 
 	cli := mono("carryover run <game> [--headless] [-- command…]\ncarryover sync <game>|--all [--push|--pull]\ncarryover list")
 	narrow := func(o fyne.CanvasObject) fyne.CanvasObject { return maxWidth(640, o) }
 	return vbox(
-		pageHead(nil, "Settings"),
-		narrow(card("This device",
-			field("Device name (shown on other devices and in backups)", name),
-			field("Device ID", id))),
-		narrow(card("Sync",
-			field("Backups to keep per game", fixedWidth(120, retention)),
+		pageHead(nil, lang.L("Settings")),
+		narrow(card(lang.L("This device"),
+			field(lang.L("Device name (shown on other devices and in backups)"), name),
+			field(lang.L("Device ID"), id))),
+		narrow(card(lang.L("Sync"),
+			field(lang.L("Backups to keep per game"), fixedWidth(120, retention)),
 			share,
-			muted("When enabled, games added on one device appear on the others; each device only needs to set its own paths."))),
-		narrow(card("Cover art",
-			field("SteamGridDB API key (optional)", rowFill(key, keyTest.Button)),
+			muted(lang.L("When enabled, games added on one device appear on the others; each device only needs to set its own paths.")))),
+		narrow(card(lang.L("Cover art"),
+			field(lang.L("SteamGridDB API key (optional)"), rowFill(key, keyTest.Button)),
 			keyTest.Result,
-			muted("Lets you search community covers for any game, including ones not on Steam, and fills in covers Steam doesn't have. "+
-				"Get a free key at steamgriddb.com/profile/preferences/api (log in with Steam). The key is stored only on this device."))),
+			muted(lang.L("Lets you search community covers for any game, including ones not on Steam, and fills in covers Steam doesn't have. Get a free key at steamgriddb.com/profile/preferences/api (log in with Steam). The key is stored only on this device.")))),
 		hbox(save),
-		narrow(card("Command line",
-			muted("Useful for scripts or other launchers (Lutris, Heroic, Playnite…):"),
+		narrow(card(lang.L("Command line"),
+			muted(lang.L("Useful for scripts or other launchers (Lutris, Heroic, Playnite…):")),
 			cli)),
 	)
 }
@@ -99,13 +100,7 @@ func (p *settingsPage) form(st appdir.Settings) fyne.CanvasObject {
 func parseRetention(s string) (int, error) {
 	n, err := strconv.Atoi(strings.TrimSpace(s))
 	if err != nil || n < 0 || n > 100 {
-		return 0, errRetention
+		return 0, errors.New(lang.L("backups to keep must be a number from 0 to 100"))
 	}
 	return n, nil
 }
-
-type settingsError string
-
-func (e settingsError) Error() string { return string(e) }
-
-const errRetention = settingsError("backups to keep must be a number from 0 to 100")

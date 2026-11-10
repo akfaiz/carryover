@@ -8,6 +8,7 @@ import (
 	"fyne.io/fyne/v2/canvas"
 	"fyne.io/fyne/v2/container"
 	"fyne.io/fyne/v2/driver/desktop"
+	"fyne.io/fyne/v2/lang"
 	"fyne.io/fyne/v2/layout"
 	"fyne.io/fyne/v2/theme"
 	"fyne.io/fyne/v2/widget"
@@ -112,17 +113,17 @@ func badge(text string, kind int) fyne.CanvasObject {
 func statusBadge(g services.GameView) fyne.CanvasObject {
 	switch {
 	case g.Status.Running:
-		return badge("running", badgeInfo)
+		return badge(lang.L("running"), badgeInfo)
 	case !g.Ready:
-		return badge("needs setup", badgeWarn)
+		return badge(lang.L("needs setup"), badgeWarn)
 	case g.Status.Conflict:
-		return badge("conflict", badgeErr)
+		return badge(lang.L("conflict"), badgeErr)
 	case g.Status.LastError != "":
-		return badge("sync error", badgeErr)
+		return badge(lang.L("sync error"), badgeErr)
 	case g.Status.LastSyncAt != "":
-		return badge("synced", badgeOK)
+		return badge(lang.L("synced"), badgeOK)
 	}
-	return badge("not synced", badgeNone)
+	return badge(lang.L("not synced"), badgeNone)
 }
 
 func primary(label string, f func()) *widget.Button {

@@ -2,6 +2,7 @@ package ui
 
 import (
 	"fyne.io/fyne/v2"
+	"fyne.io/fyne/v2/lang"
 	"fyne.io/fyne/v2/widget"
 
 	"github.com/akfaiz/carryover/services"
@@ -20,12 +21,12 @@ func newGameTile(u *UI, g services.GameView) *gameTile {
 	name := widget.NewLabelWithStyle(g.Name, fyne.TextAlignLeading, fyne.TextStyle{Bold: true})
 	name.Truncation = fyne.TextTruncateEllipsis
 
-	label := "▶ Play"
+	label := lang.L("▶ Play")
 	switch {
 	case g.Status.Running:
-		label = "Running"
+		label = lang.L("Running")
 	case !g.Ready:
-		label = "Set up"
+		label = lang.L("Set up")
 	}
 	var play *widget.Button
 	play = widget.NewButton(label, func() {

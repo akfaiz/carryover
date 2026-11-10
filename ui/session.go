@@ -9,6 +9,7 @@ import (
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/canvas"
 	"fyne.io/fyne/v2/container"
+	"fyne.io/fyne/v2/lang"
 	"fyne.io/fyne/v2/theme"
 	"fyne.io/fyne/v2/widget"
 
@@ -32,13 +33,13 @@ func (p *sessionPage) view() fyne.CanvasObject {
 	if p.w.GameName == "" {
 		name.SetText(p.w.GameID)
 	}
-	p.msg = widget.NewLabel("Starting…")
+	p.msg = widget.NewLabel(lang.L("Starting…"))
 	p.msg.Wrapping = fyne.TextWrapWord
 	p.prog = newProgress()
 	p.prog.set("", 0, 0)
-	p.cancel = widget.NewButtonWithIcon("Cancel", theme.CancelIcon(), func() {
+	p.cancel = widget.NewButtonWithIcon(lang.L("Cancel"), theme.CancelIcon(), func() {
 		if p.u.sess.Cancel(p.w.GameID) {
-			p.cancel.SetText("Cancelling…")
+			p.cancel.SetText(lang.L("Cancelling…"))
 			p.cancel.Disable()
 		}
 	})
@@ -80,9 +81,9 @@ func (p *sessionPage) stateChanged(change) {
 		if p.phase != st.Message {
 			// A new sync phase (before or after playing): offer Cancel again.
 			p.phase = st.Message
-			p.cancel.SetText("Cancel upload")
+			p.cancel.SetText(lang.L("Cancel upload"))
 			if st.Message == "Checking cloud saves…" {
-				p.cancel.SetText("Cancel and don't play")
+				p.cancel.SetText(lang.L("Cancel and don't play"))
 			}
 			p.cancel.Enable()
 			p.cancel.Show()

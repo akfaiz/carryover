@@ -8,6 +8,7 @@ import (
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/container"
 	"fyne.io/fyne/v2/dialog"
+	"fyne.io/fyne/v2/lang"
 	"fyne.io/fyne/v2/storage"
 	"fyne.io/fyne/v2/widget"
 
@@ -28,8 +29,8 @@ type cloudPage struct {
 func newCloudPage(u *UI) *cloudPage { return &cloudPage{u: u, root: "Carryover"} }
 
 func (p *cloudPage) view() fyne.CanvasObject {
-	p.scroll = scrollPage(muted("Loading…"))
-	p.test = newTestButton("Test connection", "Connection works.", func() func() error {
+	p.scroll = scrollPage(muted(lang.L("Loading…")))
+	p.test = newTestButton(lang.L("Test connection"), lang.L("Connection works."), func() func() error {
 		remote, root := p.remote, p.root
 		return func() error { return p.u.cloud.Test(remote, root) }
 	})
@@ -69,11 +70,11 @@ func (p *cloudPage) stateChanged(what change) {
 func (p *cloudPage) render() {
 	u := p.u
 	remotes := &choice{}
-	remotes.add("", "— none (sync disabled) —")
+	remotes.add("", lang.L("— none (sync disabled) —"))
 	for _, r := range p.remotes {
 		l := fmt.Sprintf("%s (%s)", r.Name, r.Type)
 		if !r.Supported {
-			l = fmt.Sprintf("%s (%s, unsupported)", r.Name, r.Type)
+			l = lang.L("{{.Name}} ({{.Type}}, unsupported)", map[string]any{"Name": r.Name, "Type": r.Type})
 		}
 		remotes.add(r.Name, l)
 	}
@@ -81,7 +82,7 @@ func (p *cloudPage) render() {
 	sel := selectOf(remotes, p.remote, func(v string) {
 		for _, r := range p.remotes {
 			if r.Name == v && !r.Supported {
-				u.toast("This provider isn't included in Carryover", toastErr)
+				u.toast(lang.L("This provider isn't included in Carryover"), toastErr)
 			}
 		}
 		p.remote = v
@@ -90,29 +91,29 @@ func (p *cloudPage) render() {
 	})
 	root := monoEntry("", p.root, func(s string) { p.root = s })
 
-	location := card("Sync location",
-		muted("All devices must use the same remote storage and folder. Saves go to <folder>/games/<game>/."),
-		container.NewGridWithColumns(2, field("Remote", sel), field("Folder", root)),
-		hbox(primary("Save", p.saveTarget), p.test.Button),
+	location := card(lang.L("Sync location"),
+		muted(lang.L("All devices must use the same remote storage and folder. Saves go to <folder>/games/<game>/.")),
+		container.NewGridWithColumns(2, field(lang.L("Remote"), sel), field(lang.L("Folder"), root)),
+		hbox(primary(lang.L("Save"), p.saveTarget), p.test.Button),
 		p.test.Result,
 	)
 
 	actions := []fyne.CanvasObject{}
 	if p.defaultConf != "" {
-		actions = append(actions, widget.NewButton("Import from rclone", func() { p.importConf(p.defaultConf) }))
+		actions = append(actions, widget.NewButton(lang.L("Import from rclone"), func() { p.importConf(p.defaultConf) }))
 	}
 	actions = append(actions,
-		widget.NewButton("Import rclone.conf…", p.pickConf),
-		primary("＋ Add remote", func() { newRemoteWizard(p).show() }),
+		widget.NewButton(lang.L("Import rclone.conf…"), p.pickConf),
+		primary(lang.L("＋ Add remote"), func() { newRemoteWizard(p).show() }),
 	)
-	list := vbox(cardHead("Remotes", actions...))
+	list := vbox(cardHead(lang.L("Remotes"), actions...))
 	if len(p.remotes) == 0 {
-		list.Add(muted("No remotes yet. Add one (Google Drive, Dropbox, OneDrive, WebDAV/Nextcloud, SFTP or SMB) or import your existing rclone config."))
+		list.Add(muted(lang.L("No remotes yet. Add one (Google Drive, Dropbox, OneDrive, WebDAV/Nextcloud, SFTP or SMB) or import your existing rclone config.")))
 	}
 	for _, r := range p.remotes {
 		list.Add(widget.NewSeparator())
 		list.Add(newRemoteRow(r, r.Name == u.settings.Remote, func() {
-			dialog.ShowConfirm("Delete remote", "Delete remote “"+r.Name+"”?", func(ok bool) {
+			dialog.ShowConfirm(lang.L("Delete remote"), lang.L("Delete remote “{{.Name}}”?", map[string]any{"Name": r.Name}), func(ok bool) {
 				if !ok {
 					return
 				}
@@ -124,7 +125,7 @@ func (p *cloudPage) render() {
 			}, u.win)
 		}))
 	}
-	replaceScroll(p.scroll, vbox(pageHead(nil, "Cloud storage"), location, card("", list)))
+	replaceScroll(p.scroll, vbox(pageHead(nil, lang.L("Cloud storage")), location, card("", list)))
 }
 
 func (p *cloudPage) saveTarget() {
@@ -145,11 +146,11 @@ func (p *cloudPage) saveTarget() {
 			return
 		}
 		u.refresh()
-		u.toast("Cloud location saved", toastOK)
+		u.toast(lang.L("Cloud location saved"), toastOK)
 		if remote != "" {
 			async0(u.sync.SyncLibrary, func(err error) {
 				if err != nil {
-					u.toast("Library sync: "+err.Error(), toastErr)
+					u.toast(lang.L("Library sync: {{.Err}}", map[string]any{"Err": err}), toastErr)
 				}
 			})
 		}
@@ -165,7 +166,7 @@ func (p *cloudPage) pickConf() {
 		_ = r.Close()
 		p.importConf(path)
 	}, p.u.win)
-	d.SetTitleText("Select rclone.conf")
+	d.SetTitleText(lang.L("Select rclone.conf"))
 	d.SetFilter(storage.NewExtensionFileFilter([]string{".conf"}))
 	d.Resize(dialogSize(p.u.win))
 	d.Show()
@@ -179,12 +180,12 @@ func (p *cloudPage) importConf(path string) {
 			return
 		}
 		if len(res.Imported) > 0 {
-			u.toast("Imported "+strings.Join(res.Imported, ", "), toastOK)
+			u.toast(lang.L("Imported {{.Names}}", map[string]any{"Names": strings.Join(res.Imported, ", ")}), toastOK)
 		}
 		if len(res.Skipped) > 0 {
-			u.toast("Skipped unsupported: "+strings.Join(res.Skipped, ", "), toastErr)
+			u.toast(lang.L("Skipped unsupported: {{.Names}}", map[string]any{"Names": strings.Join(res.Skipped, ", ")}), toastErr)
 		} else if len(res.Imported) == 0 {
-			u.toast("No remotes found in that file", toastErr)
+			u.toast(lang.L("No remotes found in that file"), toastErr)
 		}
 		p.load(false)
 	})
@@ -208,7 +209,7 @@ func newRemoteWizard(p *cloudPage) *remoteWizard {
 }
 
 func (w *remoteWizard) show() {
-	w.d = dialog.NewCustomWithoutButtons("Add remote", container.NewVScroll(w.body), w.p.u.win)
+	w.d = dialog.NewCustomWithoutButtons(lang.L("Add remote"), container.NewVScroll(w.body), w.p.u.win)
 	w.d.Resize(fyne.NewSize(min(640, w.p.u.win.Canvas().Size().Width-40), min(560, w.p.u.win.Canvas().Size().Height-40)))
 	w.pick()
 	w.d.Show()
@@ -228,7 +229,7 @@ func (w *remoteWizard) pick() {
 			func() { w.form(pr) })
 		grid.Add(b)
 	}
-	w.set(heading("Choose storage provider"), grid, hbox(widget.NewButton("Cancel", w.close)))
+	w.set(heading(lang.L("Choose storage provider")), grid, hbox(widget.NewButton(lang.L("Cancel"), w.close)))
 }
 
 func (w *remoteWizard) form(pr cloud.Provider) {
@@ -260,10 +261,10 @@ func (w *remoteWizard) renderForm(errText string) {
 	pr := w.prov
 	name := widget.NewEntry()
 	name.SetText(w.name)
-	cont := primary("Continue", w.create)
+	cont := primary(lang.L("Continue"), w.create)
 	name.OnChanged = func(s string) { w.name = s; setEnabled(cont, strings.TrimSpace(s) != "") }
 	setEnabled(cont, strings.TrimSpace(w.name) != "")
-	objs := []fyne.CanvasObject{heading("New " + pr.Description + " remote"), field("Name", name)}
+	objs := []fyne.CanvasObject{heading(lang.L("New {{.Provider}} remote", map[string]any{"Provider": pr.Description})), field(lang.L("Name"), name)}
 	visible := 0
 	for _, o := range pr.Options {
 		exclusive := len(o.Examples) > 0 && o.Exclusive
@@ -279,15 +280,15 @@ func (w *remoteWizard) renderForm(errText string) {
 		objs = append(objs, field(label, w.optionInput(o)))
 	}
 	if len(pr.Options) > visible {
-		objs = append(objs, hbox(lowButton("Show all options", func() { w.showAll = true; w.renderForm(errText) })))
+		objs = append(objs, hbox(lowButton(lang.L("Show all options"), func() { w.showAll = true; w.renderForm(errText) })))
 	}
 	if pr.OAuth {
-		objs = append(objs, muted("After you continue, your browser opens to sign in. Come back here when done."))
+		objs = append(objs, muted(lang.L("After you continue, your browser opens to sign in. Come back here when done.")))
 	}
 	if errText != "" {
 		objs = append(objs, colored(errText, widget.DangerImportance))
 	}
-	objs = append(objs, hbox(widget.NewButton("Back", w.pick), cont))
+	objs = append(objs, hbox(widget.NewButton(lang.L("Back"), w.pick), cont))
 	w.set(objs...)
 }
 
@@ -300,9 +301,9 @@ func (w *remoteWizard) optionInput(o cloud.ProviderOption) fyne.CanvasObject {
 	set := func(v string) { w.params[o.Name] = v }
 	if len(o.Examples) > 0 && o.Exclusive {
 		c := &choice{}
-		def := "(default)"
+		def := lang.L("(default)")
 		if o.Default != "" && o.Default != "<nil>" {
-			def = "(default: " + o.Default + ")"
+			def = lang.L("(default: {{.Value}})", map[string]any{"Value": o.Default})
 		}
 		c.add("", def)
 		for _, ex := range o.Examples {
@@ -338,9 +339,9 @@ func (w *remoteWizard) optionInput(o cloud.ProviderOption) fyne.CanvasObject {
 
 func (w *remoteWizard) working() {
 	bar := widget.NewProgressBarInfinite()
-	w.set(heading("Configuring…"), muted("If a browser window opened, finish signing in there."), bar,
+	w.set(heading(lang.L("Configuring…")), muted(lang.L("If a browser window opened, finish signing in there.")), bar,
 		// rclone keeps waiting in the background until its own timeout.
-		hbox(widget.NewButton("Cancel", w.close)))
+		hbox(widget.NewButton(lang.L("Cancel"), w.close)))
 }
 
 func (w *remoteWizard) step(fn func() (*cloud.Question, error)) {
@@ -359,7 +360,7 @@ func (w *remoteWizard) step(fn func() (*cloud.Question, error)) {
 			w.close()
 			w.p.remote = strings.TrimSpace(w.name)
 			w.p.load(false)
-			u.toast("Remote “"+strings.TrimSpace(w.name)+"” created", toastOK)
+			u.toast(lang.L("Remote “{{.Name}}” created", map[string]any{"Name": strings.TrimSpace(w.name)}), toastOK)
 			return
 		}
 		w.question = q
@@ -389,7 +390,7 @@ func (w *remoteWizard) renderQuestion(errText string) {
 	}
 	if q.IsBool {
 		errLabel()
-		objs = append(objs, hbox(widget.NewButton("No", func() { w.reply("false") }), primary("Yes", func() { w.reply("true") })))
+		objs = append(objs, hbox(widget.NewButton(lang.L("No"), func() { w.reply("false") }), primary(lang.L("Yes"), func() { w.reply("true") })))
 		w.set(objs...)
 		return
 	}
@@ -424,6 +425,6 @@ func (w *remoteWizard) renderQuestion(errText string) {
 	}
 	objs = append(objs, input)
 	errLabel()
-	objs = append(objs, hbox(widget.NewButton("Cancel", w.close), primary("Continue", func() { w.reply(answer) })))
+	objs = append(objs, hbox(widget.NewButton(lang.L("Cancel"), w.close), primary(lang.L("Continue"), func() { w.reply(answer) })))
 	w.set(objs...)
 }

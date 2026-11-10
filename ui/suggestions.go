@@ -1,21 +1,29 @@
 package ui
 
 import (
-	"fmt"
 	"strings"
 
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/container"
+	"fyne.io/fyne/v2/lang"
 	"fyne.io/fyne/v2/widget"
 
 	"github.com/akfaiz/carryover/services"
 )
 
-var kindLabel = map[string]string{
-	"native":     "Linux/macOS native",
-	"proton":     "Proton prefix",
-	"install":    "install folder",
-	"steamcloud": "Steam Cloud folder",
+// kindLabel names a kind of save-location suggestion.
+func kindLabel(kind string) string {
+	switch kind {
+	case "native":
+		return lang.L("Linux/macOS native")
+	case "proton":
+		return lang.L("Proton prefix")
+	case "install":
+		return lang.L("install folder")
+	case "steamcloud":
+		return lang.L("Steam Cloud folder")
+	}
+	return ""
 }
 
 // suggestionList shows the known save locations found for a game (from the
@@ -30,17 +38,17 @@ type suggestionList struct {
 func newSuggestionList(gameName string, res *services.SuggestResult, onUse, onAdd func(services.SaveSuggestion), onHide func()) *suggestionList {
 	c := vbox()
 	if res.Matched == "" {
-		c.Add(muted("No known save locations for “" + gameName + "”. Try “Find on Steam” first, or set the path yourself."))
+		c.Add(muted(lang.L("No known save locations for “{{.Game}}”. Try “Find on Steam” first, or set the path yourself.", map[string]any{"Game": gameName})))
 	} else {
-		c.Add(container.NewBorder(nil, nil, nil, lowButton("Hide", onHide), muted("Known save locations for "+res.Matched)))
+		c.Add(container.NewBorder(nil, nil, nil, lowButton(lang.L("Hide"), onHide), muted(lang.L("Known save locations for {{.Game}}", map[string]any{"Game": res.Matched}))))
 		if len(res.Suggestions) == 0 {
-			c.Add(muted("None that apply to this device."))
+			c.Add(muted(lang.L("None that apply to this device.")))
 		}
 		for _, s := range res.Suggestions {
 			c.Add(widget.NewSeparator())
 			c.Add(suggestionRow(s, onUse, onAdd))
 		}
-		c.Add(hbox(small("From the"), widget.NewHyperlink("Ludusavi manifest", mustURL("https://github.com/mtkennerly/ludusavi-manifest")), small("(PCGamingWiki).")))
+		c.Add(hbox(small(lang.L("From the")), widget.NewHyperlink(lang.L("Ludusavi manifest"), mustURL("https://github.com/mtkennerly/ludusavi-manifest")), small(lang.L("(PCGamingWiki)."))))
 	}
 	l := &suggestionList{content: c}
 	l.ExtendBaseWidget(l)
@@ -68,22 +76,22 @@ func suggestionRow(s services.SaveSuggestion, onUse, onAdd func(services.SaveSug
 	badges := hbox()
 	switch {
 	case s.Files > 0:
-		badges.Add(badge(fmt.Sprintf("found · %d files · %s · %s", s.Files, formatBytes(s.Bytes), timeAgo(s.Newest)), badgeOK))
+		badges.Add(badge(lang.N("found · {{.Count}} file · {{.Size}} · {{.Age}}", s.Files, map[string]any{"Count": s.Files, "Size": formatBytes(s.Bytes), "Age": timeAgo(s.Newest)}), badgeOK))
 	case s.Exists:
-		badges.Add(badge("folder exists, no saves", badgeNone))
+		badges.Add(badge(lang.L("folder exists, no saves"), badgeNone))
 	default:
-		badges.Add(badge("not on this device", badgeNone))
+		badges.Add(badge(lang.L("not on this device"), badgeNone))
 	}
-	if l := kindLabel[s.Kind]; l != "" {
+	if l := kindLabel(s.Kind); l != "" {
 		badges.Add(badge(l, badgeNone))
 	}
 	if s.MSStore {
-		badges.Add(badge("Microsoft Store version", badgeWarn))
+		badges.Add(badge(lang.L("Microsoft Store version"), badgeWarn))
 	}
-	actions := hbox(widget.NewButton("Use", func() { onUse(s) }), lowButton("＋ Add", func() { onAdd(s) }))
+	actions := hbox(widget.NewButton(lang.L("Use"), func() { onUse(s) }), lowButton(lang.L("＋ Add"), func() { onAdd(s) }))
 	row := vbox(path, container.NewBorder(nil, nil, nil, actions, container.NewHScroll(badges)))
 	if s.Kind == "steamcloud" {
-		row.Add(muted("Steam Cloud already syncs this for the Steam version; useful for non-Steam copies."))
+		row.Add(muted(lang.L("Steam Cloud already syncs this for the Steam version; useful for non-Steam copies.")))
 	}
 	return row
 }

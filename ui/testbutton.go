@@ -2,6 +2,7 @@ package ui
 
 import (
 	"fyne.io/fyne/v2"
+	"fyne.io/fyne/v2/lang"
 	"fyne.io/fyne/v2/widget"
 )
 
@@ -48,7 +49,7 @@ func (t *testButton) run() {
 	}
 	work := t.prepare()
 	t.running = true
-	t.Button.SetText("Testing…")
+	t.Button.SetText(lang.L("Testing…"))
 	t.Result.Hide()
 	t.update()
 	async0(work, func(err error) {

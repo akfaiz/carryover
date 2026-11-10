@@ -14,6 +14,7 @@ import (
 	"fyne.io/fyne/v2/app"
 	"fyne.io/fyne/v2/canvas"
 	"fyne.io/fyne/v2/container"
+	"fyne.io/fyne/v2/lang"
 	"fyne.io/fyne/v2/layout"
 	"fyne.io/fyne/v2/theme"
 	"fyne.io/fyne/v2/widget"
@@ -136,7 +137,7 @@ func Run(c *core.Core, wrapGameID string, opts core.RunOptions) int {
 		u.app.Lifecycle().SetOnStarted(func() {
 			async0(u.sync.SyncLibrary, func(err error) {
 				if err != nil {
-					u.toast("Library sync: "+err.Error(), toastErr)
+					u.toast(lang.L("Library sync: {{.Err}}", map[string]any{"Err": err}), toastErr)
 				}
 			})
 		})
@@ -147,6 +148,7 @@ func Run(c *core.Core, wrapGameID string, opts core.RunOptions) int {
 }
 
 func start(c *core.Core) *UI {
+	initTranslations()
 	a := app.NewWithID(AppID)
 	a.Settings().SetTheme(darkTheme{})
 	a.SetIcon(fyne.NewStaticResource("appicon.png", appIcon))
@@ -186,7 +188,7 @@ func (u *UI) renderSidebar() {
 	brand := widget.NewLabelWithStyle("Carryover", fyne.TextAlignLeading, fyne.TextStyle{Bold: true})
 	brand.SizeName = theme.SizeNameSubHeadingText
 	objs := []fyne.CanvasObject{container.NewHBox(logo, brand), widget.NewSeparator()}
-	for _, n := range []struct{ path, label string }{{"/", "Library"}, {"/cloud", "Cloud"}, {"/settings", "Settings"}} {
+	for _, n := range []struct{ path, label string }{{"/", lang.L("Library")}, {"/cloud", lang.L("Cloud")}, {"/settings", lang.L("Settings")}} {
 		b := widget.NewButton(n.label, func() { u.navigate(n.path) })
 		b.Alignment = widget.ButtonAlignLeading
 		u.navBtns[n.path] = b
@@ -204,7 +206,7 @@ func (u *UI) renderSidebar() {
 		r.Importance = widget.LowImportance
 		objs = append(objs, r)
 	} else if u.loaded {
-		b := widget.NewButtonWithIcon("No cloud configured", theme.WarningIcon(), func() { u.navigate("/cloud") })
+		b := widget.NewButtonWithIcon(lang.L("No cloud configured"), theme.WarningIcon(), func() { u.navigate("/cloud") })
 		b.Importance = widget.WarningImportance
 		objs = append(objs, b)
 	}

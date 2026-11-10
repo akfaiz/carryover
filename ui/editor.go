@@ -9,6 +9,7 @@ import (
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/container"
 	"fyne.io/fyne/v2/dialog"
+	"fyne.io/fyne/v2/lang"
 	"fyne.io/fyne/v2/storage"
 	"fyne.io/fyne/v2/theme"
 	"fyne.io/fyne/v2/widget"
@@ -61,7 +62,7 @@ func newEditor(u *UI, id, steamAppID string) *editor {
 }
 
 func (e *editor) view() fyne.CanvasObject {
-	e.scroll = scrollPage(muted("Loading…"))
+	e.scroll = scrollPage(muted(lang.L("Loading…")))
 	u := e.u
 	type loaded struct {
 		tokens []pathvar.Token
@@ -153,7 +154,7 @@ func (e *editor) suggestSaves(autofill bool) {
 	async(func() (services.SuggestResult, error) { return e.u.lib.SuggestSaves(in) }, func(res services.SuggestResult, err error) {
 		e.suggesting = false
 		if err != nil {
-			e.u.toast("Save suggestions: "+err.Error(), toastErr)
+			e.u.toast(lang.L("Save suggestions: {{.Err}}", map[string]any{"Err": err}), toastErr)
 			e.render()
 			return
 		}
@@ -166,7 +167,7 @@ func (e *editor) suggestSaves(autofill bool) {
 		}
 		if autofill && len(found) == 1 && len(e.slots) > 0 && e.slots[0].path == "" {
 			e.useSuggestion(found[0], e.slots[0])
-			e.u.toast("Found "+res.Matched+" saves on this device", toastOK)
+			e.u.toast(lang.L("Found {{.Game}} saves on this device", map[string]any{"Game": res.Matched}), toastOK)
 		}
 		e.render()
 	})
@@ -228,7 +229,7 @@ func (e *editor) searchSteam() {
 	async(func() ([]steamstore.Match, error) { return e.u.lib.SearchSteam(term) }, func(res []steamstore.Match, err error) {
 		e.searching = false
 		if err != nil {
-			e.u.toast("Steam search failed: "+err.Error(), toastErr)
+			e.u.toast(lang.L("Steam search failed: {{.Err}}", map[string]any{"Err": err}), toastErr)
 			e.showResults = false
 		} else {
 			e.steamResults, e.showResults = res, true
@@ -266,9 +267,9 @@ func (e *editor) render() {
 	for _, s := range e.slots {
 		s.rememberOpen()
 	}
-	head := "Add game"
+	head := lang.L("Add game")
 	if e.id != "" {
-		head = "Edit game"
+		head = lang.L("Edit game")
 	}
 	e.saveBtn = nil
 	left := vbox(e.gameCard(), e.launchCard())
@@ -277,24 +278,24 @@ func (e *editor) render() {
 	if e.errText != "" {
 		bottom.Add(colored(e.errText, widget.DangerImportance))
 	}
-	saveLabel := "Save"
+	saveLabel := lang.L("Save")
 	if e.saving {
-		saveLabel = "Saving…"
+		saveLabel = lang.L("Saving…")
 	}
 	e.saveBtn = primary(saveLabel, e.save)
 	setEnabled(e.saveBtn, !e.saving && strings.TrimSpace(e.name) != "")
-	bottom.Add(hbox(widget.NewButton("Cancel", u.back), e.saveBtn))
+	bottom.Add(hbox(widget.NewButton(lang.L("Cancel"), u.back), e.saveBtn))
 	replaceScroll(e.scroll, vbox(pageHead(u.back, head), newCols(440, nil, left, right), bottom))
 }
 
 func (e *editor) gameCard() fyne.CanvasObject {
 	u := e.u
 	e.nameEntry = widget.NewEntry()
-	e.nameEntry.SetPlaceHolder("Game name")
+	e.nameEntry.SetPlaceHolder(lang.L("Game name"))
 	e.nameEntry.SetText(e.name)
-	findLabel := "Find on Steam"
+	findLabel := lang.L("Find on Steam")
 	if e.searching {
-		findLabel = "Searching…"
+		findLabel = lang.L("Searching…")
 	}
 	find := widget.NewButtonWithIcon(findLabel, theme.SearchIcon(), e.searchSteam)
 	setEnabled(find, !e.searching && len(strings.TrimSpace(e.name)) >= 2)
@@ -306,12 +307,12 @@ func (e *editor) gameCard() fyne.CanvasObject {
 		}
 	}
 	e.nameEntry.OnSubmitted = func(string) { e.searchSteam() }
-	c := vbox(field("Name", rowFill(e.nameEntry, find)))
+	c := vbox(field(lang.L("Name"), rowFill(e.nameEntry, find)))
 
 	if e.showResults {
 		res := vbox()
 		if len(e.steamResults) == 0 {
-			res.Add(muted("No match on Steam. You can still add the game and choose a cover yourself."))
+			res.Add(muted(lang.L("No match on Steam. You can still add the game and choose a cover yourself.")))
 		}
 		for _, m := range e.steamResults {
 			res.Add(listRow(m.Name, m.AppID, func() {
@@ -320,13 +321,13 @@ func (e *editor) gameCard() fyne.CanvasObject {
 				e.suggestSaves(true)
 			}))
 		}
-		res.Add(hbox(lowButton("Close", func() { e.showResults = false; e.render() })))
+		res.Add(hbox(lowButton(lang.L("Close"), func() { e.showResults = false; e.render() })))
 		scroll := container.NewVScroll(res)
 		scroll.SetMinSize(fyne.NewSize(0, min(260, res.MinSize().Height)))
 		c.Add(card("", scroll))
 	}
 	if e.storeAppID != "" {
-		c.Add(hbox(badge("Steam app "+e.storeAppID, badgeInfo), lowButton("Unlink", func() {
+		c.Add(hbox(badge(lang.L("Steam app {{.ID}}", map[string]any{"ID": e.storeAppID}), badgeInfo), lowButton(lang.L("Unlink"), func() {
 			e.storeAppID, e.showResults = "", false
 			e.render()
 		})))
@@ -351,14 +352,14 @@ func (e *editor) gameCard() fyne.CanvasObject {
 	default:
 		preview = coverView(coverSource{name: e.name}, size)
 	}
-	btns := hbox(widget.NewButton("Choose file…", func() {
-		e.pickFile("Choose cover image", []string{".png", ".jpg", ".jpeg", ".webp"}, func(p string) {
+	btns := hbox(widget.NewButton(lang.L("Choose file…"), func() {
+		e.pickFile(lang.L("Choose cover image"), []string{".png", ".jpg", ".jpeg", ".webp"}, func(p string) {
 			e.coverSrc, e.gridPick = p, nil
 			e.render()
 		})
 	}))
 	if e.hasGridKey {
-		btns.Add(widget.NewButton("Find cover…", func() {
+		btns.Add(widget.NewButton(lang.L("Find cover…"), func() {
 			showCoverPicker(u, e.name, e.storeAppID, func(g steamgrid.Grid) {
 				e.gridPick, e.coverSrc = &g, ""
 				e.render()
@@ -367,39 +368,39 @@ func (e *editor) gameCard() fyne.CanvasObject {
 	}
 	side := vbox(btns)
 	if e.id != "" && e.storeAppID != "" && e.storeAppID == e.originalStoreAppID && e.coverPath != "" {
-		side.Add(hbox(lowButton("Use Steam cover", func() {
+		side.Add(hbox(lowButton(lang.L("Use Steam cover"), func() {
 			async(func() (services.GameView, error) { return u.lib.FetchSteamCover(e.id) }, func(g services.GameView, err error) {
 				if err != nil {
 					u.toastErr(err)
 					return
 				}
 				e.coverPath, e.coverVersion, e.coverSrc = g.CoverPath, g.CoverVersion, ""
-				u.toast("Cover updated from Steam", toastOK)
+				u.toast(lang.L("Cover updated from Steam"), toastOK)
 				e.render()
 			})
 		})))
 	}
-	hint := "Portrait image (600×900 works well). Also used as Steam grid art."
+	hint := lang.L("Portrait image (600×900 works well). Also used as Steam grid art.")
 	switch {
 	case e.coverSrc != "":
-		hint = filepath.Base(e.coverSrc) + " — copied when you save."
+		hint = lang.L("{{.File}} — copied when you save.", map[string]any{"File": filepath.Base(e.coverSrc)})
 	case e.storeAppID != "" && e.coverPath == "" && e.gridPick == nil:
-		hint = "Steam's cover is downloaded when you save, unless you choose your own."
+		hint = lang.L("Steam's cover is downloaded when you save, unless you choose your own.")
 	case e.gridPick != nil:
-		hint = "SteamGridDB cover — downloaded when you save."
+		hint = lang.L("SteamGridDB cover — downloaded when you save.")
 	}
 	side.Add(muted(hint))
 	if !e.hasGridKey {
-		side.Add(container.NewBorder(nil, nil, nil, lowButton("Settings", func() { u.navigate("/settings") }), muted("Add a SteamGridDB API key to search community covers.")))
+		side.Add(container.NewBorder(nil, nil, nil, lowButton(lang.L("Settings"), func() { u.navigate("/settings") }), muted(lang.L("Add a SteamGridDB API key to search community covers."))))
 	}
 	c.Add(container.NewBorder(nil, nil, preview, nil, container.NewPadded(side)))
-	return card("Game", c)
+	return card(lang.L("Game"), c)
 }
 
 func (e *editor) launchCard() fyne.CanvasObject {
 	modes := &choice{}
-	modes.add(string(library.LaunchDirect), "Carryover starts the executable (Windows, native Linux/macOS games)")
-	modes.add(string(library.LaunchSteamWrap), "Steam starts it via Proton; Carryover wraps %command% (Steam Deck / Linux)")
+	modes.add(string(library.LaunchDirect), lang.L("Carryover starts the executable (Windows, native Linux/macOS games)"))
+	modes.add(string(library.LaunchSteamWrap), lang.L("Steam starts it via Proton; Carryover wraps %command% (Steam Deck / Linux)"))
 	e.exeEntry = monoEntry("", e.dev.Exe, func(s string) { e.dev.Exe = s })
 	setExePlaceholder := func() {
 		if e.dev.LaunchMode == library.LaunchSteamWrap {
@@ -413,8 +414,8 @@ func (e *editor) launchCard() fyne.CanvasObject {
 		e.dev.LaunchMode = library.LaunchMode(v)
 		setExePlaceholder()
 	})
-	browse := widget.NewButton("Browse…", func() {
-		e.pickFile("Choose game executable", nil, func(p string) {
+	browse := widget.NewButton(lang.L("Browse…"), func() {
+		e.pickFile(lang.L("Choose game executable"), nil, func(p string) {
 			e.dev.Exe = p
 			e.exeEntry.SetText(p)
 			if e.name != "" {
@@ -432,27 +433,27 @@ func (e *editor) launchCard() fyne.CanvasObject {
 	wait := monoEntry("Game-Win64-Shipping.exe", e.dev.WaitProcess, func(s string) { e.dev.WaitProcess = s })
 	env := monoMultiLine("", e.envText, 3, func(s string) { e.envText = s })
 	workDir := newPathInput(e.u, e.id, e.tokens, e.dev.WorkDir, "", func(s string) { e.dev.WorkDir = s })
-	e.advItem = newAccordionSection("Advanced", vbox(
-		field("Working directory (default: executable's folder)", workDir),
-		field("Wait for process (when the exe is a launcher that exits immediately)", wait),
-		field("Environment variables (KEY=value per line)", env),
+	e.advItem = newAccordionSection(lang.L("Advanced"), vbox(
+		field(lang.L("Working directory (default: executable's folder)"), workDir),
+		field(lang.L("Wait for process (when the exe is a launcher that exits immediately)"), wait),
+		field(lang.L("Environment variables (KEY=value per line)"), env),
 	), e.advanced)
 
-	return card("", cardHead("Launch on this device", badge(e.u.settings.DeviceName, badgeNone)),
-		field("How is the game started?", mode),
-		field("Executable", rowFill(e.exeEntry, browse)),
-		field("Arguments", args),
+	return card("", cardHead(lang.L("Launch on this device"), badge(e.u.settings.DeviceName, badgeNone)),
+		field(lang.L("How is the game started?"), mode),
+		field(lang.L("Executable"), rowFill(e.exeEntry, browse)),
+		field(lang.L("Arguments"), args),
 		e.advItem)
 }
 
 func (e *editor) savesCard() fyne.CanvasObject {
-	suggestLabel := "Suggest"
+	suggestLabel := lang.L("Suggest")
 	if e.suggesting {
-		suggestLabel = "Looking…"
+		suggestLabel = lang.L("Looking…")
 	}
 	sugBtn := widget.NewButtonWithIcon(suggestLabel, theme.SearchIcon(), func() { e.suggestSaves(false) })
 	setEnabled(sugBtn, !e.suggesting && (strings.TrimSpace(e.name) != "" || e.storeAppID != ""))
-	c := vbox(cardHead("Save locations", sugBtn, widget.NewButtonWithIcon("Add", theme.ContentAddIcon(), e.addSlot)))
+	c := vbox(cardHead(lang.L("Save locations"), sugBtn, widget.NewButtonWithIcon(lang.L("Add"), theme.ContentAddIcon(), e.addSlot)))
 
 	if e.suggest != nil {
 		c.Add(card("", newSuggestionList(e.name, e.suggest,
@@ -460,8 +461,8 @@ func (e *editor) savesCard() fyne.CanvasObject {
 			func(s services.SaveSuggestion) { e.addSuggestion(s); e.render() },
 			func() { e.suggest = nil; e.render() })))
 	}
-	c.Add(muted("Each location is synced to its own cloud folder. Every device sets its own path for the same location — " +
-		"e.g. {appdata}/GameA on Windows and {proton:shortcut}/AppData/Roaming/GameA on a Steam Deck."))
+	c.Add(muted(lang.L("Each location is synced to its own cloud folder. Every device sets its own path for the same location — e.g. {{.Win}} on Windows and {{.Deck}} on a Steam Deck.",
+		map[string]any{"Win": "{appdata}/GameA", "Deck": "{proton:shortcut}/AppData/Roaming/GameA"})))
 
 	for i, s := range e.slots {
 		c.Add(widget.NewSeparator())
@@ -525,10 +526,10 @@ func (e *editor) save() {
 			return
 		}
 		if coverErr != nil {
-			u.toast("Cover: "+coverErr.Error(), toastErr)
+			u.toast(lang.L("Cover: {{.Err}}", map[string]any{"Err": coverErr}), toastErr)
 		}
 		u.refresh()
-		u.toast("Saved", toastOK)
+		u.toast(lang.L("Saved"), toastOK)
 		u.navigate("/game/" + g.ID)
 	})
 }

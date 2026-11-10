@@ -2,11 +2,11 @@ package ui
 
 import (
 	"errors"
-	"fmt"
 	"strings"
 
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/container"
+	"fyne.io/fyne/v2/lang"
 	"fyne.io/fyne/v2/theme"
 	"fyne.io/fyne/v2/widget"
 
@@ -30,15 +30,15 @@ func newLibraryPage(u *UI) *libraryPage { return &libraryPage{u: u} }
 
 func (p *libraryPage) view() fyne.CanvasObject {
 	p.search = widget.NewEntry()
-	p.search.SetPlaceHolder("Search…")
+	p.search.SetPlaceHolder(lang.L("Search…"))
 	p.search.OnChanged = func(s string) { p.filter = s; p.renderGrid() }
-	p.syncBtn = widget.NewButtonWithIcon("Sync all", theme.ViewRefreshIcon(), p.syncAll)
-	p.head = pageHead(nil, "Library",
+	p.syncBtn = widget.NewButtonWithIcon(lang.L("Sync all"), theme.ViewRefreshIcon(), p.syncAll)
+	p.head = pageHead(nil, lang.L("Library"),
 		// Centered so the row (as tall as the heading) doesn't stretch the entry.
 		container.NewCenter(fixedWidth(220, p.search)),
 		p.syncBtn,
-		widget.NewButton("Add from Steam", func() { showSteamImport(p.u) }),
-		primary("＋ Add game", func() { p.u.navigate("/new") }),
+		widget.NewButton(lang.L("Add from Steam"), func() { showSteamImport(p.u) }),
+		primary(lang.L("＋ Add game"), func() { p.u.navigate("/new") }),
 	)
 	p.gridHost = container.NewStack()
 	p.emptyHost = container.NewStack()
@@ -59,15 +59,15 @@ func (p *libraryPage) renderGrid() {
 	// While syncing, the same button cancels the run.
 	switch {
 	case p.cancelling:
-		p.syncBtn.SetText("Cancelling…")
+		p.syncBtn.SetText(lang.L("Cancelling…"))
 		p.syncBtn.SetIcon(theme.CancelIcon())
 		p.syncBtn.Disable()
 	case p.syncing:
-		p.syncBtn.SetText("Cancel sync")
+		p.syncBtn.SetText(lang.L("Cancel sync"))
 		p.syncBtn.SetIcon(theme.CancelIcon())
 		p.syncBtn.Enable()
 	default:
-		p.syncBtn.SetText("Sync all")
+		p.syncBtn.SetText(lang.L("Sync all"))
 		p.syncBtn.SetIcon(theme.ViewRefreshIcon())
 		setEnabled(p.syncBtn, u.settings.Remote != "")
 	}
@@ -77,13 +77,12 @@ func (p *libraryPage) renderGrid() {
 
 	p.emptyHost.Objects = nil
 	if u.loaded && len(u.games) == 0 {
-		actions := hbox(primary("＋ Add your first game", func() { u.navigate("/new") }))
+		actions := hbox(primary(lang.L("＋ Add your first game"), func() { u.navigate("/new") }))
 		if u.settings.Remote == "" {
-			actions.Add(widget.NewButtonWithIcon("Set up cloud storage", theme.StorageIcon(), func() { u.navigate("/cloud") }))
+			actions.Add(widget.NewButtonWithIcon(lang.L("Set up cloud storage"), theme.StorageIcon(), func() { u.navigate("/cloud") }))
 		}
-		p.emptyHost.Objects = []fyne.CanvasObject{card("No games yet",
-			muted("Add a game, tell Carryover where its saves live on this device, and it will keep them in sync "+
-				"through your cloud storage every time you play — from here or from Steam."),
+		p.emptyHost.Objects = []fyne.CanvasObject{card(lang.L("No games yet"),
+			muted(lang.L("Add a game, tell Carryover where its saves live on this device, and it will keep them in sync through your cloud storage every time you play — from here or from Steam.")),
 			actions)}
 	}
 	p.emptyHost.Refresh()
@@ -115,7 +114,7 @@ func (p *libraryPage) syncAll() {
 		p.syncing, p.cancelling = false, false
 		defer u.refresh()
 		if errors.Is(err, services.ErrSyncCancelled) {
-			u.toast(fmt.Sprintf("Sync cancelled after %d game(s)", len(res)), toastInfo)
+			u.toast(lang.N("Sync cancelled after {{.Count}} game", len(res), map[string]any{"Count": len(res)}), toastInfo)
 			p.renderGrid()
 			return
 		}
@@ -135,11 +134,12 @@ func (p *libraryPage) syncAll() {
 		}
 		switch {
 		case len(failed) > 0:
-			u.toast(fmt.Sprintf("%d game(s) failed to sync: %s: %s", len(failed), failed[0].Name, failed[0].Error), toastErr)
+			u.toast(lang.N("{{.Count}} game failed to sync: {{.Name}}: {{.Error}}", len(failed),
+				map[string]any{"Count": len(failed), "Name": failed[0].Name, "Error": failed[0].Error}), toastErr)
 		case len(conflicts) > 0:
-			u.toast(fmt.Sprintf("%d game(s) have save conflicts", len(conflicts)), toastErr)
+			u.toast(lang.N("{{.Count}} game has save conflicts", len(conflicts), map[string]any{"Count": len(conflicts)}), toastErr)
 		default:
-			u.toast(fmt.Sprintf("Synced %d game(s)", len(res)), toastOK)
+			u.toast(lang.N("Synced {{.Count}} game", len(res), map[string]any{"Count": len(res)}), toastOK)
 		}
 		p.renderGrid()
 	})

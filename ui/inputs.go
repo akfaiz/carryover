@@ -2,6 +2,7 @@ package ui
 
 import (
 	"fyne.io/fyne/v2"
+	"fyne.io/fyne/v2/lang"
 	"fyne.io/fyne/v2/theme"
 	"fyne.io/fyne/v2/widget"
 )
@@ -37,9 +38,9 @@ type copyField struct {
 func newCopyField(u *UI, text string) *copyField {
 	e := monoEntry("", text, nil)
 	e.OnChanged = func(string) { e.SetText(text) } // read-only but selectable
-	btn := widget.NewButtonWithIcon("Copy", theme.ContentCopyIcon(), func() {
+	btn := widget.NewButtonWithIcon(lang.L("Copy"), theme.ContentCopyIcon(), func() {
 		u.app.Clipboard().SetContent(text)
-		u.toast("Copied", toastOK)
+		u.toast(lang.L("Copied"), toastOK)
 	})
 	f := &copyField{content: rowFill(e, btn)}
 	f.ExtendBaseWidget(f)

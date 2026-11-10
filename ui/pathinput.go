@@ -7,6 +7,7 @@ import (
 
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/dialog"
+	"fyne.io/fyne/v2/lang"
 	"fyne.io/fyne/v2/theme"
 	"fyne.io/fyne/v2/widget"
 
@@ -57,7 +58,7 @@ func newPathInput(u *UI, gameID string, tokens []pathvar.Token, value, placehold
 		})
 		right = append(right, tokBtn)
 	}
-	right = append(right, widget.NewButton("Browse…", p.browse))
+	right = append(right, widget.NewButton(lang.L("Browse…"), p.browse))
 	p.content = vbox(rowFill(p.entry, right...), p.preview)
 	p.ExtendBaseWidget(p)
 	p.updatePreview()

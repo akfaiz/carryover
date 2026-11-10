@@ -2,6 +2,7 @@ package ui
 
 import (
 	"fyne.io/fyne/v2"
+	"fyne.io/fyne/v2/lang"
 	"fyne.io/fyne/v2/widget"
 
 	"github.com/akfaiz/carryover/services"
@@ -33,46 +34,47 @@ func newSteamForm(o steamFormOpts) *steamForm {
 	g := o.Game
 	switch {
 	case o.Info == nil:
-		c.Add(muted("Detecting Steam…"))
+		c.Add(muted(lang.L("Detecting Steam…")))
 	case !o.Info.Found:
-		c.Add(muted("Steam was not found on this device."))
+		c.Add(muted(lang.L("Steam was not found on this device.")))
 	default:
-		c.Add(muted("Add " + g.Name + " to Steam as a non-Steam game. Steam launches it through Carryover, so saves sync " +
-			"automatically before and after every session — also in Steam Deck Game Mode."))
+		c.Add(muted(lang.L("Add {{.Game}} to Steam as a non-Steam game. Steam launches it through Carryover, so saves sync automatically before and after every session — also in Steam Deck Game Mode.",
+			map[string]any{"Game": g.Name})))
 		if len(o.Info.Users) > 1 {
 			users := &choice{}
 			for _, us := range o.Info.Users {
 				users.add(us.ID, us.Name)
 			}
-			c.Add(field("Steam account", selectOf(users, o.User, o.OnUser)))
+			c.Add(field(lang.L("Steam account"), selectOf(users, o.User, o.OnUser)))
 		}
 		modes := &choice{}
-		modes.add("direct", "Run Carryover (it starts the game)")
-		modes.add("steamwrap", "Run the game exe, wrapped by Carryover (pick Proton in Steam)")
-		c.Add(field("Shortcut type", selectOf(modes, o.Mode, o.OnMode)))
+		modes.add("direct", lang.L("Run Carryover (it starts the game)"))
+		modes.add("steamwrap", lang.L("Run the game exe, wrapped by Carryover (pick Proton in Steam)"))
+		c.Add(field(lang.L("Shortcut type"), selectOf(modes, o.Mode, o.OnMode)))
 		if o.Mode == "steamwrap" {
-			t := "After adding, open the shortcut's Properties → Compatibility in Steam and force a Proton version. " +
-				"Its save prefix is available as {proton:shortcut}"
+			t := lang.L("After adding, open the shortcut's Properties → Compatibility in Steam and force a Proton version. Its save prefix is available as {{.Token}}.",
+				map[string]any{"Token": "{proton:shortcut}"})
 			if g.Device.SteamAppID != "" {
-				t += " (app id " + g.Device.SteamAppID + ")"
+				t = lang.L("After adding, open the shortcut's Properties → Compatibility in Steam and force a Proton version. Its save prefix is available as {{.Token}} (app id {{.AppID}}).",
+					map[string]any{"Token": "{proton:shortcut}", "AppID": g.Device.SteamAppID})
 			}
-			c.Add(muted(t + "."))
+			c.Add(muted(t))
 		}
-		addLabel := "Add to Steam"
+		addLabel := lang.L("Add to Steam")
 		if g.Device.SteamAppID != "" {
-			addLabel = "Update Steam shortcut"
+			addLabel = lang.L("Update Steam shortcut")
 		}
 		add := primary(addLabel, o.OnAdd)
 		setEnabled(add, !o.Busy && o.User != "")
 		row := hbox(add)
 		if g.Device.SteamAppID != "" {
-			rm := widget.NewButton("Remove", o.OnRemove)
+			rm := widget.NewButton(lang.L("Remove"), o.OnRemove)
 			setEnabled(rm, !o.Busy)
 			row.Add(rm)
 		}
 		c.Add(row)
 		if o.Info.Running {
-			c.Add(colored("Steam is running — restart it after adding so it picks up the change.", widget.WarningImportance))
+			c.Add(colored(lang.L("Steam is running — restart it after adding so it picks up the change."), widget.WarningImportance))
 		}
 	}
 	f := &steamForm{content: c}

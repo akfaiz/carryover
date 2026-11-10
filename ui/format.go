@@ -6,6 +6,8 @@ import (
 	"regexp"
 	"strings"
 	"time"
+
+	"fyne.io/fyne/v2/lang"
 )
 
 func formatBytes(n int64) string {
@@ -36,16 +38,16 @@ func parseTime(s string) time.Time {
 
 func timeAgoT(t time.Time) string {
 	if t.IsZero() || t.Year() <= 1 {
-		return "never"
+		return lang.L("never")
 	}
 	s := time.Since(t).Seconds()
 	switch {
 	case s < 60:
-		return "just now"
+		return lang.L("just now")
 	case s < 3600:
-		return fmt.Sprintf("%d min ago", int(math.Round(s/60)))
+		return lang.L("{{.N}} min ago", map[string]any{"N": int(math.Round(s / 60))})
 	case s < 86400:
-		return fmt.Sprintf("%d h ago", int(math.Round(s/3600)))
+		return lang.L("{{.N}} h ago", map[string]any{"N": int(math.Round(s / 3600))})
 	}
 	return t.Local().Format("2006-01-02")
 }

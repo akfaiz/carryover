@@ -3,6 +3,7 @@ package ui
 import (
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/container"
+	"fyne.io/fyne/v2/lang"
 	"fyne.io/fyne/v2/theme"
 	"fyne.io/fyne/v2/widget"
 
@@ -37,7 +38,7 @@ type slotEditor struct {
 func newSlotEditor(u *UI, gameID string, tokens []pathvar.Token, s *slotForm, others []services.DevicePaths,
 	uniqueKey func(base string, self *slotForm) string, onRemove func()) *slotEditor {
 	label := widget.NewEntry()
-	label.SetPlaceHolder("Label")
+	label.SetPlaceHolder(lang.L("Label"))
 	label.SetText(s.label)
 	keyBadge := container.NewCenter(badge(s.key, badgeNone))
 	label.OnChanged = func(v string) {
@@ -57,11 +58,11 @@ func newSlotEditor(u *UI, gameID string, tokens []pathvar.Token, s *slotForm, ot
 
 	c := vbox(
 		rowFill(label, right...),
-		field("Path on this device", newPathInput(u, gameID, tokens, s.path, "{appdata}/Game/Saves", func(v string) { s.path = v })),
+		field(lang.L("Path on this device"), newPathInput(u, gameID, tokens, s.path, "{appdata}/Game/Saves", func(v string) { s.path = v })),
 	)
 	for _, o := range others {
 		if p := o.Paths[s.key]; p != "" {
-			l := mono("On " + o.DeviceName + ": " + p)
+			l := mono(lang.L("On {{.Device}}: {{.Path}}", map[string]any{"Device": o.DeviceName, "Path": p}))
 			l.Importance = widget.LowImportance
 			l.SizeName = theme.SizeNameCaptionText
 			c.Add(l)
@@ -70,8 +71,8 @@ func newSlotEditor(u *UI, gameID string, tokens []pathvar.Token, s *slotForm, ot
 
 	inc := monoMultiLine("*.sav", s.include, 2, func(v string) { s.include = v })
 	exc := monoMultiLine("*.log\nshadercache/**", s.exclude, 2, func(v string) { s.exclude = v })
-	s.filters = newAccordionSection("Filters", container.NewGridWithColumns(2,
-		field("Include only (globs, one per line)", inc), field("Exclude (globs)", exc)), s.filtersOpen)
+	s.filters = newAccordionSection(lang.L("Filters"), container.NewGridWithColumns(2,
+		field(lang.L("Include only (globs, one per line)"), inc), field(lang.L("Exclude (globs)"), exc)), s.filtersOpen)
 	c.Add(s.filters)
 
 	e := &slotEditor{content: c}

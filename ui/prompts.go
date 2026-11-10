@@ -1,11 +1,10 @@
 package ui
 
 import (
-	"fmt"
-
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/container"
 	"fyne.io/fyne/v2/dialog"
+	"fyne.io/fyne/v2/lang"
 	"fyne.io/fyne/v2/widget"
 
 	"github.com/akfaiz/carryover/internal/syncer"
@@ -66,57 +65,59 @@ func (q *promptQueue) next() {
 	var body fyne.CanvasObject
 	switch {
 	case p.Kind == "conflict" && p.Conflict != nil:
-		title = "Save conflict — " + p.GameName
+		title = lang.L("Save conflict — {{.Game}}", map[string]any{"Game": p.GameName})
 		newer := ""
 		if p.Conflict.Local.Newest.After(p.Conflict.Remote.Newest) {
 			newer = "local"
 		} else if p.Conflict.Remote.Newest.After(p.Conflict.Local.Newest) {
 			newer = "cloud"
 		}
-		side := func(key, label string, s syncer.Summary) fyne.CanvasObject {
+		side := func(key, label, keepLabel string, s syncer.Summary) fyne.CanvasObject {
 			head := hbox(widget.NewLabelWithStyle(label, fyne.TextAlignLeading, fyne.TextStyle{Bold: true}))
 			if newer == key {
-				head.Add(container.NewCenter(badge("newer", badgeOK)))
+				head.Add(container.NewCenter(badge(lang.L("newer"), badgeOK)))
 			}
 			from := ""
 			if s.DeviceName != "" {
-				from = "from " + s.DeviceName
+				from = lang.L("from {{.Device}}", map[string]any{"Device": s.DeviceName})
 			}
-			keep := primary("Keep "+key+" saves", func() { answer(key) })
-			info := widget.NewLabel(fmt.Sprintf("%d files · %s\nLast modified %s", s.Files, formatBytes(s.Bytes), fmtDate(s.Newest)))
+			keep := primary(keepLabel, func() { answer(key) })
+			info := widget.NewLabel(lang.N("{{.Count}} file · {{.Size}}\nLast modified {{.Date}}", s.Files,
+				map[string]any{"Count": s.Files, "Size": formatBytes(s.Bytes), "Date": fmtDate(s.Newest)}))
 			info.Wrapping = fyne.TextWrapWord
 			return card("", head, muted(from), info, keep)
 		}
-		skip := "Decide later"
+		skip := lang.L("Decide later")
 		if p.BeforePlay {
-			skip = "Skip sync and play"
+			skip = lang.L("Skip sync and play")
 		}
 		body = vbox(
-			muted("Saves changed both on this device and in the cloud since the last sync. Choose which to keep. "+
-				"The other version is stored as a backup, so nothing is lost."),
-			container.NewGridWithColumns(2, side("local", "This device", p.Conflict.Local), side("cloud", "Cloud", p.Conflict.Remote)),
+			muted(lang.L("Saves changed both on this device and in the cloud since the last sync. Choose which to keep. The other version is stored as a backup, so nothing is lost.")),
+			container.NewGridWithColumns(2,
+				side("local", lang.L("This device"), lang.L("Keep local saves"), p.Conflict.Local),
+				side("cloud", lang.L("Cloud"), lang.L("Keep cloud saves"), p.Conflict.Remote)),
 			hbox(widget.NewButton(skip, func() { answer("skip") })),
 		)
 	case p.Kind == "lock" && p.Lock != nil:
-		title = p.GameName + " is being played elsewhere"
+		title = lang.L("{{.Game}} is being played elsewhere", map[string]any{"Game": p.GameName})
 		body = vbox(
-			colored(fmt.Sprintf("%s started playing at %s. If you play here too, you may get a save conflict when both devices upload.",
-				p.Lock.DeviceName, fmtDate(p.Lock.Since)), widget.MediumImportance),
-			hbox(widget.NewButton("Cancel", func() { answer("no") }), primary("Play anyway", func() { answer("yes") })),
+			colored(lang.L("{{.Device}} started playing at {{.Time}}. If you play here too, you may get a save conflict when both devices upload.",
+				map[string]any{"Device": p.Lock.DeviceName, "Time": fmtDate(p.Lock.Since)}), widget.MediumImportance),
+			hbox(widget.NewButton(lang.L("Cancel"), func() { answer("no") }), primary(lang.L("Play anyway"), func() { answer("yes") })),
 		)
 	default:
 		errText := mono(p.Error)
 		errText.Importance = widget.DangerImportance
 		if p.BeforePlay {
-			title = "Could not sync before playing"
+			title = lang.L("Could not sync before playing")
 			body = vbox(errText,
-				muted("You can play offline; your saves will be uploaded next time sync succeeds."),
-				hbox(widget.NewButton("Cancel", func() { answer("no") }), primary("Play offline", func() { answer("yes") })))
+				muted(lang.L("You can play offline; your saves will be uploaded next time sync succeeds.")),
+				hbox(widget.NewButton(lang.L("Cancel"), func() { answer("no") }), primary(lang.L("Play offline"), func() { answer("yes") })))
 		} else {
-			title = "Could not upload saves"
+			title = lang.L("Could not upload saves")
 			body = vbox(errText,
-				muted("Your saves are safe on this device and will upload on the next sync."),
-				hbox(primary("OK", func() { answer("yes") })))
+				muted(lang.L("Your saves are safe on this device and will upload on the next sync.")),
+				hbox(primary(lang.L("OK"), func() { answer("yes") })))
 		}
 	}
 	size := q.u.win.Canvas().Size()
