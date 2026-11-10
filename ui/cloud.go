@@ -22,8 +22,7 @@ type cloudPage struct {
 	defaultConf string
 	remote      string
 	root        string
-	testing     bool
-	testResult  *widget.Label
+	test        *testButton
 	scroll      *container.Scroll
 }
 
@@ -31,9 +30,10 @@ func newCloudPage(u *UI) *cloudPage { return &cloudPage{u: u, root: "PlayRelay"}
 
 func (p *cloudPage) view() fyne.CanvasObject {
 	p.scroll = scrollPage(muted("Loading…"))
-	p.testResult = widget.NewLabel("")
-	p.testResult.Wrapping = fyne.TextWrapWord
-	p.testResult.Hide()
+	p.test = newTestButton("Test connection", "Connection works.", func() func() error {
+		remote, root := p.remote, p.root
+		return func() error { return p.u.cloud.Test(remote, root) }
+	})
 	p.load(true)
 	async(func() ([]cloud.Provider, error) { return p.u.cloud.Providers(), nil }, func(pr []cloud.Provider, _ error) { p.providers = pr })
 	async(func() (string, error) { return p.u.cloud.DefaultRcloneConfig(), nil }, func(s string, _ error) {
@@ -78,11 +78,7 @@ func (p *cloudPage) render() {
 		}
 		remotes.add(r.Name, l)
 	}
-	testBtn := widget.NewButton("Test connection", p.test)
-	if p.testing {
-		testBtn.SetText("Testing…")
-	}
-	setEnabled(testBtn, p.remote != "" && !p.testing)
+	p.test.SetAllowed(p.remote != "")
 	sel := selectOf(remotes, p.remote, func(v string) {
 		for _, r := range p.remotes {
 			if r.Name == v && !r.Supported {
@@ -90,8 +86,8 @@ func (p *cloudPage) render() {
 			}
 		}
 		p.remote = v
-		p.testResult.Hide()
-		setEnabled(testBtn, p.remote != "" && !p.testing)
+		p.test.Reset()
+		p.test.SetAllowed(p.remote != "")
 	})
 	root := widget.NewEntry()
 	root.TextStyle.Monospace = true
@@ -101,8 +97,8 @@ func (p *cloudPage) render() {
 	location := card("Sync location",
 		muted("All devices must use the same remote storage and folder. Saves go to <folder>/games/<game>/."),
 		container.NewGridWithColumns(2, field("Remote", sel), field("Folder", root)),
-		hbox(primary("Save", p.saveTarget), testBtn),
-		p.testResult,
+		hbox(primary("Save", p.saveTarget), p.test.Button),
+		p.test.Result,
 	)
 
 	actions := []fyne.CanvasObject{}
@@ -170,25 +166,6 @@ func (p *cloudPage) saveTarget() {
 				}
 			})
 		}
-	})
-}
-
-func (p *cloudPage) test() {
-	p.testing = true
-	p.testResult.Hide()
-	p.render()
-	remote, root := p.remote, p.root
-	async0(func() error { return p.u.cloud.Test(remote, root) }, func(err error) {
-		p.testing = false
-		if err != nil {
-			p.testResult.Importance = widget.DangerImportance
-			p.testResult.SetText(err.Error())
-		} else {
-			p.testResult.Importance = widget.SuccessImportance
-			p.testResult.SetText("Connection works.")
-		}
-		p.testResult.Show()
-		p.render()
 	})
 }
 

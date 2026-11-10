@@ -46,30 +46,12 @@ func (p *settingsPage) form(st appdir.Settings) fyne.CanvasObject {
 	key := widget.NewPasswordEntry()
 	key.SetPlaceHolder("Paste your key")
 	key.SetText(st.SteamGridDBKey)
-	keyResult := widget.NewLabel("")
-	keyResult.Wrapping = fyne.TextWrapWord
-	keyResult.Hide()
-	var testBtn *widget.Button
-	testBtn = widget.NewButton("Test", func() {
-		testBtn.Disable()
-		testBtn.SetText("Testing…")
-		keyResult.Hide()
+	keyTest := newTestButton("Test", "Key works.", func() func() error {
 		k := key.Text
-		async0(func() error { return u.lib.TestSteamGridKey(k) }, func(err error) {
-			testBtn.Enable()
-			testBtn.SetText("Test")
-			if err != nil {
-				keyResult.Importance = widget.DangerImportance
-				keyResult.SetText(err.Error())
-			} else {
-				keyResult.Importance = widget.SuccessImportance
-				keyResult.SetText("Key works.")
-			}
-			keyResult.Show()
-		})
+		return func() error { return u.lib.TestSteamGridKey(k) }
 	})
-	setEnabled(testBtn, st.SteamGridDBKey != "")
-	key.OnChanged = func(s string) { setEnabled(testBtn, strings.TrimSpace(s) != "") }
+	keyTest.SetAllowed(st.SteamGridDBKey != "")
+	key.OnChanged = func(s string) { keyTest.SetAllowed(strings.TrimSpace(s) != "") }
 
 	save := primary("Save", func() {
 		n, err := parseRetention(retention.Text)
@@ -105,8 +87,8 @@ func (p *settingsPage) form(st appdir.Settings) fyne.CanvasObject {
 			share,
 			muted("When enabled, games added on one device appear on the others; each device only needs to set its own paths."))),
 		narrow(card("Cover art",
-			field("SteamGridDB API key (optional)", rowFill(key, testBtn)),
-			keyResult,
+			field("SteamGridDB API key (optional)", rowFill(key, keyTest.Button)),
+			keyTest.Result,
 			muted("Lets you search community covers for any game, including ones not on Steam, and fills in covers Steam doesn't have. "+
 				"Get a free key at steamgriddb.com/profile/preferences/api (log in with Steam). The key is stored only on this device."))),
 		hbox(save),
