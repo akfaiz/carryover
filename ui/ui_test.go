@@ -5,11 +5,14 @@ import (
 	"time"
 
 	"fyne.io/fyne/v2"
+	"fyne.io/fyne/v2/canvas"
+	"fyne.io/fyne/v2/layout"
 	"fyne.io/fyne/v2/test"
 
 	"github.com/akfaiz/playrelay/internal/appdir"
 	"github.com/akfaiz/playrelay/internal/core"
 	"github.com/akfaiz/playrelay/internal/library"
+	"github.com/akfaiz/playrelay/internal/syncer"
 	"github.com/akfaiz/playrelay/services"
 )
 
@@ -60,7 +63,14 @@ func TestPagesRender(t *testing.T) {
 			break
 		}
 		_ = u.win.Canvas().Capture()
+		assertPaintable(t, u.win.Canvas().Content())
+		for _, o := range u.win.Canvas().Overlays().List() {
+			assertPaintable(t, o)
+		}
 	}
+	// A sync in progress, so the game page shows its progress bar.
+	u.status[g.ID] = services.Status{GameID: g.ID, Phase: "sync", Message: "Uploading"}
+	u.progress[g.ID] = syncer.Event{GameID: g.ID, Phase: "upload", Bytes: 10, TotalBytes: 100}
 	for _, route := range []string{"/", "/game/" + g.ID, "/edit/" + g.ID, "/new", "/cloud", "/settings"} {
 		t.Run(route, func(t *testing.T) {
 			u.navigate(route)
@@ -80,6 +90,27 @@ func TestPagesRender(t *testing.T) {
 	settle()
 	if u.prompts.current == nil {
 		t.Fatal("prompt dialog not shown")
+	}
+}
+
+// assertPaintable fails for objects Fyne lays out but never paints, such as
+// a struct that only embeds *fyne.Container instead of being a widget.
+func assertPaintable(t *testing.T, o fyne.CanvasObject) {
+	t.Helper()
+	switch x := o.(type) {
+	case *fyne.Container:
+		for _, c := range x.Objects {
+			assertPaintable(t, c)
+		}
+	case fyne.Widget:
+		for _, c := range test.WidgetRenderer(x).Objects() {
+			assertPaintable(t, c)
+		}
+	case *canvas.Rectangle, *canvas.Text, *canvas.Image, *canvas.Line, *canvas.Circle,
+		*canvas.LinearGradient, *canvas.RadialGradient, *canvas.Raster, *canvas.Arc, *canvas.Polygon, *canvas.Blur,
+		*layout.Spacer:
+	default:
+		t.Errorf("%T is not a widget, container or canvas primitive, so Fyne never paints it", o)
 	}
 }
 

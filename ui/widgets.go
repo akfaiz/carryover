@@ -160,19 +160,28 @@ func rowFill(main fyne.CanvasObject, right ...fyne.CanvasObject) fyne.CanvasObje
 	return container.NewBorder(nil, nil, nil, hbox(right...), main)
 }
 
-// progressBar is a determinate or indeterminate progress indicator.
+// progressBar is a determinate or indeterminate progress indicator. It must
+// be a widget: a struct that merely embeds *fyne.Container is laid out but
+// never painted.
 type progressBar struct {
-	*fyne.Container
-	bar  *widget.ProgressBar
-	inf  *widget.ProgressBarInfinite
-	info *widget.Label
+	widget.BaseWidget
+	content fyne.CanvasObject
+	bar     *widget.ProgressBar
+	inf     *widget.ProgressBarInfinite
+	info    *widget.Label
 }
 
 func newProgress() *progressBar {
 	p := &progressBar{bar: widget.NewProgressBar(), inf: widget.NewProgressBarInfinite(), info: muted("")}
 	p.bar.TextFormatter = func() string { return "" }
-	p.Container = container.NewVBox(container.NewStack(p.bar, p.inf), p.info)
+	p.content = container.NewVBox(container.NewStack(p.bar, p.inf), p.info)
+	p.ExtendBaseWidget(p)
 	return p
+}
+
+// CreateRenderer implements fyne.Widget.
+func (p *progressBar) CreateRenderer() fyne.WidgetRenderer {
+	return widget.NewSimpleRenderer(p.content)
 }
 
 // set updates the bar; total 0 means indeterminate.
