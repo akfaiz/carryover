@@ -50,7 +50,7 @@ Windows desktop through WSLg (Docker Desktop with the WSL2 backend):
 .\scripts\linux-docker.ps1 run      # open the GUI; `run list` runs a CLI subcommand
 .\scripts\linux-docker.ps1 shell    # bash inside the image
 .\scripts\linux-docker.ps1 export   # copy the binary to bin\linux\carryover
-.\scripts\linux-docker.ps1 appimage # build bin\Carryover-x86_64.AppImage (no WSL or FUSE needed)
+.\scripts\linux-docker.ps1 appimage # build bin\carryover-linux-amd64.AppImage (no WSL or FUSE needed)
 ```
 
 On Linux or macOS use `scripts/linux-docker.sh` with the same commands (`build`, `run`, `shell`, `export`,
@@ -84,20 +84,31 @@ A bare binary has no icon of its own. The AppImage bundles the binary, `.desktop
 Linux (WSL or the Steam Deck) after the fyne-cross build, with `appimagetool` on `PATH`:
 
 ```
-packaging/appimage/build.sh        # writes bin/Carryover-x86_64.AppImage
+packaging/appimage/build.sh        # writes bin/carryover-linux-amd64.AppImage
 ```
 
 Keep the AppImage in a fixed place (for example `~/Applications/`). The Steam shortcut points at its path, and
 moving it breaks the shortcut until you use "Update Steam shortcut".
 
 Set `UPDATE_INFO` to embed update information, so AppImageUpdate or Gear Lever can update the AppImage in place.
-`build.sh` then also writes `Carryover-x86_64.AppImage.zsync` (it needs `zsyncmake`, from the `zsync` package).
+`build.sh` then also writes `<name>.AppImage.zsync` next to it (it needs `zsyncmake`, from the `zsync` package).
 The release workflow does this; local builds leave it out.
 
 ## Continuous integration and releases
 
 GitHub Actions run on every pull request and every push to `main` (`.github/workflows/ci.yml`):
-`golangci-lint` on Linux and `go test ./...` on Linux and Windows.
+`golangci-lint` on Linux and `go test ./...` on Linux and Windows. `setup-go` caches Go modules and the build cache,
+and `golangci-lint-action` its own results.
+
+Pushes to `main` also run the `docker-cache` job, which builds the Dockerfile's `appimage` stage only to fill caches
+for the release's Linux build: Docker layers (`type=gha`) and the Go module and build caches behind the Dockerfile's
+`RUN --mount=type=cache` (`actions/cache` plus `buildkit-cache-dance`). It runs on `main` because a tag's workflow
+can only restore caches saved on its own tag or on the default branch, so a release can't reuse an earlier
+release's cache.
+
+Record user-visible changes under `## [Unreleased]` in `CHANGELOG.md` as you make them. Before a release, rename
+that section to the new version and date (`## [0.2.0] - 2026-12-01`), add an empty `## [Unreleased]` above it,
+and update the compare links at the bottom.
 
 To publish a release, push a version tag:
 
@@ -112,20 +123,24 @@ attaches the files to that release a few minutes later. A saved draft does nothi
 
 `.github/workflows/release.yml` builds everything and attaches it, with a `SHA256SUMS.txt`, to the release (it
 creates the release, with notes generated from the commits since the last tag, if it doesn't exist yet). It first
-runs the CI checks, so a failing test stops the release. The files are:
+runs the CI checks, so a failing test stops the release. Every file is named
+`carryover-<version>-<os>-<arch>.<ext>`, where `<version>` is the tag without its `v` (tag `v0.2.0-rc1` gives
+`carryover-0.2.0-rc1-linux-amd64.AppImage`):
 
-- `carryover-<tag>-windows-amd64.exe`, packaged with `fyne package` (icon and version info from the tag).
-- `Carryover-x86_64.AppImage` and its `.zsync` file, built with the Dockerfile (the same build as
-  `scripts/linux-docker appimage`). The name has no version on purpose: the embedded update information finds
-  the `.zsync` file in the latest release by that name, and `releases/latest/download/Carryover-x86_64.AppImage`
-  stays a stable download link.
-- `carryover-<tag>-linux-amd64.tar.gz` (`packaging/linux/tarball.sh`): the binary, `.desktop` file and icon laid
-  out like an install prefix, plus `install.sh`, which installs into `~/.local` (or a prefix given as argument).
+- `carryover-<version>-windows-amd64.exe`, packaged with `fyne package` (icon and version info from the tag).
+- `carryover-<version>-linux-amd64.AppImage` and its `.zsync` file, built with the Dockerfile (the same build as
+  `scripts/linux-docker appimage`, which names it `carryover-linux-amd64.AppImage`). The workflow passes the final
+  name as the `APPIMAGE` build argument rather than renaming it afterwards, because the `.zsync` file refers to
+  the AppImage by name. The embedded update information finds the `.zsync` file in the latest release with the
+  wildcard `carryover-*-linux-amd64.AppImage.zsync`.
+- `carryover-<version>-linux-amd64.tar.gz` (`packaging/linux/tarball.sh`): the binary, `.desktop` file and icon
+  laid out like an install prefix, plus `install.sh`, which installs into `~/.local` (or a prefix given as
+  argument).
 
 A tag with a suffix, such as `v0.2.0-rc1`, is published as a pre-release; the workflow sets this from the tag and
 overrides the "Set as a pre-release" checkbox on the website. Pre-releases don't count as "latest", so AppImage
-updates and the `releases/latest/download/…` link only work once there is a full release. The Windows exe is not
-code-signed, so SmartScreen warns on first run ("More info → Run anyway").
+updates only work once there is a full release. The Windows exe is not code-signed, so SmartScreen warns on first
+run ("More info → Run anyway").
 
 The tag is the only version number. Before building, each release job runs `scripts/stamp-version.sh <tag> <sha>`,
 which writes the git-ignored `internal/version/zz_release.go` setting `version.Version` and `version.Commit`; the app

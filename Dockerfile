@@ -23,9 +23,11 @@ RUN apt-get update && apt-get install -y --no-install-recommends curl ca-certifi
 # No FUSE inside a build container: let appimagetool unpack itself.
 ENV APPIMAGE_EXTRACT_AND_RUN=1
 # Update information for AppImageUpdate / Gear Lever (empty for local builds);
-# when set, Carryover-x86_64.AppImage.zsync is written next to the AppImage.
+# when set, <APPIMAGE>.zsync is written next to the AppImage. Releases set
+# APPIMAGE to the versioned name: the .zsync file refers to the AppImage by name.
 ARG UPDATE_INFO=""
-RUN UPDATE_INFO="$UPDATE_INFO" OUT=/appimage/Carryover-x86_64.AppImage bash packaging/appimage/build.sh /out/carryover
+ARG APPIMAGE=carryover-linux-amd64.AppImage
+RUN UPDATE_INFO="$UPDATE_INFO" OUT="/appimage/$APPIMAGE" bash packaging/appimage/build.sh /out/carryover
 
 FROM scratch AS appimage-out
 COPY --from=appimage /appimage/ /
