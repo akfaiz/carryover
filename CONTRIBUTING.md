@@ -106,6 +106,10 @@ for the release's Linux build: Docker layers (`type=gha`) and the Go module and 
 can only restore caches saved on its own tag or on the default branch, so a release can't reuse an earlier
 release's cache.
 
+Record user-visible changes under `## [Unreleased]` in `CHANGELOG.md` as you make them. Before a release, rename
+that section to the new version and date (`## [0.2.0] - 2026-12-01`), add an empty `## [Unreleased]` above it,
+and update the compare links at the bottom.
+
 To publish a release, push a version tag:
 
 ```
