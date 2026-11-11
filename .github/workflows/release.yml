@@ -39,8 +39,9 @@ jobs:
           version="${version%%-*}" # the exe's version info takes x.y.z only
           go tool fyne package --os windows --release --name carryover \
             --app-version "$version" --app-build "$GITHUB_RUN_NUMBER"
+          # Release files are named carryover-<version>-<os>-<arch>.<ext>, version without the "v".
           mkdir -p dist
-          mv carryover.exe "dist/carryover-${GITHUB_REF_NAME}-windows-amd64.exe"
+          mv carryover.exe "dist/carryover-${GITHUB_REF_NAME#v}-windows-amd64.exe"
       - uses: actions/upload-artifact@v4
         with:
           name: windows
@@ -59,18 +60,20 @@ jobs:
         run: scripts/stamp-version.sh "$GITHUB_REF_NAME" "$GITHUB_SHA"
       - name: Build AppImage and binary
         run: |
-          # AppImageUpdate / Gear Lever look for the .zsync file in the latest release.
-          update_info="gh-releases-zsync|${GITHUB_REPOSITORY_OWNER}|${GITHUB_REPOSITORY#*/}|latest|Carryover-x86_64.AppImage.zsync"
+          name="carryover-${GITHUB_REF_NAME#v}-linux-amd64"
+          echo "NAME=$name" >> "$GITHUB_ENV"
+          # AppImageUpdate / Gear Lever look for the .zsync file in the latest release;
+          # the wildcard matches whatever version that is.
+          update_info="gh-releases-zsync|${GITHUB_REPOSITORY_OWNER}|${GITHUB_REPOSITORY#*/}|latest|carryover-*-linux-amd64.AppImage.zsync"
+          # The AppImage gets its final name here, not by renaming it later: the .zsync file refers to it by name.
           docker buildx build --target appimage-out --build-arg "UPDATE_INFO=$update_info" \
-            --output type=local,dest=out .
+            --build-arg "APPIMAGE=$name.AppImage" --output type=local,dest=out .
           docker buildx build --target binary-out --output type=local,dest=out .
       - name: Package
         run: |
           mkdir -p dist
-          # The AppImage keeps a fixed name: its .zsync file refers to it by name,
-          # and releases/latest/download/Carryover-x86_64.AppImage stays a stable link.
-          mv out/Carryover-x86_64.AppImage out/Carryover-x86_64.AppImage.zsync dist/
-          packaging/linux/tarball.sh out/carryover "carryover-${GITHUB_REF_NAME}-linux-amd64" dist
+          mv "out/$NAME.AppImage" "out/$NAME.AppImage.zsync" dist/
+          packaging/linux/tarball.sh out/carryover "$NAME" dist
       - uses: actions/upload-artifact@v4
         with:
           name: linux
