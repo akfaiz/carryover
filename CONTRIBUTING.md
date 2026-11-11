@@ -84,6 +84,24 @@ packaging/appimage/build.sh        # writes bin/Carryover-x86_64.AppImage
 Keep the AppImage in a fixed place (for example `~/Applications/`). The Steam shortcut points at its path, and
 moving it breaks the shortcut until you use "Update Steam shortcut".
 
+## Continuous integration and releases
+
+GitHub Actions run on every pull request and every push to `main` (`.github/workflows/ci.yml`):
+`golangci-lint` on Linux and `go test ./...` on Linux and Windows.
+
+To publish a release, push a version tag:
+
+```
+git tag v0.2.0
+git push origin v0.2.0
+```
+
+`.github/workflows/release.yml` then runs the CI checks, builds the Windows exe (`fyne package`, with icon and
+version info taken from the tag), the Linux binary and the AppImage, and creates a GitHub Release with those files,
+a `SHA256SUMS.txt` and notes generated from the commits since the last tag. A tag with a suffix, such as
+`v0.2.0-rc1`, is published as a pre-release. The Windows exe is not code-signed, so SmartScreen warns on first run
+("More info → Run anyway").
+
 ## Cloud layout
 
 Everything lives in one folder on the remote (`<remote>:<folder>`, set on the Cloud storage page):

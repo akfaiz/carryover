@@ -27,6 +27,11 @@ RUN OUT=/appimage/Carryover-x86_64.AppImage bash packaging/appimage/build.sh /ou
 FROM scratch AS appimage-out
 COPY --from=appimage /appimage/ /
 
+# The bare binary, for the release tarball:
+#   docker build --target binary-out --output type=local,dest=bin .
+FROM scratch AS binary-out
+COPY --from=build /out/carryover /carryover
+
 FROM debian:bookworm-slim
 RUN apt-get update && apt-get install -y --no-install-recommends \
         libgl1 libgl1-mesa-dri libegl1 libx11-6 libxcursor1 libxrandr2 libxinerama1 libxi6 libxxf86vm1 \

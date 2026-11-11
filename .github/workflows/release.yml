@@ -1,0 +1,88 @@
+name: Release
+
+# Push a version tag to publish a release:
+#   git tag v0.2.0 && git push origin v0.2.0
+# Tags with a suffix (v0.2.0-rc1) are published as pre-releases.
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: read
+
+jobs:
+  ci:
+    uses: ./.github/workflows/ci.yml
+
+  windows:
+    needs: ci
+    runs-on: windows-latest
+    env:
+      CGO_ENABLED: "1"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - uses: msys2/setup-msys2@v2
+        with:
+          msystem: UCRT64
+          install: mingw-w64-ucrt-x86_64-gcc
+          path-type: inherit # keep setup-go's Go on PATH
+      - name: Package
+        shell: msys2 {0}
+        run: |
+          version="${GITHUB_REF_NAME#v}"
+          version="${version%%-*}" # the exe's version info takes x.y.z only
+          go tool fyne package --os windows --release --name carryover \
+            --app-version "$version" --app-build "$GITHUB_RUN_NUMBER"
+          mkdir -p dist
+          mv carryover.exe "dist/carryover-${GITHUB_REF_NAME}-windows-amd64.exe"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: windows
+          path: dist/*
+          if-no-files-found: error
+
+  linux:
+    needs: ci
+    # Same Dockerfile as scripts/linux-docker (Debian bookworm, appimagetool pinned
+    # there), so the release is the build already tested on the Steam Deck.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - name: Build AppImage and binary
+        run: |
+          docker buildx build --target appimage-out --output type=local,dest=out .
+          docker buildx build --target binary-out --output type=local,dest=out .
+      - name: Package
+        run: |
+          mkdir -p dist
+          mv out/Carryover-x86_64.AppImage "dist/Carryover-${GITHUB_REF_NAME}-x86_64.AppImage"
+          chmod +x out/carryover
+          tar -C out -czf "dist/carryover-${GITHUB_REF_NAME}-linux-amd64.tar.gz" carryover
+      - uses: actions/upload-artifact@v4
+        with:
+          name: linux
+          path: dist/*
+          if-no-files-found: error
+
+  release:
+    needs: [windows, linux]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write # create the release
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+      - name: Checksums
+        working-directory: dist
+        run: sha256sum * > SHA256SUMS.txt && cat SHA256SUMS.txt
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: dist/*
+          generate_release_notes: true
+          prerelease: ${{ contains(github.ref_name, '-') }}
