@@ -46,6 +46,10 @@ func (d Dirs) StateDir() string     { return filepath.Join(d.Root, "state") }
 func (d Dirs) CoversDir() string    { return filepath.Join(d.Root, "covers") }
 func (d Dirs) LogsDir() string      { return filepath.Join(d.Root, "logs") }
 
+// SafetyDir holds the copies of saves taken on this device before a download
+// replaces them (created when first needed).
+func (d Dirs) SafetyDir() string { return filepath.Join(d.Root, "safety") }
+
 // Settings are per-device preferences.
 type Settings struct {
 	DeviceID        string `json:"deviceId"`

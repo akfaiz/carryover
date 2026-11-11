@@ -76,6 +76,22 @@ type UI struct {
 	navBtns map[string]*widget.Button
 	toasts  *toaster
 	prompts *promptQueue
+
+	lastLocalCheck time.Time // last checkLocalChanges run
+}
+
+// localCheckInterval limits how often the saves are scanned for changes made
+// outside Carryover (each time the window regains focus).
+const localCheckInterval = 30 * time.Second
+
+// checkLocalChanges flags games whose saves changed since their last sync,
+// e.g. played without Carryover. It scans in the background.
+func (u *UI) checkLocalChanges() {
+	if time.Since(u.lastLocalCheck) < localCheckInterval {
+		return
+	}
+	u.lastLocalCheck = time.Now()
+	go u.lib.CheckLocalChanges()
 }
 
 func newUI(c *core.Core, a fyne.App, bus *services.Bus) *UI {
@@ -133,8 +149,12 @@ func Run(c *core.Core, wrapGameID string, opts core.RunOptions) int {
 		if inst != nil {
 			inst.OnShow(func() { onUI(func() { u.win.Show(); u.win.RequestFocus() }) })
 		}
+		// Coming back to the launcher (e.g. after playing without it) looks
+		// for saves that changed since their last sync.
+		u.app.Lifecycle().SetOnEnteredForeground(func() { onUI(u.checkLocalChanges) })
 		// Pick up games other devices added while this one was closed.
 		u.app.Lifecycle().SetOnStarted(func() {
+			onUI(u.checkLocalChanges)
 			async0(u.sync.SyncLibrary, func(err error) {
 				if err != nil {
 					u.toast(lang.L("Library sync: {{.Err}}", map[string]any{"Err": err}), toastErr)

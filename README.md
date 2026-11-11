@@ -23,6 +23,9 @@ SFTP and SMB. The UI is built with [Fyne](https://fyne.io) and needs no webview 
   is `carryover run <game>`, so saves are pulled before and pushed after every session, even in Game Mode.
 - **Safe conflicts** — if saves changed on both sides, you choose which to keep; the other side is
   backed up in the cloud when backups are enabled (`games/<id>/backups/`, the last N are kept) and can be restored.
+  With cloud backups off, local saves about to be replaced by a download are still copied on the device first.
+- **Played without Carryover?** — when the launcher opens or regains focus, it checks for saves that changed
+  since their last sync (e.g. the game was started outside Carryover) and marks those games "not uploaded".
 - **Title & cover from Steam** — "Find on Steam" fills in the official title and portrait cover (Steam's
   local cache first, then its CDN); "Add from Steam" imports games installed through Steam. With
   your own free [SteamGridDB](https://www.steamgriddb.com) API key (Settings), "Find cover…" searches
@@ -54,8 +57,10 @@ last successful sync, and compares three things: its local save files, the cloud
    reports a conflict if both have different saves.
 3. **Only the difference is transferred.** Files are compared by size and SHA-256, so unchanged files are not
    uploaded or downloaded again, and files that were deleted on one side are removed on the other.
-4. **If backups are enabled (Settings → backups to keep, off by default), the side being overwritten is backed up first**,
+4. **If backups are enabled (Settings → "Back up saves to the cloud", off by default), the side being overwritten is backed up first**,
    as one zip in `games/<id>/backups/`. The last N backups are kept, and you can restore any of them from the launcher.
+   With backups off, a download that would replace this device's saves first zips them on the device
+   (`<data dir>/safety/<id>/`, the last 5 per game). Nothing is uploaded, and they can be restored from the same list.
 5. **After you quit the game**, the new local saves are pushed and the lock is released.
 
 In Steam, the shortcut `carryover run <game>` does the same steps around the game process, so it works in Game
@@ -116,9 +121,9 @@ Two excellent open-source tools cover nearby ground, and each takes a different 
 | Windows ↔ Steam Deck (Proton) | Save path per device, with `{proton:…}` variables | Manual path-rewrite rules | Not supported automatically (absolute paths + redirects) |
 | Steam Game Mode | "Add to Steam" writes the shortcut | Decky plugin + background service | Manual `wrap` launch options |
 | Conflicts | Three-way check (local, cloud, last sync); you choose | Sync lineage; keep yours, theirs or both (branch) | Warns and leaves the cloud copy alone |
-| History | Optional backups, manual and pinned backups | Snapshot of every change, branches | Full + differential backups |
+| History | Optional cloud backups, manual and pinned backups, a copy on the device before each download | Snapshot of every change, branches | Full + differential backups |
 | Windows registry saves | No | Yes | Yes |
-| Syncs games launched outside it | Only with a manual `carryover sync` | Yes (file watcher) | Only with a manual backup or a wrapper |
+| Syncs games launched outside it | Flags them as "not uploaded"; one click to sync | Yes (file watcher) | Only with a manual backup or a wrapper |
 
 Choose **Ludusavi** if you mainly want backups on one machine, **OpenSave** if you want every change synced
 automatically without a cloud account, and **Carryover** if you want one cloud copy that follows you between a PC and

@@ -102,6 +102,7 @@ func (c *Core) Engine() (*syncer.Engine, error) {
 		States:    c.States,
 		Device:    syncer.Device{ID: s.DeviceID, Name: s.DeviceName},
 		Retention: s.BackupRetention,
+		SafetyDir: c.Dirs.SafetyDir(),
 		OnEvent:   c.emit,
 	}, nil
 }

@@ -41,6 +41,9 @@ type Engine struct {
 	States    *StateStore
 	Device    Device
 	Retention int
+	// SafetyDir holds safety copies of this device's saves, taken before a
+	// download replaces them while cloud backups are off ("" = none).
+	SafetyDir string
 	OnEvent   func(Event)
 }
 
@@ -337,12 +340,17 @@ func (e *Engine) pull(ctx context.Context, p *Plan) (string, error) {
 		deltas[i] = diff(slotFiles(p.Remote, s.Key, flt), slotFiles(p.Local, s.Key, nil))
 		changes = changes || !deltas[i].empty()
 	}
-	// Back up local saves only when something here will change.
-	if changes && len(p.Local.Files) > 0 && e.Retention > 0 {
-		if _, err := e.backupLocal(ctx, p.Job, p.Local, "local"); err != nil {
-			return "", fmt.Errorf("backup local saves: %w", err)
+	// Back up local saves only when something here will change: in the
+	// cloud when backups are on, otherwise as a safety copy on this device.
+	if changes && len(p.Local.Files) > 0 {
+		if e.Retention > 0 {
+			if _, err := e.backupLocal(ctx, p.Job, p.Local, "local"); err != nil {
+				return "", fmt.Errorf("backup local saves: %w", err)
+			}
+			defer e.pruneInBackground(ctx, id)()
+		} else if err := e.safetyCopy(p.Job, p.Local); err != nil {
+			return "", fmt.Errorf("keep a copy of local saves: %w", err)
 		}
-		defer e.pruneInBackground(ctx, id)()
 	}
 	var copied, deleted int
 	for i, s := range p.Job.Slots {

@@ -336,8 +336,13 @@ func cmdList() int {
 	c := openCore()
 	for _, g := range c.Library.List() {
 		ready := "ready"
-		if _, err := c.Job(g); err != nil {
+		job, err := c.Job(g)
+		if err != nil {
 			ready = "not set up on this device"
+		} else if st, err := c.States.Load(g.ID); err == nil {
+			if changed, _, err := syncer.LocalChanges(context.Background(), job.Slots, st.LastSynced, nil); err == nil && changed {
+				ready = "ready, saves changed since the last sync (not uploaded)"
+			}
 		}
 		fmt.Printf("%s  %-40s %s\n", g.ID, g.Name, ready)
 	}

@@ -95,3 +95,42 @@ func TestSavePublishesLibraryToCloud(t *testing.T) {
 		t.Fatalf("library.json not published: %v %q", err, data)
 	}
 }
+
+// A game's view points at its safety copies folder only when it holds copies.
+func TestGameViewSafetyDir(t *testing.T) {
+	t.Setenv(appdir.EnvHome, t.TempDir())
+	c, err := core.New()
+	if err != nil {
+		t.Fatal(err)
+	}
+	g, err := c.Library.Save(library.Game{Name: "Game A", Slots: []library.SaveSlot{{Key: "saves"}}}, c.DeviceID())
+	if err != nil {
+		t.Fatal(err)
+	}
+	svc := NewLibraryService(c, nil, nil)
+	dir := filepath.Join(c.Dirs.SafetyDir(), g.ID)
+	for _, step := range []struct {
+		file string
+		want string
+	}{
+		{"", ""},                // no folder
+		{"partial.zip.tmp", ""}, // only an unfinished copy
+		{"20260101T000000.000Z_pc_safety.zip", dir},
+	} {
+		if step.file != "" {
+			if err := os.MkdirAll(dir, 0o755); err != nil {
+				t.Fatal(err)
+			}
+			if err := os.WriteFile(filepath.Join(dir, step.file), []byte("x"), 0o644); err != nil {
+				t.Fatal(err)
+			}
+		}
+		v, err := svc.Get(g.ID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if v.SafetyDir != step.want {
+			t.Fatalf("after %q: SafetyDir = %q, want %q", step.file, v.SafetyDir, step.want)
+		}
+	}
+}

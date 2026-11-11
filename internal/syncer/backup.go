@@ -88,6 +88,12 @@ func (e *Engine) backupLocal(ctx context.Context, job Job, m *Manifest, kind str
 		return "", err
 	}
 	defer os.RemoveAll(tmp)
+	return name, e.storeBackup(ctx, job.GameID, name, tmp, localEntries(job, m), e.deviceManifest(m))
+}
+
+// localEntries lists this device's save files (m: the local scan) as archive
+// entries, sorted by name.
+func localEntries(job Job, m *Manifest) []zipEntry {
 	var entries []zipEntry
 	for _, s := range job.Slots {
 		for rel, f := range slotFiles(m, s.Key, nil) {
@@ -95,9 +101,7 @@ func (e *Engine) backupLocal(ctx context.Context, job Job, m *Manifest, kind str
 		}
 	}
 	sort.Slice(entries, func(i, j int) bool { return entries[i].name < entries[j].name })
-	bm := *m
-	bm.Device, bm.DeviceName, bm.Time = e.Device.ID, e.Device.Name, time.Now().UTC()
-	return name, e.storeBackup(ctx, job.GameID, name, tmp, entries, &bm)
+	return entries
 }
 
 // storeBackup zips entries and the manifest into tmp and uploads the archive.
@@ -247,10 +251,14 @@ func (e *Engine) removeBackup(ctx context.Context, id, name string, isZip bool) 
 	return e.Client.Purge(ctx, p)
 }
 
-// DeleteBackup permanently deletes a backup (pinned or not) for every device.
+// DeleteBackup permanently deletes a backup (pinned or not) for every device,
+// or a safety copy on this device.
 func (e *Engine) DeleteBackup(ctx context.Context, gameID, name string) error {
 	if strings.ContainsAny(name, `/\`) || name == "" || name == "." || name == ".." {
 		return errors.New("invalid backup name")
+	}
+	if e.isSafetyCopy(gameID, name) {
+		return os.Remove(e.safetyPath(gameID, name))
 	}
 	names, isZip, err := e.backupEntries(ctx, gameID)
 	if err != nil {
@@ -295,6 +303,9 @@ func (e *Engine) readPins(ctx context.Context, id string) (map[string]bool, erro
 
 // SetBackupPinned pins or unpins a backup. Pruning never deletes a pinned one.
 func (e *Engine) SetBackupPinned(ctx context.Context, gameID, name string, pinned bool) error {
+	if e.isSafetyCopy(gameID, name) {
+		return errors.New("copies kept on this device can't be pinned")
+	}
 	names, _, err := e.backupEntries(ctx, gameID)
 	if err != nil {
 		return err
@@ -355,11 +366,16 @@ type Backup struct {
 	Name       string    `json:"name"`
 	Time       time.Time `json:"time"`
 	DeviceName string    `json:"deviceName"`
-	Kind       string    `json:"kind"` // "local" (taken before a download), "cloud" (taken before an upload) or "manual" (taken on request)
-	Pinned     bool      `json:"pinned"`
+	// Kind is "local" (taken before a download), "cloud" (taken before an
+	// upload), "manual" (taken on request) or "safety" (a safety copy).
+	Kind   string `json:"kind"`
+	Pinned bool   `json:"pinned"`
+	// Local marks a safety copy, stored only on this device.
+	Local bool `json:"local"`
 }
 
-// ListBackups returns backups for a game, newest first.
+// ListBackups returns a game's cloud backups and this device's safety
+// copies, newest first.
 func (e *Engine) ListBackups(ctx context.Context, gameID string) ([]Backup, error) {
 	names, _, err := e.backupEntries(ctx, gameID)
 	if err != nil {
@@ -369,9 +385,21 @@ func (e *Engine) ListBackups(ctx context.Context, gameID string) ([]Backup, erro
 	if err != nil {
 		return nil, err
 	}
+	safety, err := e.safetyNames(gameID)
+	if err != nil {
+		return nil, err
+	}
+	isLocal := map[string]bool{}
+	for _, n := range safety {
+		if !slices.Contains(names, n) {
+			isLocal[n] = true
+			names = append(names, n)
+		}
+	}
+	sort.Strings(names)
 	var out []Backup
 	for _, n := range slices.Backward(names) {
-		b := Backup{Name: n, Pinned: pins[n]}
+		b := Backup{Name: n, Pinned: pins[n], Local: isLocal[n]}
 		parts := strings.Split(n, "_")
 		if len(parts) >= 3 {
 			b.Time, _ = time.Parse(backupTimeLayout, parts[0])
@@ -396,7 +424,8 @@ func (e *Engine) RestoreBackup(ctx context.Context, job Job, name string) error 
 	if err != nil {
 		return err
 	}
-	if !slices.Contains(names, name) {
+	inCloud := slices.Contains(names, name)
+	if !inCloud && !e.isSafetyCopy(job.GameID, name) {
 		return fmt.Errorf("backup %s not found", name)
 	}
 	st, err := e.States.Load(job.GameID)
@@ -420,9 +449,12 @@ func (e *Engine) RestoreBackup(ctx context.Context, job Job, name string) error 
 			}
 		}
 	}
-	if isZip[name] {
+	switch {
+	case !inCloud:
+		err = restoreZipFile(ctx, job, e.safetyPath(job.GameID, name), local)
+	case isZip[name]:
 		err = e.restoreZip(ctx, job, name, local)
-	} else {
+	default:
 		err = e.restoreFolder(ctx, job, name, local)
 	}
 	if err != nil {
@@ -445,7 +477,12 @@ func (e *Engine) restoreZip(ctx context.Context, job Job, name string, local *Ma
 	if err := e.Client.Download(ctx, backupsDir(job.GameID), tmp, []string{zipName}, 0, e.progress(job.GameID, "download", "Downloading backup")); err != nil {
 		return err
 	}
-	zr, err := zip.OpenReader(filepath.Join(tmp, zipName))
+	return restoreZipFile(ctx, job, filepath.Join(tmp, zipName), local)
+}
+
+// restoreZipFile restores a backup archive on this device (see restoreZip).
+func restoreZipFile(ctx context.Context, job Job, path string, local *Manifest) error {
+	zr, err := zip.OpenReader(path)
 	if err != nil {
 		return fmt.Errorf("open backup archive: %w", err)
 	}

@@ -10,6 +10,7 @@ import (
 	"fyne.io/fyne/v2/widget"
 
 	"github.com/akfaiz/carryover/internal/appdir"
+	"github.com/akfaiz/carryover/internal/syncer"
 )
 
 type settingsPage struct {
@@ -34,12 +35,23 @@ func (p *settingsPage) form(st appdir.Settings) fyne.CanvasObject {
 	id := monoEntry("", st.DeviceID, nil)
 	id.Disable()
 
+	// Cloud backups: a checkbox turns them on, then a count of 1-100. Off is
+	// stored as 0; turning them back on starts from the default count.
+	keep := st.BackupRetention
+	if keep <= 0 {
+		keep = defaultRetention
+	}
 	retention := widget.NewEntry()
-	retention.SetText(strconv.Itoa(st.BackupRetention))
+	retention.SetText(strconv.Itoa(keep))
 	retention.Validator = func(s string) error {
 		_, err := parseRetention(s)
 		return err
 	}
+	backups := widget.NewCheck(lang.L("Back up saves to the cloud before they're overwritten"), func(on bool) {
+		setEnabled(retention, on)
+	})
+	backups.SetChecked(st.BackupRetention > 0)
+	setEnabled(retention, backups.Checked)
 	themeSel := widget.NewRadioGroup([]string{lang.L("Dark"), lang.L("Light")}, nil)
 	themeSel.Horizontal = true
 	themeSel.Required = true
@@ -62,10 +74,13 @@ func (p *settingsPage) form(st appdir.Settings) fyne.CanvasObject {
 	key.OnChanged = func(s string) { keyTest.SetAllowed(strings.TrimSpace(s) != "") }
 
 	save := primary(lang.L("Save"), func() {
-		n, err := parseRetention(retention.Text)
-		if err != nil {
-			u.toastErr(err)
-			return
+		n := 0
+		if backups.Checked {
+			var err error
+			if n, err = parseRetention(retention.Text); err != nil {
+				u.toastErr(err)
+				return
+			}
 		}
 		next := st
 		next.DeviceName = name.Text
@@ -98,8 +113,11 @@ func (p *settingsPage) form(st appdir.Settings) fyne.CanvasObject {
 			field(lang.L("Device name (shown on other devices and in backups)"), name),
 			field(lang.L("Device ID"), id))),
 		narrow(card(lang.L("Sync"),
-			field(lang.L("Backups to keep per game (0 = off)"), fixedWidth(120, retention)),
-			muted(lang.L("Off by default: only the current save is synced. Backups are uploaded as a zip before saves are overwritten, which makes syncing slower, especially after playing.")),
+			backups,
+			field(lang.L("Backups to keep per game (1–100)"), fixedWidth(120, retention)),
+			muted(lang.L("Each backup is a zip uploaded before a sync replaces saves, so syncing gets slower, especially after playing. Older backups are deleted once there are more than this; pinned backups are always kept.")),
+			muted(lang.L("When off, only the current save is in the cloud. Before a download replaces this device's saves, a copy is still kept on this device (the last {{.Count}}).",
+				map[string]any{"Count": syncer.SafetyKeep})),
 			share,
 			muted(lang.L("When enabled, games added on one device appear on the others; each device only needs to set its own paths.")))),
 		narrow(card(lang.L("Cover art"),
@@ -113,10 +131,14 @@ func (p *settingsPage) form(st appdir.Settings) fyne.CanvasObject {
 	)
 }
 
+// defaultRetention is the backup count offered when cloud backups are turned on.
+const defaultRetention = 5
+
+// parseRetention parses the number of cloud backups to keep (1-100).
 func parseRetention(s string) (int, error) {
 	n, err := strconv.Atoi(strings.TrimSpace(s))
-	if err != nil || n < 0 || n > 100 {
-		return 0, errors.New(lang.L("backups to keep must be a number from 0 to 100"))
+	if err != nil || n < 1 || n > 100 {
+		return 0, errors.New(lang.L("backups to keep must be a number from 1 to 100"))
 	}
 	return n, nil
 }

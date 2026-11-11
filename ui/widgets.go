@@ -159,6 +159,8 @@ func statusBadge(g services.GameView) fyne.CanvasObject {
 		return badge(lang.L("conflict"), badgeErr)
 	case g.Status.LastError != "":
 		return badge(lang.L("sync error"), badgeErr)
+	case g.Status.LocalChanges:
+		return badge(lang.L("not uploaded"), badgeWarn)
 	case g.Status.LastSyncAt != "":
 		return badge(lang.L("synced"), badgeOK)
 	}

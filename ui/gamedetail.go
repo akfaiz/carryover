@@ -154,6 +154,9 @@ func (p *gameDetail) render() {
 	if g.Status.LastError != "" && !g.Status.Running {
 		info.Add(colored(g.Status.LastError, widget.DangerImportance))
 	}
+	if g.Status.LocalChanges && !g.Status.Running {
+		info.Add(colored(lang.L("The saves on this device changed after the last sync, so the game was probably played without Carryover. Use “Sync now” to upload them."), widget.WarningImportance))
+	}
 	actions := hbox()
 	switch {
 	case g.Status.Running:
@@ -317,12 +320,17 @@ func (p *gameDetail) backupsCard(g services.GameView, busy, hasRemote bool) fyne
 	}
 	nowBtn := widget.NewButton(nowLabel, p.backupNow)
 	setEnabled(nowBtn, !busy && hasRemote && g.Ready && !g.Status.Running)
-	info := lang.L("Backups are off, so only the current save is synced. Set \"Backups to keep per game\" in Settings to enable them.")
+	info := lang.L("Cloud backups are off. Before a download replaces this device's saves, a copy is kept on this device (the last {{.Count}}). Turn on cloud backups in Settings to keep backups in the cloud.",
+		map[string]any{"Count": syncer.SafetyKeep})
 	if n := p.u.settings.BackupRetention; n > 0 {
 		info = lang.N("A backup is taken in the cloud whenever saves are about to be overwritten (keeping the last {{.Count}} backup).", n,
 			map[string]any{"Count": n})
 	}
 	c := vbox(cardHead(lang.L("Backups"), nowBtn, btn), muted(info), muted(lang.L("Backups you make with “Back up now” are pinned. Pinned backups are never deleted automatically.")))
+	if g.SafetyDir != "" {
+		dir := g.SafetyDir
+		c.Add(hbox(widget.NewButtonWithIcon(lang.L("Open copies on this device"), theme.FolderOpenIcon(), func() { p.u.openFolder(dir) })))
+	}
 	if p.backupsLoaded {
 		if len(p.backups) == 0 {
 			c.Add(muted(lang.L("No backups yet.")))
@@ -369,6 +377,7 @@ func (p *gameDetail) deleteBackup(b syncer.Backup) {
 			if err == nil {
 				p.u.toast(lang.L("Backup deleted"), toastOK)
 				p.loadBackups()
+				p.u.refresh() // the last copy on this device may be gone
 			}
 		})
 	}, p.u.win)

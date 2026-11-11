@@ -15,6 +15,8 @@ import (
 	"runtime"
 	"sort"
 	"strings"
+	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/akfaiz/carryover/internal/core"
@@ -24,6 +26,7 @@ import (
 	"github.com/akfaiz/carryover/internal/steam"
 	"github.com/akfaiz/carryover/internal/steamgrid"
 	"github.com/akfaiz/carryover/internal/steamstore"
+	"github.com/akfaiz/carryover/internal/syncer"
 )
 
 // LibraryService manages games.
@@ -31,11 +34,22 @@ type LibraryService struct {
 	c       *core.Core
 	bus     *Bus
 	running func(string) bool
+
+	checkMu  sync.Mutex
+	checks   map[string]localCheck // gameID -> last CheckLocalChanges result
+	checking atomic.Bool
+}
+
+// localCheck is the last result of CheckLocalChanges for a game.
+type localCheck struct {
+	changed bool
+	at      time.Time        // when the check started
+	scan    *syncer.Manifest // reused by the next check to skip re-hashing
 }
 
 // NewLibraryService creates the service. bus and running may be nil.
 func NewLibraryService(c *core.Core, bus *Bus, running func(string) bool) *LibraryService {
-	return &LibraryService{c: c, bus: bus, running: running}
+	return &LibraryService{c: c, bus: bus, running: running, checks: map[string]localCheck{}}
 }
 
 // GameStatus is the sync state of a game on this device.
@@ -45,6 +59,9 @@ type GameStatus struct {
 	Conflict   bool   `json:"conflict"`
 	LastError  string `json:"lastError"`
 	Running    bool   `json:"running"`
+	// LocalChanges: this device's saves changed since its last sync and
+	// haven't been uploaded (e.g. the game was played without Carryover).
+	LocalChanges bool `json:"localChanges"`
 }
 
 // GameView is a game as presented to the UI, from this device's perspective.
@@ -64,6 +81,9 @@ type GameView struct {
 	PathErrors    map[string]string    `json:"pathErrors"`
 	OtherDevices  []DevicePaths        `json:"otherDevices"`
 	Status        GameStatus           `json:"status"`
+	// SafetyDir is the folder of the game's safety copies on this device
+	// ("" if there are none).
+	SafetyDir string `json:"safetyDir"`
 }
 
 // ArtFile is a stored artwork image.
@@ -140,12 +160,69 @@ func (s *LibraryService) view(g library.Game) GameView {
 		v.Status = GameStatus{
 			LastSyncAt: fmtTime(st.LastSyncAt), LastAction: string(st.LastAction),
 			Conflict: st.Conflict, LastError: st.LastError,
+			LocalChanges: !st.Conflict && s.localChanged(g.ID, st),
 		}
 	}
 	if s.running != nil {
 		v.Status.Running = s.running(g.ID)
 	}
+	if root := s.c.Dirs.SafetyDir(); syncer.HasSafetyCopies(root, g.ID) {
+		v.SafetyDir = syncer.SafetyGameDir(root, g.ID)
+	}
 	return v
+}
+
+// localChanged reports the last check's result for a game, unless a sync has
+// finished since that check started (the sync settled it).
+func (s *LibraryService) localChanged(id string, st syncer.State) bool {
+	s.checkMu.Lock()
+	c := s.checks[id]
+	s.checkMu.Unlock()
+	return c.changed && !st.LastSyncAt.After(c.at)
+}
+
+// CheckLocalChanges scans the saves of every game set up on this device,
+// without touching the cloud, and flags the ones changed since their last
+// sync (GameStatus.LocalChanges). Games being played are skipped. Library
+// subscribers are notified when a flag changes. A call while a check is
+// running returns at once.
+func (s *LibraryService) CheckLocalChanges() {
+	if !s.checking.CompareAndSwap(false, true) {
+		return
+	}
+	defer s.checking.Store(false)
+	notify := false
+	for _, g := range s.c.Library.List() {
+		if s.running != nil && s.running(g.ID) {
+			continue
+		}
+		job, err := s.c.Job(g)
+		if err != nil {
+			continue // not set up on this device
+		}
+		st, err := s.c.States.Load(g.ID)
+		if err != nil {
+			continue
+		}
+		before := s.localChanged(g.ID, st)
+		s.checkMu.Lock()
+		prev := s.checks[g.ID].scan
+		s.checkMu.Unlock()
+		at := time.Now()
+		changed, scan, err := syncer.LocalChanges(context.Background(), job.Slots, st.LastSynced, prev)
+		if err != nil {
+			continue // e.g. an unreadable folder: the next sync reports it
+		}
+		s.checkMu.Lock()
+		s.checks[g.ID] = localCheck{changed: changed, at: at, scan: scan}
+		s.checkMu.Unlock()
+		if changed != before {
+			notify = true
+		}
+	}
+	if notify {
+		s.bus.libraryChanged("")
+	}
 }
 
 func labelOf(sl library.SaveSlot) string {
