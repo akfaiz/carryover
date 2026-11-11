@@ -22,7 +22,7 @@ jobs:
         with:
           go-version-file: go.mod
       - name: Install Fyne build dependencies
-        run: sudo apt-get update && sudo apt-get install -y gcc libgl1-mesa-dev xorg-dev
+        run: sudo apt-get update && sudo apt-get install -y gcc libgl1-mesa-dev xorg-dev libxkbcommon-dev libwayland-dev wayland-protocols # same as the Dockerfile
       - uses: golangci/golangci-lint-action@v8
         with:
           version: v2.15.0
@@ -43,7 +43,7 @@ jobs:
 
       - name: Install Fyne build dependencies (Linux)
         if: runner.os == 'Linux'
-        run: sudo apt-get update && sudo apt-get install -y gcc libgl1-mesa-dev xorg-dev
+        run: sudo apt-get update && sudo apt-get install -y gcc libgl1-mesa-dev xorg-dev libxkbcommon-dev libwayland-dev wayland-protocols # same as the Dockerfile
       - name: Install MinGW gcc (Windows)
         if: runner.os == 'Windows'
         uses: msys2/setup-msys2@v2
