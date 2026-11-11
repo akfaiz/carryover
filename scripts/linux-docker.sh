@@ -53,15 +53,14 @@ case "$cmd" in
         docker run "${run_args[@]}" --entrypoint bash "$image"
         ;;
     export)
-        ensure_image
+        # Always amd64 (Steam Deck), even on Apple Silicon, so not the host-arch run image.
         mkdir -p "$root/bin/linux"
-        id="$(docker create "$image")"
-        docker cp "$id:/usr/local/bin/carryover" "$root/bin/linux/carryover"
-        docker rm "$id" >/dev/null
+        docker build --platform linux/amd64 --target binary-out --output "type=local,dest=$root/bin/linux" "$root"
         echo "wrote $root/bin/linux/carryover"
         ;;
     appimage)
-        docker build --target appimage-out --output "type=local,dest=$root/bin" "$root"
+        # Always amd64 (Steam Deck): appimagetool is x86-64 only, so an arm64 build on Apple Silicon fails.
+        docker build --platform linux/amd64 --target appimage-out --output "type=local,dest=$root/bin" "$root"
         chmod +x "$root/bin/carryover-linux-amd64.AppImage"
         echo "wrote $root/bin/carryover-linux-amd64.AppImage"
         ;;
