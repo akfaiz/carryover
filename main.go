@@ -16,6 +16,7 @@ import (
 
 	"github.com/akfaiz/carryover/internal/core"
 	"github.com/akfaiz/carryover/internal/syncer"
+	"github.com/akfaiz/carryover/internal/version"
 	"github.com/akfaiz/carryover/ui"
 )
 
@@ -28,6 +29,7 @@ Usage:
                                              --dry-run shows what would happen; with --all,
                                              --push/--pull ask first unless --yes is given
   carryover list                             list games and their ids
+  carryover --version                        print the version
 
 <game> is a game id or its exact name. With "-- cmd" (e.g. Steam's
 "-- %command%") the given command is launched instead of the configured exe.
@@ -46,6 +48,8 @@ func main() {
 		os.Exit(cmdSync(args[1:]))
 	case "list":
 		os.Exit(cmdList())
+	case "--version", "version":
+		fmt.Println("carryover " + version.Get().String())
 	case "-h", "--help", "help":
 		_, _ = os.Stdout.WriteString(usage)
 	default:
@@ -73,6 +77,8 @@ func setupLogFile(c *core.Core) {
 		_ = f.Truncate(0)
 	}
 	log.SetOutput(io.MultiWriter(os.Stderr, f))
+	// Only in the file: tells which build wrote the log (e.g. one sent with a bug report).
+	log.New(f, "", log.LstdFlags).Printf("Carryover %s started, args %q", version.Get(), os.Args[1:])
 }
 
 func cmdRun(args []string) int {
