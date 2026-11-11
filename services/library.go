@@ -21,6 +21,7 @@ import (
 	"time"
 
 	"github.com/akfaiz/carryover/internal/core"
+	"github.com/akfaiz/carryover/internal/heroic"
 	"github.com/akfaiz/carryover/internal/library"
 	"github.com/akfaiz/carryover/internal/ludusavi"
 	"github.com/akfaiz/carryover/internal/pathvar"
@@ -766,6 +767,16 @@ func (s *LibraryService) SuggestSaves(in SuggestInput) (SuggestResult, error) {
 		if steamInstalled && dev.SteamAppID == "" {
 			env.Proton = "{proton:" + in.StoreAppID + "}"
 		}
+		// Started through Heroic, it runs in Heroic's prefix, never Steam's.
+		if in.LaunchMode == library.LaunchHeroic {
+			env.Proton = ""
+		}
+	}
+	names := []string{g.Name, in.Name}
+	if exe != "" {
+		if hg, ok := s.heroicGame(exe); ok && hg.Title != "" {
+			names = append(names, hg.Title)
+		}
 	}
 
 	check := func(sg ludusavi.Suggestion) SaveSuggestion {
@@ -786,7 +797,7 @@ func (s *LibraryService) SuggestSaves(in SuggestInput) (SuggestResult, error) {
 	// prefix, and in any other prefix only those that hold saves.
 	if s.prefixes != nil {
 		for _, pf := range s.prefixes() {
-			mine := prefixIsFor(pf, exe, g.Name, in.Name)
+			mine := prefixIsFor(pf, exe, names...)
 			for _, user := range pf.Users {
 				userDir := filepath.ToSlash(pctx.Contract(user))
 				for _, sg := range ludusavi.SuggestPrefix(g, userDir, filepath.Base(user)) {
@@ -814,6 +825,28 @@ func (s *LibraryService) SuggestSaves(in SuggestInput) (SuggestResult, error) {
 		return a.Kind != ludusavi.KindSteamCloud && b.Kind == ludusavi.KindSteamCloud
 	})
 	return res, nil
+}
+
+// heroicGame returns the Heroic-installed game whose folder holds exe.
+func (s *LibraryService) heroicGame(exe string) (heroic.Game, bool) {
+	if runtime.GOOS != "linux" && runtime.GOOS != "windows" {
+		return heroic.Game{}, false
+	}
+	home, _ := os.UserHomeDir()
+	return heroic.ForExe(home, exe)
+}
+
+// HeroicGame returns the title (or Heroic's app name) of the game Heroic
+// installed in the folder holding exe, and whether there is one (Linux and Windows).
+func (s *LibraryService) HeroicGame(exe string) (string, bool) {
+	g, ok := s.heroicGame(strings.TrimSpace(exe))
+	if !ok {
+		return "", false
+	}
+	if g.Title != "" {
+		return g.Title, true
+	}
+	return g.AppName, true
 }
 
 // prefixIsFor reports whether a Wine prefix belongs to the game: the launcher

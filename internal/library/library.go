@@ -33,6 +33,11 @@ const (
 	// LaunchSteamWrap is used with a Steam shortcut whose launch options are
 	// `carryover run <id> -- %command%` (e.g. Proton games on Linux / Steam Deck).
 	LaunchSteamWrap LaunchMode = "steamwrap"
+	// LaunchHeroic starts a game Heroic installed through Heroic, so it keeps
+	// Heroic's settings and, on Linux, runs in Heroic's Wine prefix. Exe is the game's executable inside
+	// Heroic's install folder; it identifies the game and, by its name, the
+	// process to wait for.
+	LaunchHeroic LaunchMode = "heroic"
 )
 
 // DeviceConfig is the per-device part of a game.

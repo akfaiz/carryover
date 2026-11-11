@@ -118,6 +118,14 @@ when adding to Steam. Steam gets the game `.exe` as target and
 `"<carryover>" run <id> -- %command%` as launch options; force a Proton version in the shortcut's
 Compatibility settings. For games you own on Steam, paste the launch options shown on the game page.
 
+Games installed by **Heroic** (GOG, Epic, Amazon, or added by hand) should keep Heroic's own Wine prefix: a
+Proton shortcut would give them a new, empty one. Pick **"Carryover starts it through Heroic"** as launch mode;
+choosing an executable inside a Heroic install folder selects it automatically. Carryover then launches the game
+with `heroic://launch` (as Heroic's own "Add to Steam" does) and waits for that executable to exit. The Steam
+shortcut runs Carryover, so don't force a Proton version on it. Pick the save folder from the Heroic prefix
+suggestions. On Windows the mode works the same way: Carryover runs `Heroic.exe --no-gui heroic://launch?…`,
+which Epic games need for their login.
+
 ## Path variables
 
 Save paths can use variables, so one entry works on every device. The most common are `{home}`, `{documents}`,

@@ -3,6 +3,7 @@ package ui
 import (
 	"fmt"
 	"path/filepath"
+	"runtime"
 	"slices"
 	"strings"
 
@@ -405,23 +406,34 @@ func (e *editor) launchCard() fyne.CanvasObject {
 	modes := &choice{}
 	modes.add(string(library.LaunchDirect), lang.L("Carryover starts the executable (Windows, native Linux/macOS games)"))
 	modes.add(string(library.LaunchSteamWrap), lang.L("Steam starts it via Proton; Carryover wraps %command% (Steam Deck / Linux)"))
+	if runtime.GOOS == "linux" || runtime.GOOS == "windows" || e.dev.LaunchMode == library.LaunchHeroic {
+		modes.add(string(library.LaunchHeroic), lang.L("Carryover starts it through Heroic (keeps Heroic's settings and, on Linux, its Wine prefix)"))
+	}
 	e.exeEntry = monoEntry("", e.dev.Exe, func(s string) { e.dev.Exe = s })
 	setExePlaceholder := func() {
-		if e.dev.LaunchMode == library.LaunchSteamWrap {
+		switch e.dev.LaunchMode {
+		case library.LaunchSteamWrap:
 			e.exeEntry.SetPlaceHolder("/home/deck/Games/A/Game.exe")
-		} else {
+		case library.LaunchHeroic:
+			e.exeEntry.SetPlaceHolder("/home/deck/Games/Heroic/A/Game.exe")
+		default:
 			e.exeEntry.SetPlaceHolder(`C:\Games\A\Game.exe`)
 		}
 	}
 	setExePlaceholder()
 	mode := selectOf(modes, string(e.dev.LaunchMode), func(v string) {
+		heroicChanged := (v == string(library.LaunchHeroic)) != (e.dev.LaunchMode == library.LaunchHeroic)
 		e.dev.LaunchMode = library.LaunchMode(v)
 		setExePlaceholder()
+		if heroicChanged {
+			e.render() // show or hide the Heroic hint
+		}
 	})
 	browse := widget.NewButton(lang.L("Browse…"), func() {
 		e.pickFile(lang.L("Choose game executable"), nil, func(p string) {
 			e.dev.Exe = p
 			e.exeEntry.SetText(p)
+			e.detectHeroic(p)
 			if e.name != "" {
 				return
 			}
@@ -434,6 +446,10 @@ func (e *editor) launchCard() fyne.CanvasObject {
 		})
 	})
 	args := monoEntry("-windowed", e.dev.Args, func(s string) { e.dev.Args = s })
+	exeField := vbox(field(lang.L("Executable"), rowFill(e.exeEntry, browse)))
+	if e.dev.LaunchMode == library.LaunchHeroic {
+		exeField.Add(muted(lang.L("Pick the game's executable inside its Heroic install folder. Heroic launches it with its own settings (arguments set here are not used), and Carryover waits until that executable exits.")))
+	}
 	wait := monoEntry("Game-Win64-Shipping.exe", e.dev.WaitProcess, func(s string) { e.dev.WaitProcess = s })
 	env := monoMultiLine("", e.envText, 3, func(s string) { e.envText = s })
 	workDir := newPathInput(e.u, e.id, e.tokens, e.dev.WorkDir, "", func(s string) { e.dev.WorkDir = s })
@@ -445,9 +461,33 @@ func (e *editor) launchCard() fyne.CanvasObject {
 
 	return card("", cardHead(lang.L("Launch on this device"), badge(e.u.settings.DeviceName, badgeNone)),
 		field(lang.L("How is the game started?"), mode),
-		field(lang.L("Executable"), rowFill(e.exeEntry, browse)),
+		exeField,
 		field(lang.L("Arguments"), args),
 		e.advItem)
+}
+
+// detectHeroic switches the launch mode to Heroic when exe is inside a game
+// folder Heroic installed, so the game keeps Heroic's settings (and on Linux
+// its Wine prefix instead of a new one from Steam).
+func (e *editor) detectHeroic(exe string) {
+	if e.dev.LaunchMode == library.LaunchHeroic {
+		return
+	}
+	type found struct {
+		title string
+		ok    bool
+	}
+	async(func() (found, error) {
+		title, ok := e.u.lib.HeroicGame(exe)
+		return found{title, ok}, nil
+	}, func(f found, _ error) {
+		if !f.ok || e.dev.Exe != exe {
+			return
+		}
+		e.dev.LaunchMode = library.LaunchHeroic
+		e.u.toast(lang.L("{{.Game}} is installed by Heroic — it will be started through Heroic.", map[string]any{"Game": f.title}), toastOK)
+		e.render()
+	})
 }
 
 func (e *editor) savesCard() fyne.CanvasObject {

@@ -341,5 +341,9 @@
   "Commit {{.Commit}}, with uncommitted changes": "Commit {{.Commit}}, with uncommitted changes",
   "Release notes": "Release notes",
   "All releases": "All releases",
-  "Source code": "Source code"
+  "Source code": "Source code",
+  "Carryover starts it through Heroic (keeps Heroic's settings and, on Linux, its Wine prefix)": "Carryover starts it through Heroic (keeps Heroic's settings and, on Linux, its Wine prefix)",
+  "Pick the game's executable inside its Heroic install folder. Heroic launches it with its own settings (arguments set here are not used), and Carryover waits until that executable exits.": "Pick the game's executable inside its Heroic install folder. Heroic launches it with its own settings (arguments set here are not used), and Carryover waits until that executable exits.",
+  "{{.Game}} is installed by Heroic — it will be started through Heroic.": "{{.Game}} is installed by Heroic — it will be started through Heroic.",
+  "Steam runs Carryover, which starts the game through Heroic, so it keeps Heroic's settings and, on Linux, its Wine prefix. Don't force a Proton version on this shortcut.": "Steam runs Carryover, which starts the game through Heroic, so it keeps Heroic's settings and, on Linux, its Wine prefix. Don't force a Proton version on this shortcut."
 }
