@@ -333,5 +333,13 @@
   "Each backup is a zip uploaded before a sync replaces saves, so syncing gets slower, especially after playing. Older backups are deleted once there are more than this; pinned backups are always kept.": "Each backup is a zip uploaded before a sync replaces saves, so syncing gets slower, especially after playing. Older backups are deleted once there are more than this; pinned backups are always kept.",
   "When off, only the current save is in the cloud. Before a download replaces this device's saves, a copy is still kept on this device (the last {{.Count}}).": "When off, only the current save is in the cloud. Before a download replaces this device's saves, a copy is still kept on this device (the last {{.Count}}).",
   "Open copies on this device": "Open copies on this device",
-  "Wine prefix": "Wine prefix"
+  "Wine prefix": "Wine prefix",
+  "About Carryover": "About Carryover",
+  "Version {{.Version}}": "Version {{.Version}}",
+  "Development build": "Development build",
+  "Commit {{.Commit}}": "Commit {{.Commit}}",
+  "Commit {{.Commit}}, with uncommitted changes": "Commit {{.Commit}}, with uncommitted changes",
+  "Release notes": "Release notes",
+  "All releases": "All releases",
+  "Source code": "Source code"
 }

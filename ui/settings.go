@@ -11,6 +11,7 @@ import (
 
 	"github.com/akfaiz/carryover/internal/appdir"
 	"github.com/akfaiz/carryover/internal/syncer"
+	"github.com/akfaiz/carryover/internal/version"
 )
 
 type settingsPage struct {
@@ -103,7 +104,10 @@ func (p *settingsPage) form(st appdir.Settings) fyne.CanvasObject {
 		})
 	})
 
-	cli := mono("carryover run <game> [--headless] [-- command…]\ncarryover sync <game>|--all [--push|--pull]\ncarryover list")
+	cli := mono("carryover run <game> [--headless] [-- command…]\n" +
+		"carryover sync <game>|--all [--push|--pull] [--dry-run] [--yes]\n" +
+		"carryover list\n" +
+		"carryover --version")
 	narrow := func(o fyne.CanvasObject) fyne.CanvasObject { return maxWidth(640, o) }
 	return stack(
 		pageHead(nil, lang.L("Settings")),
@@ -128,7 +132,33 @@ func (p *settingsPage) form(st appdir.Settings) fyne.CanvasObject {
 		narrow(card(lang.L("Command line"),
 			muted(lang.L("Useful for scripts or other launchers (Lutris, Heroic, Playnite…):")),
 			cli)),
+		narrow(aboutCard()),
 	)
+}
+
+// aboutCard shows which build is running, with links to its release notes
+// and the source code.
+func aboutCard() fyne.CanvasObject {
+	info := version.Get()
+	title := lang.L("Development build")
+	notes := lang.L("All releases")
+	if info.IsRelease() {
+		title = lang.L("Version {{.Version}}", map[string]any{"Version": info.Version})
+		notes = lang.L("Release notes")
+	}
+	objs := []fyne.CanvasObject{widget.NewLabelWithStyle(title, fyne.TextAlignLeading, fyne.TextStyle{Bold: true})}
+	if info.Commit != "" {
+		commit := lang.L("Commit {{.Commit}}", map[string]any{"Commit": info.Commit})
+		if info.Modified {
+			commit = lang.L("Commit {{.Commit}}, with uncommitted changes", map[string]any{"Commit": info.Commit})
+		}
+		objs = append(objs, muted(commit))
+	}
+	objs = append(objs, hbox(
+		widget.NewHyperlink(notes, mustURL(info.ReleaseURL())),
+		widget.NewHyperlink(lang.L("Source code"), mustURL(version.RepoURL)),
+	))
+	return card(lang.L("About Carryover"), objs...)
 }
 
 // defaultRetention is the backup count offered when cloud backups are turned on.

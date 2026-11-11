@@ -15,7 +15,6 @@
 ```
 CGO_ENABLED=1 go build -trimpath -ldflags "-s -w -H windowsgui" -o bin/carryover.exe .   # Windows
 CGO_ENABLED=1 go build -trimpath -ldflags "-s -w" -o bin/carryover .                      # Linux
-go tool fyne package --os windows --release --name carryover                              # Windows release exe with icon
 CARRYOVER_HOME=/tmp/pr go run .                                                           # run against an isolated data dir
 ```
 
@@ -23,6 +22,13 @@ CARRYOVER_HOME=/tmp/pr go run .                                                 
   Leave it out when you need to debug.
 - `-H windowsgui` hides the console window. The CLI subcommands re-attach it.
 - Always use `CARRYOVER_HOME` when testing, so you never touch your real settings, library or rclone config.
+- Local builds report themselves as a development build with the git commit (`carryover --version`,
+  Settings → About). Release builds get the version from the git tag (see
+  [Continuous integration and releases](#continuous-integration-and-releases)); `Version` in `FyneApp.toml`
+  is not used for them.
+- `go tool fyne package --os windows --release --name carryover` builds the exe with its icon, but it also bumps
+  `Build` in `FyneApp.toml` on every run. Don't commit that change (`git checkout FyneApp.toml`): CI sets the
+  build number of release builds itself.
 
 ## Test and lint
 
@@ -113,6 +119,12 @@ a `SHA256SUMS.txt` and notes generated from the commits since the last tag:
 
 A tag with a suffix, such as `v0.2.0-rc1`, is published as a pre-release; AppImage updates only follow full
 releases. The Windows exe is not code-signed, so SmartScreen warns on first run ("More info → Run anyway").
+
+The tag is the only version number. Before building, each release job runs `scripts/stamp-version.sh <tag> <sha>`,
+which writes the git-ignored `internal/version/zz_release.go` setting `version.Version` and `version.Commit`; the app
+shows them in Settings → About, `carryover --version` and the log. (A generated file rather than `-ldflags -X`,
+because `fyne package` drops `-ldflags` from `GOFLAGS` when it rebuilds the Windows exe with its icon.) The Windows
+exe's file version is the tag's `x.y.z` plus the workflow run number as build number.
 
 ## Cloud layout
 

@@ -29,6 +29,9 @@ jobs:
           msystem: UCRT64
           install: mingw-w64-ucrt-x86_64-gcc
           path-type: inherit # keep setup-go's Go on PATH
+      - name: Stamp version
+        shell: bash
+        run: scripts/stamp-version.sh "$GITHUB_REF_NAME" "$GITHUB_SHA"
       - name: Package
         shell: msys2 {0}
         run: |
@@ -52,11 +55,14 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: docker/setup-buildx-action@v3
+      - name: Stamp version
+        run: scripts/stamp-version.sh "$GITHUB_REF_NAME" "$GITHUB_SHA"
       - name: Build AppImage and binary
         run: |
           # AppImageUpdate / Gear Lever look for the .zsync file in the latest release.
           update_info="gh-releases-zsync|${GITHUB_REPOSITORY_OWNER}|${GITHUB_REPOSITORY#*/}|latest|Carryover-x86_64.AppImage.zsync"
-          docker buildx build --target appimage-out --build-arg "UPDATE_INFO=$update_info"             --output type=local,dest=out .
+          docker buildx build --target appimage-out --build-arg "UPDATE_INFO=$update_info" \
+            --output type=local,dest=out .
           docker buildx build --target binary-out --output type=local,dest=out .
       - name: Package
         run: |

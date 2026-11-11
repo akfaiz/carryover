@@ -4,3 +4,5 @@ fyne-cross
 /carryover.exe
 /carryover.tar.xz
 .docker-data
+# written by scripts/stamp-version.sh for release builds
+/internal/version/zz_release.go

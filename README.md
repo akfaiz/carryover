@@ -107,6 +107,7 @@ carryover run <game> [--headless] [-- cmd]   pull → play → push (used by Ste
 carryover sync <game>|--all [--push|--pull] [--dry-run] [--yes]
                                              manual sync (exit code 3 = conflict)
 carryover list                               list games and their ids
+carryover --version                          print the version
 ```
 
 - `<game>` is a game id or its exact name. With `-- cmd` (for example Steam's `-- %command%`), that command is
