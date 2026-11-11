@@ -84,6 +84,23 @@ packaging/appimage/build.sh        # writes bin/Carryover-x86_64.AppImage
 Keep the AppImage in a fixed place (for example `~/Applications/`). The Steam shortcut points at its path, and
 moving it breaks the shortcut until you use "Update Steam shortcut".
 
+## Cloud layout
+
+Everything lives in one folder on the remote (`<remote>:<folder>`, set on the Cloud storage page):
+
+```
+library.json                                      the shared game list
+covers/                                           cover and artwork images used by the library
+games/<id>/manifest.json                          revision + SHA-256 of every save file
+games/<id>/current/<slot>/…                       the saves
+games/<id>/lock.json                              "being played on <device>"
+games/<id>/backups/<time>_<device>_<kind>.zip     kind: local, cloud or manual; holds manifest.json + <slot>/…
+games/<id>/pinned.json                            names of pinned backups (never pruned)
+```
+
+Safety copies taken before a download (when cloud backups are off) stay on the device, in
+`<data dir>/safety/<id>/`.
+
 ## Code map
 
 - `internal/syncer`: sync decision engine and backups

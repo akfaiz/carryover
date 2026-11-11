@@ -12,30 +12,44 @@
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="License: MIT"></a>
 </p>
 
-Cross-platform game launcher (Windows, Linux / Steam Deck, macOS) that keeps save games in sync
-through cloud storage. It embeds [rclone](https://github.com/rclone/rclone) as a Go library, so there is
-nothing else to install. Supported storage: Google Drive, Dropbox, OneDrive, WebDAV (Nextcloud, ownCloud, NAS),
-SFTP and SMB. The UI is built with [Fyne](https://fyne.io) and needs no webview or browser runtime.
+A game launcher for Windows and Linux / Steam Deck that keeps your save games in sync through your own cloud
+storage. Carryover pulls the latest saves before you play and pushes them when you quit, from its own launcher or
+from Steam, including Game Mode.
+
+Cloud storage: Google Drive, Dropbox, OneDrive, WebDAV (Nextcloud, ownCloud, NAS), SFTP and SMB.
+[rclone](https://github.com/rclone/rclone) is built in, so there is nothing else to install.
+
+## Features
 
 - **Per-device save paths** — one game, one cloud copy; each device maps it to its own folder
   (`{appdata}/GameA` on Windows, `{proton:shortcut}/AppData/Roaming/GameA` on a Steam Deck).
-- **Play from the launcher or from Steam** — "Add to Steam" creates a non-Steam shortcut whose command
-  is `carryover run <game>`, so saves are pulled before and pushed after every session, even in Game Mode.
-- **Safe conflicts** — if saves changed on both sides, you choose which to keep; the other side is
-  backed up in the cloud when backups are enabled (`games/<id>/backups/`, the last N are kept) and can be restored.
-  With cloud backups off, local saves about to be replaced by a download are still copied on the device first.
+- **Play from the launcher or from Steam** — "Add to Steam" creates a non-Steam shortcut that runs
+  `carryover run <game>`, so saves sync around every session, even in Game Mode.
+- **Safe conflicts** — if saves changed on both sides, you choose which to keep. The side being overwritten is
+  backed up first (see [How it works](#how-it-works)).
 - **Played without Carryover?** — when the launcher opens or regains focus, it checks for saves that changed
-  since their last sync (e.g. the game was started outside Carryover) and marks those games "not uploaded".
-- **Title & cover from Steam** — "Find on Steam" fills in the official title and portrait cover (Steam's
-  local cache first, then its CDN); "Add from Steam" imports games installed through Steam. With
-  your own free [SteamGridDB](https://www.steamgriddb.com) API key (Settings), "Find cover…" searches
-  community covers for any game, and fills in covers Steam doesn't have.
-- **Save locations suggested** — known save folders for ~21,000 games (from the Ludusavi manifest),
-  translated for each device: Windows folders on a PC, the Proton prefix or native Linux folders on
-  a Steam Deck. Folders that already hold saves are found and shown first. On Linux, the Wine prefixes
-  of Heroic, Lutris and Bottles (native or Flatpak, including the SD card) are searched too.
-- **Shared library** — the game list syncs between devices; a game added on PC shows up on the Deck
-  as "needs setup".
+  since their last sync (for example, the game was started outside Carryover) and marks those games "not uploaded".
+- **Save locations suggested** — known save folders for ~21,000 games (from the Ludusavi manifest), translated
+  for each device: Windows folders on a PC, the Proton prefix or native Linux folders on a Steam Deck. Folders
+  that already hold saves are shown first. On Linux, the Wine prefixes of Heroic, Lutris and Bottles (native or
+  Flatpak, including the SD card) are searched too.
+- **Title & cover from Steam** — "Find on Steam" fills in the official title and portrait cover; "Add from Steam"
+  imports games installed through Steam. With your own free [SteamGridDB](https://www.steamgriddb.com) API key
+  (Settings), "Find cover…" searches community covers for any game.
+- **Shared library** — the game list, covers and artwork sync between devices; a game added on the PC shows up on
+  the Deck as "needs setup".
+
+## Getting started
+
+There are no prebuilt downloads yet. Build Carryover for Windows, or as a Linux binary or AppImage for the Steam
+Deck, by following [CONTRIBUTING.md](CONTRIBUTING.md). Then, on each device:
+
+1. **Cloud storage** — add a remote with "＋ Add remote" (or import your existing rclone config), then pick it and
+   a folder under "Sync location". Every device must use the same remote and folder.
+2. **＋ Add game** — set the game's executable and its save folder on this device. Suggested save locations are
+   listed for known games.
+3. **▶ Play**, or use "Add to Steam" and start the game from Steam. On the other device, the game shows up as
+   "needs setup": set its save folder there, and the saves follow you.
 
 ## How it works
 
@@ -58,21 +72,17 @@ last successful sync, and compares three things: its local save files, the cloud
    reports a conflict if both have different saves.
 3. **Only the difference is transferred.** Files are compared by size and SHA-256, so unchanged files are not
    uploaded or downloaded again, and files that were deleted on one side are removed on the other.
-4. **If backups are enabled (Settings → "Back up saves to the cloud", off by default), the side being overwritten is backed up first**,
-   as one zip in `games/<id>/backups/`. The last N backups are kept, and you can restore any of them from the launcher.
-   With backups off, a download that would replace this device's saves first zips them on the device
-   (`<data dir>/safety/<id>/`, the last 5 per game). Nothing is uploaded, and they can be restored from the same list.
+4. **The side being overwritten is backed up first.**
+   - With **"Back up saves to the cloud before they're overwritten"** turned on in Settings (off by default,
+     because the upload slows syncs), it is zipped into the game's cloud backups. The last N are kept.
+   - With it off, a download that would replace this device's saves first zips them on the device
+     (the last 5 per game). Nothing is uploaded.
+   - "Back up now" on the game page makes a manual backup. Manual backups are pinned, and pinned backups are never
+     deleted automatically. You can pin any backup, and restore any of them from the game page.
 5. **After you quit the game**, the new local saves are pushed and the lock is released.
 
-In Steam, the shortcut `carryover run <game>` does the same steps around the game process, so it works in Game
-Mode too. You can cancel a sync while it runs, but never the game itself. With `--headless`, conflicts are
-skipped instead of asking, and both sides stay untouched until you resolve them in the launcher.
-
-## Path variables
-
-`{home} {documents} {appdata} {localappdata} {localappdatalow} {savedgames} {xdgdata} {xdgconfig} {steam}`,
-`{proton:<appid>}` (Proton prefix `…/compatdata/<appid>/pfx/drive_c/users/steamuser`),
-`{proton:shortcut}` (prefix of this game's own non-Steam shortcut), plus `$ENV` / `%ENV%`.
+In Steam, the shortcut `carryover run <game>` does the same steps around the game process. You can cancel a sync
+while it runs, but never the game itself.
 
 ## Steam Deck / Proton games
 
@@ -81,54 +91,38 @@ when adding to Steam. Steam gets the game `.exe` as target and
 `"<carryover>" run <id> -- %command%` as launch options; force a Proton version in the shortcut's
 Compatibility settings. For games you own on Steam, paste the launch options shown on the game page.
 
+## Path variables
+
+Save paths can use variables, so one entry works on every device. The most common are `{home}`, `{documents}`,
+`{appdata}`, `{localappdata}`, `{savedgames}`, `{xdgdata}`, `{xdgconfig}` and `{steam}`, plus
+`{proton:<appid>}` (a Steam game's Proton prefix, `…/compatdata/<appid>/pfx/drive_c/users/steamuser`) and
+`{proton:shortcut}` (the prefix of this game's own non-Steam shortcut). `$ENV` and `%ENV%` work too.
+The `{ }` button next to a path field lists every variable with its value on the current device.
+
 ## Command line
 
 ```
-carryover                                   open the launcher
-carryover run <game> [--headless] [-- cmd]  pull → play → push (used by Steam)
-carryover sync <game>|--all [--push|--pull] manual sync (exit code 3 = conflict)
-carryover list
+carryover                                    open the launcher
+carryover run <game> [--headless] [-- cmd]   pull → play → push (used by Steam shortcuts)
+carryover sync <game>|--all [--push|--pull] [--dry-run] [--yes]
+                                             manual sync (exit code 3 = conflict)
+carryover list                               list games and their ids
 ```
 
-`--headless` never waits for input: conflicts are skipped, both sides are kept and the game is flagged in the UI.
-Set `CARRYOVER_HOME` to use a different data directory (default: `Carryover` in the user config dir).
+- `<game>` is a game id or its exact name. With `-- cmd` (for example Steam's `-- %command%`), that command is
+  launched instead of the configured exe.
+- `--headless` never waits for input: conflicts are skipped, both sides stay untouched, and the game is flagged
+  in the launcher until you resolve it.
+- `--dry-run` shows what would happen without changing anything. `--all` with `--push` or `--pull` asks first;
+  `--yes` (`-y`) skips the question.
+- Set `CARRYOVER_HOME` to use a different data directory (default: `Carryover` in the user config dir).
 
-## Cloud layout
+## Compared with other tools
 
-```
-<remote>:<folder>/library.json
-<remote>:<folder>/games/<id>/manifest.json        revision + sha256 of every file
-<remote>:<folder>/games/<id>/current/<slot>/…     the saves
-<remote>:<folder>/games/<id>/backups/<time>_<device>_<local|cloud>.zip   manifest.json + <slot>/…
-<remote>:<folder>/games/<id>/lock.json            "being played on <device>"
-```
-
-## Comparison with other tools
-
-Two excellent open-source tools cover nearby ground, and each takes a different approach:
-
-- **[Ludusavi](https://github.com/mtkennerly/ludusavi)** (as of v0.31.0) backs up and restores saves on one machine,
-  optionally copying the backups to the cloud with an external rclone binary.
-- **[OpenSave](https://github.com/Liquid-co/OpenSave)** (as of v2.4.1) is a background service that watches save
-  folders and syncs every change peer-to-peer between paired devices, with an optional cloud mirror.
-- **Carryover** is a launcher that syncs around each play session: pull before you play, push after you quit,
-  with one copy in your own cloud storage.
-
-| | Carryover | OpenSave | Ludusavi |
-|---|---|---|---|
-| Main purpose | Sync around each play session | Continuous sync between devices | Backup and restore |
-| Where saves go | Your cloud storage | Directly to paired devices (LAN or relay); cloud optional | Local backup folder; cloud optional |
-| Cloud setup | rclone built in, nothing else to install | Built-in providers; OneDrive needs your own Azure app | Needs a separate rclone install |
-| Windows ↔ Steam Deck (Proton) | Save path per device, with `{proton:…}` variables | Manual path-rewrite rules | Not supported automatically (absolute paths + redirects) |
-| Steam Game Mode | "Add to Steam" writes the shortcut | Decky plugin + background service | Manual `wrap` launch options |
-| Conflicts | Three-way check (local, cloud, last sync); you choose | Sync lineage; keep yours, theirs or both (branch) | Warns and leaves the cloud copy alone |
-| History | Optional cloud backups, manual and pinned backups, a copy on the device before each download | Snapshot of every change, branches | Full + differential backups |
-| Windows registry saves | No | Yes | Yes |
-| Syncs games launched outside it | Flags them as "not uploaded"; one click to sync | Yes (file watcher) | Only with a manual backup or a wrapper |
-
-Choose **Ludusavi** if you mainly want backups on one machine, **OpenSave** if you want every change synced
-automatically without a cloud account, and **Carryover** if you want one cloud copy that follows you between a PC and
-a Steam Deck with no extra setup.
+[Ludusavi](https://github.com/mtkennerly/ludusavi) backs up and restores saves on one machine.
+[OpenSave](https://github.com/Liquid-co/OpenSave) syncs every change peer-to-peer between paired devices.
+Carryover keeps one copy in your own cloud storage and syncs it around each play session. See
+[docs/comparison.md](docs/comparison.md) for a side-by-side comparison.
 
 ## Building from source
 
