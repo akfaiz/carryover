@@ -22,6 +22,8 @@ func kindLabel(kind string) string {
 		return lang.L("install folder")
 	case "steamcloud":
 		return lang.L("Steam Cloud folder")
+	case "prefix":
+		return lang.L("Wine prefix")
 	}
 	return ""
 }
@@ -85,6 +87,9 @@ func suggestionRow(s services.SaveSuggestion, onUse, onAdd func(services.SaveSug
 		badges.Add(badge(lang.L("not on this device"), badgeNone))
 	}
 	if l := kindLabel(s.Kind); l != "" {
+		if s.Prefix != "" {
+			l = s.Prefix // which launcher's prefix, e.g. "Heroic: Hades"
+		}
 		badges.Add(badge(l, badgeNone))
 	}
 	if s.MSStore {

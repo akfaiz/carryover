@@ -332,5 +332,6 @@
   "Backups to keep per game (1–100)": "Backups to keep per game (1–100)",
   "Each backup is a zip uploaded before a sync replaces saves, so syncing gets slower, especially after playing. Older backups are deleted once there are more than this; pinned backups are always kept.": "Each backup is a zip uploaded before a sync replaces saves, so syncing gets slower, especially after playing. Older backups are deleted once there are more than this; pinned backups are always kept.",
   "When off, only the current save is in the cloud. Before a download replaces this device's saves, a copy is still kept on this device (the last {{.Count}}).": "When off, only the current save is in the cloud. Before a download replaces this device's saves, a copy is still kept on this device (the last {{.Count}}).",
-  "Open copies on this device": "Open copies on this device"
+  "Open copies on this device": "Open copies on this device",
+  "Wine prefix": "Wine prefix"
 }

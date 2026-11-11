@@ -98,3 +98,30 @@ func TestSplitGlob(t *testing.T) {
 		}
 	}
 }
+
+// Windows save paths map into a Wine prefix's user folder, named after the
+// account; Linux-only and install-folder paths are skipped.
+func TestSuggestPrefix(t *testing.T) {
+	g := &Game{Files: []File{
+		{Path: "<winAppData>/Game/<osUserName>", OS: OSWindows},
+		{Path: "<winDocuments>/My Games/Game"},
+		{Path: "<xdgData>/Game", OS: OSLinux},
+		{Path: "<base>/saves"},
+	}}
+	got := SuggestPrefix(g, "{home}/Games/Heroic/Prefixes/default/Game/drive_c/users/deck", "deck")
+	want := []Suggestion{
+		{Path: "{home}/Games/Heroic/Prefixes/default/Game/drive_c/users/deck/AppData/Roaming/Game/deck", Kind: KindPrefix,
+			Sources: []string{"<winAppData>/Game/<osUserName>"}},
+		{Path: "{home}/Games/Heroic/Prefixes/default/Game/drive_c/users/deck/Documents/My Games/Game", Kind: KindPrefix,
+			Sources: []string{"<winDocuments>/My Games/Game"}},
+	}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("got  %+v\nwant %+v", got, want)
+	}
+}
+
+func TestSameTitle(t *testing.T) {
+	if !SameTitle("The Witcher® 3: Wild Hunt", "the witcher 3 wild hunt") || SameTitle("Hades", "Hades II") || SameTitle("", "") {
+		t.Fatal("SameTitle")
+	}
+}

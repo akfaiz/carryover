@@ -31,6 +31,9 @@ const (
 	// KindSteamCloud is Steam's own cloud-save folder (<steam>/userdata/...),
 	// already synced by Steam for the Steam version of the game.
 	KindSteamCloud = "steamcloud"
+	// KindPrefix is inside another launcher's Wine prefix (Heroic, Lutris,
+	// Bottles); Suggestion.Prefix names it.
+	KindPrefix = "prefix"
 )
 
 // Suggestion is a save location in Carryover path syntax.
@@ -40,6 +43,9 @@ type Suggestion struct {
 	Kind    string   `json:"kind"`
 	MSStore bool     `json:"msStore"` // only used by the Microsoft Store / Game Pass version
 	Sources []string `json:"sources"` // original manifest templates
+	// Prefix names the Wine prefix of a KindPrefix suggestion, e.g.
+	// "Heroic: Hades" (set by the caller).
+	Prefix string `json:"prefix,omitempty"`
 }
 
 var winVars = map[string]string{
@@ -53,8 +59,9 @@ var winVars = map[string]string{
 }
 
 // Proton prefixes put the Windows user folders under drive_c/users/steamuser,
-// which is what {proton:...} resolves to.
-func protonVars(p string) map[string]string {
+// which is what {proton:...} resolves to. A Wine prefix names the folder after
+// the account (user).
+func protonVars(p, user string) map[string]string {
 	return map[string]string{
 		"<winAppData>":      p + "/AppData/Roaming",
 		"<winLocalAppData>": p + "/AppData/Local",
@@ -62,7 +69,7 @@ func protonVars(p string) map[string]string {
 		"<winPublic>":       p + "/../Public",
 		"<winProgramData>":  p + "/../../ProgramData",
 		"<home>":            p,
-		"<osUserName>":      "steamuser",
+		"<osUserName>":      user,
 	}
 }
 
@@ -81,41 +88,7 @@ func Suggest(g *Game, env Env) []Suggestion {
 		return nil
 	}
 	var out []Suggestion
-	add := func(f File, kind string, vars map[string]string) {
-		tpl := f.Path
-		p, ok := substitute(tpl, vars, env)
-		if !ok {
-			return
-		}
-		dir, include := splitGlob(p)
-		if dir == "" {
-			return
-		}
-		switch {
-		case strings.Contains(tpl, "<root>/userdata/"):
-			kind = KindSteamCloud
-		case strings.Contains(tpl, "<base>") || strings.Contains(tpl, "<root>"):
-			kind = KindInstall
-		}
-		for i := range out {
-			if strings.EqualFold(out[i].Path, dir) {
-				out[i].Sources = append(out[i].Sources, tpl)
-				out[i].MSStore = out[i].MSStore && f.MSStore
-				if len(include) == 0 || len(out[i].Include) == 0 {
-					out[i].Include = nil // the whole folder wins
-					return
-				}
-				for _, inc := range include {
-					if !slices.Contains(out[i].Include, inc) {
-						out[i].Include = append(out[i].Include, inc)
-					}
-				}
-				return
-			}
-		}
-		out = append(out, Suggestion{Path: dir, Include: include, Kind: kind, MSStore: f.MSStore, Sources: []string{tpl}})
-	}
-
+	add := func(f File, kind string, vars map[string]string) { out = addSuggestion(out, f, kind, vars, env) }
 	for _, f := range g.Files {
 		tpl := f.Path
 		hasWin := strings.Contains(tpl, "<win")
@@ -130,7 +103,7 @@ func Suggest(g *Game, env Env) []Suggestion {
 				add(f, KindNative, nativeVars)
 			}
 			if env.Proton != "" && (f.OS == 0 || f.OS&OSWindows != 0) && !hasXdg {
-				add(f, KindProton, protonVars(env.Proton))
+				add(f, KindProton, protonVars(env.Proton, "steamuser"))
 			}
 		case "darwin":
 			if (f.OS == 0 || f.OS&OSMac != 0) && !hasWin && !hasXdg {
@@ -139,6 +112,60 @@ func Suggest(g *Game, env Env) []Suggestion {
 		}
 	}
 	return out
+}
+
+// SuggestPrefix converts a game's Windows save locations into locations inside
+// a Wine prefix: userDir is the prefix's user folder (drive_c/users/<user>)
+// in Carryover path syntax. Paths in the install folder are skipped.
+func SuggestPrefix(g *Game, userDir, user string) []Suggestion {
+	if g == nil || userDir == "" {
+		return nil
+	}
+	var out []Suggestion
+	vars := protonVars(userDir, user)
+	for _, f := range g.Files {
+		if (f.OS == 0 || f.OS&OSWindows != 0) && !strings.Contains(f.Path, "<xdg") {
+			out = addSuggestion(out, f, KindPrefix, vars, Env{})
+		}
+	}
+	return out
+}
+
+// addSuggestion converts one manifest entry with vars and adds it to out,
+// merged into an existing suggestion for the same folder.
+func addSuggestion(out []Suggestion, f File, kind string, vars map[string]string, env Env) []Suggestion {
+	tpl := f.Path
+	p, ok := substitute(tpl, vars, env)
+	if !ok {
+		return out
+	}
+	dir, include := splitGlob(p)
+	if dir == "" {
+		return out
+	}
+	switch {
+	case strings.Contains(tpl, "<root>/userdata/"):
+		kind = KindSteamCloud
+	case strings.Contains(tpl, "<base>") || strings.Contains(tpl, "<root>"):
+		kind = KindInstall
+	}
+	for i := range out {
+		if strings.EqualFold(out[i].Path, dir) {
+			out[i].Sources = append(out[i].Sources, tpl)
+			out[i].MSStore = out[i].MSStore && f.MSStore
+			if len(include) == 0 || len(out[i].Include) == 0 {
+				out[i].Include = nil // the whole folder wins
+				return out
+			}
+			for _, inc := range include {
+				if !slices.Contains(out[i].Include, inc) {
+					out[i].Include = append(out[i].Include, inc)
+				}
+			}
+			return out
+		}
+	}
+	return append(out, Suggestion{Path: dir, Include: include, Kind: kind, MSStore: f.MSStore, Sources: []string{tpl}})
 }
 
 // substitute replaces every placeholder, reporting false if one can't be resolved.

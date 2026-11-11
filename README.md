@@ -32,7 +32,8 @@ SFTP and SMB. The UI is built with [Fyne](https://fyne.io) and needs no webview 
   community covers for any game, and fills in covers Steam doesn't have.
 - **Save locations suggested** — known save folders for ~21,000 games (from the Ludusavi manifest),
   translated for each device: Windows folders on a PC, the Proton prefix or native Linux folders on
-  a Steam Deck. Folders that already hold saves are found and shown first.
+  a Steam Deck. Folders that already hold saves are found and shown first. On Linux, the Wine prefixes
+  of Heroic, Lutris and Bottles (native or Flatpak, including the SD card) are searched too.
 - **Shared library** — the game list syncs between devices; a game added on PC shows up on the Deck
   as "needs setup".
 

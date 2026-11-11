@@ -82,6 +82,13 @@ func normalize(s string) string {
 	return b.String()
 }
 
+// SameTitle reports whether two game titles match once case, punctuation
+// and trademark symbols are ignored.
+func SameTitle(a, b string) bool {
+	na := normalize(a)
+	return na != "" && na == normalize(b)
+}
+
 // Find returns the manifest entry for a game, preferring an exact Steam app id
 // match and falling back to the normalised name.
 func Find(steamID, name string) (*Game, error) {

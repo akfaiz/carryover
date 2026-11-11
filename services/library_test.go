@@ -13,6 +13,8 @@ import (
 	"github.com/akfaiz/carryover/internal/appdir"
 	"github.com/akfaiz/carryover/internal/core"
 	"github.com/akfaiz/carryover/internal/library"
+	"github.com/akfaiz/carryover/internal/ludusavi"
+	"github.com/akfaiz/carryover/internal/wineprefix"
 )
 
 // The editor's payload for a new game must decode and save (regression: an
@@ -132,5 +134,64 @@ func TestGameViewSafetyDir(t *testing.T) {
 		if v.SafetyDir != step.want {
 			t.Fatalf("after %q: SafetyDir = %q, want %q", step.file, v.SafetyDir, step.want)
 		}
+	}
+}
+
+// Save suggestions include other launchers' Wine prefixes: every location in
+// the game's own prefix, and in any other prefix only those holding saves.
+func TestSuggestSavesInWinePrefixes(t *testing.T) {
+	t.Setenv(appdir.EnvHome, t.TempDir())
+	c, err := core.New()
+	if err != nil {
+		t.Fatal(err)
+	}
+	root := t.TempDir()
+	user := func(prefix string) string { return filepath.Join(root, prefix, "drive_c", "users", "deck") }
+	saveDir := func(prefix string) string {
+		return filepath.Join(user(prefix), "AppData", "LocalLow", "Team Cherry", "Hollow Knight")
+	}
+	// A bottle running Hollow Knight with saves, one with no saves, and a
+	// Heroic prefix titled after the game but still empty.
+	if err := os.MkdirAll(saveDir("bottle"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(saveDir("bottle"), "user1.dat"), []byte("save"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	for _, p := range []string{"other", "heroic"} {
+		if err := os.MkdirAll(user(p), 0o755); err != nil {
+			t.Fatal(err)
+		}
+	}
+	svc := NewLibraryService(c, nil, nil)
+	svc.prefixes = func() []wineprefix.Prefix {
+		return []wineprefix.Prefix{
+			{Launcher: wineprefix.Bottles, Name: "Gaming", Path: filepath.Join(root, "bottle"), Users: []string{user("bottle")}},
+			{Launcher: wineprefix.Bottles, Name: "Other", Path: filepath.Join(root, "other"), Users: []string{user("other")}},
+			{Launcher: wineprefix.Heroic, Name: "Hollow Knight", Path: filepath.Join(root, "heroic"), Users: []string{user("heroic")}},
+		}
+	}
+
+	res, err := svc.SuggestSaves(SuggestInput{Name: "Hollow Knight"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	found := map[string]SaveSuggestion{}
+	for _, s := range res.Suggestions {
+		if s.Kind == ludusavi.KindPrefix {
+			found[s.Prefix] = s
+		}
+	}
+	if s, ok := found["Bottles: Gaming"]; !ok || s.Files != 1 || filepath.Clean(s.Resolved) != filepath.Clean(saveDir("bottle")) {
+		t.Errorf("bottle with saves: %+v (found %v)", s, ok)
+	}
+	if _, ok := found["Bottles: Other"]; ok {
+		t.Error("a prefix without saves that isn't the game's was suggested")
+	}
+	if s, ok := found["Heroic: Hollow Knight"]; !ok || s.Files != 0 {
+		t.Errorf("the game's own Heroic prefix: %+v (found %v)", s, ok)
+	}
+	if res.Suggestions[0].Prefix != "Bottles: Gaming" {
+		t.Errorf("the location holding saves isn't first: %+v", res.Suggestions[0])
 	}
 }

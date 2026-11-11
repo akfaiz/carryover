@@ -13,6 +13,7 @@ import (
 	"path"
 	"path/filepath"
 	"runtime"
+	"slices"
 	"sort"
 	"strings"
 	"sync"
@@ -27,6 +28,7 @@ import (
 	"github.com/akfaiz/carryover/internal/steamgrid"
 	"github.com/akfaiz/carryover/internal/steamstore"
 	"github.com/akfaiz/carryover/internal/syncer"
+	"github.com/akfaiz/carryover/internal/wineprefix"
 )
 
 // LibraryService manages games.
@@ -38,6 +40,10 @@ type LibraryService struct {
 	checkMu  sync.Mutex
 	checks   map[string]localCheck // gameID -> last CheckLocalChanges result
 	checking atomic.Bool
+
+	// prefixes lists other launchers' Wine prefixes for save suggestions
+	// (nil: none, i.e. not Linux).
+	prefixes func() []wineprefix.Prefix
 }
 
 // localCheck is the last result of CheckLocalChanges for a game.
@@ -49,7 +55,11 @@ type localCheck struct {
 
 // NewLibraryService creates the service. bus and running may be nil.
 func NewLibraryService(c *core.Core, bus *Bus, running func(string) bool) *LibraryService {
-	return &LibraryService{c: c, bus: bus, running: running, checks: map[string]localCheck{}}
+	s := &LibraryService{c: c, bus: bus, running: running, checks: map[string]localCheck{}}
+	if runtime.GOOS == "linux" {
+		s.prefixes = func() []wineprefix.Prefix { return wineprefix.Find(wineprefix.DefaultRoots()) }
+	}
+	return s
 }
 
 // GameStatus is the sync state of a game on this device.
@@ -737,10 +747,14 @@ func (s *LibraryService) SuggestSaves(in SuggestInput) (SuggestResult, error) {
 			}
 		}
 	}
-	if env.InstallDir == "" && strings.TrimSpace(in.Exe) != "" {
-		if exe, err := pctx.Expand(in.Exe); err == nil && filepath.IsAbs(exe) {
-			env.InstallDir = filepath.Dir(exe)
+	var exe string
+	if strings.TrimSpace(in.Exe) != "" {
+		if p, err := pctx.Expand(in.Exe); err == nil && filepath.IsAbs(p) {
+			exe = p
 		}
+	}
+	if env.InstallDir == "" && exe != "" {
+		env.InstallDir = filepath.Dir(exe)
 	}
 	if env.InstallDir != "" {
 		env.InstallDir = pctx.Contract(env.InstallDir) // e.g. {steam}/steamapps/common/Game
@@ -754,7 +768,7 @@ func (s *LibraryService) SuggestSaves(in SuggestInput) (SuggestResult, error) {
 		}
 	}
 
-	for _, sg := range ludusavi.Suggest(g, env) {
+	check := func(sg ludusavi.Suggestion) SaveSuggestion {
 		out := SaveSuggestion{Suggestion: sg}
 		if out.Include == nil {
 			out.Include = []string{}
@@ -763,7 +777,26 @@ func (s *LibraryService) SuggestSaves(in SuggestInput) (SuggestResult, error) {
 			out.Resolved = p
 			out.Exists, out.Files, out.Bytes, out.Newest = scanFolder(p, sg.Include)
 		}
-		res.Suggestions = append(res.Suggestions, out)
+		return out
+	}
+	for _, sg := range ludusavi.Suggest(g, env) {
+		res.Suggestions = append(res.Suggestions, check(sg))
+	}
+	// Heroic, Lutris and Bottles prefixes: all locations in the game's own
+	// prefix, and in any other prefix only those that hold saves.
+	if s.prefixes != nil {
+		for _, pf := range s.prefixes() {
+			mine := prefixIsFor(pf, exe, g.Name, in.Name)
+			for _, user := range pf.Users {
+				userDir := filepath.ToSlash(pctx.Contract(user))
+				for _, sg := range ludusavi.SuggestPrefix(g, userDir, filepath.Base(user)) {
+					sg.Prefix = prefixLabel(pf)
+					if out := check(sg); mine || out.Files > 0 {
+						res.Suggestions = append(res.Suggestions, out)
+					}
+				}
+			}
+		}
 	}
 	sort.SliceStable(res.Suggestions, func(i, j int) bool {
 		a, b := res.Suggestions[i], res.Suggestions[j]
@@ -781,6 +814,31 @@ func (s *LibraryService) SuggestSaves(in SuggestInput) (SuggestResult, error) {
 		return a.Kind != ludusavi.KindSteamCloud && b.Kind == ludusavi.KindSteamCloud
 	})
 	return res, nil
+}
+
+// prefixIsFor reports whether a Wine prefix belongs to the game: the launcher
+// lists it under one of the game's names, or the game's exe is inside it.
+func prefixIsFor(pf wineprefix.Prefix, exe string, names ...string) bool {
+	if exe != "" && strings.HasPrefix(filepath.Clean(exe), filepath.Clean(pf.Path)+string(filepath.Separator)) {
+		return true
+	}
+	for _, n := range names {
+		if ludusavi.SameTitle(pf.Name, n) || slices.ContainsFunc(pf.Games, func(g string) bool { return ludusavi.SameTitle(g, n) }) {
+			return true
+		}
+	}
+	return false
+}
+
+// prefixLabel names a prefix for the user, e.g. "Heroic: Hades".
+func prefixLabel(pf wineprefix.Prefix) string {
+	launcher := map[string]string{
+		wineprefix.Heroic: "Heroic", wineprefix.Lutris: "Lutris", wineprefix.Bottles: "Bottles",
+	}[pf.Launcher]
+	if launcher == "" {
+		launcher = "Wine"
+	}
+	return launcher + ": " + pf.Name
 }
 
 // scanFolder reports whether dir exists and counts matching files (bounded).
