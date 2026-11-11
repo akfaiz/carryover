@@ -106,8 +106,13 @@ git tag v0.2.0
 git push origin v0.2.0
 ```
 
-`.github/workflows/release.yml` then runs the CI checks, builds everything, and creates a GitHub Release with
-a `SHA256SUMS.txt` and notes generated from the commits since the last tag:
+Or create it on GitHub: **Releases → Draft a new release → Choose a tag**, type the new tag (target `main`), write
+or generate the notes, and **Publish release**. Publishing creates the tag, which starts the same workflow; it
+attaches the files to that release a few minutes later. A saved draft does nothing until it is published.
+
+`.github/workflows/release.yml` builds everything and attaches it, with a `SHA256SUMS.txt`, to the release (it
+creates the release, with notes generated from the commits since the last tag, if it doesn't exist yet). It first
+runs the CI checks, so a failing test stops the release. The files are:
 
 - `carryover-<tag>-windows-amd64.exe`, packaged with `fyne package` (icon and version info from the tag).
 - `Carryover-x86_64.AppImage` and its `.zsync` file, built with the Dockerfile (the same build as
@@ -117,8 +122,10 @@ a `SHA256SUMS.txt` and notes generated from the commits since the last tag:
 - `carryover-<tag>-linux-amd64.tar.gz` (`packaging/linux/tarball.sh`): the binary, `.desktop` file and icon laid
   out like an install prefix, plus `install.sh`, which installs into `~/.local` (or a prefix given as argument).
 
-A tag with a suffix, such as `v0.2.0-rc1`, is published as a pre-release; AppImage updates only follow full
-releases. The Windows exe is not code-signed, so SmartScreen warns on first run ("More info → Run anyway").
+A tag with a suffix, such as `v0.2.0-rc1`, is published as a pre-release; the workflow sets this from the tag and
+overrides the "Set as a pre-release" checkbox on the website. Pre-releases don't count as "latest", so AppImage
+updates and the `releases/latest/download/…` link only work once there is a full release. The Windows exe is not
+code-signed, so SmartScreen warns on first run ("More info → Run anyway").
 
 The tag is the only version number. Before building, each release job runs `scripts/stamp-version.sh <tag> <sha>`,
 which writes the git-ignored `internal/version/zz_release.go` setting `version.Version` and `version.Commit`; the app

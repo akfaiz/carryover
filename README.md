@@ -9,6 +9,8 @@
 </p>
 
 <p align="center">
+  <a href="https://github.com/akfaiz/carryover/releases"><img src="https://img.shields.io/github/v/release/akfaiz/carryover?include_prereleases&sort=semver" alt="Latest release"></a>
+  <a href="https://github.com/akfaiz/carryover/actions/workflows/ci.yml"><img src="https://github.com/akfaiz/carryover/actions/workflows/ci.yml/badge.svg?branch=main" alt="CI"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="License: MIT"></a>
 </p>
 
@@ -39,10 +41,33 @@ Cloud storage: Google Drive, Dropbox, OneDrive, WebDAV (Nextcloud, ownCloud, NAS
 - **Shared library** — the game list, covers and artwork sync between devices; a game added on the PC shows up on
   the Deck as "needs setup".
 
+## Download
+
+Get the latest version from the [Releases page](https://github.com/akfaiz/carryover/releases). Carryover is still
+in testing, so the current downloads are pre-releases (`-rc` versions).
+
+| Platform | File | How to run |
+|---|---|---|
+| Windows | `carryover-<version>-windows-amd64.exe` | Rename it to `carryover.exe` (so updates can keep the same name) and run it; there is no installer. |
+| Steam Deck, Linux | `Carryover-x86_64.AppImage` | Make it executable (file Properties → Permissions, or `chmod +x`) and run it. |
+| Linux | `carryover-<version>-linux-amd64.tar.gz` | Extract it and run `./install.sh` (installs into `~/.local` and adds a menu entry), or `sudo ./install.sh /usr/local` for every user. |
+
+- **Keep the app in one place.** Steam shortcuts made with "Add to Steam" point at the file's path, so put the exe
+  or AppImage in a folder you won't move it out of (for example `~/Applications` on the Deck). On the Deck, run it
+  from Desktop Mode the first time.
+- **Windows warns on first run.** The exe isn't code-signed yet, so SmartScreen shows "Windows protected your PC";
+  choose **More info → Run anyway**.
+- **Check a download** against `SHA256SUMS.txt` from the same release: `sha256sum -c SHA256SUMS.txt --ignore-missing`
+  on Linux, or compare the output of `Get-FileHash <file>` in PowerShell on Windows.
+- **Updating:** replace the old file with the new one under the same path and name, so Steam shortcuts keep working
+  (on Windows, rename the new exe to `carryover.exe` again). The AppImage can also update
+  itself through [Gear Lever](https://flathub.org/apps/it.mijorus.gearlever) or AppImageUpdate (full releases only,
+  not pre-releases). For the tarball, run `install.sh` from the new version.
+- `carryover --version`, or Settings → About, shows which version you have.
+
 ## Getting started
 
-There are no prebuilt downloads yet. Build Carryover for Windows, or as a Linux binary or AppImage for the Steam
-Deck, by following [CONTRIBUTING.md](CONTRIBUTING.md). Then, on each device:
+On each device:
 
 1. **Cloud storage** — add a remote with "＋ Add remote" (or import your existing rclone config), then pick it and
    a folder under "Sync location". Every device must use the same remote and folder.
