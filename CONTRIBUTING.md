@@ -84,6 +84,10 @@ packaging/appimage/build.sh        # writes bin/Carryover-x86_64.AppImage
 Keep the AppImage in a fixed place (for example `~/Applications/`). The Steam shortcut points at its path, and
 moving it breaks the shortcut until you use "Update Steam shortcut".
 
+Set `UPDATE_INFO` to embed update information, so AppImageUpdate or Gear Lever can update the AppImage in place.
+`build.sh` then also writes `Carryover-x86_64.AppImage.zsync` (it needs `zsyncmake`, from the `zsync` package).
+The release workflow does this; local builds leave it out.
+
 ## Continuous integration and releases
 
 GitHub Actions run on every pull request and every push to `main` (`.github/workflows/ci.yml`):
@@ -96,11 +100,19 @@ git tag v0.2.0
 git push origin v0.2.0
 ```
 
-`.github/workflows/release.yml` then runs the CI checks, builds the Windows exe (`fyne package`, with icon and
-version info taken from the tag), the Linux binary and the AppImage, and creates a GitHub Release with those files,
-a `SHA256SUMS.txt` and notes generated from the commits since the last tag. A tag with a suffix, such as
-`v0.2.0-rc1`, is published as a pre-release. The Windows exe is not code-signed, so SmartScreen warns on first run
-("More info → Run anyway").
+`.github/workflows/release.yml` then runs the CI checks, builds everything, and creates a GitHub Release with
+a `SHA256SUMS.txt` and notes generated from the commits since the last tag:
+
+- `carryover-<tag>-windows-amd64.exe`, packaged with `fyne package` (icon and version info from the tag).
+- `Carryover-x86_64.AppImage` and its `.zsync` file, built with the Dockerfile (the same build as
+  `scripts/linux-docker appimage`). The name has no version on purpose: the embedded update information finds
+  the `.zsync` file in the latest release by that name, and `releases/latest/download/Carryover-x86_64.AppImage`
+  stays a stable download link.
+- `carryover-<tag>-linux-amd64.tar.gz` (`packaging/linux/tarball.sh`): the binary, `.desktop` file and icon laid
+  out like an install prefix, plus `install.sh`, which installs into `~/.local` (or a prefix given as argument).
+
+A tag with a suffix, such as `v0.2.0-rc1`, is published as a pre-release; AppImage updates only follow full
+releases. The Windows exe is not code-signed, so SmartScreen warns on first run ("More info → Run anyway").
 
 ## Cloud layout
 

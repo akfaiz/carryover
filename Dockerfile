@@ -19,10 +19,13 @@ RUN --mount=type=cache,target=/go/pkg/mod --mount=type=cache,target=/root/.cache
 #   docker build --target appimage-out --output type=local,dest=bin .
 FROM build AS appimage
 ARG APPIMAGETOOL_VERSION=1.9.0
-RUN apt-get update && apt-get install -y --no-install-recommends curl ca-certificates file desktop-file-utils     && rm -rf /var/lib/apt/lists/*     && curl -fsSL -o /usr/local/bin/appimagetool         https://github.com/AppImage/appimagetool/releases/download/${APPIMAGETOOL_VERSION}/appimagetool-x86_64.AppImage     && chmod +x /usr/local/bin/appimagetool
+RUN apt-get update && apt-get install -y --no-install-recommends curl ca-certificates file desktop-file-utils zsync     && rm -rf /var/lib/apt/lists/*     && curl -fsSL -o /usr/local/bin/appimagetool         https://github.com/AppImage/appimagetool/releases/download/${APPIMAGETOOL_VERSION}/appimagetool-x86_64.AppImage     && chmod +x /usr/local/bin/appimagetool
 # No FUSE inside a build container: let appimagetool unpack itself.
 ENV APPIMAGE_EXTRACT_AND_RUN=1
-RUN OUT=/appimage/Carryover-x86_64.AppImage bash packaging/appimage/build.sh /out/carryover
+# Update information for AppImageUpdate / Gear Lever (empty for local builds);
+# when set, Carryover-x86_64.AppImage.zsync is written next to the AppImage.
+ARG UPDATE_INFO=""
+RUN UPDATE_INFO="$UPDATE_INFO" OUT=/appimage/Carryover-x86_64.AppImage bash packaging/appimage/build.sh /out/carryover
 
 FROM scratch AS appimage-out
 COPY --from=appimage /appimage/ /

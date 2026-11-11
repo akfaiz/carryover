@@ -54,14 +54,17 @@ jobs:
       - uses: docker/setup-buildx-action@v3
       - name: Build AppImage and binary
         run: |
-          docker buildx build --target appimage-out --output type=local,dest=out .
+          # AppImageUpdate / Gear Lever look for the .zsync file in the latest release.
+          update_info="gh-releases-zsync|${GITHUB_REPOSITORY_OWNER}|${GITHUB_REPOSITORY#*/}|latest|Carryover-x86_64.AppImage.zsync"
+          docker buildx build --target appimage-out --build-arg "UPDATE_INFO=$update_info"             --output type=local,dest=out .
           docker buildx build --target binary-out --output type=local,dest=out .
       - name: Package
         run: |
           mkdir -p dist
-          mv out/Carryover-x86_64.AppImage "dist/Carryover-${GITHUB_REF_NAME}-x86_64.AppImage"
-          chmod +x out/carryover
-          tar -C out -czf "dist/carryover-${GITHUB_REF_NAME}-linux-amd64.tar.gz" carryover
+          # The AppImage keeps a fixed name: its .zsync file refers to it by name,
+          # and releases/latest/download/Carryover-x86_64.AppImage stays a stable link.
+          mv out/Carryover-x86_64.AppImage out/Carryover-x86_64.AppImage.zsync dist/
+          packaging/linux/tarball.sh out/carryover "carryover-${GITHUB_REF_NAME}-linux-amd64" dist
       - uses: actions/upload-artifact@v4
         with:
           name: linux
