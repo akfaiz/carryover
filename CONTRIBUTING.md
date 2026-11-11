@@ -97,7 +97,14 @@ The release workflow does this; local builds leave it out.
 ## Continuous integration and releases
 
 GitHub Actions run on every pull request and every push to `main` (`.github/workflows/ci.yml`):
-`golangci-lint` on Linux and `go test ./...` on Linux and Windows.
+`golangci-lint` on Linux and `go test ./...` on Linux and Windows. `setup-go` caches Go modules and the build cache,
+and `golangci-lint-action` its own results.
+
+Pushes to `main` also run the `docker-cache` job, which builds the Dockerfile's `appimage` stage only to fill caches
+for the release's Linux build: Docker layers (`type=gha`) and the Go module and build caches behind the Dockerfile's
+`RUN --mount=type=cache` (`actions/cache` plus `buildkit-cache-dance`). It runs on `main` because a tag's workflow
+can only restore caches saved on its own tag or on the default branch, so a release can't reuse an earlier
+release's cache.
 
 To publish a release, push a version tag:
 
