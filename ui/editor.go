@@ -404,30 +404,44 @@ func (e *editor) gameCard() fyne.CanvasObject {
 
 func (e *editor) launchCard() fyne.CanvasObject {
 	modes := &choice{}
-	modes.add(string(library.LaunchDirect), lang.L("Carryover starts the executable (Windows, native Linux/macOS games)"))
-	modes.add(string(library.LaunchSteamWrap), lang.L("Steam starts it via Proton; Carryover wraps %command% (Steam Deck / Linux)"))
+	modes.add(string(library.LaunchDirect), lang.L("Carryover"))
 	if runtime.GOOS == "linux" || runtime.GOOS == "windows" || e.dev.LaunchMode == library.LaunchHeroic {
-		modes.add(string(library.LaunchHeroic), lang.L("Carryover starts it through Heroic (keeps Heroic's settings and, on Linux, its Wine prefix)"))
+		modes.add(string(library.LaunchHeroic), lang.L("Heroic Games Launcher"))
 	}
+	modes.add(string(library.LaunchSteamWrap), lang.L("Steam"))
 	e.exeEntry = monoEntry("", e.dev.Exe, func(s string) { e.dev.Exe = s })
-	setExePlaceholder := func() {
+	hint := muted("")
+	args := monoEntry("-windowed", e.dev.Args, func(s string) { e.dev.Args = s })
+	argsField := field(lang.L("Arguments"), args)
+	exeExample := func(dir string) string {
+		if runtime.GOOS == "windows" {
+			return `C:\Games\` + dir + `A\Game.exe`
+		}
+		return "/home/deck/Games/" + strings.ReplaceAll(dir, `\`, "/") + "A/Game.exe"
+	}
+	applyMode := func() {
 		switch e.dev.LaunchMode {
 		case library.LaunchSteamWrap:
-			e.exeEntry.SetPlaceHolder("/home/deck/Games/A/Game.exe")
+			hint.SetText(lang.L("Steam starts the game, and Carryover syncs before and after through the game's Steam launch options (shown on the game page). On Linux, Steam chooses the Proton version."))
+			e.exeEntry.SetPlaceHolder(exeExample(""))
 		case library.LaunchHeroic:
-			e.exeEntry.SetPlaceHolder("/home/deck/Games/Heroic/A/Game.exe")
+			hint.SetText(lang.L("Heroic starts the game with its own settings (and, on Linux, its Wine prefix). Pick the game's executable inside its Heroic install folder; Carryover waits for it to close, then syncs."))
+			e.exeEntry.SetPlaceHolder(exeExample(`Heroic\`))
 		default:
-			e.exeEntry.SetPlaceHolder(`C:\Games\A\Game.exe`)
+			hint.SetText(lang.L("Carryover runs the executable below. It syncs saves before the game starts and after it closes."))
+			e.exeEntry.SetPlaceHolder(exeExample(""))
+		}
+		// Heroic launches the game with its own settings, so arguments set here are unused.
+		if e.dev.LaunchMode == library.LaunchHeroic {
+			argsField.Hide()
+		} else {
+			argsField.Show()
 		}
 	}
-	setExePlaceholder()
+	applyMode()
 	mode := selectOf(modes, string(e.dev.LaunchMode), func(v string) {
-		heroicChanged := (v == string(library.LaunchHeroic)) != (e.dev.LaunchMode == library.LaunchHeroic)
 		e.dev.LaunchMode = library.LaunchMode(v)
-		setExePlaceholder()
-		if heroicChanged {
-			e.render() // show or hide the Heroic hint
-		}
+		applyMode()
 	})
 	browse := widget.NewButton(lang.L("Browse…"), func() {
 		e.pickFile(lang.L("Choose game executable"), nil, func(p string) {
@@ -445,11 +459,6 @@ func (e *editor) launchCard() fyne.CanvasObject {
 			})
 		})
 	})
-	args := monoEntry("-windowed", e.dev.Args, func(s string) { e.dev.Args = s })
-	exeField := vbox(field(lang.L("Executable"), rowFill(e.exeEntry, browse)))
-	if e.dev.LaunchMode == library.LaunchHeroic {
-		exeField.Add(muted(lang.L("Pick the game's executable inside its Heroic install folder. Heroic launches it with its own settings (arguments set here are not used), and Carryover waits until that executable exits.")))
-	}
 	wait := monoEntry("Game-Win64-Shipping.exe", e.dev.WaitProcess, func(s string) { e.dev.WaitProcess = s })
 	env := monoMultiLine("", e.envText, 3, func(s string) { e.envText = s })
 	workDir := newPathInput(e.u, e.id, e.tokens, e.dev.WorkDir, "", func(s string) { e.dev.WorkDir = s })
@@ -460,9 +469,9 @@ func (e *editor) launchCard() fyne.CanvasObject {
 	), e.advanced)
 
 	return card("", cardHead(lang.L("Launch on this device"), badge(e.u.settings.DeviceName, badgeNone)),
-		field(lang.L("How is the game started?"), mode),
-		exeField,
-		field(lang.L("Arguments"), args),
+		field(lang.L("Launch with"), vbox(mode, hint)),
+		field(lang.L("Executable"), rowFill(e.exeEntry, browse)),
+		argsField,
 		e.advItem)
 }
 

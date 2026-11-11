@@ -48,7 +48,7 @@ func newSteamForm(o steamFormOpts) *steamForm {
 			c.Add(field(lang.L("Steam account"), selectOf(users, o.User, o.OnUser)))
 		}
 		if g.Device.LaunchMode == "heroic" {
-			c.Add(muted(lang.L("Steam runs Carryover, which starts the game through Heroic, so it keeps Heroic's settings and, on Linux, its Wine prefix. Don't force a Proton version on this shortcut.")))
+			c.Add(muted(lang.L("Steam runs Carryover, which starts the game through Heroic Games Launcher, so it keeps Heroic's settings (and, on Linux, its Wine prefix). Don't force a Proton version on this shortcut.")))
 		} else {
 			modes := &choice{}
 			modes.add("direct", lang.L("Run Carryover (it starts the game)"))
