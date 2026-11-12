@@ -31,7 +31,7 @@ func bases(t *testing.T) map[string]*Client {
 	require.NoError(t, err)
 	// A fresh folder name per test keeps runs apart: the memory backend is
 	// shared by the whole test process.
-	remote, err := NewClient("mem:Carryover-" + filepath.Base(t.TempDir()))
+	remote, err := NewClient(fmt.Sprintf("mem:Carryover-%d", time.Now().UnixNano()))
 	require.NoError(t, err)
 	return map[string]*Client{"local folder": local, "named remote": remote}
 }
@@ -353,6 +353,18 @@ func TestFilters(t *testing.T) {
 	require.NoError(t, err)
 	assert.True(t, exc.Include("slot1.sav", 1, now, nil))
 	assert.False(t, exc.Include("debug.log", 1, now, nil), "excluded")
+
+	// Both lists: an exclude wins over an include that also matches the file.
+	both, err := Filters{Include: []string{"*"}, Exclude: []string{"*.log"}}.NewFilter()
+	require.NoError(t, err)
+	assert.True(t, both.Include("slot1.sav", 1, now, nil))
+	assert.False(t, both.Include("debug.log", 1, now, nil), "excluded although the include list matches it")
+
+	narrow, err := Filters{Include: []string{"*.sav"}, Exclude: []string{"debug.sav"}}.NewFilter()
+	require.NoError(t, err)
+	assert.True(t, narrow.Include("slot1.sav", 1, now, nil))
+	assert.False(t, narrow.Include("debug.sav", 1, now, nil), "excluded although the include list matches it")
+	assert.False(t, narrow.Include("notes.txt", 1, now, nil), "not on the include list")
 
 	all, err := Filters{}.NewFilter()
 	require.NoError(t, err)

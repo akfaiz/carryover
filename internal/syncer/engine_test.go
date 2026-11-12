@@ -154,6 +154,28 @@ func TestFilters(t *testing.T) {
 	mustSync(t, pc, job, ResolveAuto, ActionNone)
 }
 
+// A slot with both an include and an exclude list keeps what the include list
+// matches except what the exclude list matches (regression: the excludes were
+// ignored for files the include list also matched).
+func TestIncludeAndExcludeFilters(t *testing.T) {
+	cloudDir := setupCloud(t)
+	pc, job := newDevice(t, cloudDir, "pc")
+	job.Slots[0].Filters = cloud.Filters{Include: []string{"*"}, Exclude: []string{"*.log", "cache/"}}
+	saves := job.Slots[0].LocalPath
+	write(t, saves, "a.sav", "x")
+	write(t, saves, "debug.log", "noise")
+	write(t, filepath.Join(saves, "cache"), "tmp.bin", "tmp")
+	mustSync(t, pc, job, ResolveAuto, ActionPush)
+
+	cloudSaves := filepath.Join(cloudDir, "games", "game1", "current", "saves")
+	require.FileExists(t, filepath.Join(cloudSaves, "a.sav"))
+	require.NoFileExists(t, filepath.Join(cloudSaves, "debug.log"), "excluded file was uploaded")
+	require.NoFileExists(t, filepath.Join(cloudSaves, "cache", "tmp.bin"), "file in an excluded folder was uploaded")
+	// Changing excluded files doesn't trigger a sync.
+	write(t, saves, "debug.log", "more noise")
+	mustSync(t, pc, job, ResolveAuto, ActionNone)
+}
+
 func TestDecide(t *testing.T) {
 	m := func(rev string, files ...string) *Manifest {
 		mm := &Manifest{Revision: rev, Files: map[string]FileInfo{}}
