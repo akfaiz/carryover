@@ -24,7 +24,8 @@ const usage = `Carryover — game launcher with rclone cloud saves
 
 Usage:
   carryover                                  open the launcher
-  carryover run <game> [--headless] [-- cmd] sync, play, sync (used by Steam shortcuts)
+  carryover run <game> [--headless] [--no-sync] [-- cmd]
+                                             sync, play, sync (used by Steam shortcuts)
   carryover sync <game|--all> [--push|--pull] [--dry-run] [--yes]
                                              --dry-run shows what would happen; with --all,
                                              --push/--pull ask first unless --yes is given

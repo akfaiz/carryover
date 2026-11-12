@@ -112,13 +112,13 @@ while it runs, but never the game itself.
 
 ## Steam Deck / Proton games
 
-Pick **"Steam starts it via Proton"** as launch mode and **"Run the game exe, wrapped by Carryover"**
-when adding to Steam. Steam gets the game `.exe` as target and
+Pick **"Steam"** as the game's launch mode and, in "Add to Steam", set **Shortcut type** to
+**"Run the game exe, wrapped by Carryover"**. Steam gets the game `.exe` as target and
 `"<carryover>" run <id> -- %command%` as launch options; force a Proton version in the shortcut's
 Compatibility settings. For games you own on Steam, paste the launch options shown on the game page.
 
 Games installed by **Heroic** (GOG, Epic, Amazon, or added by hand) should keep Heroic's own Wine prefix: a
-Proton shortcut would give them a new, empty one. Pick **"Carryover starts it through Heroic"** as launch mode;
+Proton shortcut would give them a new, empty one. Pick **"Heroic Games Launcher"** as launch mode;
 choosing an executable inside a Heroic install folder selects it automatically. Carryover then launches the game
 with `heroic://launch` (as Heroic's own "Add to Steam" does) and waits for that executable to exit. The Steam
 shortcut runs Carryover, so don't force a Proton version on it. Pick the save folder from the Heroic prefix
@@ -128,7 +128,7 @@ which Epic games need for their login.
 ## Path variables
 
 Save paths can use variables, so one entry works on every device. The most common are `{home}`, `{documents}`,
-`{appdata}`, `{localappdata}`, `{savedgames}`, `{xdgdata}`, `{xdgconfig}` and `{steam}`, plus
+`{appdata}`, `{localappdata}`, `{savedgames}`, `{localappdatalow}` (Windows `AppData\LocalLow`), `{xdgdata}`, `{xdgconfig}` and `{steam}`, plus
 `{proton:<appid>}` (a Steam game's Proton prefix, `…/compatdata/<appid>/pfx/drive_c/users/steamuser`) and
 `{proton:shortcut}` (the prefix of this game's own non-Steam shortcut). `$ENV` and `%ENV%` work too.
 The `{ }` button next to a path field lists every variable with its value on the current device.
@@ -137,7 +137,8 @@ The `{ }` button next to a path field lists every variable with its value on the
 
 ```
 carryover                                    open the launcher
-carryover run <game> [--headless] [-- cmd]   pull → play → push (used by Steam shortcuts)
+carryover run <game> [--headless] [--no-sync] [-- cmd]
+                                             pull → play → push (used by Steam shortcuts)
 carryover sync <game>|--all [--push|--pull] [--dry-run] [--yes]
                                              manual sync (exit code 3 = conflict)
 carryover list                               list games and their ids
@@ -148,6 +149,7 @@ carryover --version                          print the version
   launched instead of the configured exe.
 - `--headless` never waits for input: conflicts are skipped, both sides stay untouched, and the game is flagged
   in the launcher until you resolve it.
+- `--no-sync` launches the game without syncing before or after.
 - `--dry-run` shows what would happen without changing anything. `--all` with `--push` or `--pull` asks first;
   `--yes` (`-y`) skips the question.
 - Set `CARRYOVER_HOME` to use a different data directory (default: `Carryover` in the user config dir).
