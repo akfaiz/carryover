@@ -1,5 +1,11 @@
 # Contributing
 
+Bug reports, ideas and pull requests are welcome. Please use the issue forms for
+[bugs](https://github.com/akfaiz/carryover/issues/new?template=bug_report.yml) and
+[feature requests](https://github.com/akfaiz/carryover/issues/new?template=feature_request.yml), report security
+issues privately as described in [SECURITY.md](SECURITY.md), and follow the [code of conduct](CODE_OF_CONDUCT.md).
+For a bigger change, open an issue first so we can agree on the approach.
+
 ## Requirements
 
 - Go (see `go.mod` for the version).
