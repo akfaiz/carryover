@@ -5,7 +5,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	"github.com/akfaiz/carryover/internal/syncer"
+	"github.com/akfaiz/carryover/internal/cloudsync/syncer"
 )
 
 func TestReorder(t *testing.T) {

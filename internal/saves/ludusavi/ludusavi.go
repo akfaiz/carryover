@@ -1,7 +1,7 @@
 // Package ludusavi suggests save locations for games using an embedded index
 // built from the Ludusavi manifest (https://github.com/mtkennerly/ludusavi-manifest,
 // MIT; data compiled from PCGamingWiki). Regenerate the index with
-// `go run ./internal/ludusavi/gen`.
+// `go run ./internal/saves/ludusavi/gen`.
 package ludusavi
 
 import (

@@ -3,8 +3,8 @@
 //
 // Usage (from the repo root):
 //
-//	go run ./internal/ludusavi/gen                 # download the latest manifest
-//	go run ./internal/ludusavi/gen -in manifest.yaml
+//	go run ./internal/saves/ludusavi/gen                 # download the latest manifest
+//	go run ./internal/saves/ludusavi/gen -in manifest.yaml
 package main
 
 import (
@@ -24,7 +24,7 @@ import (
 
 	"gopkg.in/yaml.v3"
 
-	"github.com/akfaiz/carryover/internal/ludusavi"
+	"github.com/akfaiz/carryover/internal/saves/ludusavi"
 )
 
 const manifestURL = "https://raw.githubusercontent.com/mtkennerly/ludusavi-manifest/master/data/manifest.yaml"
@@ -46,7 +46,7 @@ type manifestGame struct {
 
 func main() {
 	in := flag.String("in", "", "manifest.yaml to read (default: download)")
-	out := flag.String("out", "internal/ludusavi/index.json.gz", "output file")
+	out := flag.String("out", "internal/saves/ludusavi/index.json.gz", "output file")
 	flag.Parse()
 
 	raw, err := readManifest(*in)

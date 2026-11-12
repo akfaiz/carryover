@@ -12,7 +12,7 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/akfaiz/carryover/internal/appdir"
+	"github.com/akfaiz/carryover/internal/app/appdir"
 )
 
 // SaveSlot is a logical save location shared across devices. Each device maps

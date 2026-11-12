@@ -10,10 +10,10 @@ import (
 	"sync"
 	"time"
 
-	"github.com/akfaiz/carryover/internal/heroic"
+	"github.com/akfaiz/carryover/internal/cloudsync/syncer"
 	"github.com/akfaiz/carryover/internal/launcher"
 	"github.com/akfaiz/carryover/internal/library"
-	"github.com/akfaiz/carryover/internal/syncer"
+	"github.com/akfaiz/carryover/internal/stores/heroic"
 )
 
 // SessionUI is how a play session interacts with the user.

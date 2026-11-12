@@ -4,7 +4,7 @@
 // scripts/stamp-version.sh, which writes zz_release.go in this package.
 // Plain go builds can also use
 //
-//	-ldflags "-X github.com/akfaiz/carryover/internal/version.Version=v0.2.0"
+//	-ldflags "-X github.com/akfaiz/carryover/internal/app/version.Version=v0.2.0"
 //
 // Other builds report "dev" and the commit Go records from the git checkout.
 package version

@@ -11,11 +11,11 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/akfaiz/carryover/internal/appdir"
+	"github.com/akfaiz/carryover/internal/app/appdir"
 	"github.com/akfaiz/carryover/internal/core"
 	"github.com/akfaiz/carryover/internal/library"
-	"github.com/akfaiz/carryover/internal/ludusavi"
-	"github.com/akfaiz/carryover/internal/wineprefix"
+	"github.com/akfaiz/carryover/internal/saves/ludusavi"
+	"github.com/akfaiz/carryover/internal/stores/wineprefix"
 )
 
 // The editor's payload for a new game must decode and save (regression: an

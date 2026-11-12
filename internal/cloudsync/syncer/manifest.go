@@ -13,7 +13,7 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/akfaiz/carryover/internal/cloud"
+	"github.com/akfaiz/carryover/internal/cloudsync/cloud"
 )
 
 // FileInfo describes one save file.

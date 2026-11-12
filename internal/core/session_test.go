@@ -11,9 +11,9 @@ import (
 	"github.com/rclone/rclone/fs/config"
 	"github.com/stretchr/testify/require"
 
-	"github.com/akfaiz/carryover/internal/appdir"
+	"github.com/akfaiz/carryover/internal/app/appdir"
+	"github.com/akfaiz/carryover/internal/cloudsync/syncer"
 	"github.com/akfaiz/carryover/internal/library"
-	"github.com/akfaiz/carryover/internal/syncer"
 )
 
 // cancelUI cancels the sync phase number cancelAt (1 = before playing,

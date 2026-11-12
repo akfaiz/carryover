@@ -8,7 +8,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/akfaiz/carryover/internal/syncer"
+	"github.com/akfaiz/carryover/internal/cloudsync/syncer"
 )
 
 // A session marker records that a play session on this device holds the game's

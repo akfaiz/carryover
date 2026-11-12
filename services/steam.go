@@ -3,7 +3,7 @@ package services
 import (
 	"github.com/akfaiz/carryover/internal/core"
 	"github.com/akfaiz/carryover/internal/library"
-	"github.com/akfaiz/carryover/internal/steam"
+	"github.com/akfaiz/carryover/internal/stores/steam"
 )
 
 // SteamService integrates with the Steam client.

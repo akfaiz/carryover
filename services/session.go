@@ -7,8 +7,8 @@ import (
 	"runtime"
 	"sync"
 
+	"github.com/akfaiz/carryover/internal/cloudsync/syncer"
 	"github.com/akfaiz/carryover/internal/core"
-	"github.com/akfaiz/carryover/internal/syncer"
 )
 
 func goos() string { return runtime.GOOS }

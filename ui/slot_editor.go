@@ -7,7 +7,7 @@ import (
 	"fyne.io/fyne/v2/theme"
 	"fyne.io/fyne/v2/widget"
 
-	"github.com/akfaiz/carryover/internal/pathvar"
+	"github.com/akfaiz/carryover/internal/saves/pathvar"
 	"github.com/akfaiz/carryover/services"
 )
 

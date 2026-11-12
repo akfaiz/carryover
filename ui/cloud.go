@@ -12,7 +12,7 @@ import (
 	"fyne.io/fyne/v2/storage"
 	"fyne.io/fyne/v2/widget"
 
-	"github.com/akfaiz/carryover/internal/cloud"
+	"github.com/akfaiz/carryover/internal/cloudsync/cloud"
 )
 
 type cloudPage struct {

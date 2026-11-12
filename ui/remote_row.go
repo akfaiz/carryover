@@ -7,7 +7,7 @@ import (
 	"fyne.io/fyne/v2/theme"
 	"fyne.io/fyne/v2/widget"
 
-	"github.com/akfaiz/carryover/internal/cloud"
+	"github.com/akfaiz/carryover/internal/cloudsync/cloud"
 )
 
 // remoteRow is one configured rclone remote: name (with an "active" badge),
