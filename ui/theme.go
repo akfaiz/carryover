@@ -2,6 +2,7 @@ package ui
 
 import (
 	"image/color"
+	"sync/atomic"
 
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/theme"
@@ -25,15 +26,33 @@ var (
 	lightOn  bool
 )
 
-// Theme names stored in settings.
+// Theme names stored in settings; themeSystem follows the system's light/dark
+// preference (light when the system states none).
 const (
-	themeDark  = "dark"
-	themeLight = "light"
+	themeSystem = ""
+	themeDark   = "dark"
+	themeLight  = "light"
 )
+
+// systemDark is the system's light/dark preference, kept up to date by
+// watchSystemTheme.
+var systemDark atomic.Bool
 
 func init() { setPalette(themeDark) }
 
-// setPalette activates the "dark" (default) or "light" palette.
+// paletteFor returns the palette ("dark" or "light") for a stored theme setting.
+func paletteFor(setting string) string {
+	switch setting {
+	case themeDark, themeLight:
+		return setting
+	}
+	if systemDark.Load() {
+		return themeDark
+	}
+	return themeLight
+}
+
+// setPalette activates the "dark" or "light" palette.
 func setPalette(name string) {
 	lightOn = name == themeLight
 	if lightOn {

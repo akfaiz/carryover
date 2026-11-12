@@ -29,8 +29,13 @@ trap 'rm -rf "$(dirname "$appdir")"' EXIT
 
 mkdir -p "$appdir/usr/bin"
 install -m755 "$bin" "$appdir/usr/bin/carryover"
-install -m644 packaging/linux/carryover.desktop "$appdir/carryover.desktop"
+# The desktop file is named after the AppStream ID: appimagetool only picks up
+# usr/share/metainfo/<desktop file name>.appdata.xml.
+install -Dm644 packaging/linux/com.akfaiz.carryover.desktop "$appdir/usr/share/applications/com.akfaiz.carryover.desktop"
+ln -s usr/share/applications/com.akfaiz.carryover.desktop "$appdir/com.akfaiz.carryover.desktop"
 install -m644 ui/assets/appicon.png "$appdir/carryover.png"
+install -Dm644 ui/assets/appicon.svg "$appdir/usr/share/icons/hicolor/scalable/apps/carryover.svg"
+install -Dm644 packaging/linux/com.akfaiz.carryover.appdata.xml   "$appdir/usr/share/metainfo/com.akfaiz.carryover.appdata.xml"
 ln -s carryover.png "$appdir/.DirIcon"
 ln -s usr/bin/carryover "$appdir/AppRun"
 

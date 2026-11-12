@@ -33,3 +33,23 @@ func TestSettingsDefaultsAndRetention(t *testing.T) {
 		t.Fatalf("explicit values lost on reload: %+v", got)
 	}
 }
+
+func TestSettingsTheme(t *testing.T) {
+	st, err := OpenSettings(filepath.Join(t.TempDir(), "settings.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if th := st.Get().Theme; th != "" {
+		t.Fatalf("first-run theme = %q, want \"\" (follow the system)", th)
+	}
+	for in, want := range map[string]string{"": "", "dark": "dark", "light": "light", "bogus": ""} {
+		s := st.Get()
+		s.Theme = in
+		if err := st.Update(s); err != nil {
+			t.Fatal(err)
+		}
+		if got := st.Get().Theme; got != want {
+			t.Errorf("Update(theme %q) stored %q, want %q", in, got, want)
+		}
+	}
+}

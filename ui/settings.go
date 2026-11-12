@@ -53,13 +53,20 @@ func (p *settingsPage) form(st appdir.Settings) fyne.CanvasObject {
 	})
 	backups.SetChecked(st.BackupRetention > 0)
 	setEnabled(retention, backups.Checked)
-	themeSel := widget.NewRadioGroup([]string{lang.L("Dark"), lang.L("Light")}, nil)
+	themes := []struct{ setting, label string }{
+		{themeSystem, lang.L("System")}, {themeDark, lang.L("Dark")}, {themeLight, lang.L("Light")},
+	}
+	labels := make([]string, len(themes))
+	for i, t := range themes {
+		labels[i] = t.label
+	}
+	themeSel := widget.NewRadioGroup(labels, nil)
 	themeSel.Horizontal = true
 	themeSel.Required = true
-	if st.Theme == themeLight {
-		themeSel.SetSelected(lang.L("Light"))
-	} else {
-		themeSel.SetSelected(lang.L("Dark"))
+	for _, t := range themes {
+		if t.setting == st.Theme {
+			themeSel.SetSelected(t.label)
+		}
 	}
 	share := widget.NewCheck(lang.L("Share the game library between devices through the cloud"), nil)
 	share.SetChecked(st.SyncLibrary)
@@ -87,9 +94,10 @@ func (p *settingsPage) form(st appdir.Settings) fyne.CanvasObject {
 		next.DeviceName = name.Text
 		next.BackupRetention = n
 		next.SyncLibrary = share.Checked
-		next.Theme = themeDark
-		if themeSel.Selected == lang.L("Light") {
-			next.Theme = themeLight
+		for _, t := range themes {
+			if t.label == themeSel.Selected {
+				next.Theme = t.setting
+			}
 		}
 		next.SteamGridDBKey = strings.TrimSpace(key.Text)
 		async(func() (appdir.Settings, error) { return u.sync.SaveSettings(next) }, func(saved appdir.Settings, err error) {

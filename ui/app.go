@@ -170,10 +170,18 @@ func Run(c *core.Core, wrapGameID string, opts core.RunOptions) int {
 func start(c *core.Core) *UI {
 	initTranslations()
 	a := app.NewWithID(AppID)
-	setPalette(c.Settings.Get().Theme)
+	systemDark.Store(initialSystemDark(a))
+	setPalette(paletteFor(c.Settings.Get().Theme))
 	a.Settings().SetTheme(appTheme{})
 	a.SetIcon(fyne.NewStaticResource("appicon.png", appIcon))
-	return newUI(c, a, services.NewBus())
+	u := newUI(c, a, services.NewBus())
+	watchSystemTheme(a, func(dark bool) {
+		if systemDark.Swap(dark) == dark {
+			return
+		}
+		onUI(func() { u.applyTheme(c.Settings.Get().Theme) })
+	})
+	return u
 }
 
 // buildMain creates the launcher window.
@@ -209,8 +217,9 @@ func (u *UI) buildLayout() {
 	u.renderSidebar()
 }
 
-// applyTheme switches between the dark and light palette and rebuilds the UI.
-func (u *UI) applyTheme(name string) {
+// applyTheme switches to the palette for a stored theme setting and rebuilds the UI.
+func (u *UI) applyTheme(setting string) {
+	name := paletteFor(setting)
 	if (name == themeLight) == lightOn {
 		return
 	}
