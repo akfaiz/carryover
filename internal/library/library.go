@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"maps"
+	"slices"
 	"sort"
 	"strings"
 	"sync"
@@ -51,7 +52,64 @@ type DeviceConfig struct {
 	WaitProcess string            `json:"waitProcess"`
 	LaunchMode  LaunchMode        `json:"launchMode"`
 	SteamAppID  string            `json:"steamAppId"` // shortcut app id if added to Steam on this device
-	UpdatedAt   time.Time         `json:"updatedAt"`
+	// Emulators holds this device's data for each emulator the game is set up
+	// with, by Emulator.ID. The fields above are the native (no emulator) profile.
+	Emulators map[string]EmulatorConfig `json:"emulators,omitempty"`
+	// LastEmulator is the profile last played on this device ("" = native).
+	LastEmulator string    `json:"lastEmulator,omitempty"`
+	UpdatedAt    time.Time `json:"updatedAt"`
+}
+
+// EmulatorConfig is a game's data for one emulator on one device.
+type EmulatorConfig struct {
+	Rom        string            `json:"rom"`   // game file/ID passed to the emulator (may contain tokens)
+	Paths      map[string]string `json:"paths"` // GameEmulator.Slots key -> path
+	SteamAppID string            `json:"steamAppId,omitempty"`
+}
+
+// GameEmulator marks a game as playable with an emulator. Each emulator has
+// its own save slots because the save formats differ, and its own cloud save.
+type GameEmulator struct {
+	EmulatorID string     `json:"emulatorId"`
+	Slots      []SaveSlot `json:"slots"`
+	// ShareWith, if set, is another emulator of the game whose cloud save this
+	// one uses too (opt-in: only safe when both read the same save layout).
+	// The save slots are then the other emulator's; each device still sets
+	// this emulator's own local paths.
+	ShareWith string `json:"shareWith,omitempty"`
+}
+
+// EmulatorDevice is how an emulator is started on one device.
+type EmulatorDevice struct {
+	Exe         string            `json:"exe"`
+	Args        string            `json:"args"` // template; {rom} is replaced by the game's Rom
+	WorkDir     string            `json:"workDir"`
+	Env         map[string]string `json:"env"`
+	WaitProcess string            `json:"waitProcess"`
+	// DataDir is the emulator's data folder on this device (the root its save
+	// locations are relative to); may contain path tokens.
+	DataDir   string    `json:"dataDir,omitempty"`
+	UpdatedAt time.Time `json:"updatedAt"`
+}
+
+// Emulator is a named emulator shared by all games; each device says where it
+// is installed.
+type Emulator struct {
+	ID   string `json:"id"`
+	Name string `json:"name"`
+	// Preset is the kind of emulator (emumanifest.Preset.ID), which tells where
+	// its games' saves are; "" if not set.
+	Preset    string                    `json:"preset,omitempty"`
+	Devices   map[string]EmulatorDevice `json:"devices"`
+	Deleted   bool                      `json:"deleted,omitempty"`
+	CreatedAt time.Time                 `json:"createdAt"`
+	UpdatedAt time.Time                 `json:"updatedAt"`
+}
+
+// Device returns the emulator's setup on a device.
+func (e Emulator) Device(id string) (EmulatorDevice, bool) {
+	d, ok := e.Devices[id]
+	return d, ok
 }
 
 // Game is a library entry.
@@ -68,10 +126,21 @@ type Game struct {
 	// confused with DeviceConfig.SteamAppID, the per-device shortcut id.
 	StoreAppID string                  `json:"storeAppId,omitempty"`
 	Slots      []SaveSlot              `json:"slots"`
+	Emulators  []GameEmulator          `json:"emulators,omitempty"`
 	Devices    map[string]DeviceConfig `json:"devices"`
 	Deleted    bool                    `json:"deleted,omitempty"`
 	CreatedAt  time.Time               `json:"createdAt"`
 	UpdatedAt  time.Time               `json:"updatedAt"`
+}
+
+// Emulator returns the game's entry for an emulator id.
+func (g Game) Emulator(id string) (GameEmulator, bool) {
+	for _, e := range g.Emulators {
+		if e.EmulatorID == id {
+			return e, true
+		}
+	}
+	return GameEmulator{}, false
 }
 
 // Device returns the config for a device (zero value if missing).
@@ -80,30 +149,52 @@ func (g Game) Device(id string) (DeviceConfig, bool) {
 	return d, ok
 }
 
+// CatalogVersion is the newest catalog format this build understands. A newer
+// catalog is never read or rewritten, so an old client can't drop its fields.
+const CatalogVersion = 2
+
+// ErrNewerCatalog is returned for a catalog written by a newer Carryover.
+var ErrNewerCatalog = errors.New("the library was written by a newer version of Carryover; update this device")
+
 // Catalog is the serialized library.
 type Catalog struct {
-	Version int    `json:"version"`
-	Games   []Game `json:"games"`
+	Version   int        `json:"version"`
+	Games     []Game     `json:"games"`
+	Emulators []Emulator `json:"emulators,omitempty"`
 }
 
 // Store is a thread-safe library persisted to a JSON file.
 type Store struct {
-	mu    sync.Mutex
-	path  string
-	games map[string]Game
+	mu        sync.Mutex
+	path      string
+	games     map[string]Game
+	emulators map[string]Emulator
 }
 
 // Open loads the library file.
 func Open(path string) (*Store, error) {
-	s := &Store{path: path, games: map[string]Game{}}
+	s := &Store{path: path, games: map[string]Game{}, emulators: map[string]Emulator{}}
 	var c Catalog
 	if _, err := appdir.ReadJSON(path, &c); err != nil {
 		return nil, fmt.Errorf("load library: %w", err)
 	}
+	if c.Version > CatalogVersion {
+		return nil, ErrNewerCatalog
+	}
 	for _, g := range c.Games {
 		s.games[g.ID] = normalize(g)
 	}
+	for _, e := range c.Emulators {
+		s.emulators[e.ID] = normalizeEmulator(e)
+	}
 	return s, nil
+}
+
+func normalizeEmulator(e Emulator) Emulator {
+	if e.Devices == nil {
+		e.Devices = map[string]EmulatorDevice{}
+	}
+	return e
 }
 
 func normalize(g Game) Game {
@@ -116,6 +207,12 @@ func normalize(g Game) Game {
 		}
 		if d.LaunchMode == "" {
 			d.LaunchMode = LaunchDirect
+		}
+		for id, ec := range d.Emulators {
+			if ec.Paths == nil {
+				ec.Paths = map[string]string{}
+				d.Emulators[id] = ec
+			}
 		}
 		g.Devices[k] = d
 	}
@@ -162,14 +259,39 @@ func clone(g Game) Game {
 			maps.Copy(env, d.Env)
 			d.Env = env
 		}
+		if d.Emulators != nil {
+			ems := make(map[string]EmulatorConfig, len(d.Emulators))
+			for id, ec := range d.Emulators {
+				ec.Paths = maps.Clone(ec.Paths)
+				ems[id] = ec
+			}
+			d.Emulators = ems
+		}
 		devs[k] = d
 	}
 	g.Devices = devs
-	g.Slots = append([]SaveSlot(nil), g.Slots...)
+	g.Slots = cloneSlots(g.Slots)
+	if g.Emulators != nil {
+		ems := make([]GameEmulator, len(g.Emulators))
+		for i, e := range g.Emulators {
+			e.Slots = cloneSlots(e.Slots)
+			ems[i] = e
+		}
+		g.Emulators = ems
+	}
 	if g.Art != nil {
 		g.Art = maps.Clone(g.Art)
 	}
 	return g
+}
+
+func cloneSlots(in []SaveSlot) []SaveSlot {
+	out := append([]SaveSlot(nil), in...)
+	for i := range out {
+		out[i].Include = slices.Clone(out[i].Include)
+		out[i].Exclude = slices.Clone(out[i].Exclude)
+	}
+	return out
 }
 
 // Find looks up a game by id or (case-insensitive) exact name.
@@ -191,6 +313,9 @@ func (s *Store) Save(g Game, deviceID string) (Game, error) {
 		return Game{}, errors.New("game name is required")
 	}
 	if err := validateSlots(g.Slots); err != nil {
+		return Game{}, err
+	}
+	if err := validateEmulators(g.Emulators); err != nil {
 		return Game{}, err
 	}
 	s.mu.Lock()
@@ -260,19 +385,39 @@ func (s *Store) Catalog() Catalog {
 }
 
 func (s *Store) catalogLocked() Catalog {
-	c := Catalog{Version: 1}
+	c := Catalog{Version: CatalogVersion}
 	for _, g := range s.games {
 		c.Games = append(c.Games, g)
 	}
 	sort.Slice(c.Games, func(i, j int) bool { return c.Games[i].ID < c.Games[j].ID })
+	for _, e := range s.emulators {
+		c.Emulators = append(c.Emulators, e)
+	}
+	sort.Slice(c.Emulators, func(i, j int) bool { return c.Emulators[i].ID < c.Emulators[j].ID })
 	return c
 }
 
 // MergeCatalog merges a remote catalog into the local store and returns whether anything changed.
 func (s *Store) MergeCatalog(remote Catalog) (bool, error) {
+	if remote.Version > CatalogVersion {
+		return false, ErrNewerCatalog
+	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	changed := false
+	for _, re := range remote.Emulators {
+		re = normalizeEmulator(re)
+		le, ok := s.emulators[re.ID]
+		if !ok {
+			s.emulators[re.ID] = re
+			changed = true
+			continue
+		}
+		if m := MergeEmulator(le, re); !emulatorEqual(m, le) {
+			s.emulators[re.ID] = m
+			changed = true
+		}
+	}
 	for _, rg := range remote.Games {
 		rg = normalize(rg)
 		lg, ok := s.games[rg.ID]
@@ -325,6 +470,164 @@ func gameEqual(a, b Game) bool {
 	return true
 }
 
+// MergeEmulator merges two versions of an emulator like MergeGame does for games.
+func MergeEmulator(a, b Emulator) Emulator {
+	out := a
+	if b.UpdatedAt.After(a.UpdatedAt) {
+		out = b
+	}
+	out.Devices = map[string]EmulatorDevice{}
+	maps.Copy(out.Devices, a.Devices)
+	for k, v := range b.Devices {
+		if cur, ok := out.Devices[k]; !ok || v.UpdatedAt.After(cur.UpdatedAt) {
+			out.Devices[k] = v
+		}
+	}
+	if a.CreatedAt.Before(b.CreatedAt) && !a.CreatedAt.IsZero() {
+		out.CreatedAt = a.CreatedAt
+	}
+	return out
+}
+
+func emulatorEqual(a, b Emulator) bool {
+	if !a.UpdatedAt.Equal(b.UpdatedAt) || a.Deleted != b.Deleted || len(a.Devices) != len(b.Devices) {
+		return false
+	}
+	for k, v := range a.Devices {
+		if w, ok := b.Devices[k]; !ok || !w.UpdatedAt.Equal(v.UpdatedAt) {
+			return false
+		}
+	}
+	return true
+}
+
+func cloneEmulator(e Emulator) Emulator {
+	devs := make(map[string]EmulatorDevice, len(e.Devices))
+	for k, d := range e.Devices {
+		d.Env = maps.Clone(d.Env)
+		devs[k] = d
+	}
+	e.Devices = devs
+	return e
+}
+
+// Emulators returns the non-deleted emulators sorted by name.
+func (s *Store) Emulators() []Emulator {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	var out []Emulator
+	for _, e := range s.emulators {
+		if !e.Deleted {
+			out = append(out, cloneEmulator(e))
+		}
+	}
+	sort.Slice(out, func(i, j int) bool { return strings.ToLower(out[i].Name) < strings.ToLower(out[j].Name) })
+	return out
+}
+
+// Emulator returns an emulator by id.
+func (s *Store) Emulator(id string) (Emulator, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	e, ok := s.emulators[id]
+	if !ok || e.Deleted {
+		return Emulator{}, ErrNotFound
+	}
+	return cloneEmulator(e), nil
+}
+
+// FindEmulator looks up an emulator by id or (case-insensitive) exact name.
+func (s *Store) FindEmulator(idOrName string) (Emulator, error) {
+	if e, err := s.Emulator(idOrName); err == nil {
+		return e, nil
+	}
+	for _, e := range s.Emulators() {
+		if strings.EqualFold(e.Name, idOrName) {
+			return e, nil
+		}
+	}
+	return Emulator{}, ErrNotFound
+}
+
+// SaveEmulator creates or updates an emulator; deviceID's setup is stamped
+// with the current time and other devices' setups are kept as stored.
+func (s *Store) SaveEmulator(e Emulator, deviceID string) (Emulator, error) {
+	if strings.TrimSpace(e.Name) == "" {
+		return Emulator{}, errors.New("emulator name is required")
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	now := time.Now().UTC()
+	if e.ID == "" {
+		e.ID = uuid.NewString()
+		e.CreatedAt = now
+	} else if old, ok := s.emulators[e.ID]; ok {
+		e.CreatedAt = old.CreatedAt
+		merged := map[string]EmulatorDevice{}
+		maps.Copy(merged, old.Devices)
+		if d, ok := e.Devices[deviceID]; ok {
+			merged[deviceID] = d
+		}
+		e.Devices = merged
+	}
+	e.UpdatedAt = now
+	e = normalizeEmulator(cloneEmulator(e))
+	if d, ok := e.Devices[deviceID]; ok {
+		d.UpdatedAt = now
+		e.Devices[deviceID] = d
+	}
+	s.emulators[e.ID] = e
+	return cloneEmulator(e), s.persist()
+}
+
+// DeleteEmulator marks an emulator deleted (tombstone). Games keep their
+// profile and cloud saves; the profile just can't be launched.
+func (s *Store) DeleteEmulator(id string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	e, ok := s.emulators[id]
+	if !ok {
+		return ErrNotFound
+	}
+	e.Deleted = true
+	e.UpdatedAt = time.Now().UTC()
+	s.emulators[id] = e
+	return s.persist()
+}
+
+// validateEmulators checks a game's emulator entries: no duplicates, an id
+// that is safe inside a file name, and valid slots.
+func validateEmulators(ems []GameEmulator) error {
+	seen := map[string]bool{}
+	for _, e := range ems {
+		if e.EmulatorID == "" || strings.ContainsAny(e.EmulatorID, `/\:*?"<>|. `) {
+			return fmt.Errorf("invalid emulator id %q", e.EmulatorID)
+		}
+		if seen[e.EmulatorID] {
+			return fmt.Errorf("emulator %q is added twice", e.EmulatorID)
+		}
+		seen[e.EmulatorID] = true
+		if err := validateSlots(e.Slots); err != nil {
+			return err
+		}
+	}
+	for _, e := range ems {
+		if e.ShareWith == "" {
+			continue
+		}
+		var target *GameEmulator
+		for i := range ems {
+			if ems[i].EmulatorID == e.ShareWith {
+				target = &ems[i]
+			}
+		}
+		if target == nil || target.EmulatorID == e.EmulatorID || target.ShareWith != "" {
+			return fmt.Errorf("emulator %q can't share saves with %q", e.EmulatorID, e.ShareWith)
+		}
+	}
+	return nil
+}
+
 func validateSlots(slots []SaveSlot) error {
 	seen := map[string]bool{}
 	for _, sl := range slots {
@@ -350,6 +653,17 @@ func validateSlots(slots []SaveSlot) error {
 func (s *Store) persist() error {
 	var disk Catalog
 	if ok, err := appdir.ReadJSON(s.path, &disk); err == nil && ok {
+		if disk.Version > CatalogVersion {
+			return ErrNewerCatalog
+		}
+		for _, de := range disk.Emulators {
+			de = normalizeEmulator(de)
+			if me, ok := s.emulators[de.ID]; ok {
+				s.emulators[de.ID] = MergeEmulator(me, de)
+			} else {
+				s.emulators[de.ID] = de
+			}
+		}
 		for _, dg := range disk.Games {
 			dg = normalize(dg)
 			if mg, ok := s.games[dg.ID]; ok {

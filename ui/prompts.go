@@ -98,6 +98,9 @@ func (q *promptQueue) next() {
 				side("cloud", lang.L("Cloud"), lang.L("Keep cloud saves"), p.Conflict.Remote)),
 			hbox(widget.NewButton(skip, func() { answer("skip") })),
 		)
+	case p.Kind == "emulator":
+		title = lang.L("Play {{.Game}}", map[string]any{"Game": p.GameName})
+		body = q.emulatorChoice(p, answer)
 	case p.Kind == "lock" && p.Lock != nil:
 		title = lang.L("{{.Game}} is being played elsewhere", map[string]any{"Game": p.GameName})
 		body = vbox(

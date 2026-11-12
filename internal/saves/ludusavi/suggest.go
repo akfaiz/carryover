@@ -196,6 +196,10 @@ func substitute(tpl string, vars map[string]string, env Env) (string, bool) {
 	return strings.ReplaceAll(out, `\`, "/"), ok
 }
 
+// SplitGlob is splitGlob for other packages: a path with wildcards becomes the
+// folder before the first wildcard plus rclone include filters.
+func SplitGlob(p string) (dir string, include []string) { return splitGlob(p) }
+
 var fileExtRe = regexp.MustCompile(`\.[A-Za-z0-9]{1,5}$`)
 
 // splitGlob separates a manifest path into a concrete folder and an rclone

@@ -468,6 +468,24 @@ func listRow(name, detail string, onTap func()) fyne.CanvasObject {
 	return newTappable(container.NewBorder(nil, nil, nil, small(detail), n), onTap)
 }
 
+// detailRow is a clickable list entry for a long detail such as a folder path:
+// the name on the first line, the detail wrapped below it in a small monospace
+// font, and an optional badge last. A plain vertical stack: wrapped labels in
+// nested Border layouts reserve the wrong height.
+func detailRow(name, detail string, badgeObj fyne.CanvasObject, onTap func()) fyne.CanvasObject {
+	n := widget.NewLabelWithStyle(name, fyne.TextAlignLeading, fyne.TextStyle{Bold: true})
+	n.Wrapping = fyne.TextWrapWord
+	d := widget.NewLabelWithStyle(detail, fyne.TextAlignLeading, fyne.TextStyle{Monospace: true})
+	d.Wrapping = fyne.TextWrapBreak
+	d.Importance = widget.LowImportance
+	d.SizeName = theme.SizeNameCaptionText
+	rows := container.NewVBox(n, d)
+	if badgeObj != nil {
+		rows.Add(container.NewHBox(badgeObj))
+	}
+	return newTappable(rows, onTap)
+}
+
 // labeledRow is a fixed-width label, a stretching value and optional objects
 // at the right.
 func labeledRow(labelWidth float32, label, value fyne.CanvasObject, right ...fyne.CanvasObject) fyne.CanvasObject {

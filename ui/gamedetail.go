@@ -2,6 +2,7 @@ package ui
 
 import (
 	"errors"
+	"slices"
 
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/container"
@@ -18,6 +19,10 @@ import (
 type gameDetail struct {
 	u  *UI
 	id string
+	// profile is the emulator whose saves the page shows ("" = the game's own
+	// launch config); profileSet: the user (or the default) has chosen one.
+	profile    string
+	profileSet bool
 
 	busy          string
 	plan          *services.PlanView
@@ -26,6 +31,7 @@ type gameDetail struct {
 	steam         *services.SteamInfo
 	steamUser     string
 	steamMode     string
+	steamTarget   string // "game" (default for a game with emulators) or "profile"
 	wrapOpts      string
 	confirmDelete bool
 	cancelling    bool // Cancel pressed; waiting for the sync to stop
@@ -39,6 +45,44 @@ type gameDetail struct {
 
 func newGameDetail(u *UI, id string) *gameDetail {
 	return &gameDetail{u: u, id: id, steamMode: "direct"}
+}
+
+// key is what the services address the shown profile by (core.SyncKey).
+func (p *gameDetail) key() string { return core.SyncKey(p.id, p.profile) }
+
+// chooseProfile picks the profile to show the first time: the one played last
+// on this device, else the game's own, else its first emulator.
+func (p *gameDetail) chooseProfile(g services.GameView) {
+	if p.profileSet {
+		return
+	}
+	p.profileSet = true
+	has := func(id string) bool {
+		return slices.ContainsFunc(g.Emulators, func(pv services.ProfileView) bool { return pv.EmulatorID == id })
+	}
+	switch {
+	case g.LastEmulator != "" && has(g.LastEmulator):
+		p.profile = g.LastEmulator
+	case len(g.Slots) == 0 && len(g.Emulators) > 0:
+		p.profile = g.Emulators[0].EmulatorID
+	}
+}
+
+// profileView presents the game as seen through one emulator profile: its save
+// locations, readiness, status and Steam shortcut replace the game's own.
+func profileView(g services.GameView, emuID string) services.GameView {
+	if emuID == "" {
+		return g
+	}
+	for _, pv := range g.Emulators {
+		if pv.EmulatorID != emuID {
+			continue
+		}
+		g.Slots, g.ResolvedPaths, g.PathErrors = pv.Slots, pv.ResolvedPaths, pv.PathErrors
+		g.Ready, g.SetupHint, g.Status, g.SafetyDir = pv.Ready, pv.SetupHint, pv.Status, pv.SafetyDir
+		g.Device.LaunchMode, g.Device.SteamAppID = "direct", pv.SteamAppID
+	}
+	return g
 }
 
 func (p *gameDetail) view() fyne.CanvasObject {
@@ -70,7 +114,7 @@ func (p *gameDetail) view() fyne.CanvasObject {
 }
 
 func (p *gameDetail) stateChanged(what change) {
-	if what == changeStatus && p.u.status[p.id].Phase != "sync" && p.busy == "" {
+	if what == changeStatus && p.u.status[p.key()].Phase != "sync" && p.busy == "" {
 		p.cancelling = false // the session's sync phase ended
 	}
 	if what == changeProgress && p.prog != nil {
@@ -81,10 +125,10 @@ func (p *gameDetail) stateChanged(what change) {
 }
 
 func (p *gameDetail) updateProgress() {
-	ev := p.u.progress[p.id]
+	ev := p.u.progress[p.key()]
 	switch p.progOf {
 	case "session":
-		st := p.u.status[p.id]
+		st := p.u.status[p.key()]
 		if st.Phase == "playing" {
 			return
 		}
@@ -108,7 +152,7 @@ func (p *gameDetail) updateProgress() {
 func (p *gameDetail) run(label string, work func() error, done func(error)) {
 	p.busy = label
 	if label == "sync" || label == "restore" || label == "backup" {
-		delete(p.u.progress, p.id)
+		delete(p.u.progress, p.key())
 	}
 	p.render()
 	async0(work, func(err error) {
@@ -144,6 +188,9 @@ func (p *gameDetail) render() {
 		replaceScroll(p.scroll, stack(pageHead(u.back, ""), muted(msg)))
 		return
 	}
+	p.chooseProfile(g)
+	orig := g // the game itself, for the profile selector
+	g = profileView(g, p.profile)
 	busy := p.busy != ""
 	hasRemote := u.settings.Remote != ""
 
@@ -153,6 +200,9 @@ func (p *gameDetail) render() {
 		wrapTitle(g.Name),
 		hbox(statusBadge(g), small(lang.L("Last sync: {{.When}}", map[string]any{"When": timeAgo(g.Status.LastSyncAt)}))),
 	)
+	if sel := p.profileSelector(orig); sel != nil {
+		info.Add(sel)
+	}
 	if !g.Ready {
 		info.Add(colored(g.SetupHint, widget.WarningImportance))
 	}
@@ -169,7 +219,7 @@ func (p *gameDetail) render() {
 		b.Disable()
 		actions.Add(b)
 	case g.Ready && g.Device.LaunchMode != "steamwrap":
-		b := primary(lang.L("▶ Play"), func() { p.run("play", func() error { return u.sess.Play(p.id) }, nil) })
+		b := primary(lang.L("▶ Play"), func() { p.run("play", func() error { return u.sess.Play(p.key()) }, nil) })
 		setEnabled(b, !busy)
 		actions.Add(b)
 	case !g.Ready:
@@ -188,8 +238,8 @@ func (p *gameDetail) render() {
 		info.Add(muted(lang.L("This game is launched from Steam on this device (Proton). Use “Add to Steam” below, then start it from Steam.")))
 	}
 
-	st, hasSt := u.status[p.id]
-	ev := u.progress[p.id]
+	st, hasSt := u.status[p.key()]
+	ev := u.progress[p.key()]
 	if hasSt && (st.Phase != "done" || g.Status.Running) && st.Phase != "error" {
 		box := vbox(widget.NewLabelWithStyle(st.Message, fyne.TextAlignLeading, fyne.TextStyle{Bold: true}))
 		if st.Phase != "playing" {
@@ -203,26 +253,54 @@ func (p *gameDetail) render() {
 			if st.Message == "Checking cloud saves…" {
 				label = lang.L("Cancel and don't play")
 			}
-			box.Add(hbox(p.cancelButton(label, func() bool { return u.sess.Cancel(p.id) })))
+			box.Add(hbox(p.cancelButton(label, func() bool { return u.sess.Cancel(p.key()) })))
 		}
 		info.Add(fixedWidth(480, card("", box)))
 	} else if p.busy == "sync" || p.busy == "restore" || p.busy == "backup" {
 		p.prog, p.progOf = newProgress(), "busy"
 		p.updateProgress()
-		info.Add(fixedWidth(480, card("", vbox(p.prog, hbox(p.cancelButton(lang.L("Cancel"), func() bool { return u.sync.Cancel(p.id) }))))))
+		info.Add(fixedWidth(480, card("", vbox(p.prog, hbox(p.cancelButton(lang.L("Cancel"), func() bool { return u.sync.Cancel(p.key()) }))))))
 	}
 
 	cover := coverView(coverSource{path: g.CoverPath, version: g.CoverVersion, name: g.Name}, fyne.NewSize(170, 255))
 	hero := container.NewBorder(nil, nil, container.NewVBox(cover), nil, container.NewPadded(info))
 
 	left := stack(p.savesCard(g, busy, hasRemote), p.backupsCard(g, busy, hasRemote))
-	right := stack(p.steamCard(g, busy))
+	right := stack(p.steamCard(g, orig, busy))
 	if len(g.OtherDevices) > 0 {
 		right.Add(otherDevicesCard(g))
 	}
 	right.Add(p.deleteCard(g))
 
 	replaceScroll(p.scroll, stack(hero, newCols(420, []float32{3, 2}, left, right)))
+}
+
+// profileSelector lets the user pick which emulator's saves the page shows; it
+// is nil for a game without emulators.
+func (p *gameDetail) profileSelector(g services.GameView) fyne.CanvasObject {
+	if len(g.Emulators) == 0 {
+		return nil
+	}
+	var names, ids []string
+	if len(g.Slots) > 0 || g.Device.Exe != "" {
+		names, ids = append(names, lang.L("Without an emulator")), append(ids, "")
+	}
+	for _, pv := range g.Emulators {
+		names, ids = append(names, pv.Name), append(ids, pv.EmulatorID)
+	}
+	sel := widget.NewSelect(names, func(n string) {
+		i := slices.Index(names, n)
+		if i < 0 || ids[i] == p.profile {
+			return
+		}
+		p.profile, p.plan, p.backupsLoaded, p.backups = ids[i], nil, false, nil
+		p.render()
+	})
+	if i := slices.Index(ids, p.profile); i >= 0 {
+		sel.Selected = names[i]
+	}
+	sel.Refresh()
+	return field(lang.L("Play and sync with"), fixedWidth(300, sel))
 }
 
 // cancelButton stops a running sync; it shows "Cancelling…" until it stops.
@@ -275,7 +353,7 @@ func (p *gameDetail) check() {
 	var plan services.PlanView
 	p.run("plan", func() error {
 		var err error
-		plan, err = p.u.sync.Plan(p.id)
+		plan, err = p.u.sync.Plan(p.key())
 		return err
 	}, func(err error) {
 		if err == nil {
@@ -289,7 +367,7 @@ func (p *gameDetail) doSync(resolution string) {
 	var action string
 	p.run("sync", func() error {
 		var err error
-		action, err = u.sync.Sync(p.id, resolution)
+		action, err = u.sync.Sync(p.key(), resolution)
 		return err
 	}, func(err error) {
 		if err != nil {
@@ -351,7 +429,7 @@ func (p *gameDetail) loadBackups() {
 	var list []syncer.Backup
 	p.run("backups", func() error {
 		var err error
-		list, err = p.u.sync.Backups(p.id)
+		list, err = p.u.sync.Backups(p.key())
 		return err
 	}, func(error) {
 		p.backups, p.backupsLoaded = list, true
@@ -360,7 +438,7 @@ func (p *gameDetail) loadBackups() {
 
 // backupNow stores a pinned backup of this device's saves.
 func (p *gameDetail) backupNow() {
-	p.run("backup", func() error { return p.u.sync.BackupNow(p.id) }, func(err error) {
+	p.run("backup", func() error { return p.u.sync.BackupNow(p.key()) }, func(err error) {
 		if err == nil {
 			p.u.toast(lang.L("Backup saved and pinned"), toastOK)
 			p.loadBackups()
@@ -378,7 +456,7 @@ func (p *gameDetail) deleteBackup(b syncer.Backup) {
 		if !ok {
 			return
 		}
-		p.run("pin", func() error { return p.u.sync.DeleteBackup(p.id, b.Name) }, func(err error) {
+		p.run("pin", func() error { return p.u.sync.DeleteBackup(p.key(), b.Name) }, func(err error) {
 			if err == nil {
 				p.u.toast(lang.L("Backup deleted"), toastOK)
 				p.loadBackups()
@@ -389,7 +467,7 @@ func (p *gameDetail) deleteBackup(b syncer.Backup) {
 }
 
 func (p *gameDetail) setPinned(b syncer.Backup) {
-	p.run("pin", func() error { return p.u.sync.SetBackupPinned(p.id, b.Name, !b.Pinned) }, func(err error) {
+	p.run("pin", func() error { return p.u.sync.SetBackupPinned(p.key(), b.Name, !b.Pinned) }, func(err error) {
 		if err == nil {
 			p.loadBackups()
 		}
@@ -397,7 +475,7 @@ func (p *gameDetail) setPinned(b syncer.Backup) {
 }
 
 func (p *gameDetail) restore(b syncer.Backup) {
-	p.run("restore", func() error { return p.u.sync.RestoreBackup(p.id, b.Name) }, func(err error) {
+	p.run("restore", func() error { return p.u.sync.RestoreBackup(p.key(), b.Name) }, func(err error) {
 		if err == nil {
 			p.u.toast(lang.L("Backup restored and uploaded"), toastOK)
 			p.loadBackups()
@@ -405,17 +483,50 @@ func (p *gameDetail) restore(b syncer.Backup) {
 	})
 }
 
-func (p *gameDetail) steamCard(g services.GameView, busy bool) fyne.CanvasObject {
+// steamCard is the Steam shortcut form. g is the game as seen through the
+// selected profile, orig the game itself. A game with emulators gets one
+// shortcut for the whole game by default; it asks which emulator to use when it
+// starts. The profile's own shortcut is the other choice.
+func (p *gameDetail) steamCard(g, orig services.GameView, busy bool) fyne.CanvasObject {
 	u := p.u
+	key, form := p.key(), g
+	target, asks, hideMode := "game", false, false
+	if len(orig.Emulators) > 0 {
+		if p.steamTarget == "" {
+			p.steamTarget = "game"
+		}
+		if p.profile == "" || p.steamTarget == "game" {
+			key, form, asks = p.id, orig, true // the whole game's shortcut
+		} else {
+			target = p.profile
+		}
+		hideMode = len(orig.Slots) == 0 || !asks
+	}
 	c := vbox(newSteamForm(steamFormOpts{
-		Game: g, Info: p.steam, User: p.steamUser, Mode: p.steamMode, Busy: busy,
+		Game: form, Info: p.steam, User: p.steamUser, Mode: p.steamMode, Busy: busy,
+		Profiles: orig.Emulators, Target: target, AsksAtLaunch: asks, HideMode: hideMode,
+		OnTarget: func(v string) {
+			// "Only <emulator>" is that emulator's profile: show it, so the shortcut and the page agree.
+			if v == "game" {
+				p.steamTarget = "game"
+			} else if v != p.profile {
+				p.steamTarget, p.profile, p.plan, p.backupsLoaded, p.backups = "profile", v, nil, false, nil
+			} else {
+				p.steamTarget = "profile"
+			}
+			p.render()
+		},
 		OnUser: func(v string) { p.steamUser = v },
 		OnMode: func(v string) { p.steamMode = v; p.render() },
 		OnAdd: func() {
 			var res core.AddToSteamResult
 			p.run("steam", func() error {
 				var err error
-				res, err = u.steam.AddToSteam(p.id, p.steamUser, p.steamMode)
+				mode := p.steamMode
+				if hideMode {
+					mode = "direct"
+				}
+				res, err = u.steam.AddToSteam(key, p.steamUser, mode)
 				return err
 			}, func(err error) {
 				if err != nil {
@@ -432,7 +543,7 @@ func (p *gameDetail) steamCard(g services.GameView, busy bool) fyne.CanvasObject
 			var n int
 			p.run("steam", func() error {
 				var err error
-				n, err = u.steam.RemoveFromSteam(p.id, p.steamUser)
+				n, err = u.steam.RemoveFromSteam(key, p.steamUser)
 				return err
 			}, func(err error) {
 				if err == nil && n > 0 {

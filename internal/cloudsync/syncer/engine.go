@@ -49,8 +49,21 @@ type Engine struct {
 
 // Job describes the saves of one game on this device.
 type Job struct {
+	// GameID names the cloud folder (games/<GameID>), lock and backups.
 	GameID string
-	Slots  []Slot
+	// StateKey names this device's sync state (the last synced manifest). It
+	// is GameID unless several local save folders share one cloud folder (two
+	// emulators sharing saves): each then remembers what it last synced.
+	StateKey string
+	Slots    []Slot
+}
+
+// StateID is the key of the job's local sync state.
+func (j Job) StateID() string {
+	if j.StateKey != "" {
+		return j.StateKey
+	}
+	return j.GameID
 }
 
 // Plan is the result of comparing local and cloud.
@@ -119,7 +132,7 @@ func (e *Engine) Plan(ctx context.Context, job Job) (*Plan, error) {
 	if err := validateJob(job); err != nil {
 		return nil, err
 	}
-	st, err := e.States.Load(job.GameID)
+	st, err := e.States.Load(job.StateID())
 	if err != nil {
 		return nil, err
 	}
@@ -175,7 +188,7 @@ func (e *Engine) Apply(ctx context.Context, p *Plan, res Resolution) (Action, er
 	if err != nil {
 		return ActionNone, err
 	}
-	st, err := e.States.Load(p.Job.GameID)
+	st, err := e.States.Load(p.Job.StateID())
 	if err != nil {
 		return ActionNone, err
 	}
@@ -183,7 +196,7 @@ func (e *Engine) Apply(ctx context.Context, p *Plan, res Resolution) (Action, er
 	switch action {
 	case ActionConflict:
 		st.Conflict = true
-		_ = e.States.Save(p.Job.GameID, st)
+		_ = e.States.Save(p.Job.StateID(), st)
 		return ActionConflict, ErrConflict
 	case ActionNone:
 		if p.Remote != nil && SameFiles(p.Local, p.Remote) {
@@ -210,7 +223,7 @@ func (e *Engine) Apply(ctx context.Context, p *Plan, res Resolution) (Action, er
 	st.LastError = ""
 	st.LastSyncAt = time.Now().UTC()
 	st.LastAction = action
-	if err := e.States.Save(p.Job.GameID, st); err != nil {
+	if err := e.States.Save(p.Job.StateID(), st); err != nil {
 		return action, err
 	}
 	e.emit(p.Job.GameID, "done", done, cloud.Progress{})
