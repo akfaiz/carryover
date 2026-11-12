@@ -63,7 +63,6 @@
   "Cancel sync": "Cancel sync",
   "Cancel upload": "Cancel upload",
   "Cancelling…": "Cancelling…",
-  "Carryover starts the executable (Windows, native Linux/macOS games)": "Carryover starts the executable (Windows, native Linux/macOS games)",
   "Checking…": "Checking…",
   "Choose cover image": "Choose cover image",
   "Choose file…": "Choose file…",
@@ -115,7 +114,6 @@
   "Game not found.": "Game not found.",
   "Games installed through Steam on this device. The title and cover come from Steam; you still set the save locations. Steam keeps launching the game — Carryover syncs around it through the launch options shown on the game page.": "Games installed through Steam on this device. The title and cover come from Steam; you still set the save locations. Steam keeps launching the game — Carryover syncs around it through the launch options shown on the game page.",
   "Hide": "Hide",
-  "How is the game started?": "How is the game started?",
   "If a browser window opened, finish signing in there.": "If a browser window opened, finish signing in there.",
   "Import from rclone": "Import from rclone",
   "Import rclone.conf…": "Import rclone.conf…",
@@ -210,7 +208,6 @@
   "Steam app {{.ID}}": "Steam app {{.ID}}",
   "Steam is running — restart it after adding so it picks up the change.": "Steam is running — restart it after adding so it picks up the change.",
   "Steam search failed: {{.Err}}": "Steam search failed: {{.Err}}",
-  "Steam starts it via Proton; Carryover wraps %command% (Steam Deck / Linux)": "Steam starts it via Proton; Carryover wraps %command% (Steam Deck / Linux)",
   "Steam was not found on this device.": "Steam was not found on this device.",
   "Steam's cover is downloaded when you save, unless you choose your own.": "Steam's cover is downloaded when you save, unless you choose your own.",
   "SteamGridDB API key (optional)": "SteamGridDB API key (optional)",
@@ -341,5 +338,13 @@
   "Commit {{.Commit}}, with uncommitted changes": "Commit {{.Commit}}, with uncommitted changes",
   "Release notes": "Release notes",
   "All releases": "All releases",
-  "Source code": "Source code"
+  "Source code": "Source code",
+  "{{.Game}} is installed by Heroic — it will be started through Heroic.": "{{.Game}} is installed by Heroic — it will be started through Heroic.",
+  "Launch with": "Launch with",
+  "Carryover": "Carryover",
+  "Heroic Games Launcher": "Heroic Games Launcher",
+  "Carryover runs the executable below. It syncs saves before the game starts and after it closes.": "Carryover runs the executable below. It syncs saves before the game starts and after it closes.",
+  "Heroic starts the game with its own settings (and, on Linux, its Wine prefix). Pick the game's executable inside its Heroic install folder; Carryover waits for it to close, then syncs.": "Heroic starts the game with its own settings (and, on Linux, its Wine prefix). Pick the game's executable inside its Heroic install folder; Carryover waits for it to close, then syncs.",
+  "Steam starts the game, and Carryover syncs before and after through the game's Steam launch options (shown on the game page). On Linux, Steam chooses the Proton version.": "Steam starts the game, and Carryover syncs before and after through the game's Steam launch options (shown on the game page). On Linux, Steam chooses the Proton version.",
+  "Steam runs Carryover, which starts the game through Heroic Games Launcher, so it keeps Heroic's settings (and, on Linux, its Wine prefix). Don't force a Proton version on this shortcut.": "Steam runs Carryover, which starts the game through Heroic Games Launcher, so it keeps Heroic's settings (and, on Linux, its Wine prefix). Don't force a Proton version on this shortcut."
 }

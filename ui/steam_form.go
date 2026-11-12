@@ -47,11 +47,15 @@ func newSteamForm(o steamFormOpts) *steamForm {
 			}
 			c.Add(field(lang.L("Steam account"), selectOf(users, o.User, o.OnUser)))
 		}
-		modes := &choice{}
-		modes.add("direct", lang.L("Run Carryover (it starts the game)"))
-		modes.add("steamwrap", lang.L("Run the game exe, wrapped by Carryover (pick Proton in Steam)"))
-		c.Add(field(lang.L("Shortcut type"), selectOf(modes, o.Mode, o.OnMode)))
-		if o.Mode == "steamwrap" {
+		if g.Device.LaunchMode == "heroic" {
+			c.Add(muted(lang.L("Steam runs Carryover, which starts the game through Heroic Games Launcher, so it keeps Heroic's settings (and, on Linux, its Wine prefix). Don't force a Proton version on this shortcut.")))
+		} else {
+			modes := &choice{}
+			modes.add("direct", lang.L("Run Carryover (it starts the game)"))
+			modes.add("steamwrap", lang.L("Run the game exe, wrapped by Carryover (pick Proton in Steam)"))
+			c.Add(field(lang.L("Shortcut type"), selectOf(modes, o.Mode, o.OnMode)))
+		}
+		if o.Mode == "steamwrap" && g.Device.LaunchMode != "heroic" {
 			t := lang.L("After adding, open the shortcut's Properties → Compatibility in Steam and force a Proton version. Its save prefix is available as {{.Token}}.",
 				map[string]any{"Token": "{proton:shortcut}"})
 			if g.Device.SteamAppID != "" {

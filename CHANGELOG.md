@@ -7,6 +7,15 @@ All notable changes to Carryover are listed here. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- New launch mode, "Carryover starts it through Heroic", for games installed by Heroic Games Launcher (GOG, Epic,
+  Amazon, or added by hand), on Linux and Windows. Carryover launches the game with Heroic's
+  `heroic://launch` link and waits for the game's executable to exit. On Linux the game keeps Heroic's Wine prefix;
+  before, a "Run the game exe" Steam shortcut made Steam create a new, empty Proton prefix for it. On Windows,
+  Heroic handles the Epic login some games need. Choosing an executable inside a Heroic install folder picks this
+  mode automatically, and "Add to Steam" then makes a shortcut that runs Carryover.
+
 ### Changed
 
 - Release files share one naming scheme, `carryover-<version>-<os>-<arch>`, with the version written without its

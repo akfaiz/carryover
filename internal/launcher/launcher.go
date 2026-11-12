@@ -23,6 +23,13 @@ type Spec struct {
 	// WaitProcess, if set, is a process name (e.g. "Game-Win64-Shipping.exe")
 	// to wait for after Exe exits — for games whose launcher exits immediately.
 	WaitProcess string
+	// Detach, with WaitProcess, does not wait for Exe at all: the session
+	// lasts while WaitProcess runs. For launchers (Heroic) that may hand the
+	// game to a copy already running and exit at once, or stay open after
+	// the game closes.
+	Detach bool
+	// WaitAppear is how long to wait for WaitProcess to start (default 90s).
+	WaitAppear time.Duration
 }
 
 // Result of a game run.
@@ -56,6 +63,15 @@ func Run(ctx context.Context, spec Spec, onStarted func(pid int)) (Result, error
 	if onStarted != nil {
 		onStarted(cmd.Process.Pid)
 	}
+	appear := spec.WaitAppear
+	if appear <= 0 {
+		appear = 90 * time.Second
+	}
+	if spec.Detach && spec.WaitProcess != "" {
+		go func() { _ = cmd.Wait() }() // reap it whenever it exits
+		waitForProcess(ctx, spec.WaitProcess, appear)
+		return Result{Duration: time.Since(start)}, nil
+	}
 	err := cmd.Wait()
 	res := Result{ExitCode: 0}
 	if exitErr, ok := errors.AsType[*exec.ExitError](err); ok {
@@ -66,7 +82,7 @@ func Run(ctx context.Context, spec Spec, onStarted func(pid int)) (Result, error
 		return res, err
 	}
 	if spec.WaitProcess != "" {
-		waitForProcess(ctx, spec.WaitProcess, 90*time.Second)
+		waitForProcess(ctx, spec.WaitProcess, appear)
 	}
 	res.Duration = time.Since(start)
 	return res, nil

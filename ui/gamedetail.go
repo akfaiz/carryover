@@ -43,9 +43,14 @@ func newGameDetail(u *UI, id string) *gameDetail {
 
 func (p *gameDetail) view() fyne.CanvasObject {
 	p.scroll = scrollPage(widget.NewLabel(""))
-	if g, ok := p.u.game(p.id); ok && g.Device.LaunchMode == "steamwrap" {
-		p.steamMode = "steamwrap"
-		p.wrapOpen = g.StoreAppID != ""
+	if g, ok := p.u.game(p.id); ok {
+		switch g.Device.LaunchMode {
+		case "steamwrap":
+			p.steamMode = "steamwrap"
+			p.wrapOpen = g.StoreAppID != ""
+		case "heroic":
+			p.steamMode = "heroic"
+		}
 	}
 	async(func() (services.SteamInfo, error) { return p.u.steam.Info(), nil }, func(info services.SteamInfo, _ error) {
 		p.steam = &info

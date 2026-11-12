@@ -53,6 +53,8 @@ type AddToSteamResult struct {
 // mode LaunchDirect: Steam runs Carryover, which launches the configured exe.
 // mode LaunchSteamWrap: Steam runs the game exe itself (so Proton can be chosen
 // in Steam) with launch options that route it through Carryover.
+// mode LaunchHeroic: like LaunchDirect, but Carryover starts the game through
+// Heroic, so it keeps Heroic's Wine prefix instead of getting a Proton prefix.
 func (c *Core) AddToSteam(gameID, userID string, mode library.LaunchMode) (AddToSteamResult, error) {
 	var res AddToSteamResult
 	root := c.SteamRoot()
@@ -67,6 +69,11 @@ func (c *Core) AddToSteam(gameID, userID string, mode library.LaunchMode) (AddTo
 	self, err := SelfExecutable()
 	if err != nil {
 		return res, err
+	}
+	// A Heroic game's direct shortcut must stay a Heroic launch: started
+	// directly, it would leave Heroic's prefix.
+	if mode == library.LaunchDirect && dev.LaunchMode == library.LaunchHeroic {
+		mode = library.LaunchHeroic
 	}
 	sc := steam.Shortcut{AppName: game.Name, Tags: []string{"Carryover"}}
 	switch mode {
@@ -92,7 +99,11 @@ func (c *Core) AddToSteam(gameID, userID string, mode library.LaunchMode) (AddTo
 			sc.LaunchOptions += " -- %command%"
 		}
 	default:
-		mode = library.LaunchDirect
+		if mode != library.LaunchHeroic {
+			mode = library.LaunchDirect
+		} else if dev.Exe == "" {
+			return res, errors.New("set the game executable for this device first")
+		}
 		sc.Exe, sc.StartDir = quote(self), quote(filepath.Dir(self))
 		sc.LaunchOptions = "run " + game.ID
 	}

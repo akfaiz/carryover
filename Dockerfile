@@ -18,8 +18,17 @@ RUN --mount=type=cache,target=/go/pkg/mod --mount=type=cache,target=/root/.cache
 # AppImage packaging (see packaging/appimage/build.sh). Built on demand:
 #   docker build --target appimage-out --output type=local,dest=bin .
 FROM build AS appimage
-ARG APPIMAGETOOL_VERSION=1.9.0
-RUN apt-get update && apt-get install -y --no-install-recommends curl ca-certificates file desktop-file-utils zsync     && rm -rf /var/lib/apt/lists/*     && curl -fsSL -o /usr/local/bin/appimagetool         https://github.com/AppImage/appimagetool/releases/download/${APPIMAGETOOL_VERSION}/appimagetool-x86_64.AppImage     && chmod +x /usr/local/bin/appimagetool
+ARG APPIMAGETOOL_VERSION=1.9.1
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends curl ca-certificates file desktop-file-utils zsync \
+    && rm -rf /var/lib/apt/lists/* \
+    && curl -fsSL -o /usr/local/bin/appimagetool \
+        https://github.com/AppImage/appimagetool/releases/download/${APPIMAGETOOL_VERSION}/appimagetool-x86_64.AppImage \
+    && dd if=/dev/zero of=/usr/local/bin/appimagetool bs=1 count=3 seek=8 conv=notrunc \
+    && chmod +x /usr/local/bin/appimagetool
+# The dd above zeroes the AppImage magic ("AI\x02", ELF header bytes 8-10): QEMU's binfmt
+# handler rejects non-zero padding, so appimagetool fails with "Exec format error" when this
+# builds under emulation (arm64 host). Harmless on a native x86-64 host.
 # No FUSE inside a build container: let appimagetool unpack itself.
 ENV APPIMAGE_EXTRACT_AND_RUN=1
 # Update information for AppImageUpdate / Gear Lever (empty for local builds);

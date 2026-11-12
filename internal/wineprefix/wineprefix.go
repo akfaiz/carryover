@@ -15,6 +15,8 @@ import (
 	"strings"
 
 	"gopkg.in/yaml.v3"
+
+	"github.com/akfaiz/carryover/internal/heroic"
 )
 
 // Launchers a prefix can come from.
@@ -132,8 +134,8 @@ func Find(r Roots) []Prefix {
 	f := &finder{seen: map[string]int{}}
 	home := r.Home
 	var heroicParents []string
-	for _, dir := range heroicConfigDirs(home) {
-		heroicParents = append(heroicParents, f.heroicConfig(dir, home)...)
+	for _, dir := range heroic.LinuxConfigDirs(home) {
+		heroicParents = append(heroicParents, f.heroicConfig(dir.Path, home)...)
 	}
 	for _, dir := range lutrisGameDirs(home) {
 		f.lutrisGames(dir, home)
@@ -203,14 +205,7 @@ func userDirs(prefix string) []string {
 
 // --- Heroic ---
 
-const heroicFlatpak = "com.heroicgameslauncher.hgl"
-
-func heroicConfigDirs(home string) []string {
-	return []string{
-		filepath.Join(home, ".config", "heroic"),
-		filepath.Join(home, ".var", "app", heroicFlatpak, "config", "heroic"),
-	}
-}
+const heroicFlatpak = heroic.FlatpakID
 
 // maxConfigFiles bounds how many per-game config files are read per folder.
 const maxConfigFiles = 500
@@ -232,7 +227,7 @@ func (f *finder) heroicConfig(dir, home string) (parents []string) {
 			}
 		}
 	}
-	titles := heroicTitles(dir)
+	titles := heroic.Titles(dir)
 	entries, _ := os.ReadDir(filepath.Join(dir, "GamesConfig"))
 	for i, e := range entries {
 		if i >= maxConfigFiles {
@@ -259,35 +254,6 @@ func (f *finder) heroicConfig(dir, home string) (parents []string) {
 		}
 	}
 	return parents
-}
-
-// heroicTitles maps Heroic's opaque app names to game titles, from its
-// library caches (GOG, Epic, Amazon, and games added by hand).
-func heroicTitles(dir string) map[string]string {
-	type game struct {
-		AppName string `json:"app_name"`
-		Title   string `json:"title"`
-	}
-	titles := map[string]string{}
-	for _, name := range []string{
-		"store_cache/gog_library.json", "gog_store/library.json",
-		"store_cache/legendary_library.json", "store_cache/nile_library.json",
-		"sideload_apps/library.json",
-	} {
-		var lib struct {
-			Games   []game `json:"games"`
-			Library []game `json:"library"`
-		}
-		if !readJSON(filepath.Join(dir, filepath.FromSlash(name)), &lib) {
-			continue
-		}
-		for _, g := range append(lib.Games, lib.Library...) {
-			if g.AppName != "" && g.Title != "" {
-				titles[g.AppName] = g.Title
-			}
-		}
-	}
-	return titles
 }
 
 // --- Lutris ---

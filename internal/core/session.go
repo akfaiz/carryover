@@ -5,9 +5,12 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"os"
+	"path/filepath"
 	"sync"
 	"time"
 
+	"github.com/akfaiz/carryover/internal/heroic"
 	"github.com/akfaiz/carryover/internal/launcher"
 	"github.com/akfaiz/carryover/internal/library"
 	"github.com/akfaiz/carryover/internal/syncer"
@@ -217,6 +220,9 @@ func (c *Core) launchSpec(game library.Game, dev library.DeviceConfig, opt RunOp
 	if err != nil {
 		return spec, err
 	}
+	if dev.LaunchMode == library.LaunchHeroic {
+		return heroicSpec(spec, exe)
+	}
 	spec.Exe = exe
 	if dev.WorkDir != "" {
 		if spec.WorkDir, err = pctx.Expand(dev.WorkDir); err != nil {
@@ -256,3 +262,25 @@ func (h HeadlessUI) ConfirmSyncFailure(_ context.Context, g library.Game, err er
 }
 func (h HeadlessUI) GameRunning(bool)      {}
 func (h HeadlessUI) SyncCancelable(func()) {}
+
+// heroicAppear is how long a Heroic launch may take to start the game: Heroic
+// may first sync its own cloud saves or download a Wine/Proton build.
+const heroicAppear = 5 * time.Minute
+
+// heroicSpec launches the Heroic game that exe belongs to through Heroic, and
+// waits for the game's process (exe's name unless WaitProcess says otherwise).
+func heroicSpec(spec launcher.Spec, exe string) (launcher.Spec, error) {
+	home, _ := os.UserHomeDir()
+	g, ok := heroic.ForExe(home, exe)
+	if !ok {
+		return spec, fmt.Errorf("%s is not in a game folder Heroic has installed on this device", exe)
+	}
+	cmd := g.Command()
+	spec.Exe, spec.Args = cmd[0], cmd[1:]
+	spec.WorkDir = home
+	if spec.WaitProcess == "" {
+		spec.WaitProcess = filepath.Base(exe)
+	}
+	spec.Detach, spec.WaitAppear = true, heroicAppear
+	return spec, nil
+}
