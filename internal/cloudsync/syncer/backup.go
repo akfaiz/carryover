@@ -339,7 +339,7 @@ func (e *Engine) BackupNow(ctx context.Context, job Job) (string, error) {
 	if err := validateJob(job); err != nil {
 		return "", err
 	}
-	st, err := e.States.Load(job.GameID)
+	st, err := e.States.Load(job.StateID())
 	if err != nil {
 		return "", err
 	}
@@ -428,7 +428,7 @@ func (e *Engine) RestoreBackup(ctx context.Context, job Job, name string) error 
 	if !inCloud && !e.isSafetyCopy(job.GameID, name) {
 		return fmt.Errorf("backup %s not found", name)
 	}
-	st, err := e.States.Load(job.GameID)
+	st, err := e.States.Load(job.StateID())
 	if err != nil {
 		return err
 	}

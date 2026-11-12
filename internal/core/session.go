@@ -7,6 +7,7 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 	"time"
 
@@ -42,6 +43,9 @@ type RunOptions struct {
 	Command []string
 	// NoSync skips cloud sync entirely.
 	NoSync bool
+	// Emulator picks the profile: an emulator id or name, NativeProfile, or ""
+	// for the default (see Core.ResolveProfile).
+	Emulator string
 }
 
 // SessionResult summarises a play session.
@@ -78,24 +82,31 @@ func (c *Core) Play(ctx context.Context, gameID string, opt RunOptions, ui Sessi
 	}
 	dev, _ := game.Device(c.DeviceID())
 
-	spec, err := c.launchSpec(game, dev, opt)
+	emuID, err := c.ResolveProfile(game, opt.Emulator)
+	if err != nil {
+		return res, err
+	}
+	key := SyncKey(game.ID, emuID) // this profile's own sync state
+	ckey := CloudKey(game, emuID)  // the cloud folder, locks and session marker; shared by emulators sharing saves
+	spec, err := c.launchSpec(game, dev, opt, emuID)
 	if err != nil {
 		return res, err
 	}
 
-	lock, err := syncer.AcquireLocalLock(c.Dirs.StateDir(), game.ID)
+	lock, err := syncer.AcquireLocalLock(c.Dirs.StateDir(), ckey)
 	if err != nil {
 		return res, err
 	}
 	defer lock.Release()
-	c.playing.Store(game.ID, struct{}{})
-	defer c.playing.Delete(game.ID)
+	c.playing.Store(ckey, struct{}{})
+	defer c.playing.Delete(ckey)
 
 	var eng *syncer.Engine
 	var job syncer.Job
-	doSync := !opt.NoSync && c.CloudConfigured() && len(game.Slots) > 0
+	slots, _, _ := c.profileData(game, emuID)
+	doSync := !opt.NoSync && c.CloudConfigured() && len(slots) > 0
 	if doSync {
-		if job, err = c.Job(game); err != nil {
+		if job, err = c.JobFor(game, emuID); err != nil {
 			return res, err
 		}
 		if eng, err = c.Engine(); err != nil {
@@ -121,7 +132,7 @@ func (c *Core) Play(ctx context.Context, gameID string, opt RunOptions, ui Sessi
 		lockChecked := make(chan struct{})
 		go func() {
 			defer close(lockChecked)
-			if l, err := eng.CheckLock(preCtx, game.ID); err == nil {
+			if l, err := eng.CheckLock(preCtx, ckey); err == nil {
 				other = l
 			}
 		}()
@@ -133,7 +144,7 @@ func (c *Core) Play(ctx context.Context, gameID string, opt RunOptions, ui Sessi
 		}
 		res.PreAction = action
 		if err != nil {
-			c.States.SetError(game.ID, err.Error())
+			c.States.SetError(key, err.Error())
 			if errors.Is(err, ErrCancelled) || !ui.ConfirmSyncFailure(ctx, game, err, true) {
 				return res, ErrCancelled
 			}
@@ -144,16 +155,21 @@ func (c *Core) Play(ctx context.Context, gameID string, opt RunOptions, ui Sessi
 		// Mark the game as being played without delaying its start; the
 		// release afterwards waits for this write. The marker lets a later
 		// run release the lock if this process is killed (RecoverSessions).
-		c.markSession(game.ID)
+		c.markSession(ckey)
 		go func() {
 			defer close(lockWritten)
-			_ = eng.AcquireLock(ctx, game.ID)
+			_ = eng.AcquireLock(ctx, ckey)
 		}()
 	} else {
 		close(lockWritten)
 	}
 
-	ui.Status("playing", "Playing "+game.Name)
+	c.rememberProfile(game, emuID)
+	title := game.Name
+	if emuID != "" {
+		title += " (" + c.ProfileName(emuID) + ")"
+	}
+	ui.Status("playing", "Playing "+title)
 	ui.GameRunning(true)
 	run, runErr := launcher.Run(ctx, spec, nil)
 	ui.GameRunning(false)
@@ -172,14 +188,14 @@ func (c *Core) Play(ctx context.Context, gameID string, opt RunOptions, ui Sessi
 		}
 		res.PostAction, res.PostError = action, err
 		if err != nil && !errors.Is(err, ErrCancelled) {
-			c.States.SetError(game.ID, err.Error())
+			c.States.SetError(key, err.Error())
 			ui.ConfirmSyncFailure(postCtx, game, err, false)
 		}
 		var wg sync.WaitGroup
 		wg.Go(func() {
 			<-lockWritten
-			if err := eng.ReleaseLock(postCtx, game.ID); err == nil {
-				c.clearSession(game.ID)
+			if err := eng.ReleaseLock(postCtx, ckey); err == nil {
+				c.clearSession(ckey)
 			}
 		})
 		wg.Go(func() {
@@ -212,7 +228,71 @@ func (c *Core) syncWithUI(ctx context.Context, eng *syncer.Engine, game library.
 	return eng.Apply(ctx, plan, res)
 }
 
-func (c *Core) launchSpec(game library.Game, dev library.DeviceConfig, opt RunOptions) (launcher.Spec, error) {
+// romToken is replaced by the game's ROM/file in an emulator's arguments.
+const romToken = "{rom}"
+
+// emulatorSpec builds the launch of a game through an emulator on this device.
+func (c *Core) emulatorSpec(game library.Game, dev library.DeviceConfig, opt RunOptions, emuID string) (launcher.Spec, error) {
+	emu, err := c.Library.Emulator(emuID)
+	if err != nil {
+		return launcher.Spec{}, fmt.Errorf("the emulator of %s no longer exists", game.Name)
+	}
+	ed, ok := emu.Device(c.DeviceID())
+	spec := launcher.Spec{WaitProcess: ed.WaitProcess, Env: ed.Env}
+	if len(opt.Command) > 0 {
+		spec.Exe, spec.Args = opt.Command[0], opt.Command[1:]
+		return spec, nil
+	}
+	if !ok || ed.Exe == "" {
+		return spec, fmt.Errorf("%s has no executable configured on this device", emu.Name)
+	}
+	pctx := c.PathContextFor(game, emuID)
+	if spec.Exe, err = pctx.Expand(ed.Exe); err != nil {
+		return spec, err
+	}
+	if ed.WorkDir != "" {
+		if spec.WorkDir, err = pctx.Expand(ed.WorkDir); err != nil {
+			return spec, err
+		}
+	}
+	var rom string
+	if r := dev.Emulators[emuID].Rom; r != "" {
+		if rom, err = pctx.Expand(r); err != nil {
+			return spec, err
+		}
+	}
+	args, err := launcher.SplitArgs(ed.Args)
+	if err != nil {
+		return spec, err
+	}
+	used := false
+	for i, a := range args {
+		if strings.Contains(a, romToken) {
+			args[i] = strings.ReplaceAll(a, romToken, rom)
+			used = true
+		}
+	}
+	if !used && rom != "" {
+		args = append(args, rom)
+	}
+	spec.Args = args
+	return spec, nil
+}
+
+// rememberProfile records the profile played last on this device, so it is
+// the default next time. Only games that have emulators need it.
+func (c *Core) rememberProfile(game library.Game, emuID string) {
+	dev, _ := game.Device(c.DeviceID())
+	if len(game.Emulators) == 0 || dev.LastEmulator == emuID {
+		return
+	}
+	_, _ = c.Library.UpdateDevice(game.ID, c.DeviceID(), func(d *library.DeviceConfig) { d.LastEmulator = emuID })
+}
+
+func (c *Core) launchSpec(game library.Game, dev library.DeviceConfig, opt RunOptions, emuID string) (launcher.Spec, error) {
+	if emuID != "" {
+		return c.emulatorSpec(game, dev, opt, emuID)
+	}
 	pctx := c.PathContext(game)
 	spec := launcher.Spec{WaitProcess: dev.WaitProcess, Env: dev.Env}
 	if len(opt.Command) > 0 {

@@ -14,7 +14,11 @@ import (
 
 // Status is a play-session status update.
 type Status struct {
-	GameID  string `json:"gameId"`
+	GameID string `json:"gameId"`
+	// Profile is the emulator id the session plays with ("" = the game's own
+	// launch config). Key is the id its saves are keyed by (core.SyncKey).
+	Profile string `json:"profile,omitempty"`
+	Key     string `json:"key,omitempty"`
 	Phase   string `json:"phase"` // sync, playing, done, error
 	Message string `json:"message"`
 	Running bool   `json:"running"`
@@ -29,13 +33,27 @@ type ConflictInfo struct {
 // Prompt is a question for the user. Answer via SessionService.Respond.
 type Prompt struct {
 	ID         string        `json:"id"`
-	Kind       string        `json:"kind"` // conflict, lock, syncError
+	Kind       string        `json:"kind"` // conflict, lock, syncError, emulator
 	GameID     string        `json:"gameId"`
-	GameName   string        `json:"gameName"`
+	GameName   string        `json:"gameName"` // includes " (<emulator>)" for an emulator profile
+	Profile    string        `json:"profile,omitempty"`
 	BeforePlay bool          `json:"beforePlay"`
 	Conflict   *ConflictInfo `json:"conflict,omitempty"`
 	Lock       *syncer.Lock  `json:"lock,omitempty"`
 	Error      string        `json:"error,omitempty"`
+	// Choices, Default and Seconds are for Kind "emulator": the ways to play the
+	// game on this device, the one that starts if nobody answers, and after how
+	// many seconds. The answer is a choice's ID.
+	Choices []ProfileChoice `json:"choices,omitempty"`
+	Default string          `json:"default,omitempty"`
+	Seconds int             `json:"seconds,omitempty"`
+}
+
+// ProfileChoice is one way to play a game: an emulator, or the game's own launch
+// config (ID core.NativeProfile).
+type ProfileChoice struct {
+	ID   string `json:"id"`
+	Name string `json:"name"`
 }
 
 // Bus delivers service events to subscribers (the GUI). Handlers run on the
@@ -190,6 +208,9 @@ func (p *prompter) list() []Prompt {
 // guiUI implements core.SessionUI using GUI prompts.
 type guiUI struct {
 	gameID       string
+	profile      string // emulator id, "" = native
+	key          string // core.SyncKey(gameID, profile)
+	suffix       string // " (<emulator>)" for an emulator profile
 	p            *prompter
 	onStatus     func(Status)
 	onRunning    func(bool)
@@ -197,12 +218,12 @@ type guiUI struct {
 }
 
 func (u *guiUI) Status(phase, message string) {
-	u.onStatus(Status{GameID: u.gameID, Phase: phase, Message: message, Running: phase == "playing"})
+	u.onStatus(Status{GameID: u.gameID, Profile: u.profile, Key: u.key, Phase: phase, Message: message, Running: phase == "playing"})
 }
 
 func (u *guiUI) ResolveConflict(ctx context.Context, g library.Game, plan *syncer.Plan, before bool) syncer.Resolution {
 	a := u.p.ask(ctx, Prompt{
-		Kind: "conflict", GameID: g.ID, GameName: g.Name, BeforePlay: before,
+		Kind: "conflict", GameID: g.ID, GameName: g.Name + u.suffix, Profile: u.profile, BeforePlay: before,
 		Conflict: &ConflictInfo{Local: plan.LocalSummary, Remote: plan.RemoteSummary},
 	})
 	switch a {
@@ -215,11 +236,11 @@ func (u *guiUI) ResolveConflict(ctx context.Context, g library.Game, plan *synce
 }
 
 func (u *guiUI) ConfirmLock(ctx context.Context, g library.Game, l *syncer.Lock) bool {
-	return u.p.ask(ctx, Prompt{Kind: "lock", GameID: g.ID, GameName: g.Name, Lock: l, BeforePlay: true}) == "yes"
+	return u.p.ask(ctx, Prompt{Kind: "lock", GameID: g.ID, GameName: g.Name + u.suffix, Profile: u.profile, Lock: l, BeforePlay: true}) == "yes"
 }
 
 func (u *guiUI) ConfirmSyncFailure(ctx context.Context, g library.Game, err error, before bool) bool {
-	return u.p.ask(ctx, Prompt{Kind: "syncError", GameID: g.ID, GameName: g.Name, Error: err.Error(), BeforePlay: before}) == "yes"
+	return u.p.ask(ctx, Prompt{Kind: "syncError", GameID: g.ID, GameName: g.Name + u.suffix, Profile: u.profile, Error: err.Error(), BeforePlay: before}) == "yes"
 }
 
 func (u *guiUI) SyncCancelable(cancel func()) {

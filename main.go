@@ -11,12 +11,14 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
+	"slices"
 	"strings"
 	"syscall"
 
 	"github.com/akfaiz/carryover/internal/app/version"
 	"github.com/akfaiz/carryover/internal/cloudsync/syncer"
 	"github.com/akfaiz/carryover/internal/core"
+	"github.com/akfaiz/carryover/internal/library"
 	"github.com/akfaiz/carryover/ui"
 )
 
@@ -24,9 +26,9 @@ const usage = `Carryover — game launcher with rclone cloud saves
 
 Usage:
   carryover                                  open the launcher
-  carryover run <game> [--headless] [--no-sync] [-- cmd]
+  carryover run <game> [--emulator <e>] [--headless] [--no-sync] [-- cmd]
                                              sync, play, sync (used by Steam shortcuts)
-  carryover sync <game|--all> [--push|--pull] [--dry-run] [--yes]
+  carryover sync <game|--all> [--emulator <e>] [--push|--pull] [--dry-run] [--yes]
                                              --dry-run shows what would happen; with --all,
                                              --push/--pull ask first unless --yes is given
   carryover list                             list games and their ids
@@ -34,6 +36,10 @@ Usage:
 
 <game> is a game id or its exact name. With "-- cmd" (e.g. Steam's
 "-- %command%") the given command is launched instead of the configured exe.
+A game can be played with several emulators, each with its own cloud save.
+<e> is an emulator id or name, or "native" for the game's own launch config.
+"run" without --emulator uses the profile played last on this device; "sync"
+without it syncs every profile set up on this device.
 `
 
 func main() {
@@ -109,11 +115,12 @@ func cmdRun(args []string) int {
 	fset := flag.NewFlagSet("run", flag.ContinueOnError)
 	headless := fset.Bool("headless", false, "don't open a window; conflicts are skipped")
 	noSync := fset.Bool("no-sync", false, "launch without syncing")
-	if err := fset.Parse(reorder(args)); err != nil || fset.NArg() != 1 {
+	emulator := fset.String("emulator", "", "emulator id or name, or \"native\"")
+	if err := fset.Parse(reorderFlags(args, "emulator")); err != nil || fset.NArg() != 1 {
 		_, _ = os.Stderr.WriteString(usage)
 		return 2
 	}
-	opts := core.RunOptions{Command: command, NoSync: *noSync}
+	opts := core.RunOptions{Command: command, NoSync: *noSync, Emulator: *emulator}
 	gameID := fset.Arg(0)
 	survivePolite()
 	if *headless {
@@ -147,13 +154,26 @@ func survivePolite() {
 }
 
 // reorder moves flags before positional args so "run <id> --headless" works.
-func reorder(args []string) []string {
+func reorder(args []string) []string { return reorderFlags(args) }
+
+// reorderFlags is reorder for commands with flags that take a value
+// (valued): "--emulator X" and "--emulator=X" both keep X with its flag.
+func reorderFlags(args []string, valued ...string) []string {
+	takesValue := func(a string) bool {
+		name := strings.TrimLeft(a, "-")
+		return !strings.Contains(a, "=") && slices.Contains(valued, name)
+	}
 	var flags, pos []string
-	for _, a := range args {
-		if strings.HasPrefix(a, "-") {
-			flags = append(flags, a)
-		} else {
+	for i := 0; i < len(args); i++ {
+		a := args[i]
+		switch {
+		case !strings.HasPrefix(a, "-"):
 			pos = append(pos, a)
+		case takesValue(a) && i+1 < len(args):
+			flags = append(flags, a, args[i+1])
+			i++
+		default:
+			flags = append(flags, a)
 		}
 	}
 	return append(flags, pos...)
@@ -167,7 +187,8 @@ func cmdSync(args []string) int {
 	dryRun := fset.Bool("dry-run", false, "show what would happen without changing anything")
 	yes := fset.Bool("yes", false, "don't ask before forcing --push/--pull on every game")
 	fset.BoolVar(yes, "y", false, "same as --yes")
-	if err := fset.Parse(reorder(args)); err != nil || (*push && *pull) || (fset.NArg() != 1 && !*all) {
+	emulator := fset.String("emulator", "", "sync only this emulator's saves (id, name or \"native\")")
+	if err := fset.Parse(reorderFlags(args, "emulator")); err != nil || (*push && *pull) || (fset.NArg() != 1 && !*all) {
 		_, _ = os.Stderr.WriteString(usage)
 		return 2
 	}
@@ -208,7 +229,7 @@ func cmdSync(args []string) int {
 		games = []string{fset.Arg(0)}
 	}
 	if *all && res != syncer.ResolveAuto && !*dryRun && !*yes {
-		if n := readyGames(c, games); n > 0 && !confirmForce(*push, n) {
+		if n := readyGames(c, games, *emulator); n > 0 && !confirmForce(*push, n) {
 			fmt.Println("aborted; nothing was changed")
 			return 1
 		}
@@ -221,56 +242,95 @@ func cmdSync(args []string) int {
 			code = 1
 			continue
 		}
-		job, err := c.Job(g)
+		profiles, err := syncProfiles(c, g, *emulator)
 		if err != nil {
-			if !*all {
-				log.Printf("%s: %v", g.Name, err)
+			log.Printf("%s: %v", g.Name, err)
+			code = 1
+			continue
+		}
+		for _, emuID := range profiles {
+			name := profileTitle(c, g, emuID)
+			job, err := c.JobFor(g, emuID)
+			if err != nil {
+				if !*all {
+					log.Printf("%s: %v", name, err)
+					code = 1
+				}
+				continue
+			}
+			fmt.Printf("%s\n", name)
+			if *dryRun {
+				if rc := dryRunGame(ctx, eng, job, res); rc > code {
+					code = rc
+				}
+				if ctx.Err() != nil {
+					return 130
+				}
+				continue
+			}
+			lock, err := syncer.AcquireLocalLock(c.Dirs.StateDir(), job.GameID)
+			if err != nil {
+				log.Printf("%s: %v", name, err)
 				code = 1
+				continue
 			}
-			continue
-		}
-		fmt.Printf("%s\n", g.Name)
-		if *dryRun {
-			if rc := dryRunGame(ctx, eng, job, res); rc > code {
-				code = rc
-			}
-			if ctx.Err() != nil {
+			_, action, err := eng.Sync(ctx, job, res)
+			lock.Release()
+			switch {
+			case ctx.Err() != nil:
+				fmt.Println("  cancelled")
 				return 130
+			case errors.Is(err, syncer.ErrConflict):
+				fmt.Println("  conflict: both local and cloud changed; rerun with --push or --pull")
+				code = 3
+			case err != nil:
+				log.Printf("%s: %v", name, err)
+				c.States.SetError(job.StateID(), err.Error())
+				code = 1
+			default:
+				fmt.Printf("  %s\n", action)
 			}
-			continue
-		}
-		lock, err := syncer.AcquireLocalLock(c.Dirs.StateDir(), g.ID)
-		if err != nil {
-			log.Printf("%s: %v", g.Name, err)
-			code = 1
-			continue
-		}
-		_, action, err := eng.Sync(ctx, job, res)
-		lock.Release()
-		switch {
-		case ctx.Err() != nil:
-			fmt.Println("  cancelled")
-			return 130
-		case errors.Is(err, syncer.ErrConflict):
-			fmt.Println("  conflict: both local and cloud changed; rerun with --push or --pull")
-			code = 3
-		case err != nil:
-			log.Printf("%s: %v", g.Name, err)
-			c.States.SetError(g.ID, err.Error())
-			code = 1
-		default:
-			fmt.Printf("  %s\n", action)
 		}
 	}
 	return code
 }
 
-// readyGames counts the games (ids) that are set up on this device.
-func readyGames(c *core.Core, ids []string) int {
+// syncProfiles lists the emulator ids ("" = native) to sync for a game: the
+// one asked for, else every profile set up on this device (the native one if
+// there is none, so its "not set up" error is reported as before).
+func syncProfiles(c *core.Core, g library.Game, want string) ([]string, error) {
+	if want != "" {
+		id, err := c.ResolveProfile(g, want)
+		return []string{id}, err
+	}
+	if p := c.Profiles(g); len(p) > 0 {
+		return p, nil
+	}
+	return []string{""}, nil
+}
+
+// profileTitle is the game's name, plus the emulator's for an emulator profile.
+func profileTitle(c *core.Core, g library.Game, emuID string) string {
+	if emuID == "" {
+		return g.Name
+	}
+	return g.Name + " (" + c.ProfileName(emuID) + ")"
+}
+
+// readyGames counts the profiles of the games (ids) that are set up on this device.
+func readyGames(c *core.Core, ids []string, emulator string) int {
 	n := 0
 	for _, id := range ids {
-		if g, err := c.Library.Find(id); err == nil {
-			if _, err := c.Job(g); err == nil {
+		g, err := c.Library.Find(id)
+		if err != nil {
+			continue
+		}
+		profiles, err := syncProfiles(c, g, emulator)
+		if err != nil {
+			continue
+		}
+		for _, emuID := range profiles {
+			if _, err := c.JobFor(g, emuID); err == nil {
 				n++
 			}
 		}
@@ -361,16 +421,19 @@ func humanSize(n int64) string {
 func cmdList() int {
 	c := openCore()
 	for _, g := range c.Library.List() {
-		ready := "ready"
-		job, err := c.Job(g)
-		if err != nil {
-			ready = "not set up on this device"
-		} else if st, err := c.States.Load(g.ID); err == nil {
-			if changed, _, err := syncer.LocalChanges(context.Background(), job.Slots, st.LastSynced, nil); err == nil && changed {
-				ready = "ready, saves changed since the last sync (not uploaded)"
+		profiles, _ := syncProfiles(c, g, "")
+		for _, emuID := range profiles {
+			ready := "ready"
+			job, err := c.JobFor(g, emuID)
+			if err != nil {
+				ready = "not set up on this device"
+			} else if st, err := c.States.Load(job.StateID()); err == nil {
+				if changed, _, err := syncer.LocalChanges(context.Background(), job.Slots, st.LastSynced, nil); err == nil && changed {
+					ready = "ready, saves changed since the last sync (not uploaded)"
+				}
 			}
+			fmt.Printf("%s  %-40s %s\n", g.ID, profileTitle(c, g, emuID), ready)
 		}
-		fmt.Printf("%s  %-40s %s\n", g.ID, g.Name, ready)
 	}
 	return 0
 }

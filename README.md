@@ -25,6 +25,9 @@ Cloud storage: Google Drive, Dropbox, OneDrive, WebDAV (Nextcloud, ownCloud, NAS
 
 - **Per-device save paths** — one game, one cloud copy; each device maps it to its own folder
   (`{appdata}/GameA` on Windows, `{proton:shortcut}/AppData/Roaming/GameA` on a Steam Deck).
+- **Emulators** — set up an emulator (Eden, Ryujinx, …) once per device, then let a game use several of them.
+  Each emulator keeps its own saves in the cloud, so they never mix; the same emulator on another device
+  shares them.
 - **Play from the launcher or from Steam** — "Add to Steam" creates a non-Steam shortcut that runs
   `carryover run <game>`, so saves sync around every session, even in Game Mode.
 - **Safe conflicts** — if saves changed on both sides, you choose which to keep. The side being overwritten is
@@ -137,9 +140,9 @@ The `{ }` button next to a path field lists every variable with its value on the
 
 ```
 carryover                                    open the launcher
-carryover run <game> [--headless] [--no-sync] [-- cmd]
+carryover run <game> [--emulator <e>] [--headless] [--no-sync] [-- cmd]
                                              pull → play → push (used by Steam shortcuts)
-carryover sync <game>|--all [--push|--pull] [--dry-run] [--yes]
+carryover sync <game>|--all [--emulator <e>] [--push|--pull] [--dry-run] [--yes]
                                              manual sync (exit code 3 = conflict)
 carryover list                               list games and their ids
 carryover --version                          print the version
@@ -147,6 +150,8 @@ carryover --version                          print the version
 
 - `<game>` is a game id or its exact name. With `-- cmd` (for example Steam's `-- %command%`), that command is
   launched instead of the configured exe.
+- `--emulator` picks an emulator (id or name, or `native` for the game's own launch config). `run` without it
+  plays the one used last on this device; `sync` without it syncs every emulator set up on this device.
 - `--headless` never waits for input: conflicts are skipped, both sides stay untouched, and the game is flagged
   in the launcher until you resolve it.
 - `--no-sync` launches the game without syncing before or after.
@@ -175,3 +180,6 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for build, test and Linux / Steam Deck pa
   [OpenSave](https://github.com/Liquid-co/OpenSave) (MIT).
 - Save locations come from the [Ludusavi manifest](https://github.com/mtkennerly/ludusavi-manifest)
   (MIT), compiled from [PCGamingWiki](https://www.pcgamingwiki.com/).
+- Save locations of emulated games come from
+  [ludusavi-emulator-manifests](https://github.com/sharkusmanch/ludusavi-emulator-manifests), downloaded on demand
+  when you use the suggestion feature (built from public game databases such as blawar/titledb and GameTDB).

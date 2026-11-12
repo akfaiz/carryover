@@ -11,6 +11,7 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/akfaiz/carryover/internal/saves/ryujinx"
 	"github.com/akfaiz/carryover/internal/stores/steam"
 )
 
@@ -27,6 +28,9 @@ type Context struct {
 	// ShortcutAppID is used to resolve {proton:shortcut}, the prefix Steam
 	// creates for the game's non-Steam shortcut when run through Proton.
 	ShortcutAppID string
+	// RyujinxDir is the Ryujinx data folder {ryujinx:...} looks in; "" means
+	// the usual folder of this OS.
+	RyujinxDir string
 }
 
 // DefaultContext detects the Steam root.
@@ -97,6 +101,23 @@ func (c Context) resolve(name, arg string) (string, error) {
 		}
 		return steam.CompatDataPrefix(c.SteamRoot, arg), nil
 	}
+	if name == "ryujinx" {
+		// {ryujinx:<title id>[:account|device]} is the folder of one game's save
+		// in Ryujinx, whose save folders are numbered rather than named.
+		title, kind, _ := strings.Cut(arg, ":")
+		if kind == "" {
+			kind = string(ryujinx.Account)
+		}
+		dir := c.RyujinxDir
+		if dir == "" {
+			dir = defaultRyujinxDir()
+		}
+		p, err := ryujinx.SaveDir(dir, title, ryujinx.Kind(strings.ToLower(kind)))
+		if err != nil {
+			return "", fmt.Errorf("{ryujinx:%s}: %w", arg, err)
+		}
+		return p, nil
+	}
 	if name == "steam" {
 		if c.SteamRoot == "" {
 			return "", fmt.Errorf("{steam}: Steam installation not found")
@@ -108,6 +129,15 @@ func (c Context) resolve(name, arg string) (string, error) {
 		return "", fmt.Errorf("unknown or unavailable path token {%s}", name)
 	}
 	return v, nil
+}
+
+// defaultRyujinxDir is Ryujinx's usual data folder on this OS.
+func defaultRyujinxDir() string {
+	t := baseTokens()
+	if runtime.GOOS == "windows" {
+		return filepath.Join(t["appdata"], "Ryujinx")
+	}
+	return filepath.Join(t["xdgconfig"], "Ryujinx")
 }
 
 func homeDir() string {

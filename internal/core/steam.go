@@ -24,9 +24,33 @@ func SteamWrapLaunchOptions(gameID string) (string, error) {
 	return fmt.Sprintf("%s run %s -- %%command%%", quote(self), gameID), nil
 }
 
-func shortcutMatcher(gameID string) func(steam.Shortcut) bool {
+// parseRunOptions reads the game id and emulator id ("" = native profile) out
+// of the launch options of a shortcut Carryover wrote: `[exe] run <id>
+// [--emulator <id>] [-- %command% ...]`.
+func parseRunOptions(launchOptions string) (gameID, emuID string, ok bool) {
+	f := strings.Fields(launchOptions)
+	for i, t := range f {
+		if t != "run" || i+1 >= len(f) {
+			continue
+		}
+		gameID = f[i+1]
+		for j := i + 2; j < len(f) && f[j] != "--"; j++ {
+			if f[j] == "--emulator" && j+1 < len(f) {
+				emuID = f[j+1]
+				break
+			}
+		}
+		return gameID, emuID, true
+	}
+	return "", "", false
+}
+
+// shortcutMatcher matches the shortcut of one profile of a game, so a game's
+// native and emulator shortcuts can be added and removed independently.
+func shortcutMatcher(gameID, emuID string) func(steam.Shortcut) bool {
 	return func(s steam.Shortcut) bool {
-		return strings.Contains(s.LaunchOptions, " "+gameID) || strings.HasPrefix(s.LaunchOptions, "run "+gameID)
+		g, e, ok := parseRunOptions(s.LaunchOptions)
+		return ok && g == gameID && e == emuID
 	}
 }
 
@@ -56,6 +80,12 @@ type AddToSteamResult struct {
 // mode LaunchHeroic: like LaunchDirect, but Carryover starts the game through
 // Heroic, so it keeps Heroic's Wine prefix instead of getting a Proton prefix.
 func (c *Core) AddToSteam(gameID, userID string, mode library.LaunchMode) (AddToSteamResult, error) {
+	return c.AddToSteamFor(gameID, "", userID, mode)
+}
+
+// AddToSteamFor is AddToSteam for one profile. An emulator profile always gets
+// a direct shortcut named "<game> (<emulator>)" that runs `run <id> --emulator <id>`.
+func (c *Core) AddToSteamFor(gameID, emuID, userID string, mode library.LaunchMode) (AddToSteamResult, error) {
 	var res AddToSteamResult
 	root := c.SteamRoot()
 	if root == "" {
@@ -76,8 +106,23 @@ func (c *Core) AddToSteam(gameID, userID string, mode library.LaunchMode) (AddTo
 		mode = library.LaunchHeroic
 	}
 	sc := steam.Shortcut{AppName: game.Name, Tags: []string{"Carryover"}}
-	switch mode {
-	case library.LaunchSteamWrap:
+	switch {
+	case emuID != "":
+		if _, ok := game.Emulator(emuID); !ok {
+			return res, errors.New("the game is not set up with this emulator")
+		}
+		if _, ok := dev.Emulators[emuID]; !ok {
+			return res, errors.New("set the emulator up for this game on this device first")
+		}
+		emu, err := c.Library.Emulator(emuID)
+		if err != nil {
+			return res, err
+		}
+		mode = library.LaunchDirect
+		sc.AppName = game.Name + " (" + emu.Name + ")"
+		sc.Exe, sc.StartDir = quote(self), quote(filepath.Dir(self))
+		sc.LaunchOptions = "run " + game.ID + " --emulator " + emuID
+	case mode == library.LaunchSteamWrap:
 		if dev.Exe == "" {
 			return res, errors.New("set the game executable for this device first")
 		}
@@ -114,7 +159,7 @@ func (c *Core) AddToSteam(gameID, userID string, mode library.LaunchMode) (AddTo
 			sc.Icon = dst
 		}
 	}
-	appID, err := steam.UpsertShortcut(root, userID, sc, shortcutMatcher(game.ID))
+	appID, err := steam.UpsertShortcut(root, userID, sc, shortcutMatcher(game.ID, emuID))
 	if err != nil {
 		return res, err
 	}
@@ -128,6 +173,12 @@ func (c *Core) AddToSteam(gameID, userID string, mode library.LaunchMode) (AddTo
 	}
 	res.AppID = strconv.FormatUint(uint64(appID), 10)
 	if _, err := c.Library.UpdateDevice(game.ID, c.DeviceID(), func(d *library.DeviceConfig) {
+		if emuID != "" {
+			ec := d.Emulators[emuID]
+			ec.SteamAppID = res.AppID
+			d.Emulators[emuID] = ec
+			return
+		}
 		d.SteamAppID = res.AppID
 		d.LaunchMode = mode
 	}); err != nil {
@@ -139,14 +190,26 @@ func (c *Core) AddToSteam(gameID, userID string, mode library.LaunchMode) (AddTo
 
 // RemoveFromSteam deletes the game's shortcut(s) for a Steam user.
 func (c *Core) RemoveFromSteam(gameID, userID string) (int, error) {
+	return c.RemoveFromSteamFor(gameID, "", userID)
+}
+
+// RemoveFromSteamFor deletes the shortcut(s) of one profile of a game.
+func (c *Core) RemoveFromSteamFor(gameID, emuID, userID string) (int, error) {
 	root := c.SteamRoot()
 	if root == "" {
 		return 0, errors.New("no Steam installation found on this device")
 	}
-	n, err := steam.RemoveShortcuts(root, userID, shortcutMatcher(gameID))
+	n, err := steam.RemoveShortcuts(root, userID, shortcutMatcher(gameID, emuID))
 	if err != nil {
 		return 0, err
 	}
-	_, _ = c.Library.UpdateDevice(gameID, c.DeviceID(), func(d *library.DeviceConfig) { d.SteamAppID = "" })
+	_, _ = c.Library.UpdateDevice(gameID, c.DeviceID(), func(d *library.DeviceConfig) {
+		if emuID == "" {
+			d.SteamAppID = ""
+		} else if ec, ok := d.Emulators[emuID]; ok {
+			ec.SteamAppID = ""
+			d.Emulators[emuID] = ec
+		}
+	})
 	return n, nil
 }

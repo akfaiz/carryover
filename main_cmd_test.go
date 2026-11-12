@@ -187,3 +187,46 @@ func TestRecoverSessionsHelperWithoutMarkers(t *testing.T) {
 	require.NoError(t, err)
 	recoverSessions(c) // must not panic or fail without leftovers
 }
+
+// A game with an emulator syncs each profile separately; --emulator picks one.
+func TestCmdSyncEmulatorProfiles(t *testing.T) {
+	e := newCLIEnv(t)
+	c, err := core.New()
+	require.NoError(t, err)
+	eden, err := c.Library.SaveEmulator(library.Emulator{Name: "Eden"}, c.DeviceID())
+	require.NoError(t, err)
+	edenSaves := filepath.Join(t.TempDir(), "eden")
+	require.NoError(t, os.MkdirAll(edenSaves, 0o755))
+	require.NoError(t, os.WriteFile(filepath.Join(edenSaves, "e.sav"), []byte("eden"), 0o644))
+	g, err := c.Library.Get(e.id)
+	require.NoError(t, err)
+	g.Emulators = []library.GameEmulator{{EmulatorID: eden.ID, Slots: []library.SaveSlot{{Key: "saves"}}}}
+	d := g.Devices[c.DeviceID()]
+	d.Emulators = map[string]library.EmulatorConfig{eden.ID: {Paths: map[string]string{"saves": edenSaves}}}
+	g.Devices[c.DeviceID()] = d
+	_, err = c.Library.Save(g, c.DeviceID())
+	require.NoError(t, err)
+	closeLogFile()
+
+	out, _ := capture(t, cmdList)
+	require.Contains(t, out, "Game A (Eden)")
+
+	out, code := capture(t, func() int { return cmdSync([]string{"Game A", "--emulator", "eden", "--push"}) })
+	require.Zero(t, code, out)
+	require.FileExists(t, filepath.Join(e.cloud, "games", e.id+"."+eden.ID, "current", "saves", "e.sav"))
+	require.NoDirExists(t, filepath.Join(e.cloud, "games", e.id), "native profile synced although --emulator picked Eden")
+
+	// Without the flag every profile is synced.
+	out, code = capture(t, func() int { return cmdSync([]string{"Game A", "--push"}) })
+	require.Zero(t, code, out)
+	require.FileExists(t, filepath.Join(e.cloud, "games", e.id, "current", "saves", "a.sav"))
+
+	_, code = capture(t, func() int { return cmdSync([]string{"Game A", "--emulator=nope"}) })
+	require.Equal(t, 1, code, "unknown emulator")
+}
+
+func TestReorderFlagsKeepsValues(t *testing.T) {
+	assert.Equal(t, []string{"--emulator", "x y", "--push", "game"},
+		reorderFlags([]string{"game", "--emulator", "x y", "--push"}, "emulator"))
+	assert.Equal(t, []string{"--emulator=x", "game"}, reorderFlags([]string{"game", "--emulator=x"}, "emulator"))
+}

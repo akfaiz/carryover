@@ -4,13 +4,11 @@ package core
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"log"
 	"os"
 	"path/filepath"
 	"runtime"
-	"strings"
 	"sync"
 
 	"github.com/akfaiz/carryover/internal/app/appdir"
@@ -111,40 +109,13 @@ func (c *Core) Engine() (*syncer.Engine, error) {
 
 // PathContext returns the token context for a game on this device.
 func (c *Core) PathContext(g library.Game) pathvar.Context {
-	ctx := pathvar.Context{SteamRoot: c.SteamRoot()}
-	if d, ok := g.Device(c.DeviceID()); ok {
-		ctx.ShortcutAppID = d.SteamAppID
-	}
-	return ctx
+	return c.PathContextFor(g, "")
 }
 
-// Job builds the sync job for a game on this device.
+// Job builds the sync job for a game's native profile on this device. See
+// JobFor for emulator profiles.
 func (c *Core) Job(g library.Game) (syncer.Job, error) {
-	d, ok := g.Device(c.DeviceID())
-	if !ok {
-		return syncer.Job{}, fmt.Errorf("%s is not set up on this device yet", g.Name)
-	}
-	pctx := c.PathContext(g)
-	job := syncer.Job{GameID: g.ID}
-	for _, sl := range g.Slots {
-		raw := d.Paths[sl.Key]
-		if strings.TrimSpace(raw) == "" {
-			return syncer.Job{}, fmt.Errorf("save location %q has no path on this device", labelOr(sl))
-		}
-		p, err := pctx.Expand(raw)
-		if err != nil {
-			return syncer.Job{}, fmt.Errorf("save location %q: %w", labelOr(sl), err)
-		}
-		job.Slots = append(job.Slots, syncer.Slot{
-			Key:       sl.Key,
-			LocalPath: p,
-			Filters:   cloud.Filters{Include: sl.Include, Exclude: sl.Exclude},
-		})
-	}
-	if len(job.Slots) == 0 {
-		return syncer.Job{}, errors.New("game has no save locations")
-	}
-	return job, nil
+	return c.JobFor(g, "")
 }
 
 func labelOr(s library.SaveSlot) string {
@@ -212,8 +183,23 @@ func (c *Core) syncCatalog(ctx context.Context, cl *cloud.Client) error {
 }
 
 func catalogsEqual(a, b library.Catalog) bool {
-	if len(a.Games) != len(b.Games) {
+	if len(a.Games) != len(b.Games) || len(a.Emulators) != len(b.Emulators) {
 		return false
+	}
+	eidx := map[string]library.Emulator{}
+	for _, e := range b.Emulators {
+		eidx[e.ID] = e
+	}
+	for _, e := range a.Emulators {
+		o, ok := eidx[e.ID]
+		if !ok || !o.UpdatedAt.Equal(e.UpdatedAt) || o.Deleted != e.Deleted || len(o.Devices) != len(e.Devices) {
+			return false
+		}
+		for k, d := range e.Devices {
+			if !o.Devices[k].UpdatedAt.Equal(d.UpdatedAt) {
+				return false
+			}
+		}
 	}
 	idx := map[string]library.Game{}
 	for _, g := range b.Games {

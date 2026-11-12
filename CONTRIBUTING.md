@@ -166,20 +166,36 @@ games/<id>/current/<slot>/…                       the saves
 games/<id>/lock.json                              "being played on <device>"
 games/<id>/backups/<time>_<device>_<kind>.zip     kind: local, cloud or manual; holds manifest.json + <slot>/…
 games/<id>/pinned.json                            names of pinned backups (never pruned)
+games/<id>.<emulator id>/…                        the same files for one emulator of a game (see below)
 ```
+
+A game played through emulators has one such folder per emulator, next to the game's own `games/<id>/`:
+every emulator stores saves differently, so they must never mix. The folder name is the *sync key*
+(`core.SyncKey(gameID, emulatorID)`); the syncer only ever sees it as `Job.GameID`, so locks, state files,
+backups, safety copies and session markers all follow it. Emulators themselves (`library.Emulator`, listed in
+`library.json`) are defined once; each device says where one is installed, and a game's `DeviceConfig.Emulators`
+holds that device's ROM and save paths per emulator. The same emulator on two devices shares one cloud folder. An emulator can opt in to using another emulator's
+folder (`GameEmulator.ShareWith`, one level only, same slot layout): `Job.GameID` is then the other emulator's key
+(`core.CloudKey`) while `Job.StateKey` stays its own, so each keeps its own last-synced state.
 
 Safety copies taken before a download (when cloud backups are off) stay on the device, in
 `<data dir>/safety/<id>/`.
 
 ## Code map
 
-- `internal/cloudsync/syncer`: sync decision engine and backups
-- `internal/cloudsync/cloud`: rclone wrapper
-- `internal/stores/steam`: VDF files and shortcuts
-- `internal/saves/pathvar`: path variables
-- `internal/library`: game library store
-- `internal/core`: play session
-- `internal/saves/ludusavi`: save-location index (generated, do not edit by hand; run `go run ./internal/saves/ludusavi/gen`)
+`internal/` is grouped by layer. A package may import packages from its own group or from groups below it, never
+from above (`core` is the top):
+
+- `internal/core`: orchestration: play sessions, library sync, Steam shortcuts
+- `internal/library`: game library store (games, emulators, per-device config)
+- `internal/launcher`: starts the game process and waits for it
+- `internal/cloudsync/`: `syncer` (sync decision engine, backups) and `cloud` (rclone wrapper)
+- `internal/saves/`: where saves live: `ludusavi` (save-location index, generated, do not edit by hand; run
+  `go run ./internal/saves/ludusavi/gen`), `emumanifest` (per-game emulator manifests), `ryujinx` (Ryujinx's save
+  index) and `pathvar` (path tokens)
+- `internal/stores/`: other launchers and stores on the device: `steam` (VDF files, shortcuts), `steamgrid`,
+  `steamstore`, `heroic`, `wineprefix`
+- `internal/app/`: application plumbing: `appdir` (data dir, settings), `version`, `singleinstance`
 - `services/`: API used by the GUI
 - `ui/`: Fyne GUI
 

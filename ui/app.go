@@ -60,6 +60,7 @@ type UI struct {
 	sync  *services.SyncService
 	cloud *services.CloudService
 	steam *services.SteamService
+	emus  *services.EmulatorService
 	sess  *services.SessionService
 
 	games    []services.GameView
@@ -106,12 +107,16 @@ func newUI(c *core.Core, a fyne.App, bus *services.Bus) *UI {
 	u.sync = services.NewSyncService(c, bus)
 	u.cloud = services.NewCloudService(c)
 	u.steam = services.NewSteamService(c, bus)
+	u.emus = services.NewEmulatorService(c, bus)
 	u.prompts = &promptQueue{u: u}
 
 	bus.OnLibrary(func(string) { onUI(u.refresh) })
 	bus.OnStatus(func(st services.Status) {
 		onUI(func() {
 			u.status[st.GameID] = st
+			if st.Key != "" {
+				u.status[st.Key] = st // the session of one emulator profile
+			}
 			if st.Phase == "error" {
 				u.toast(st.Message, toastErr)
 			}
@@ -246,13 +251,14 @@ func (u *UI) renderSidebar() {
 	brand := widget.NewLabelWithStyle("Carryover", fyne.TextAlignLeading, fyne.TextStyle{Bold: true})
 	brand.SizeName = theme.SizeNameSubHeadingText
 	objs := []fyne.CanvasObject{container.NewHBox(logo, brand), widget.NewSeparator()}
-	for _, n := range []struct{ path, label string }{{"/", lang.L("Library")}, {"/cloud", lang.L("Cloud")}, {"/settings", lang.L("Settings")}} {
+	for _, n := range []struct{ path, label string }{{"/", lang.L("Library")}, {"/emulators", lang.L("Emulators")}, {"/cloud", lang.L("Cloud")}, {"/settings", lang.L("Settings")}} {
 		b := widget.NewButton(n.label, func() { u.navigate(n.path) })
 		b.Alignment = widget.ButtonAlignLeading
 		u.navBtns[n.path] = b
 		objs = append(objs, b)
 	}
 	u.navBtns["/"].SetIcon(theme.GridIcon())
+	u.navBtns["/emulators"].SetIcon(theme.ComputerIcon())
 	u.navBtns["/cloud"].SetIcon(theme.StorageIcon())
 	u.navBtns["/settings"].SetIcon(theme.SettingsIcon())
 	objs = append(objs, layout.NewSpacer(), widget.NewSeparator())
@@ -332,6 +338,8 @@ func (u *UI) show(path string) {
 		u.page = newEditor(u, "", arg(2))
 	case arg(0) == "new":
 		u.page = newEditor(u, "", "")
+	case arg(0) == "emulators":
+		u.page = newEmulatorsPage(u)
 	case arg(0) == "cloud":
 		u.page = newCloudPage(u)
 	case arg(0) == "settings":

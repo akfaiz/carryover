@@ -38,18 +38,23 @@ func (s *SteamService) Info() SteamInfo {
 	return info
 }
 
-// AddToSteam adds/updates the game's non-Steam shortcut. mode: "direct" or "steamwrap".
-func (s *SteamService) AddToSteam(gameID, userID, mode string) (core.AddToSteamResult, error) {
-	res, err := s.c.AddToSteam(gameID, userID, library.LaunchMode(mode))
+// AddToSteam adds/updates a non-Steam shortcut. key is a game id (the game's
+// own launch config) or a sync key (core.SyncKey) for an emulator profile.
+// mode: "direct" or "steamwrap" (emulator profiles are always direct).
+func (s *SteamService) AddToSteam(key, userID, mode string) (core.AddToSteamResult, error) {
+	gameID, emuID := core.ParseKey(key)
+	res, err := s.c.AddToSteamFor(gameID, emuID, userID, library.LaunchMode(mode))
 	if err == nil {
 		s.bus.libraryChanged(gameID)
 	}
 	return res, err
 }
 
-// RemoveFromSteam removes the game's shortcut.
-func (s *SteamService) RemoveFromSteam(gameID, userID string) (int, error) {
-	n, err := s.c.RemoveFromSteam(gameID, userID)
+// RemoveFromSteam removes the shortcut of a game or, with a sync key, of one
+// of its emulator profiles.
+func (s *SteamService) RemoveFromSteam(key, userID string) (int, error) {
+	gameID, emuID := core.ParseKey(key)
+	n, err := s.c.RemoveFromSteamFor(gameID, emuID, userID)
 	if err == nil {
 		s.bus.libraryChanged(gameID)
 	}

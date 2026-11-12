@@ -27,21 +27,70 @@ func TestSteamWrapLaunchOptions(t *testing.T) {
 }
 
 func TestShortcutMatcher(t *testing.T) {
-	match := shortcutMatcher("g1")
+	native, eden := shortcutMatcher("g1", ""), shortcutMatcher("g1", "eden")
 	tests := []struct {
-		opts string
-		want bool
+		opts         string
+		native, eden bool
 	}{
-		{`"/opt/carryover" run g1 -- %command%`, true},
-		{`run g1`, true},
-		{`"C:\carryover.exe" run g1`, true},
-		{`"/opt/carryover" run g10 -- %command%`, true}, // prefix match: ids are UUIDs, so this never collides
-		{`"/opt/carryover" run other`, false},
-		{``, false},
+		{`"/opt/carryover" run g1 -- %command%`, true, false},
+		{`run g1`, true, false},
+		{`"C:\carryover.exe" run g1`, true, false},
+		{`"C:\Program Files\carryover.exe" run g1`, true, false},
+		{`"/opt/carryover" run g10 -- %command%`, false, false},
+		{`"/opt/carryover" run other`, false, false},
+		{`run g1 --emulator eden`, false, true},
+		{`run g1 --emulator ryu`, false, false},
+		{`"/x/carryover" run g1 --emulator eden -- %command% -f`, false, true},
+		{``, false, false},
 	}
 	for _, tt := range tests {
-		assert.Equal(t, tt.want, match(steam.Shortcut{LaunchOptions: tt.opts}), "match(%q)", tt.opts)
+		sc := steam.Shortcut{LaunchOptions: tt.opts}
+		assert.Equal(t, tt.native, native(sc), "native match(%q)", tt.opts)
+		assert.Equal(t, tt.eden, eden(sc), "eden match(%q)", tt.opts)
 	}
+}
+
+// Each emulator of a game gets its own shortcut; removing one keeps the others.
+func TestAddToSteamEmulatorProfiles(t *testing.T) {
+	c, id, _, _ := newPlayable(t)
+	root := steamEnv(t)
+	const user = "12345"
+	root2 := t.TempDir()
+	eden := addEmulator(t, c, id, "Eden", filepath.Join(root2, "eden"))
+	ryu := addEmulator(t, c, id, "Ryujinx", filepath.Join(root2, "ryu"))
+
+	_, err := c.AddToSteam(id, user, library.LaunchDirect)
+	require.NoError(t, err)
+	resE, err := c.AddToSteamFor(id, eden, user, library.LaunchDirect)
+	require.NoError(t, err)
+	resR, err := c.AddToSteamFor(id, ryu, user, library.LaunchSteamWrap) // emulators are always direct
+	require.NoError(t, err)
+	assert.NotEqual(t, resE.AppID, resR.AppID)
+
+	list, err := steam.ListShortcuts(root, user)
+	require.NoError(t, err)
+	require.Len(t, list, 3)
+	names := map[string]string{}
+	for _, s := range list {
+		names[s.AppName] = s.LaunchOptions
+	}
+	assert.Equal(t, "run "+id+" --emulator "+eden, names["Game A (Eden)"])
+	assert.Equal(t, "run "+id+" --emulator "+ryu, names["Game A (Ryujinx)"])
+
+	dev, _ := mustFind(t, c, id).Device(c.DeviceID())
+	assert.Equal(t, resE.AppID, dev.Emulators[eden].SteamAppID)
+
+	n, err := c.RemoveFromSteamFor(id, eden, user)
+	require.NoError(t, err)
+	assert.Equal(t, 1, n)
+	list, _ = steam.ListShortcuts(root, user)
+	assert.Len(t, list, 2)
+	dev, _ = mustFind(t, c, id).Device(c.DeviceID())
+	assert.Empty(t, dev.Emulators[eden].SteamAppID)
+	assert.Equal(t, resR.AppID, dev.Emulators[ryu].SteamAppID)
+
+	_, err = c.AddToSteamFor(id, "unknown", user, library.LaunchDirect)
+	assert.Error(t, err)
 }
 
 func TestLabelOr(t *testing.T) {
@@ -138,4 +187,43 @@ func TestAddToSteamErrors(t *testing.T) {
 		_, err := c2.AddToSteam(id2, "1", mode)
 		assert.Error(t, err, "mode %q without an executable", mode)
 	}
+}
+
+// A game played only through emulators still gets one shortcut for the whole
+// game, which asks which emulator to use; a shortcut for a single emulator can
+// exist next to it.
+func TestAddToSteamWholeGameWithEmulators(t *testing.T) {
+	c, id, _, _ := newPlayable(t)
+	root := steamEnv(t)
+	const user = "12345"
+	dir := t.TempDir()
+	eden := addEmulator(t, c, id, "Eden", filepath.Join(dir, "eden"))
+	addEmulator(t, c, id, "Ryujinx", filepath.Join(dir, "ryu"))
+	g := mustFind(t, c, id)
+	g.Slots = nil // no launch config or saves of its own
+	d := g.Devices[c.DeviceID()]
+	d.Exe = ""
+	g.Devices[c.DeviceID()] = d
+	_, err := c.Library.Save(g, c.DeviceID())
+	require.NoError(t, err)
+
+	_, err = c.AddToSteam(id, user, library.LaunchDirect)
+	require.NoError(t, err)
+	list, err := steam.ListShortcuts(root, user)
+	require.NoError(t, err)
+	require.Len(t, list, 1)
+	assert.Equal(t, "Game A", list[0].AppName)
+	assert.Equal(t, "run "+id, list[0].LaunchOptions, "no --emulator: the wrapper asks")
+
+	_, err = c.AddToSteamFor(id, eden, user, library.LaunchDirect)
+	require.NoError(t, err)
+	list, _ = steam.ListShortcuts(root, user)
+	assert.Len(t, list, 2)
+
+	n, err := c.RemoveFromSteam(id, user) // only the whole-game one
+	require.NoError(t, err)
+	assert.Equal(t, 1, n)
+	list, _ = steam.ListShortcuts(root, user)
+	require.Len(t, list, 1)
+	assert.Equal(t, "Game A (Eden)", list[0].AppName)
 }

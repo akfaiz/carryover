@@ -29,6 +29,9 @@ type editor struct {
 
 	name               string
 	slots              []*slotForm
+	emus               []*emuForm
+	kind               playKind                // how the game is played: directly, through emulators, or both
+	emuList            []services.EmulatorView // emulators that can be added
 	dev                services.DeviceInput
 	envText            string
 	tokens             []pathvar.Token
@@ -61,7 +64,7 @@ type editor struct {
 }
 
 func newEditor(u *UI, id, steamAppID string) *editor {
-	return &editor{u: u, id: id, steamAppID: steamAppID, loading: true,
+	return &editor{u: u, id: id, steamAppID: steamAppID, loading: true, kind: kindDirect,
 		dev: services.DeviceInput{Paths: map[string]string{}, Env: map[string]string{}, LaunchMode: library.LaunchDirect}}
 }
 
@@ -72,9 +75,10 @@ func (e *editor) view() fyne.CanvasObject {
 		tokens []pathvar.Token
 		hasKey bool
 		game   *services.GameView
+		emus   []services.EmulatorView
 	}
 	async(func() (loaded, error) {
-		l := loaded{tokens: u.lib.Tokens(e.id), hasKey: u.lib.HasSteamGridKey()}
+		l := loaded{tokens: u.lib.Tokens(e.id), hasKey: u.lib.HasSteamGridKey(), emus: u.emus.List()}
 		if e.id != "" {
 			g, err := u.lib.Get(e.id)
 			if err != nil {
@@ -85,7 +89,7 @@ func (e *editor) view() fyne.CanvasObject {
 		return l, nil
 	}, func(l loaded, err error) {
 		e.loading = false
-		e.tokens, e.hasGridKey = l.tokens, l.hasKey
+		e.tokens, e.hasGridKey, e.emuList = l.tokens, l.hasKey, l.emus
 		if err != nil {
 			e.errText = err.Error()
 		}
@@ -128,6 +132,8 @@ func (e *editor) view() fyne.CanvasObject {
 					path: d.Paths[s.Key],
 				})
 			}
+			e.loadEmulators(g)
+			e.kind = playKindOf(g, len(e.emus) > 0)
 		}
 		e.render()
 	})
@@ -280,8 +286,15 @@ func (e *editor) render() {
 		head = lang.L("Edit game")
 	}
 	e.saveBtn = nil
-	left := stack(e.gameCard(), e.launchCard())
-	right := stack(e.savesCard(), e.artworkCard())
+	left, right := stack(e.gameCard(), e.howCard()), stack()
+	if e.kind != kindEmulator {
+		left.Add(e.launchCard())
+		right.Add(e.savesCard())
+	}
+	if e.kind != kindDirect {
+		left.Add(e.emulatorsCard())
+	}
+	right.Add(e.artworkCard())
 	bottom := stack()
 	if e.errText != "" {
 		bottom.Add(colored(e.errText, widget.DangerImportance))
@@ -468,7 +481,11 @@ func (e *editor) launchCard() fyne.CanvasObject {
 		field(lang.L("Environment variables (KEY=value per line)"), env),
 	), e.advanced)
 
-	return card("", cardHead(lang.L("Launch on this device"), badge(e.u.settings.DeviceName, badgeNone)),
+	launchTitle := lang.L("Launch on this device")
+	if e.kind == kindBoth {
+		launchTitle = lang.L("Launch without an emulator")
+	}
+	return card("", cardHead(launchTitle, badge(e.u.settings.DeviceName, badgeNone)),
 		field(lang.L("Launch with"), vbox(mode, hint)),
 		field(lang.L("Executable"), rowFill(e.exeEntry, browse)),
 		argsField,
@@ -506,7 +523,11 @@ func (e *editor) savesCard() fyne.CanvasObject {
 	}
 	sugBtn := widget.NewButtonWithIcon(suggestLabel, theme.SearchIcon(), func() { e.suggestSaves(false) })
 	setEnabled(sugBtn, !e.suggesting && (strings.TrimSpace(e.name) != "" || e.storeAppID != ""))
-	c := vbox(cardHead(lang.L("Save locations"), sugBtn, widget.NewButtonWithIcon(lang.L("Add"), theme.ContentAddIcon(), e.addSlot)))
+	savesTitle := lang.L("Save locations")
+	if e.kind == kindBoth {
+		savesTitle = lang.L("Save locations (without an emulator)")
+	}
+	c := vbox(cardHead(savesTitle, sugBtn, widget.NewButtonWithIcon(lang.L("Add"), theme.ContentAddIcon(), e.addSlot)))
 
 	if e.suggest != nil {
 		c.Add(card("", newSuggestionList(e.name, e.suggest,
@@ -534,6 +555,11 @@ func (e *editor) savesCard() fyne.CanvasObject {
 func (e *editor) save() {
 	u := e.u
 	e.errText = ""
+	if e.kind != kindDirect && len(e.emus) == 0 {
+		e.errText = lang.L("Add at least one emulator, or choose “Directly on this device”.")
+		e.render()
+		return
+	}
 	e.saving = true
 	e.render()
 	env := map[string]string{}
@@ -550,7 +576,14 @@ func (e *editor) save() {
 	}
 	dev := e.dev
 	dev.Paths, dev.Env = paths, env
-	in := services.GameInput{ID: e.id, Name: e.name, StoreAppID: e.storeAppID, Slots: slots, Device: dev}
+	emus := e.emulatorInputs()
+	switch e.kind {
+	case kindEmulator: // played only through emulators: no launch config or save location of its own
+		slots, dev = nil, services.DeviceInput{Paths: map[string]string{}, Env: map[string]string{}, LaunchMode: library.LaunchDirect}
+	case kindDirect:
+		emus = nil
+	}
+	in := services.GameInput{ID: e.id, Name: e.name, StoreAppID: e.storeAppID, Slots: slots, Device: dev, Emulators: emus}
 	coverSrc, gridPick, coverPath, origStore := e.coverSrc, e.gridPick, e.coverPath, e.originalStoreAppID
 
 	artJobs := e.artworkJobs()

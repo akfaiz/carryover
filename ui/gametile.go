@@ -2,9 +2,12 @@ package ui
 
 import (
 	"fyne.io/fyne/v2"
+	"fyne.io/fyne/v2/container"
 	"fyne.io/fyne/v2/lang"
+	"fyne.io/fyne/v2/theme"
 	"fyne.io/fyne/v2/widget"
 
+	"github.com/akfaiz/carryover/internal/core"
 	"github.com/akfaiz/carryover/services"
 )
 
@@ -16,6 +19,7 @@ type gameTile struct {
 }
 
 func newGameTile(u *UI, g services.GameView) *gameTile {
+	g.Status = g.Overall // the tile shows the game as a whole: its own saves and all its emulators
 	open := func() { u.navigate("/game/" + g.ID) }
 	cover := newTappable(coverView(coverSource{path: g.CoverPath, version: g.CoverVersion, name: g.Name}, fyne.NewSize(160, 240)), open)
 	name := widget.NewLabelWithStyle(g.Name, fyne.TextAlignLeading, fyne.TextStyle{Bold: true})
@@ -54,9 +58,43 @@ func newGameTile(u *UI, g services.GameView) *gameTile {
 	if g.Ready {
 		when = timeAgo(g.Status.LastSyncAt)
 	}
-	t := &gameTile{content: vbox(cover, name, hbox(statusBadge(g), small(when)), play)}
+	var playRow fyne.CanvasObject = play
+	if n := len(g.Emulators); n > 0 && g.Ready && !g.Status.Running && (n > 1 || len(g.Slots) > 0) {
+		playRow = container.NewBorder(nil, nil, nil, profileMenuButton(u, g, open), play)
+	}
+	t := &gameTile{content: vbox(cover, name, hbox(statusBadge(g), small(when)), playRow)}
 	t.ExtendBaseWidget(t)
 	return t
+}
+
+// profileMenuButton is the small button next to Play that lists the ways to
+// play a game with emulators: its own launch config and each emulator.
+func profileMenuButton(u *UI, g services.GameView, open func()) *widget.Button {
+	var btn *widget.Button
+	start := func(emulator string) {
+		async0(func() error { return u.sess.PlayWith(g.ID, emulator) }, func(err error) {
+			if err != nil {
+				u.toastErr(err)
+				return
+			}
+			open()
+		})
+	}
+	btn = widget.NewButtonWithIcon("", theme.MenuDropDownIcon(), func() {
+		var items []*fyne.MenuItem
+		if len(g.Slots) > 0 {
+			items = append(items, fyne.NewMenuItem(lang.L("Play without an emulator"), func() { start(core.NativeProfile) }))
+		}
+		for _, pv := range g.Emulators {
+			label := lang.L("Play with {{.Emulator}}", map[string]any{"Emulator": pv.Name})
+			it := fyne.NewMenuItem(label, func() { start(pv.EmulatorID) })
+			it.Disabled = !pv.Ready
+			items = append(items, it)
+		}
+		m := widget.NewPopUpMenu(fyne.NewMenu("", items...), u.win.Canvas())
+		m.ShowAtRelativePosition(fyne.NewPos(0, btn.Size().Height), btn)
+	})
+	return btn
 }
 
 // CreateRenderer implements fyne.Widget.

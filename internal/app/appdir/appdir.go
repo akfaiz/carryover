@@ -44,6 +44,9 @@ func (d Dirs) LibraryFile() string  { return filepath.Join(d.Root, "library.json
 func (d Dirs) RcloneConfig() string { return filepath.Join(d.Root, "rclone.conf") }
 func (d Dirs) StateDir() string     { return filepath.Join(d.Root, "state") }
 func (d Dirs) CoversDir() string    { return filepath.Join(d.Root, "covers") }
+
+// ManifestsDir holds the downloaded emulator save manifests.
+func (d Dirs) ManifestsDir() string { return filepath.Join(d.Root, "manifests") }
 func (d Dirs) LogsDir() string      { return filepath.Join(d.Root, "logs") }
 
 // SafetyDir holds the copies of saves taken on this device before a download

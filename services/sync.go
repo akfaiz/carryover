@@ -87,12 +87,16 @@ type PlanView struct {
 	HasRemote bool           `json:"hasRemote"`
 }
 
-func (s *SyncService) prepare(gameID string) (*syncer.Engine, syncer.Job, error) {
+// prepare builds the engine and job for gameID, which is a game id (its native
+// profile) or a sync key (core.SyncKey) for an emulator profile. Every method
+// below takes such a key, and keys its busy/cancel state and backups by it.
+func (s *SyncService) prepare(key string) (*syncer.Engine, syncer.Job, error) {
+	gameID, emuID := core.ParseKey(key)
 	g, err := s.c.Library.Get(gameID)
 	if err != nil {
 		return nil, syncer.Job{}, err
 	}
-	job, err := s.c.Job(g)
+	job, err := s.c.JobFor(g, emuID)
 	if err != nil {
 		return nil, syncer.Job{}, err
 	}
@@ -124,7 +128,7 @@ func (s *SyncService) sync(parent context.Context, gameID, resolution string) (s
 		return "", errors.New("a sync for this game is already running")
 	}
 	defer s.busy.Delete(gameID)
-	lock, err := syncer.AcquireLocalLock(s.c.Dirs.StateDir(), gameID)
+	lock, err := syncer.AcquireLocalLock(s.c.Dirs.StateDir(), s.c.CloudKeyOf(gameID))
 	if err != nil {
 		return "", err
 	}
@@ -136,7 +140,7 @@ func (s *SyncService) sync(parent context.Context, gameID, resolution string) (s
 	ctx, done := s.start(parent, gameID)
 	defer done()
 	_, action, err := eng.Sync(ctx, job, syncer.Resolution(resolution))
-	defer s.bus.libraryChanged(gameID)
+	defer s.bus.libraryChanged(core.GameOf(gameID))
 	if errors.Is(err, syncer.ErrConflict) {
 		return string(syncer.ActionConflict), nil
 	}
@@ -172,22 +176,28 @@ func (s *SyncService) SyncAll() ([]SyncResult, error) {
 	s.bus.libraryChanged("")
 	var out []SyncResult
 	for _, g := range s.c.Library.List() {
-		if _, err := s.c.Job(g); err != nil {
-			continue // not set up on this device
+		for _, emuID := range s.c.Profiles(g) {
+			if _, err := s.c.JobFor(g, emuID); err != nil {
+				continue // not set up on this device
+			}
+			if ctx.Err() != nil {
+				return out, ErrSyncCancelled
+			}
+			key := core.SyncKey(g.ID, emuID)
+			r := SyncResult{GameID: key, Name: g.Name}
+			if emuID != "" {
+				r.Name += " (" + s.c.ProfileName(emuID) + ")"
+			}
+			a, err := s.sync(ctx, key, "")
+			if errors.Is(err, ErrSyncCancelled) {
+				return out, err
+			}
+			r.Action = a
+			if err != nil {
+				r.Error = err.Error()
+			}
+			out = append(out, r)
 		}
-		if ctx.Err() != nil {
-			return out, ErrSyncCancelled
-		}
-		r := SyncResult{GameID: g.ID, Name: g.Name}
-		a, err := s.sync(ctx, g.ID, "")
-		if errors.Is(err, ErrSyncCancelled) {
-			return out, err
-		}
-		r.Action = a
-		if err != nil {
-			r.Error = err.Error()
-		}
-		out = append(out, r)
 	}
 	return out, nil
 }
@@ -205,7 +215,7 @@ func (s *SyncService) Backups(gameID string) ([]syncer.Backup, error) {
 	if err != nil {
 		return nil, err
 	}
-	b, err := eng.ListBackups(context.Background(), gameID)
+	b, err := eng.ListBackups(context.Background(), s.c.CloudKeyOf(gameID))
 	if b == nil {
 		b = []syncer.Backup{}
 	}
@@ -219,7 +229,7 @@ func (s *SyncService) BackupNow(gameID string) error {
 		return errors.New("a sync for this game is already running")
 	}
 	defer s.busy.Delete(gameID)
-	lock, err := syncer.AcquireLocalLock(s.c.Dirs.StateDir(), gameID)
+	lock, err := syncer.AcquireLocalLock(s.c.Dirs.StateDir(), s.c.CloudKeyOf(gameID))
 	if err != nil {
 		return err
 	}
@@ -240,7 +250,7 @@ func (s *SyncService) SetBackupPinned(gameID, name string, pinned bool) error {
 	if err != nil {
 		return err
 	}
-	return eng.SetBackupPinned(context.Background(), gameID, name, pinned)
+	return eng.SetBackupPinned(context.Background(), s.c.CloudKeyOf(gameID), name, pinned)
 }
 
 // DeleteBackup permanently deletes a backup, for every device.
@@ -253,7 +263,7 @@ func (s *SyncService) DeleteBackup(gameID, name string) error {
 	if err != nil {
 		return err
 	}
-	return eng.DeleteBackup(context.Background(), gameID, name)
+	return eng.DeleteBackup(context.Background(), s.c.CloudKeyOf(gameID), name)
 }
 
 // RestoreBackup restores a backup locally and uploads it as the current cloud version.
@@ -262,7 +272,7 @@ func (s *SyncService) RestoreBackup(gameID, name string) error {
 		return errors.New("a sync for this game is already running")
 	}
 	defer s.busy.Delete(gameID)
-	lock, err := syncer.AcquireLocalLock(s.c.Dirs.StateDir(), gameID)
+	lock, err := syncer.AcquireLocalLock(s.c.Dirs.StateDir(), s.c.CloudKeyOf(gameID))
 	if err != nil {
 		return err
 	}
@@ -271,7 +281,7 @@ func (s *SyncService) RestoreBackup(gameID, name string) error {
 	if err != nil {
 		return err
 	}
-	defer s.bus.libraryChanged(gameID)
+	defer s.bus.libraryChanged(core.GameOf(gameID))
 	ctx, done := s.start(context.Background(), gameID)
 	defer done()
 	return cancelled(ctx, eng.RestoreBackup(ctx, job, name))

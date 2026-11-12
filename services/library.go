@@ -95,6 +95,34 @@ type GameView struct {
 	// SafetyDir is the folder of the game's safety copies on this device
 	// ("" if there are none).
 	SafetyDir string `json:"safetyDir"`
+	// Emulators are the game's emulator profiles; each has its own save slots,
+	// cloud save and status. LastEmulator is the profile played last here.
+	Emulators    []ProfileView `json:"emulators"`
+	LastEmulator string        `json:"lastEmulator"`
+	// Overall is the sync status of the game as a whole on this device: the
+	// game's own saves and every emulator set up for it combined (see
+	// combineStatus). Status alone is only the game's own saves. The library
+	// list shows Overall.
+	Overall GameStatus `json:"overall"`
+}
+
+// ProfileView is one emulator profile of a game, from this device's perspective.
+type ProfileView struct {
+	EmulatorID    string             `json:"emulatorId"`
+	Name          string             `json:"name"`
+	Key           string             `json:"key"`       // core.SyncKey: what sync, backup and status calls take
+	ShareWith     string             `json:"shareWith"` // emulator whose cloud save this one uses ("" = its own)
+	Slots         []library.SaveSlot `json:"slots"`
+	SetUp         bool               `json:"setUp"` // configured for this game on this device
+	Rom           string             `json:"rom"`
+	Paths         map[string]string  `json:"paths"`
+	ResolvedPaths map[string]string  `json:"resolvedPaths"`
+	PathErrors    map[string]string  `json:"pathErrors"`
+	Ready         bool               `json:"ready"`
+	SetupHint     string             `json:"setupHint"`
+	SteamAppID    string             `json:"steamAppId"`
+	Status        GameStatus         `json:"status"`
+	SafetyDir     string             `json:"safetyDir"`
 }
 
 // ArtFile is a stored artwork image.
@@ -150,8 +178,8 @@ func (s *LibraryService) view(g library.Game) GameView {
 			v.ResolvedPaths[sl.Key] = p
 		}
 	}
-	if d.Exe == "" && d.LaunchMode != library.LaunchSteamWrap {
-		missing = append(missing, "game executable")
+	if d.Exe == "" && d.LaunchMode != library.LaunchSteamWrap && len(g.Emulators) == 0 {
+		missing = append(missing, "game executable") // an emulator game needs none of its own
 	}
 	v.Ready = len(missing) == 0 && len(v.PathErrors) == 0
 	if len(missing) > 0 {
@@ -167,20 +195,146 @@ func (s *LibraryService) view(g library.Game) GameView {
 		}
 		v.OtherDevices = append(v.OtherDevices, DevicePaths{DeviceName: name, Paths: od.Paths, Exe: od.Exe})
 	}
-	if st, err := s.c.States.Load(g.ID); err == nil {
-		v.Status = GameStatus{
+	v.Status, v.SafetyDir = s.statusOf(g.ID)
+	v.LastEmulator = d.LastEmulator
+	v.Emulators = s.profiles(g, d)
+	v.Overall = overallStatus(g, v)
+	if len(g.Emulators) > 0 && len(g.Slots) == 0 {
+		// A game played only through emulators is ready when one of them is.
+		v.Ready, v.SetupHint = false, ""
+		for _, pv := range v.Emulators {
+			if pv.Ready {
+				v.Ready = true
+			}
+			if v.SetupHint == "" {
+				v.SetupHint = pv.SetupHint
+			}
+		}
+		if v.Ready {
+			v.SetupHint = ""
+		}
+	}
+	return v
+}
+
+// overallStatus combines the status of everything that syncs for the game on
+// this device: its own saves (if it has any) and each emulator set up for it.
+func overallStatus(g library.Game, v GameView) GameStatus {
+	var all []GameStatus
+	if len(g.Slots) > 0 || len(g.Emulators) == 0 {
+		all = append(all, v.Status)
+	}
+	for _, pv := range v.Emulators {
+		if pv.SetUp {
+			all = append(all, pv.Status)
+		}
+	}
+	return combineStatus(all, v.Status)
+}
+
+// combineStatus merges profile statuses: running, conflict, error and
+// unuploaded changes if any profile has them; "synced" only when every profile
+// has synced, with the oldest of their sync times. none is used if there is
+// nothing to combine.
+func combineStatus(all []GameStatus, none GameStatus) GameStatus {
+	switch len(all) {
+	case 0:
+		return none
+	case 1:
+		return all[0]
+	}
+	var out GameStatus
+	var oldest time.Time
+	allSynced := true
+	for _, s := range all {
+		out.Running = out.Running || s.Running
+		out.Conflict = out.Conflict || s.Conflict
+		out.LocalChanges = out.LocalChanges || s.LocalChanges
+		if out.LastError == "" {
+			out.LastError = s.LastError
+		}
+		if out.LastAction == "" {
+			out.LastAction = s.LastAction
+		}
+		t, err := time.Parse(time.RFC3339, s.LastSyncAt)
+		if s.LastSyncAt == "" || err != nil {
+			allSynced = false
+			continue
+		}
+		if oldest.IsZero() || t.Before(oldest) {
+			oldest = t
+		}
+	}
+	if allSynced {
+		out.LastSyncAt = fmtTime(oldest)
+	}
+	return out
+}
+
+// statusOf is the sync status and safety-copy folder of a sync key.
+func (s *LibraryService) statusOf(key string) (GameStatus, string) {
+	var gs GameStatus
+	if st, err := s.c.States.Load(key); err == nil {
+		gs = GameStatus{
 			LastSyncAt: fmtTime(st.LastSyncAt), LastAction: string(st.LastAction),
 			Conflict: st.Conflict, LastError: st.LastError,
-			LocalChanges: !st.Conflict && s.localChanged(g.ID, st),
+			LocalChanges: !st.Conflict && s.localChanged(key, st),
 		}
 	}
 	if s.running != nil {
-		v.Status.Running = s.running(g.ID)
+		gs.Running = s.running(key)
 	}
-	if root := s.c.Dirs.SafetyDir(); syncer.HasSafetyCopies(root, g.ID) {
-		v.SafetyDir = syncer.SafetyGameDir(root, g.ID)
+	dir := ""
+	if root := s.c.Dirs.SafetyDir(); syncer.HasSafetyCopies(root, s.c.CloudKeyOf(key)) {
+		dir = syncer.SafetyGameDir(root, s.c.CloudKeyOf(key))
 	}
-	return v
+	return gs, dir
+}
+
+// profiles builds the emulator profiles of a game.
+func (s *LibraryService) profiles(g library.Game, d library.DeviceConfig) []ProfileView {
+	out := make([]ProfileView, 0, len(g.Emulators))
+	for _, ge := range g.Emulators {
+		pv := ProfileView{
+			EmulatorID: ge.EmulatorID, Name: s.c.ProfileName(ge.EmulatorID), Key: core.SyncKey(g.ID, ge.EmulatorID), ShareWith: ge.ShareWith,
+			Slots: ge.Slots, Paths: map[string]string{}, ResolvedPaths: map[string]string{}, PathErrors: map[string]string{},
+		}
+		if pv.Slots == nil {
+			pv.Slots = []library.SaveSlot{}
+		}
+		ec, set := d.Emulators[ge.EmulatorID]
+		pv.SetUp, pv.Rom, pv.SteamAppID = set, ec.Rom, ec.SteamAppID
+		maps.Copy(pv.Paths, ec.Paths)
+		var missing []string
+		if set {
+			pctx := s.c.PathContextFor(g, ge.EmulatorID)
+			for _, sl := range ge.Slots {
+				raw := ec.Paths[sl.Key]
+				if raw == "" {
+					missing = append(missing, "save path for "+labelOf(sl))
+				} else if p, err := pctx.Expand(raw); err != nil {
+					pv.PathErrors[sl.Key] = err.Error()
+				} else {
+					pv.ResolvedPaths[sl.Key] = p
+				}
+			}
+		} else {
+			missing = append(missing, "setup on this device")
+		}
+		emu, err := s.c.Library.Emulator(ge.EmulatorID)
+		if err != nil {
+			missing = append(missing, "emulator (deleted)")
+		} else if ed := emu.Devices[s.c.DeviceID()]; ed.Exe == "" {
+			missing = append(missing, "emulator executable on this device")
+		}
+		pv.Ready = len(missing) == 0 && len(pv.PathErrors) == 0
+		if len(missing) > 0 {
+			pv.SetupHint = "Missing " + strings.Join(missing, ", ")
+		}
+		pv.Status, pv.SafetyDir = s.statusOf(pv.Key)
+		out = append(out, pv)
+	}
+	return out
 }
 
 // localChanged reports the last check's result for a game, unless a sync has
@@ -204,31 +358,34 @@ func (s *LibraryService) CheckLocalChanges() {
 	defer s.checking.Store(false)
 	notify := false
 	for _, g := range s.c.Library.List() {
-		if s.running != nil && s.running(g.ID) {
-			continue
-		}
-		job, err := s.c.Job(g)
-		if err != nil {
-			continue // not set up on this device
-		}
-		st, err := s.c.States.Load(g.ID)
-		if err != nil {
-			continue
-		}
-		before := s.localChanged(g.ID, st)
-		s.checkMu.Lock()
-		prev := s.checks[g.ID].scan
-		s.checkMu.Unlock()
-		at := time.Now()
-		changed, scan, err := syncer.LocalChanges(context.Background(), job.Slots, st.LastSynced, prev)
-		if err != nil {
-			continue // e.g. an unreadable folder: the next sync reports it
-		}
-		s.checkMu.Lock()
-		s.checks[g.ID] = localCheck{changed: changed, at: at, scan: scan}
-		s.checkMu.Unlock()
-		if changed != before {
-			notify = true
+		for _, emuID := range s.c.Profiles(g) {
+			key := core.SyncKey(g.ID, emuID)
+			if s.running != nil && s.running(key) {
+				continue
+			}
+			job, err := s.c.JobFor(g, emuID)
+			if err != nil {
+				continue // not set up on this device
+			}
+			st, err := s.c.States.Load(key)
+			if err != nil {
+				continue
+			}
+			before := s.localChanged(key, st)
+			s.checkMu.Lock()
+			prev := s.checks[key].scan
+			s.checkMu.Unlock()
+			at := time.Now()
+			changed, scan, err := syncer.LocalChanges(context.Background(), job.Slots, st.LastSynced, prev)
+			if err != nil {
+				continue // e.g. an unreadable folder: the next sync reports it
+			}
+			s.checkMu.Lock()
+			s.checks[key] = localCheck{changed: changed, at: at, scan: scan}
+			s.checkMu.Unlock()
+			if changed != before {
+				notify = true
+			}
 		}
 	}
 	if notify {
@@ -270,6 +427,22 @@ type GameInput struct {
 	StoreAppID string             `json:"storeAppId"`
 	Slots      []library.SaveSlot `json:"slots"`
 	Device     DeviceInput        `json:"device"`
+	// Emulators are the emulators the game is set up with: their own save
+	// slots, and this device's ROM and save paths.
+	Emulators []GameEmulatorInput `json:"emulators"`
+}
+
+// GameEmulatorInput is the editor's view of one emulator profile of a game.
+// A profile with neither a ROM nor a path is kept for the game (other devices
+// may use it) but isn't set up on this device.
+type GameEmulatorInput struct {
+	EmulatorID string             `json:"emulatorId"`
+	Slots      []library.SaveSlot `json:"slots"`
+	Rom        string             `json:"rom"`
+	Paths      map[string]string  `json:"paths"`
+	// ShareWith: another emulator of the game whose cloud save this one uses.
+	// Its save locations (and so the cloud layout) are that emulator's.
+	ShareWith string `json:"shareWith"`
 }
 
 // DeviceInput is the editor's view of this device's config. Server-managed
@@ -298,21 +471,57 @@ func (s *LibraryService) Save(in GameInput) (GameView, error) {
 		WorkDir: strings.TrimSpace(in.Device.WorkDir), Env: in.Device.Env,
 		WaitProcess: strings.TrimSpace(in.Device.WaitProcess), LaunchMode: in.Device.LaunchMode,
 	}
+	var prev library.DeviceConfig // this device's stored config
+	var oldGame library.Game
 	if in.ID != "" {
 		old, err := s.c.Library.Get(in.ID)
 		if err != nil {
 			return GameView{}, err
 		}
+		oldGame = old
+		prev = old.Devices[devID]
 		g.Cover = old.Cover
 		g.Art = old.Art
 		g.Devices = old.Devices
 		// Steam app id is managed by AddToSteam, not the editor.
 		d.SteamAppID = old.Devices[devID].SteamAppID
 	}
-	for i := range g.Slots {
-		g.Slots[i].Key = strings.TrimSpace(g.Slots[i].Key)
-		g.Slots[i].Include = cleanList(g.Slots[i].Include)
-		g.Slots[i].Exclude = cleanList(g.Slots[i].Exclude)
+	cleanSlots(g.Slots)
+	keep := map[string]library.EmulatorConfig{}
+	for _, ei := range in.Emulators {
+		if _, err := s.c.Library.Emulator(ei.EmulatorID); err != nil {
+			return GameView{}, fmt.Errorf("unknown emulator %q", ei.EmulatorID)
+		}
+		cleanSlots(ei.Slots)
+		slots := ei.Slots
+		if ei.ShareWith != "" {
+			// A sharing emulator uses the other one's cloud layout.
+			slots = nil
+			for _, o := range in.Emulators {
+				if o.EmulatorID == ei.ShareWith && o.ShareWith == "" {
+					slots = slices.Clone(o.Slots)
+					cleanSlots(slots)
+				}
+			}
+		}
+		g.Emulators = append(g.Emulators, library.GameEmulator{EmulatorID: ei.EmulatorID, Slots: slots, ShareWith: ei.ShareWith})
+		rom := strings.TrimSpace(ei.Rom)
+		paths := map[string]string{}
+		for k, v := range ei.Paths {
+			if v = strings.TrimSpace(v); v != "" {
+				paths[k] = v
+			}
+		}
+		if rom == "" && len(paths) == 0 {
+			continue // not set up on this device
+		}
+		keep[ei.EmulatorID] = library.EmulatorConfig{Rom: rom, Paths: paths, SteamAppID: prev.Emulators[ei.EmulatorID].SteamAppID}
+	}
+	if len(keep) > 0 {
+		d.Emulators = keep
+	}
+	if _, ok := keep[prev.LastEmulator]; ok {
+		d.LastEmulator = prev.LastEmulator
 	}
 	d.DeviceName = s.c.Settings.Get().DeviceName
 	if d.Paths == nil {
@@ -328,6 +537,17 @@ func (s *LibraryService) Save(in GameInput) (GameView, error) {
 	saved, err := s.c.Library.Save(g, devID)
 	if err != nil {
 		return GameView{}, err
+	}
+	// An emulator that now shares (or stopped sharing) another's cloud save syncs
+	// with a different cloud folder. What it last synced belongs to the old one,
+	// so forget it: the next sync then compares both sides from scratch and, if
+	// they differ, asks which to keep instead of silently replacing one.
+	if in.ID != "" {
+		for _, ge := range saved.Emulators {
+			if was, ok := oldGame.Emulator(ge.EmulatorID); ok && was.ShareWith != ge.ShareWith {
+				_ = s.c.States.Save(core.SyncKey(saved.ID, ge.EmulatorID), syncer.State{})
+			}
+		}
 	}
 	s.bus.libraryChanged(saved.ID)
 	s.publish()
@@ -348,6 +568,15 @@ func (s *LibraryService) publish() {
 		}
 		s.bus.libraryChanged("")
 	}()
+}
+
+// cleanSlots trims slot keys and filter lists in place.
+func cleanSlots(slots []library.SaveSlot) {
+	for i := range slots {
+		slots[i].Key = strings.TrimSpace(slots[i].Key)
+		slots[i].Include = cleanList(slots[i].Include)
+		slots[i].Exclude = cleanList(slots[i].Exclude)
+	}
 }
 
 func cleanList(in []string) []string {
