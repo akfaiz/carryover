@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"strconv"
 	"testing"
 
 	"github.com/rclone/rclone/fs/config"
@@ -150,5 +151,53 @@ func TestPlayReleasesLock(t *testing.T) {
 	}
 	if _, err := os.Stat(filepath.Join(cloudDir, "games", id, "lock.json")); !os.IsNotExist(err) {
 		t.Fatalf("lock left behind, err=%v", err)
+	}
+	if _, err := os.Stat(c.sessionMarkerPath(id)); !os.IsNotExist(err) {
+		t.Fatalf("session marker left behind, err=%v", err)
+	}
+}
+
+// A session killed before it released the cloud lock leaves a marker behind;
+// RecoverSessions releases the lock, and leaves sessions still running alone.
+func TestRecoverSessions(t *testing.T) {
+	c, id, _, cloudDir := newPlayable(t)
+	eng, err := c.Engine()
+	if err != nil {
+		t.Fatal(err)
+	}
+	lockFile := filepath.Join(cloudDir, "games", id, "lock.json")
+	// The killed wrapper: lock written, marker left, no local lock held.
+	if err := eng.AcquireLock(context.Background(), id); err != nil {
+		t.Fatal(err)
+	}
+	c.markSession(id)
+
+	// Another live process (the parent, here) holds the game's local lock:
+	// nothing is released.
+	lockPath := filepath.Join(c.Dirs.StateDir(), id+".lock")
+	if err := os.WriteFile(lockPath, []byte(strconv.Itoa(os.Getppid())), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if n, err := c.RecoverSessions(context.Background()); err != nil || n != 0 {
+		t.Fatalf("RecoverSessions while running = %d, %v; want 0", n, err)
+	}
+	if _, err := os.Stat(lockFile); err != nil {
+		t.Fatalf("lock of a running session was released: %v", err)
+	}
+	if err := os.Remove(lockPath); err != nil {
+		t.Fatal(err)
+	}
+
+	if n, err := c.RecoverSessions(context.Background()); err != nil || n != 1 {
+		t.Fatalf("RecoverSessions = %d, %v; want 1", n, err)
+	}
+	if _, err := os.Stat(lockFile); !os.IsNotExist(err) {
+		t.Fatalf("cloud lock still there after recovery: %v", err)
+	}
+	if _, err := os.Stat(c.sessionMarkerPath(id)); !os.IsNotExist(err) {
+		t.Fatal("session marker still there after recovery")
+	}
+	if n, _ := c.RecoverSessions(context.Background()); n != 0 {
+		t.Fatalf("second RecoverSessions = %d, want 0", n)
 	}
 }

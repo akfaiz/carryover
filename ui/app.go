@@ -155,6 +155,13 @@ func Run(c *core.Core, wrapGameID string, opts core.RunOptions) int {
 		// Pick up games other devices added while this one was closed.
 		u.app.Lifecycle().SetOnStarted(func() {
 			onUI(u.checkLocalChanges)
+			// A session killed earlier (e.g. Steam's "Exit Game") may have left
+			// its cloud lock behind: release it so other devices stop warning.
+			go func() {
+				if err := u.sync.RecoverSessions(); err != nil {
+					log.Printf("recover sessions: %v", err)
+				}
+			}()
 			async0(u.sync.SyncLibrary, func(err error) {
 				if err != nil {
 					u.toast(lang.L("Library sync: {{.Err}}", map[string]any{"Err": err}), toastErr)
