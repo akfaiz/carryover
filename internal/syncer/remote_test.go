@@ -9,6 +9,7 @@ import (
 
 	_ "github.com/rclone/rclone/backend/memory" // a non-local remote for tests
 	"github.com/rclone/rclone/fs/config"
+	"github.com/stretchr/testify/require"
 )
 
 // The cloud client opens a named remote at its root and addresses files
@@ -27,30 +28,19 @@ func TestSyncAgainstNamedRemote(t *testing.T) {
 	write(t, filepath.Join(pcSaves, "sub"), "b.sav", "b-1")
 	mustSync(t, pc, pcJob, ResolveAuto, ActionPush)
 	mustSync(t, deck, deckJob, ResolveAuto, ActionPull)
-	if got := read(t, filepath.Join(deckSaves, "sub"), "b.sav"); got != "b-1" {
-		t.Fatalf("deck sub/b.sav = %q", got)
-	}
+	require.Equal(t, "b-1", read(t, filepath.Join(deckSaves, "sub"), "b.sav"))
 
 	// Change one file and delete another on the PC; the deck follows.
 	write(t, pcSaves, "a.sav", "a-2!")
-	if err := os.Remove(filepath.Join(pcSaves, "sub", "b.sav")); err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, os.Remove(filepath.Join(pcSaves, "sub", "b.sav")))
 	mustSync(t, pc, pcJob, ResolveAuto, ActionPush)
 	listed, err := pc.Client.ListFiles(ctx, currentDir("game1")+"/saves")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if len(listed) != 1 || listed["a.sav"] != 4 {
-		t.Fatalf("cloud files = %v, want only a.sav (4 bytes)", listed)
-	}
+	require.NoError(t, err)
+	require.Len(t, listed, 1, "cloud files, want only a.sav")
+	require.EqualValues(t, 4, listed["a.sav"])
 	mustSync(t, deck, deckJob, ResolveAuto, ActionPull)
-	if got := read(t, deckSaves, "a.sav"); got != "a-2!" {
-		t.Fatalf("deck a.sav = %q", got)
-	}
-	if _, err := os.Stat(filepath.Join(deckSaves, "sub", "b.sav")); !os.IsNotExist(err) {
-		t.Fatalf("deck sub/b.sav not deleted, err=%v", err)
-	}
+	require.Equal(t, "a-2!", read(t, deckSaves, "a.sav"))
+	require.NoFileExists(t, filepath.Join(deckSaves, "sub", "b.sav"), "deck sub/b.sav not deleted")
 
 	// Conflict, resolved by keeping the cloud: the PC's version is backed up
 	// (server-side copy within the remote) and can be restored.
@@ -60,9 +50,7 @@ func TestSyncAgainstNamedRemote(t *testing.T) {
 	mustSync(t, pc, pcJob, ResolveAuto, ActionConflict)
 	mustSync(t, pc, pcJob, ResolveCloud, ActionPull)
 	backups, err := pc.ListBackups(ctx, "game1")
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 	var local, cloudKind string
 	for _, b := range backups {
 		switch {
@@ -72,36 +60,24 @@ func TestSyncAgainstNamedRemote(t *testing.T) {
 			cloudKind = b.Name
 		}
 	}
-	if local == "" || cloudKind == "" {
-		t.Fatalf("want a local and a cloud backup, got %+v", backups)
-	}
+	require.NotEmpty(t, local, "want a local backup, got %+v", backups)
+	require.NotEmpty(t, cloudKind, "want a cloud backup, got %+v", backups)
 	_, files, err := pc.Client.List(ctx, backupsDir("game1"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	if !slices.Contains(files, cloudKind+".zip") {
-		t.Fatalf("backup files = %v, want %s.zip", files, cloudKind)
-	}
-	if err := pc.RestoreBackup(ctx, pcJob, local); err != nil {
-		t.Fatal(err)
-	}
-	if got := read(t, pcSaves, "a.sav"); got != "pc-conflict" {
-		t.Fatalf("after restore = %q", got)
-	}
+	require.NoError(t, err)
+	require.True(t, slices.Contains(files, cloudKind+".zip"))
+	require.NoError(t, pc.RestoreBackup(ctx, pcJob, local))
+	require.Equal(t, "pc-conflict", read(t, pcSaves, "a.sav"))
 
 	// Locks round-trip through the remote too.
-	if err := deck.AcquireLock(ctx, "game1"); err != nil {
-		t.Fatal(err)
-	}
-	if l, err := pc.CheckLock(ctx, "game1"); err != nil || l == nil || l.DeviceName != "deck" {
-		t.Fatalf("CheckLock = %+v, %v", l, err)
-	}
-	if err := deck.ReleaseLock(ctx, "game1"); err != nil {
-		t.Fatal(err)
-	}
-	if l, err := pc.CheckLock(ctx, "game1"); err != nil || l != nil {
-		t.Fatalf("after release CheckLock = %+v, %v", l, err)
-	}
+	require.NoError(t, deck.AcquireLock(ctx, "game1"))
+	l, err := pc.CheckLock(ctx, "game1")
+	require.NoError(t, err)
+	require.NotNil(t, l)
+	require.Equal(t, "deck", l.DeviceName)
+	require.NoError(t, deck.ReleaseLock(ctx, "game1"))
+	l, err = pc.CheckLock(ctx, "game1")
+	require.NoError(t, err)
+	require.Nil(t, l, "lock after release")
 }
 
 // A remote of type local takes a filesystem path; it must not be treated as
@@ -112,7 +88,5 @@ func TestLocalTypeRemoteWithAbsolutePath(t *testing.T) {
 	pc, job := newDevice(t, "disk:"+filepath.ToSlash(dir), "pc")
 	write(t, job.Slots[0].LocalPath, "a.sav", "x")
 	mustSync(t, pc, job, ResolveAuto, ActionPush)
-	if got := read(t, filepath.Join(dir, "games", "game1", "current", "saves"), "a.sav"); got != "x" {
-		t.Fatalf("cloud a.sav = %q", got)
-	}
+	require.Equal(t, "x", read(t, filepath.Join(dir, "games", "game1", "current", "saves"), "a.sav"))
 }

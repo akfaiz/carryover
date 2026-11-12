@@ -1,25 +1,23 @@
 package ludusavi
 
 import (
-	"reflect"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestIndexLoadsAndFinds(t *testing.T) {
-	if n := Count(); n < 10000 {
-		t.Fatalf("index has %d games, expected the full manifest", n)
-	}
+	require.GreaterOrEqual(t, Count(), 10000, "index should hold the full manifest")
 	g, err := Find("367520", "")
-	if err != nil || g == nil || g.Name != "Hollow Knight" {
-		t.Fatalf("by steam id: %+v %v", g, err)
-	}
+	require.NoError(t, err, "by steam id")
+	require.NotNil(t, g)
+	require.Equal(t, "Hollow Knight", g.Name)
 	g, _ = Find("", "HOLLOW KNIGHT™")
-	if g == nil || g.Name != "Hollow Knight" {
-		t.Fatalf("by name: %+v", g)
-	}
-	if g, _ := Find("", "definitely not a real game xyz"); g != nil {
-		t.Fatalf("unexpected match %+v", g)
-	}
+	require.NotNil(t, g, "by name")
+	require.Equal(t, "Hollow Knight", g.Name)
+	g, _ = Find("", "definitely not a real game xyz")
+	require.Nil(t, g, "unexpected match")
 }
 
 func TestSuggestPerDevice(t *testing.T) {
@@ -38,9 +36,7 @@ func TestSuggestPerDevice(t *testing.T) {
 			Sources: []string{"<home>/AppData/LocalLow/Studio/Test/*.dat", "<home>/AppData/LocalLow/Studio/Test/*.bak"}},
 		{Path: "{documents}/My Games/Test/Saves", Kind: KindWindows, Sources: []string{"<winDocuments>/My Games/Test/Saves"}},
 	}
-	if !reflect.DeepEqual(win, want) {
-		t.Fatalf("windows:\n got %+v\nwant %+v", win, want)
-	}
+	require.Equal(t, want, win)
 
 	deck := Suggest(g, Env{GOOS: "linux", Proton: "{proton:shortcut}", InstallDir: "/games/Test", SteamRoot: "{steam}"})
 	paths := map[string]string{}
@@ -54,28 +50,23 @@ func TestSuggestPerDevice(t *testing.T) {
 		"/games/Test/save":                                KindInstall,
 		"{steam}/userdata":                                KindSteamCloud,
 	} {
-		if paths[p] != kind {
-			t.Errorf("deck: missing %s (%s) in %v", p, kind, paths)
-		}
+		assert.Equal(t, kind, paths[p])
 	}
 
 	// Without install dir / steam user those templates are skipped, not half-filled.
 	for _, s := range Suggest(g, Env{GOOS: "linux"}) {
-		if s.Kind == KindInstall || s.Kind == KindProton || s.Kind == KindSteamCloud {
-			t.Errorf("unexpected %+v", s)
-		}
+		assert.NotContains(t, []string{KindInstall, KindProton, KindSteamCloud}, s.Kind, "unexpected %+v", s)
 	}
 }
 
 func TestStoreUserIDBecomesWildcard(t *testing.T) {
 	g := &Game{Files: []File{{Path: "<winAppData>/EldenRing/<storeUserId>"}, {Path: "<winLocalAppData>/Packages/X/wgs", MSStore: true}}}
 	s := Suggest(g, Env{GOOS: "windows"})
-	if len(s) != 2 || s[0].Path != "{appdata}/EldenRing" || !reflect.DeepEqual(s[0].Include, []string{"*", "*/**"}) {
-		t.Fatalf("got %+v", s)
-	}
-	if !s[1].MSStore || s[0].MSStore {
-		t.Fatalf("ms store flag wrong: %+v", s)
-	}
+	require.Len(t, s, 2)
+	require.Equal(t, "{appdata}/EldenRing", s[0].Path)
+	require.Equal(t, []string{"*", "*/**"}, s[0].Include)
+	require.True(t, s[1].MSStore, "ms store flag")
+	require.False(t, s[0].MSStore, "ms store flag")
 }
 
 func TestSplitGlob(t *testing.T) {
@@ -93,9 +84,8 @@ func TestSplitGlob(t *testing.T) {
 	}
 	for in, want := range cases {
 		d, inc := splitGlob(in)
-		if d != want.dir || !reflect.DeepEqual(inc, want.inc) {
-			t.Errorf("%s: got (%q,%q) want %+v", in, d, inc, want)
-		}
+		assert.Equal(t, want.dir, d, in)
+		assert.Equal(t, want.inc, inc, in)
 	}
 }
 
@@ -115,13 +105,11 @@ func TestSuggestPrefix(t *testing.T) {
 		{Path: "{home}/Games/Heroic/Prefixes/default/Game/drive_c/users/deck/Documents/My Games/Game", Kind: KindPrefix,
 			Sources: []string{"<winDocuments>/My Games/Game"}},
 	}
-	if !reflect.DeepEqual(got, want) {
-		t.Fatalf("got  %+v\nwant %+v", got, want)
-	}
+	require.Equal(t, want, got)
 }
 
 func TestSameTitle(t *testing.T) {
-	if !SameTitle("The Witcher® 3: Wild Hunt", "the witcher 3 wild hunt") || SameTitle("Hades", "Hades II") || SameTitle("", "") {
-		t.Fatal("SameTitle")
-	}
+	assert.True(t, SameTitle("The Witcher® 3: Wild Hunt", "the witcher 3 wild hunt"))
+	assert.False(t, SameTitle("Hades", "Hades II"))
+	assert.False(t, SameTitle("", ""))
 }

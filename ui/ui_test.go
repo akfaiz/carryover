@@ -10,6 +10,8 @@ import (
 	"fyne.io/fyne/v2/layout"
 	"fyne.io/fyne/v2/test"
 	"fyne.io/fyne/v2/widget"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/akfaiz/carryover/internal/appdir"
 	"github.com/akfaiz/carryover/internal/cloud"
@@ -24,9 +26,7 @@ import (
 func TestPagesRender(t *testing.T) {
 	t.Setenv(appdir.EnvHome, t.TempDir())
 	c, err := core.New()
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 	// Like the real app, run all UI work on one goroutine (this one): queue
 	// it and drain the queue in settle().
 	queue := make(chan func(), 1024)
@@ -47,9 +47,7 @@ func TestPagesRender(t *testing.T) {
 			LaunchMode: library.LaunchDirect,
 		},
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 
 	u.buildMain()
 	u.win.Resize(fyne.NewSize(1000, 700))
@@ -91,9 +89,7 @@ func TestPagesRender(t *testing.T) {
 	// Prompts render as dialogs.
 	u.prompts.add(services.Prompt{ID: "p1", Kind: "syncError", GameID: g.ID, GameName: g.Name, Error: "boom", BeforePlay: true})
 	settle()
-	if u.prompts.current == nil {
-		t.Fatal("prompt dialog not shown")
-	}
+	require.NotNil(t, u.prompts.current, "prompt dialog not shown")
 }
 
 // assertPaintable fails for objects Fyne lays out but never paints, such as
@@ -113,39 +109,28 @@ func assertPaintable(t *testing.T, o fyne.CanvasObject) {
 		*canvas.LinearGradient, *canvas.RadialGradient, *canvas.Raster, *canvas.Arc, *canvas.Polygon, *canvas.Blur,
 		*layout.Spacer:
 	default:
-		t.Errorf("%T is not a widget, container or canvas primitive, so Fyne never paints it", o)
+		assert.Fail(t, "not a widget, container or canvas primitive, so Fyne never paints it", "%T", o)
 	}
 }
 
 func TestFormat(t *testing.T) {
 	cases := map[int64]string{0: "0 B", 512: "512 B", 1536: "1.5 KB", 5 << 20: "5.0 MB"}
 	for in, want := range cases {
-		if got := formatBytes(in); got != want {
-			t.Errorf("formatBytes(%d) = %q, want %q", in, got, want)
-		}
+		assert.Equal(t, want, formatBytes(in))
 	}
-	if got := slug("My Saves!"); got != "my-saves" {
-		t.Errorf("slug = %q", got)
-	}
-	if got := splitLines("a, b\n\nc"); len(got) != 3 {
-		t.Errorf("splitLines = %q", got)
-	}
-	if got := timeAgo(""); got != "never" {
-		t.Errorf("timeAgo(\"\") = %q", got)
-	}
+	assert.Equal(t, "my-saves", slug("My Saves!"))
+	assert.Len(t, splitLines("a, b\n\nc"), 3)
+	assert.Equal(t, "never", timeAgo(""))
 }
 
 // After saving a different remote, the Cloud page moves the "active" badge.
 func TestCloudActiveBadgeFollowsSavedRemote(t *testing.T) {
 	t.Setenv(appdir.EnvHome, t.TempDir())
 	c, err := core.New()
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 	for _, name := range []string{"one", "two"} {
-		if _, err := cloud.CreateRemote(context.Background(), name, "sftp", map[string]string{"host": name + ".invalid"}); err != nil {
-			t.Fatal(err)
-		}
+		_, err := cloud.CreateRemote(context.Background(), name, "sftp", map[string]string{"host": name + ".invalid"})
+		require.NoError(t, err)
 	}
 	queue := make(chan func(), 1024)
 	onUI = func(f func()) { queue <- f }
@@ -195,24 +180,18 @@ func TestCloudActiveBadgeFollowsSavedRemote(t *testing.T) {
 
 	st := c.Settings.Get()
 	st.Remote = "one"
-	if err := c.Settings.Update(st); err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, c.Settings.Update(st))
 	u.refresh()
 	u.navigate("/cloud")
 	settle()
-	if got := activeRow(); got != "one" {
-		t.Fatalf("active badge on %q, want one", got)
-	}
+	require.Equal(t, "one", activeRow())
 
 	// Pick "two" and save, as the user does.
 	p := u.page.(*cloudPage)
 	p.remote = "two"
 	p.saveTarget()
 	settle()
-	if got := activeRow(); got != "two" {
-		t.Fatalf("after saving: active badge on %q, want two", got)
-	}
+	require.Equal(t, "two", activeRow())
 }
 
 func hasText(o fyne.CanvasObject, text string) bool {

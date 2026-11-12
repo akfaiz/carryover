@@ -11,6 +11,8 @@ import (
 	"testing"
 
 	"fyne.io/fyne/v2/lang"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 // TestTranslationCatalog checks that every literal passed to lang.L / lang.N
@@ -18,27 +20,19 @@ import (
 // copy when adding a language.
 func TestTranslationCatalog(t *testing.T) {
 	data, err := translations.ReadFile("translations/en.json")
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 	var catalog map[string]json.RawMessage
-	if err := json.Unmarshal(data, &catalog); err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, json.Unmarshal(data, &catalog))
 
 	entries, err := os.ReadDir(".")
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 	fset := token.NewFileSet()
 	for _, e := range entries {
 		if !strings.HasSuffix(e.Name(), ".go") || strings.HasSuffix(e.Name(), "_test.go") {
 			continue
 		}
 		f, err := parser.ParseFile(fset, e.Name(), nil, 0)
-		if err != nil {
-			t.Fatal(err)
-		}
+		require.NoError(t, err)
 		ast.Inspect(f, func(n ast.Node) bool {
 			call, ok := n.(*ast.CallExpr)
 			if !ok || len(call.Args) == 0 {
@@ -53,13 +47,11 @@ func TestTranslationCatalog(t *testing.T) {
 			}
 			lit, ok := call.Args[0].(*ast.BasicLit)
 			if !ok {
-				t.Errorf("%s: lang.%s needs a string literal", fset.Position(call.Pos()), sel.Sel.Name)
+				assert.Fail(t, "lang call needs a string literal", "%s: lang.%s", fset.Position(call.Pos()), sel.Sel.Name)
 				return true
 			}
 			key, _ := strconv.Unquote(lit.Value)
-			if _, ok := catalog[key]; !ok {
-				t.Errorf("%s: %q is missing from translations/en.json", fset.Position(call.Pos()), key)
-			}
+			assert.Contains(t, catalog, key, "%s: missing from translations/en.json", fset.Position(call.Pos()))
 			return true
 		})
 	}
@@ -69,8 +61,6 @@ func TestPluralForms(t *testing.T) {
 	initTranslations()
 	for n, want := range map[int]string{0: "Synced 0 games", 1: "Synced 1 game", 2: "Synced 2 games"} {
 		got := lang.N("Synced {{.Count}} game", n, map[string]any{"Count": n})
-		if got != want {
-			t.Errorf("N(%d) = %q, want %q", n, got, want)
-		}
+		assert.Equal(t, want, got, "N(%d)", n)
 	}
 }

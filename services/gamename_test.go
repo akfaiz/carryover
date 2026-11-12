@@ -4,6 +4,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
 )
 
 func TestGuessGameName(t *testing.T) {
@@ -29,16 +31,12 @@ func TestGuessGameName(t *testing.T) {
 		{"", ""},
 	}
 	for _, c := range cases {
-		if got := guessGameName(c.exe, known); got != c.want {
-			t.Errorf("guessGameName(%q) = %q, want %q", c.exe, got, c.want)
-		}
+		assert.Equal(t, c.want, guessGameName(c.exe, known), "guessGameName(%q)", c.exe)
 	}
 }
 
 // The real Ludusavi index gives the official title for a known exe name.
 func TestGuessNameUsesLudusavi(t *testing.T) {
 	s := &LibraryService{}
-	if got := s.GuessName(filepath.Join("C:", "x", "Unknown Folder Name", "Celeste.exe")); got != "Celeste" {
-		t.Fatalf("GuessName = %q, want %q", got, "Celeste")
-	}
+	assert.Equal(t, "Celeste", s.GuessName(filepath.Join("C:", "x", "Unknown Folder Name", "Celeste.exe")))
 }

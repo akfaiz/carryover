@@ -1,9 +1,9 @@
 package main
 
 import (
-	"reflect"
-	"strings"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
 
 	"github.com/akfaiz/carryover/internal/syncer"
 )
@@ -21,13 +21,7 @@ func TestReorder(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := reorder(tt.in)
-			if len(got) == 0 && len(tt.want) == 0 {
-				return
-			}
-			if !reflect.DeepEqual(got, tt.want) {
-				t.Fatalf("reorder(%q) = %q, want %q", tt.in, got, tt.want)
-			}
+			assert.Equal(t, tt.want, reorder(tt.in))
 		})
 	}
 }
@@ -46,19 +40,14 @@ func TestHumanSize(t *testing.T) {
 		{1 << 40, "1.0 TiB"},
 	}
 	for _, tt := range tests {
-		if got := humanSize(tt.n); got != tt.want {
-			t.Errorf("humanSize(%d) = %q, want %q", tt.n, got, tt.want)
-		}
+		assert.Equal(t, tt.want, humanSize(tt.n), "humanSize(%d)", tt.n)
 	}
 }
 
 func TestDescribeSummary(t *testing.T) {
-	if got := describeSummary(syncer.Summary{Files: 3, Bytes: 2048}, false); got != "none" {
-		t.Fatalf("missing side = %q, want none", got)
-	}
-	if got := describeSummary(syncer.Summary{Files: 3, Bytes: 2048}, true); got != "3 files, 2.0 KiB" {
-		t.Fatalf("describeSummary = %q", got)
-	}
+	s := syncer.Summary{Files: 3, Bytes: 2048}
+	assert.Equal(t, "none", describeSummary(s, false), "missing side")
+	assert.Equal(t, "3 files, 2.0 KiB", describeSummary(s, true))
 }
 
 func TestDryRunVerb(t *testing.T) {
@@ -69,8 +58,6 @@ func TestDryRunVerb(t *testing.T) {
 		syncer.ActionNone:     "do nothing",
 	}
 	for a, want := range tests {
-		if got := dryRunVerb(a); !strings.Contains(got, want) {
-			t.Errorf("dryRunVerb(%v) = %q, want it to contain %q", a, got, want)
-		}
+		assert.Contains(t, dryRunVerb(a), want, "dryRunVerb(%v)", a)
 	}
 }

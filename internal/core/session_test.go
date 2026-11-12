@@ -2,7 +2,6 @@ package core
 
 import (
 	"context"
-	"errors"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -10,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/rclone/rclone/fs/config"
+	"github.com/stretchr/testify/require"
 
 	"github.com/akfaiz/carryover/internal/appdir"
 	"github.com/akfaiz/carryover/internal/library"
@@ -41,23 +41,15 @@ func newPlayable(t *testing.T) (c *Core, gameID, saves, cloudDir string) {
 	home := t.TempDir()
 	t.Setenv(appdir.EnvHome, home)
 	c, err := New()
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 	config.FileSetValue("cloud", "type", "local")
 	cloudDir = filepath.Join(home, "cloud")
 	st := c.Settings.Get()
 	st.Remote, st.RemoteRoot = "cloud", filepath.ToSlash(cloudDir)
-	if err := c.Settings.Update(st); err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, c.Settings.Update(st))
 	saves = filepath.Join(home, "saves")
-	if err := os.MkdirAll(saves, 0o755); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(filepath.Join(saves, "a.sav"), []byte("save"), 0o644); err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, os.MkdirAll(saves, 0o755))
+	require.NoError(t, os.WriteFile(filepath.Join(saves, "a.sav"), []byte("save"), 0o644))
 	exe, args := "sh", "-c \"echo x > launched.txt\""
 	if runtime.GOOS == "windows" {
 		exe, args = "cmd.exe", "/c echo x>launched.txt"
@@ -70,9 +62,7 @@ func newPlayable(t *testing.T) (c *Core, gameID, saves, cloudDir string) {
 			LaunchMode: library.LaunchDirect,
 		}},
 	}, c.DeviceID())
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 	return c, g.ID, saves, cloudDir
 }
 
@@ -80,15 +70,10 @@ func newPlayable(t *testing.T) (c *Core, gameID, saves, cloudDir string) {
 func TestPlayCancelBeforeLaunch(t *testing.T) {
 	c, id, saves, _ := newPlayable(t)
 	_, err := c.Play(context.Background(), id, RunOptions{}, &cancelUI{cancelAt: 1})
-	if !errors.Is(err, ErrCancelled) {
-		t.Fatalf("Play err = %v, want ErrCancelled", err)
-	}
-	if _, err := os.Stat(filepath.Join(saves, "launched.txt")); !os.IsNotExist(err) {
-		t.Fatal("game was launched although the sync was cancelled")
-	}
-	if st, _ := c.States.Load(id); st.LastError != "" {
-		t.Fatalf("cancel recorded as a sync error: %q", st.LastError)
-	}
+	require.ErrorIs(t, err, ErrCancelled)
+	require.NoFileExists(t, filepath.Join(saves, "launched.txt"), "game was launched although the sync was cancelled")
+	st, _ := c.States.Load(id)
+	require.Empty(t, st.LastError, "cancel recorded as a sync error")
 }
 
 // Cancelling the upload after playing keeps the game's run, uploads nothing
@@ -96,45 +81,28 @@ func TestPlayCancelBeforeLaunch(t *testing.T) {
 func TestPlayCancelUpload(t *testing.T) {
 	c, id, saves, cloudDir := newPlayable(t)
 	res, err := c.Play(context.Background(), id, RunOptions{}, &cancelUI{cancelAt: 2})
-	if err != nil {
-		t.Fatalf("Play err = %v", err)
-	}
-	if _, err := os.Stat(filepath.Join(saves, "launched.txt")); err != nil {
-		t.Fatalf("game didn't run: %v", err)
-	}
-	if !errors.Is(res.PostError, ErrCancelled) {
-		t.Fatalf("PostError = %v, want ErrCancelled", res.PostError)
-	}
-	if st, _ := c.States.Load(id); st.LastError != "" {
-		t.Fatalf("cancel recorded as a sync error: %q", st.LastError)
-	}
+	require.NoError(t, err, "Play err =")
+	require.FileExists(t, filepath.Join(saves, "launched.txt"), "game didn't run")
+	require.ErrorIs(t, res.PostError, ErrCancelled)
+	st, _ := c.States.Load(id)
+	require.Empty(t, st.LastError, "cancel recorded as a sync error")
 	current := filepath.Join(cloudDir, "games", id, "current", "saves", "launched.txt")
-	if _, err := os.Stat(current); !os.IsNotExist(err) {
-		t.Fatal("saves were uploaded although the upload was cancelled")
-	}
+	require.NoFileExists(t, current, "saves were uploaded although the upload was cancelled")
 
 	eng, err := c.Engine()
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 	job, err := c.Job(mustFind(t, c, id))
-	if err != nil {
-		t.Fatal(err)
-	}
-	if _, a, err := eng.Sync(context.Background(), job, syncer.ResolveAuto); err != nil || a != syncer.ActionPush {
-		t.Fatalf("next sync = %s, %v; want push", a, err)
-	}
-	if _, err := os.Stat(current); err != nil {
-		t.Fatalf("next sync didn't upload: %v", err)
-	}
+	require.NoError(t, err)
+	_, a, err := eng.Sync(context.Background(), job, syncer.ResolveAuto)
+	require.NoError(t, err)
+	require.Equal(t, syncer.ActionPush, a, "next sync")
+	require.FileExists(t, current, "next sync didn't upload")
 }
 
 func mustFind(t *testing.T, c *Core, id string) library.Game {
 	t.Helper()
 	g, err := c.Library.Get(id)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 	return g
 }
 
@@ -143,18 +111,12 @@ func mustFind(t *testing.T, c *Core, id string) library.Game {
 func TestPlayReleasesLock(t *testing.T) {
 	c, id, _, cloudDir := newPlayable(t)
 	res, err := c.Play(context.Background(), id, RunOptions{}, &cancelUI{})
-	if err != nil || res.PostError != nil {
-		t.Fatalf("Play = %v, post %v", err, res.PostError)
-	}
-	if res.PreAction != syncer.ActionPush && res.PostAction != syncer.ActionPush {
-		t.Fatalf("expected an upload, got pre %s post %s", res.PreAction, res.PostAction)
-	}
-	if _, err := os.Stat(filepath.Join(cloudDir, "games", id, "lock.json")); !os.IsNotExist(err) {
-		t.Fatalf("lock left behind, err=%v", err)
-	}
-	if _, err := os.Stat(c.sessionMarkerPath(id)); !os.IsNotExist(err) {
-		t.Fatalf("session marker left behind, err=%v", err)
-	}
+	require.NoError(t, err)
+	require.NoError(t, res.PostError)
+	require.True(t, res.PreAction == syncer.ActionPush || res.PostAction == syncer.ActionPush,
+		"expected an upload, got pre %s post %s", res.PreAction, res.PostAction)
+	require.NoFileExists(t, filepath.Join(cloudDir, "games", id, "lock.json"), "lock left behind")
+	require.NoFileExists(t, c.sessionMarkerPath(id), "session marker left behind")
 }
 
 // A session killed before it released the cloud lock leaves a marker behind;
@@ -162,44 +124,29 @@ func TestPlayReleasesLock(t *testing.T) {
 func TestRecoverSessions(t *testing.T) {
 	c, id, _, cloudDir := newPlayable(t)
 	eng, err := c.Engine()
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 	lockFile := filepath.Join(cloudDir, "games", id, "lock.json")
 	// The killed wrapper: lock written, marker left, no local lock held.
-	if err := eng.AcquireLock(context.Background(), id); err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, eng.AcquireLock(context.Background(), id))
 	c.markSession(id)
 
 	// Another live process (the parent, here) holds the game's local lock:
 	// nothing is released.
 	lockPath := filepath.Join(c.Dirs.StateDir(), id+".lock")
-	if err := os.WriteFile(lockPath, []byte(strconv.Itoa(os.Getppid())), 0o644); err != nil {
-		t.Fatal(err)
-	}
-	if n, err := c.RecoverSessions(context.Background()); err != nil || n != 0 {
-		t.Fatalf("RecoverSessions while running = %d, %v; want 0", n, err)
-	}
-	if _, err := os.Stat(lockFile); err != nil {
-		t.Fatalf("lock of a running session was released: %v", err)
-	}
-	if err := os.Remove(lockPath); err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, os.WriteFile(lockPath, []byte(strconv.Itoa(os.Getppid())), 0o644))
+	n, err := c.RecoverSessions(context.Background())
+	require.NoError(t, err)
+	require.Zero(t, n, "RecoverSessions while running")
+	require.FileExists(t, lockFile, "lock of a running session was released")
+	require.NoError(t, os.Remove(lockPath))
 
-	if n, err := c.RecoverSessions(context.Background()); err != nil || n != 1 {
-		t.Fatalf("RecoverSessions = %d, %v; want 1", n, err)
-	}
-	if _, err := os.Stat(lockFile); !os.IsNotExist(err) {
-		t.Fatalf("cloud lock still there after recovery: %v", err)
-	}
-	if _, err := os.Stat(c.sessionMarkerPath(id)); !os.IsNotExist(err) {
-		t.Fatal("session marker still there after recovery")
-	}
-	if n, _ := c.RecoverSessions(context.Background()); n != 0 {
-		t.Fatalf("second RecoverSessions = %d, want 0", n)
-	}
+	n, err = c.RecoverSessions(context.Background())
+	require.NoError(t, err)
+	require.Equal(t, 1, n, "RecoverSessions")
+	require.NoFileExists(t, lockFile, "cloud lock still there after recovery")
+	require.NoFileExists(t, c.sessionMarkerPath(id), "session marker still there after recovery")
+	n, _ = c.RecoverSessions(context.Background())
+	require.Zero(t, n, "second RecoverSessions")
 }
 
 // A game Play is running in this process is never recovered, even though its
@@ -207,18 +154,12 @@ func TestRecoverSessions(t *testing.T) {
 func TestRecoverSessionsSkipsPlayingGame(t *testing.T) {
 	c, id, _, cloudDir := newPlayable(t)
 	eng, err := c.Engine()
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := eng.AcquireLock(context.Background(), id); err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
+	require.NoError(t, eng.AcquireLock(context.Background(), id))
 	c.markSession(id)
 	c.playing.Store(id, struct{}{})
-	if n, err := c.RecoverSessions(context.Background()); err != nil || n != 0 {
-		t.Fatalf("RecoverSessions = %d, %v; want 0", n, err)
-	}
-	if _, err := os.Stat(filepath.Join(cloudDir, "games", id, "lock.json")); err != nil {
-		t.Fatalf("lock of a game being played was released: %v", err)
-	}
+	n, err := c.RecoverSessions(context.Background())
+	require.NoError(t, err)
+	require.Zero(t, n)
+	require.FileExists(t, filepath.Join(cloudDir, "games", id, "lock.json"), "lock of a game being played was released")
 }

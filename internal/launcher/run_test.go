@@ -7,6 +7,9 @@ import (
 	"strconv"
 	"testing"
 	"time"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 // The test binary doubles as the "game": run with GO_LAUNCHER_HELPER set, it
@@ -25,24 +28,19 @@ func TestMain(m *testing.M) {
 func helperSpec(t *testing.T, out string, exit int) Spec {
 	t.Helper()
 	self, err := os.Executable()
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 	t.Setenv("GO_LAUNCHER_EXIT", strconv.Itoa(exit))
 	return Spec{Exe: self, Env: map[string]string{"GO_LAUNCHER_HELPER": out, "GAME_FLAG": "on"}}
 }
 
 func TestRunNeedsExecutable(t *testing.T) {
-	if _, err := Run(context.Background(), Spec{}, nil); err == nil {
-		t.Fatal("Run without an executable: want an error")
-	}
+	_, err := Run(context.Background(), Spec{}, nil)
+	require.Error(t, err, "Run without an executable")
 }
 
 func TestRunStartFailure(t *testing.T) {
 	_, err := Run(context.Background(), Spec{Exe: filepath.Join(t.TempDir(), "missing")}, nil)
-	if err == nil {
-		t.Fatal("Run of a missing executable: want an error")
-	}
+	require.Error(t, err, "Run of a missing executable")
 }
 
 func TestRunPassesEnvironmentAndWorkDir(t *testing.T) {
@@ -53,69 +51,48 @@ func TestRunPassesEnvironmentAndWorkDir(t *testing.T) {
 
 	var pid int
 	res, err := Run(context.Background(), spec, func(p int) { pid = p })
-	if err != nil || res.ExitCode != 0 {
-		t.Fatalf("Run = %+v, %v", res, err)
-	}
-	if pid <= 0 {
-		t.Fatalf("onStarted pid = %d", pid)
-	}
-	if res.Duration <= 0 {
-		t.Fatalf("Duration = %v", res.Duration)
-	}
+	require.NoError(t, err)
+	assert.Zero(t, res.ExitCode)
+	assert.Positive(t, pid, "onStarted pid")
+	assert.Positive(t, res.Duration)
 	b, err := os.ReadFile(out)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 	wantDir, _ := filepath.EvalSymlinks(dir)
 	got := string(b)
-	if want := wantDir + "\non"; got != want && got != dir+"\non" {
-		t.Fatalf("game saw %q, want working dir %q and GAME_FLAG=on", got, wantDir)
-	}
+	assert.Contains(t, []string{wantDir + "\non", dir + "\non"}, got, "game saw its working dir and GAME_FLAG=on")
 }
 
 // Without a work dir an absolute executable runs from its own folder.
 func TestRunDefaultsWorkDirToExeFolder(t *testing.T) {
 	out := filepath.Join(t.TempDir(), "out.txt")
 	spec := helperSpec(t, out, 0)
-	if _, err := Run(context.Background(), spec, nil); err != nil {
-		t.Fatal(err)
-	}
+	_, err := Run(context.Background(), spec, nil)
+	require.NoError(t, err)
 	b, _ := os.ReadFile(out)
 	wantDir, _ := filepath.EvalSymlinks(filepath.Dir(spec.Exe))
-	if got := string(b); got != wantDir+"\non" && got != filepath.Dir(spec.Exe)+"\non" {
-		t.Fatalf("game ran in %q, want %q", got, wantDir)
-	}
+	assert.Contains(t, []string{wantDir + "\non", filepath.Dir(spec.Exe) + "\non"}, string(b), "game ran in the exe's folder")
 }
 
 // A non-zero exit is the game's result, not an error.
 func TestRunReturnsExitCode(t *testing.T) {
 	spec := helperSpec(t, filepath.Join(t.TempDir(), "out.txt"), 7)
 	res, err := Run(context.Background(), spec, nil)
-	if err != nil || res.ExitCode != 7 {
-		t.Fatalf("Run = %+v, %v; want exit code 7 and no error", res, err)
-	}
+	require.NoError(t, err)
+	require.Equal(t, 7, res.ExitCode)
 }
 
 func TestProcessRunning(t *testing.T) {
 	self, err := os.Executable()
-	if err != nil {
-		t.Fatal(err)
-	}
-	if !processRunning(filepath.Base(self)) {
-		t.Fatalf("processRunning(%q) = false for the test process itself", filepath.Base(self))
-	}
-	if processRunning("carryover-no-such-process-xyz") {
-		t.Fatal("processRunning found a process that doesn't exist")
-	}
+	require.NoError(t, err)
+	require.True(t, processRunning(filepath.Base(self)))
+	require.False(t, processRunning("carryover-no-such-process-xyz"), "found a process that doesn't exist")
 }
 
 // If the process never appears the wait ends once WaitAppear has passed.
 func TestWaitForProcessGivesUpWhenItNeverStarts(t *testing.T) {
 	start := time.Now()
 	waitForProcess(context.Background(), "carryover-no-such-process-xyz", 10*time.Millisecond)
-	if d := time.Since(start); d > 5*time.Second {
-		t.Fatalf("waited %v for a process that never started", d)
-	}
+	require.Less(t, time.Since(start), 5*time.Second, "waited for a process that never started")
 }
 
 // Cancelling the context ends the wait even though the process still runs.
@@ -125,9 +102,7 @@ func TestWaitForProcessStopsOnCancel(t *testing.T) {
 	defer cancel()
 	start := time.Now()
 	waitForProcess(ctx, filepath.Base(self), time.Minute)
-	if d := time.Since(start); d > 5*time.Second {
-		t.Fatalf("waited %v despite the cancelled context", d)
-	}
+	require.Less(t, time.Since(start), 5*time.Second, "waited despite the cancelled context")
 }
 
 // With WaitProcess the run outlasts Exe until that process is gone; a
@@ -136,13 +111,13 @@ func TestRunWaitProcess(t *testing.T) {
 	spec := helperSpec(t, filepath.Join(t.TempDir(), "out.txt"), 0)
 	spec.WaitProcess = "carryover-no-such-process-xyz"
 	spec.WaitAppear = 10 * time.Millisecond
-	if res, err := Run(context.Background(), spec, nil); err != nil || res.ExitCode != 0 {
-		t.Fatalf("Run with WaitProcess = %+v, %v", res, err)
-	}
+	res, err := Run(context.Background(), spec, nil)
+	require.NoError(t, err, "Run with WaitProcess")
+	require.Zero(t, res.ExitCode)
 
 	spec.Detach = true
-	res, err := Run(context.Background(), spec, nil)
-	if err != nil || res.ExitCode != 0 || res.Duration <= 0 {
-		t.Fatalf("detached Run = %+v, %v", res, err)
-	}
+	res, err = Run(context.Background(), spec, nil)
+	require.NoError(t, err, "detached Run")
+	require.Zero(t, res.ExitCode)
+	require.Positive(t, res.Duration)
 }

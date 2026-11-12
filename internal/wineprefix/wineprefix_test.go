@@ -6,26 +6,23 @@ import (
 	"sort"
 	"strings"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 // mkPrefix creates a Wine prefix with drive_c/users/<user> and Public.
 func mkPrefix(t *testing.T, dir, user string) {
 	t.Helper()
 	for _, u := range []string{user, "Public"} {
-		if err := os.MkdirAll(filepath.Join(dir, "drive_c", "users", u), 0o755); err != nil {
-			t.Fatal(err)
-		}
+		require.NoError(t, os.MkdirAll(filepath.Join(dir, "drive_c", "users", u), 0o755))
 	}
 }
 
 func writeFile(t *testing.T, p, content string) {
 	t.Helper()
-	if err := os.MkdirAll(filepath.Dir(p), 0o755); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(p, []byte(content), 0o644); err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, os.MkdirAll(filepath.Dir(p), 0o755))
+	require.NoError(t, os.WriteFile(p, []byte(content), 0o644))
 }
 
 // jsonPath writes a path into a JSON string.
@@ -64,12 +61,8 @@ func TestFind(t *testing.T) {
 
 	// Plain Wine, and folders that aren't prefixes.
 	mkPrefix(t, j(".wine"), "deck")
-	if err := os.MkdirAll(j("Games", "NotAPrefix"), 0o755); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.MkdirAll(j("Games", "Empty", "drive_c"), 0o755); err != nil { // no user folder
-		t.Fatal(err)
-	}
+	require.NoError(t, os.MkdirAll(j("Games", "NotAPrefix"), 0o755))
+	require.NoError(t, os.MkdirAll(j("Games", "Empty", "drive_c"), 0o755)) // no user folder
 
 	got := map[string]Prefix{}
 	for _, p := range Find(Roots{Home: home, Drives: []string{sd}}) {
@@ -81,28 +74,21 @@ func TestFind(t *testing.T) {
 	}
 	sort.Strings(keys)
 	want := []string{"bottles|Gaming", "heroic|Celeste", "heroic|Hades", "heroic|Tunic", "lutris|The Witcher 3", "wine|Wine"}
-	if strings.Join(keys, ",") != strings.Join(want, ",") {
-		t.Fatalf("prefixes = %v, want %v", keys, want)
-	}
+	require.Equal(t, strings.Join(want, ","), strings.Join(keys, ","))
 
-	if p := got["heroic|Hades"]; p.Path != filepath.Join(hades, "pfx") ||
-		len(p.Users) != 1 || filepath.Base(p.Users[0]) != "steamuser" {
-		t.Errorf("Hades prefix = %+v, want the pfx folder and its steamuser", p)
+	p := got["heroic|Hades"]
+	assert.Equal(t, filepath.Join(hades, "pfx"), p.Path, "Hades prefix is the pfx folder")
+	if assert.Len(t, p.Users, 1) {
+		assert.Equal(t, "steamuser", filepath.Base(p.Users[0]))
 	}
-	if p := got["bottles|Gaming"]; len(p.Games) != 2 {
-		t.Errorf("bottle games = %v", p.Games)
-	}
+	assert.Len(t, got["bottles|Gaming"].Games, 2)
 	for _, p := range got {
 		for _, u := range p.Users {
-			if filepath.Base(u) == "Public" {
-				t.Errorf("%s lists the Public user folder", p.Name)
-			}
+			assert.NotEqual(t, "Public", filepath.Base(u))
 		}
 	}
 }
 
 func TestFindWithoutHome(t *testing.T) {
-	if got := Find(Roots{}); got != nil {
-		t.Fatalf("got %+v", got)
-	}
+	assert.Nil(t, Find(Roots{}))
 }

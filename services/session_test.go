@@ -5,6 +5,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
 	"github.com/akfaiz/carryover/internal/appdir"
 	"github.com/akfaiz/carryover/internal/core"
 	"github.com/akfaiz/carryover/internal/library"
@@ -14,9 +17,7 @@ func newWrapper(t *testing.T, gameID string, opts core.RunOptions) (*SessionServ
 	t.Helper()
 	t.Setenv(appdir.EnvHome, t.TempDir())
 	c, err := core.New()
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 	bus := NewBus()
 	s := NewSessionService(c, bus)
 	return s, bus, ConfigureWrapper(s, gameID, opts)
@@ -28,7 +29,7 @@ func waitOutcome(t *testing.T, ch <-chan SessionOutcome) SessionOutcome {
 	case o := <-ch:
 		return o
 	case <-time.After(30 * time.Second):
-		t.Fatal("the wrapper session never finished")
+		require.Fail(t, "the wrapper session never finished")
 		return SessionOutcome{}
 	}
 }
@@ -42,9 +43,7 @@ func addGame(t *testing.T, s *SessionService) string {
 			Paths: map[string]string{"saves": t.TempDir()}, Exe: "sh", LaunchMode: library.LaunchDirect,
 		}},
 	}, s.c.DeviceID())
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 	return g.ID
 }
 
@@ -52,26 +51,14 @@ func addGame(t *testing.T, s *SessionService) string {
 func TestLauncherModeHasNoWrapper(t *testing.T) {
 	t.Setenv(appdir.EnvHome, t.TempDir())
 	c, err := core.New()
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 	s := NewSessionService(c, NewBus())
-	if w := s.Wrapper(); w.Active {
-		t.Fatalf("Wrapper = %+v in launcher mode", w)
-	}
+	require.False(t, s.Wrapper().Active, "Wrapper in launcher mode")
 	s.Start() // must not panic or launch anything
-	if len(s.Prompts()) != 0 {
-		t.Fatal("prompts in a fresh service")
-	}
-	if s.Respond("nope", "yes") {
-		t.Fatal("Respond to an unknown prompt reported success")
-	}
-	if s.Cancel("no-such-game") {
-		t.Fatal("Cancel reported a running sync")
-	}
-	if s.IsRunning("no-such-game") {
-		t.Fatal("IsRunning for an unknown game")
-	}
+	require.Empty(t, s.Prompts(), "prompts in a fresh service")
+	require.False(t, s.Respond("nope", "yes"), "Respond to an unknown prompt reported success")
+	require.False(t, s.Cancel("no-such-game"), "Cancel reported a running sync")
+	require.False(t, s.IsRunning("no-such-game"), "IsRunning for an unknown game")
 }
 
 // A wrapper session runs the command after "--", reports its exit code, and
@@ -82,9 +69,7 @@ func TestWrapperRunsCommand(t *testing.T) {
 	}
 	t.Setenv(appdir.EnvHome, t.TempDir())
 	c, err := core.New()
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 	bus := NewBus()
 	s := NewSessionService(c, bus)
 	id := addGame(t, s)
@@ -96,28 +81,22 @@ func TestWrapperRunsCommand(t *testing.T) {
 	s.OnGameRunning = func(r bool) { running = append(running, r) }
 
 	w := s.Wrapper()
-	if !w.Active || w.GameID != id || w.GameName != "Game A" {
-		t.Fatalf("Wrapper = %+v", w)
-	}
+	require.True(t, w.Active)
+	require.Equal(t, id, w.GameID)
+	require.Equal(t, "Game A", w.GameName)
 
 	s.Start()
 	s.Start() // a second Start is a no-op
 	out := waitOutcome(t, done)
-	if out.Err != nil || out.ExitCode != 3 {
-		t.Fatalf("outcome = %+v, want exit code 3 and no error", out)
-	}
-	if len(running) != 2 || !running[0] || running[1] {
-		t.Fatalf("OnGameRunning calls = %v, want [true false]", running)
-	}
-	if len(phases) == 0 || phases[len(phases)-1] != "done" {
-		t.Fatalf("status phases = %v, want to end with done", phases)
-	}
-	if st := s.Wrapper().Status; st.Phase != "done" || st.GameID != id {
-		t.Fatalf("wrapper status = %+v", st)
-	}
-	if s.IsRunning(id) {
-		t.Fatal("game still reported as running")
-	}
+	require.NoError(t, out.Err)
+	require.Equal(t, 3, out.ExitCode)
+	require.Equal(t, []bool{true, false}, running, "OnGameRunning calls")
+	require.NotEmpty(t, phases)
+	require.Equal(t, "done", phases[len(phases)-1], "status phases = %v", phases)
+	st := s.Wrapper().Status
+	require.Equal(t, "done", st.Phase)
+	require.Equal(t, id, st.GameID)
+	require.False(t, s.IsRunning(id), "game still reported as running")
 }
 
 func TestWrapperUnknownGame(t *testing.T) {
@@ -125,36 +104,25 @@ func TestWrapperUnknownGame(t *testing.T) {
 	var last Status
 	bus.OnStatus(func(st Status) { last = st })
 	s.Start()
-	if out := waitOutcome(t, done); out.Err == nil {
-		t.Fatal("outcome of an unknown game: want an error")
-	}
-	if last.Phase != "error" {
-		t.Fatalf("status = %+v, want an error", last)
-	}
+	require.Error(t, waitOutcome(t, done).Err, "outcome of an unknown game")
+	require.Equal(t, "error", last.Phase)
 }
 
 // A game that is already being played can't be started again.
 func TestPlayRefusesRunningGame(t *testing.T) {
 	t.Setenv(appdir.EnvHome, t.TempDir())
 	c, err := core.New()
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 	s := NewSessionService(c, NewBus())
 	id := addGame(t, s)
 
 	s.mu.Lock()
 	s.running[id] = true
 	s.mu.Unlock()
-	if err := s.Play(id); err == nil {
-		t.Error("Play of a running game: want an error")
-	}
-	if _, err := s.play(t.Context(), id, core.RunOptions{}); err == nil {
-		t.Error("play of a running game: want an error")
-	}
-	if !s.IsRunning(id) {
-		t.Error("IsRunning = false for a running game")
-	}
+	assert.Error(t, s.Play(id), "Play of a running game")
+	_, err = s.play(t.Context(), id, core.RunOptions{})
+	assert.Error(t, err, "play of a running game")
+	assert.True(t, s.IsRunning(id), "IsRunning = false for a running game")
 }
 
 // Play from the launcher runs in the background and ends with a done status.
@@ -164,30 +132,23 @@ func TestPlayFromLauncher(t *testing.T) {
 	}
 	t.Setenv(appdir.EnvHome, t.TempDir())
 	c, err := core.New()
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 	bus := NewBus()
 	s := NewSessionService(c, bus)
 	id := addGame(t, s)
-	if _, err := c.Library.UpdateDevice(id, c.DeviceID(), func(d *library.DeviceConfig) { d.Args = "-c true" }); err != nil {
-		t.Fatal(err)
-	}
+	_, err = c.Library.UpdateDevice(id, c.DeviceID(), func(d *library.DeviceConfig) { d.Args = "-c true" })
+	require.NoError(t, err)
 	finished := make(chan Status, 8)
 	bus.OnStatus(func(st Status) {
 		if st.Phase == "done" || st.Phase == "error" {
 			finished <- st
 		}
 	})
-	if err := s.Play(id); err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, s.Play(id))
 	select {
 	case st := <-finished:
-		if st.Phase != "done" {
-			t.Fatalf("final status = %+v", st)
-		}
+		require.Equal(t, "done", st.Phase)
 	case <-time.After(30 * time.Second):
-		t.Fatal("the session never finished")
+		require.Fail(t, "the session never finished")
 	}
 }

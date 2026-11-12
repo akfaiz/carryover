@@ -5,27 +5,25 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
-	"slices"
 	"testing"
 	"time"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/akfaiz/carryover/internal/cloud"
 )
 
 func setupCloud(t *testing.T) string {
 	t.Helper()
-	if err := cloud.Init(filepath.Join(t.TempDir(), "rclone.conf")); err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, cloud.Init(filepath.Join(t.TempDir(), "rclone.conf")))
 	return filepath.Join(t.TempDir(), "cloud")
 }
 
 func newDevice(t *testing.T, cloudDir, id string) (*Engine, Job) {
 	t.Helper()
 	c, err := cloud.NewClient(cloudDir)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 	root := t.TempDir()
 	e := &Engine{
 		Client:    c,
@@ -33,21 +31,15 @@ func newDevice(t *testing.T, cloudDir, id string) (*Engine, Job) {
 		Device:    Device{ID: id, Name: id},
 		Retention: 3,
 	}
-	if err := os.MkdirAll(e.States.Dir, 0o755); err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, os.MkdirAll(e.States.Dir, 0o755))
 	job := Job{GameID: "game1", Slots: []Slot{{Key: "saves", LocalPath: filepath.Join(root, "saves")}}}
 	return e, job
 }
 
 func write(t *testing.T, dir, name, content string) {
 	t.Helper()
-	if err := os.MkdirAll(dir, 0o755); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(filepath.Join(dir, name), []byte(content), 0o644); err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, os.MkdirAll(dir, 0o755))
+	require.NoError(t, os.WriteFile(filepath.Join(dir, name), []byte(content), 0o644))
 	// ensure mtime changes even on coarse filesystems
 	future := time.Now().Add(time.Duration(len(content)) * time.Second)
 	_ = os.Chtimes(filepath.Join(dir, name), future, future)
@@ -56,21 +48,17 @@ func write(t *testing.T, dir, name, content string) {
 func read(t *testing.T, dir, name string) string {
 	t.Helper()
 	b, err := os.ReadFile(filepath.Join(dir, name))
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 	return string(b)
 }
 
 func mustSync(t *testing.T, e *Engine, job Job, res Resolution, want Action) {
 	t.Helper()
 	_, got, err := e.Sync(context.Background(), job, res)
-	if err != nil && !errors.Is(err, ErrConflict) {
-		t.Fatalf("sync: %v", err)
+	if !errors.Is(err, ErrConflict) {
+		require.NoError(t, err, "sync")
 	}
-	if got != want {
-		t.Fatalf("action = %s, want %s", got, want)
-	}
+	require.Equal(t, want, got)
 }
 
 func TestTwoDeviceSync(t *testing.T) {
@@ -89,9 +77,7 @@ func TestTwoDeviceSync(t *testing.T) {
 
 	// Deck has nothing -> pull.
 	mustSync(t, deck, deckJob, ResolveAuto, ActionPull)
-	if got := read(t, deckSaves, "slot1.sav"); got != "pc-1" {
-		t.Fatalf("deck save = %q", got)
-	}
+	require.Equal(t, "pc-1", read(t, deckSaves, "slot1.sav"))
 	mustSync(t, deck, deckJob, ResolveAuto, ActionNone)
 
 	// Deck plays -> push; PC pulls.
@@ -99,19 +85,13 @@ func TestTwoDeviceSync(t *testing.T) {
 	write(t, deckSaves, "slot2.sav", "new")
 	mustSync(t, deck, deckJob, ResolveAuto, ActionPush)
 	mustSync(t, pc, pcJob, ResolveAuto, ActionPull)
-	if got := read(t, pcSaves, "slot1.sav"); got != "deck-22" {
-		t.Fatalf("pc save = %q", got)
-	}
+	require.Equal(t, "deck-22", read(t, pcSaves, "slot1.sav"))
 
 	// Deletion propagates.
-	if err := os.Remove(filepath.Join(pcSaves, "slot2.sav")); err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, os.Remove(filepath.Join(pcSaves, "slot2.sav")))
 	mustSync(t, pc, pcJob, ResolveAuto, ActionPush)
 	mustSync(t, deck, deckJob, ResolveAuto, ActionPull)
-	if _, err := os.Stat(filepath.Join(deckSaves, "slot2.sav")); !os.IsNotExist(err) {
-		t.Fatalf("slot2.sav should be deleted on deck, err=%v", err)
-	}
+	require.NoFileExists(t, filepath.Join(deckSaves, "slot2.sav"), "slot2.sav should be deleted on deck")
 
 	// Both change -> conflict, then resolve keeping cloud on PC.
 	write(t, pcSaves, "slot1.sav", "pc-conflict")
@@ -119,22 +99,15 @@ func TestTwoDeviceSync(t *testing.T) {
 	mustSync(t, deck, deckJob, ResolveAuto, ActionPush)
 	mustSync(t, pc, pcJob, ResolveAuto, ActionConflict)
 	st, _ := pc.States.Load("game1")
-	if !st.Conflict {
-		t.Fatal("expected conflict flag in state")
-	}
+	require.True(t, st.Conflict, "expected conflict flag in state")
 	mustSync(t, pc, pcJob, ResolveCloud, ActionPull)
-	if got := read(t, pcSaves, "slot1.sav"); got != "deck-conflict!" {
-		t.Fatalf("pc save after resolve = %q", got)
-	}
+	require.Equal(t, "deck-conflict!", read(t, pcSaves, "slot1.sav"))
 
 	// The overwritten PC save must be in a backup.
 	backups, err := pc.ListBackups(context.Background(), "game1")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if len(backups) == 0 || len(backups) > pc.Retention {
-		t.Fatalf("backups = %d, want 1..%d", len(backups), pc.Retention)
-	}
+	require.NoError(t, err)
+	require.NotEmpty(t, backups)
+	require.LessOrEqual(t, len(backups), pc.Retention)
 	var localBackup string
 	for _, b := range backups {
 		if b.Kind == "local" && b.DeviceName == "pc" {
@@ -142,24 +115,14 @@ func TestTwoDeviceSync(t *testing.T) {
 			break
 		}
 	}
-	if localBackup == "" {
-		t.Fatalf("no local backup from pc in %+v", backups)
-	}
-	if got := readZipEntry(t, filepath.Join(cloudDir, "games", "game1", "backups", localBackup+".zip"), "saves/slot1.sav"); got != "pc-conflict" {
-		t.Fatalf("backup content = %q", got)
-	}
+	require.NotEqual(t, "", localBackup)
+	require.Equal(t, "pc-conflict", readZipEntry(t, filepath.Join(cloudDir, "games", "game1", "backups", localBackup+".zip"), "saves/slot1.sav"))
 
 	// Restore that backup: becomes local and cloud version.
-	if err := pc.RestoreBackup(context.Background(), pcJob, localBackup); err != nil {
-		t.Fatal(err)
-	}
-	if got := read(t, pcSaves, "slot1.sav"); got != "pc-conflict" {
-		t.Fatalf("after restore = %q", got)
-	}
+	require.NoError(t, pc.RestoreBackup(context.Background(), pcJob, localBackup))
+	require.Equal(t, "pc-conflict", read(t, pcSaves, "slot1.sav"))
 	mustSync(t, deck, deckJob, ResolveAuto, ActionPull)
-	if got := read(t, deckSaves, "slot1.sav"); got != "pc-conflict" {
-		t.Fatalf("deck after restore = %q", got)
-	}
+	require.Equal(t, "pc-conflict", read(t, deckSaves, "slot1.sav"))
 }
 
 func TestFirstSyncBothPresent(t *testing.T) {
@@ -185,9 +148,7 @@ func TestFilters(t *testing.T) {
 	write(t, job.Slots[0].LocalPath, "a.sav", "x")
 	write(t, job.Slots[0].LocalPath, "debug.log", "noise")
 	mustSync(t, pc, job, ResolveAuto, ActionPush)
-	if _, err := os.Stat(filepath.Join(cloudDir, "games", "game1", "current", "saves", "debug.log")); !os.IsNotExist(err) {
-		t.Fatal("excluded file was uploaded")
-	}
+	require.NoFileExists(t, filepath.Join(cloudDir, "games", "game1", "current", "saves", "debug.log"), "excluded file was uploaded")
 	// changing an excluded file doesn't trigger a sync
 	write(t, job.Slots[0].LocalPath, "debug.log", "more noise")
 	mustSync(t, pc, job, ResolveAuto, ActionNone)
@@ -218,26 +179,21 @@ func TestDecide(t *testing.T) {
 		{"cloud wiped", m("", "a"), nil, m("r1", "a"), ActionPush},
 	}
 	for _, c := range cases {
-		if got := Decide(c.local, c.remote, c.last); got != c.want {
-			t.Errorf("%s: got %s want %s", c.name, got, c.want)
-		}
+		assert.Equal(t, c.want, Decide(c.local, c.remote, c.last))
 	}
 }
 
 func TestLocalLock(t *testing.T) {
 	dir := t.TempDir()
 	l, err := AcquireLocalLock(dir, "g")
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 	if _, err := AcquireLocalLock(dir, "g"); err == nil {
 		// same pid holds it; our own pid is treated as stale only if different
 		t.Log("lock re-acquired by same process (expected: pid equals ours)")
 	}
 	l.Release()
-	if _, err := AcquireLocalLock(dir, "g"); err != nil {
-		t.Fatal(err)
-	}
+	_, err = AcquireLocalLock(dir, "g")
+	require.NoError(t, err)
 }
 
 // Save-path suggestions turn "<winAppData>/Game/<storeUserId>" into the folder
@@ -251,9 +207,7 @@ func TestWildcardFolderFilters(t *testing.T) {
 	write(t, saves, "top.sav", "top")
 	mustSync(t, pc, job, ResolveAuto, ActionPush)
 	for _, rel := range []string{"76561198000000000/ER0000.sl2", "top.sav"} {
-		if _, err := os.Stat(filepath.Join(cloudDir, "games", "game1", "current", "saves", filepath.FromSlash(rel))); err != nil {
-			t.Errorf("%s not uploaded: %v", rel, err)
-		}
+		assert.FileExists(t, filepath.Join(cloudDir, "games", "game1", "current", "saves", filepath.FromSlash(rel)), "%s not uploaded", rel)
 	}
 
 	// A file-only pattern must not pull in unrelated folders.
@@ -262,12 +216,9 @@ func TestWildcardFolderFilters(t *testing.T) {
 	write(t, filepath.Join(job2.Slots[0].LocalPath, "slot1"), "a.sav", "x")
 	write(t, filepath.Join(job2.Slots[0].LocalPath, "slot1"), "shader.cache", "y")
 	p, err := pc2.Plan(context.Background(), job2)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if _, ok := p.Local.Files["saves/slot1/a.sav"]; !ok || len(p.Local.Files) != 1 {
-		t.Fatalf("unexpected files: %v", p.Local.Files)
-	}
+	require.NoError(t, err)
+	require.Len(t, p.Local.Files, 1)
+	require.Contains(t, p.Local.Files, "saves/slot1/a.sav")
 }
 
 func cloudSaves(cloudDir string) string {
@@ -286,29 +237,17 @@ func TestPushTransfersOnlyChangedFiles(t *testing.T) {
 
 	// Mark the cloud copy of b.sav (same size): if b.sav were re-uploaded
 	// the marker would be overwritten.
-	if err := os.WriteFile(filepath.Join(cloudSaves(cloudDir), "b.sav"), []byte("XXX"), 0o644); err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, os.WriteFile(filepath.Join(cloudSaves(cloudDir), "b.sav"), []byte("XXX"), 0o644))
 	write(t, saves, "a.sav", "a-2!")
 	_, _, err := pc.Sync(context.Background(), job, ResolveAuto)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if got := read(t, cloudSaves(cloudDir), "a.sav"); got != "a-2!" {
-		t.Fatalf("cloud a.sav = %q, want the changed file uploaded", got)
-	}
-	if got := read(t, cloudSaves(cloudDir), "b.sav"); got != "XXX" {
-		t.Fatalf("cloud b.sav = %q: unchanged file was re-uploaded", got)
-	}
+	require.NoError(t, err)
+	require.Equal(t, "a-2!", read(t, cloudSaves(cloudDir), "a.sav"))
+	require.Equal(t, "XXX", read(t, cloudSaves(cloudDir), "b.sav"))
 
 	// A deleted save is removed from the cloud.
-	if err := os.Remove(filepath.Join(saves, "b.sav")); err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, os.Remove(filepath.Join(saves, "b.sav")))
 	mustSync(t, pc, job, ResolveAuto, ActionPush)
-	if _, err := os.Stat(filepath.Join(cloudSaves(cloudDir), "b.sav")); !os.IsNotExist(err) {
-		t.Fatalf("b.sav still in cloud, err=%v", err)
-	}
+	require.NoFileExists(t, filepath.Join(cloudSaves(cloudDir), "b.sav"), "b.sav still in cloud")
 }
 
 // Files in the cloud folder that the manifest doesn't describe (e.g. left by
@@ -327,12 +266,8 @@ func TestPushRepairsUntrustedCloudFiles(t *testing.T) {
 	write(t, saves, "a.sav", "a-2!")
 	mustSync(t, pc, job, ResolveAuto, ActionPush)
 
-	if _, err := os.Stat(filepath.Join(cloudSaves(cloudDir), "stray.tmp")); !os.IsNotExist(err) {
-		t.Fatalf("stray file not removed, err=%v", err)
-	}
-	if got := read(t, cloudSaves(cloudDir), "b.sav"); got != "b-1" {
-		t.Fatalf("cloud b.sav = %q, want it repaired from local", got)
-	}
+	require.NoFileExists(t, filepath.Join(cloudSaves(cloudDir), "stray.tmp"), "stray file not removed")
+	require.Equal(t, "b-1", read(t, cloudSaves(cloudDir), "b.sav"))
 }
 
 // A pull downloads only files whose checksum differs and deletes removed
@@ -350,48 +285,30 @@ func TestPullTransfersOnlyChangedFiles(t *testing.T) {
 	// Pin b.sav's mtime on the deck; a re-download would change it.
 	old := time.Date(2020, 1, 2, 3, 4, 5, 0, time.UTC)
 	bPath := filepath.Join(deckSaves, "b.sav")
-	if err := os.Chtimes(bPath, old, old); err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, os.Chtimes(bPath, old, old))
 	mustSync(t, deck, deckJob, ResolveAuto, ActionNone) // re-baseline after touching mtime
 
 	write(t, pcSaves, "a.sav", "a-2!")
 	mustSync(t, pc, pcJob, ResolveAuto, ActionPush)
 	mustSync(t, deck, deckJob, ResolveAuto, ActionPull)
-	if got := read(t, deckSaves, "a.sav"); got != "a-2!" {
-		t.Fatalf("deck a.sav = %q", got)
-	}
+	require.Equal(t, "a-2!", read(t, deckSaves, "a.sav"))
 	fi, err := os.Stat(bPath)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if !fi.ModTime().Equal(old) {
-		t.Fatalf("b.sav mtime = %v: unchanged file was re-downloaded", fi.ModTime())
-	}
+	require.NoError(t, err)
+	require.True(t, fi.ModTime().Equal(old))
 
-	if err := os.Remove(filepath.Join(pcSaves, "b.sav")); err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, os.Remove(filepath.Join(pcSaves, "b.sav")))
 	mustSync(t, pc, pcJob, ResolveAuto, ActionPush)
 	mustSync(t, deck, deckJob, ResolveAuto, ActionPull)
-	if _, err := os.Stat(bPath); !os.IsNotExist(err) {
-		t.Fatalf("b.sav not deleted on deck, err=%v", err)
-	}
+	require.NoFileExists(t, bPath, "b.sav not deleted on deck")
 }
 
 func TestDiff(t *testing.T) {
 	src := map[string]FileInfo{"same": {Size: 1, Hash: "h"}, "changed": {Size: 1, Hash: "new"}, "added": {Size: 4, Hash: "a"}}
 	dst := map[string]FileInfo{"same": {Size: 1, Hash: "h"}, "changed": {Size: 1, Hash: "old"}, "removed": {Size: 1, Hash: "r"}}
 	d := diff(src, dst)
-	if want := []string{"added", "changed"}; !slices.Equal(d.copy, want) {
-		t.Errorf("copy = %v, want %v", d.copy, want)
-	}
-	if want := []string{"removed"}; !slices.Equal(d.del, want) {
-		t.Errorf("del = %v, want %v", d.del, want)
-	}
-	if d.bytes != 5 {
-		t.Errorf("bytes = %d, want 5", d.bytes)
-	}
+	assert.Equal(t, []string{"added", "changed"}, d.copy)
+	assert.Equal(t, []string{"removed"}, d.del)
+	assert.EqualValues(t, 5, d.bytes)
 }
 
 // Forcing a sync when nothing differs transfers nothing and takes no backup.
@@ -403,12 +320,8 @@ func TestNoOpForcedSyncSkipsBackup(t *testing.T) {
 	mustSync(t, pc, job, ResolveLocal, ActionPush)
 	mustSync(t, pc, job, ResolveCloud, ActionPull)
 	backups, err := pc.ListBackups(context.Background(), "game1")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if len(backups) != 0 {
-		t.Fatalf("backups = %+v, want none for no-op syncs", backups)
-	}
+	require.NoError(t, err)
+	require.Empty(t, backups)
 }
 
 // Cancelling a sync mid-backup removes the partial backup, doesn't record a
@@ -431,31 +344,21 @@ func TestCancelledSyncLeavesNoPartialBackup(t *testing.T) {
 		}
 	}
 	write(t, saves, "a.sav", "a-2!")
-	if _, _, err := pc.Sync(ctx, job, ResolveAuto); !errors.Is(err, context.Canceled) {
-		t.Fatalf("sync err = %v, want context.Canceled", err)
-	}
+	_, _, err := pc.Sync(ctx, job, ResolveAuto)
+	require.ErrorIs(t, err, context.Canceled)
 	pc.OnEvent = nil
 
 	backups, err := pc.ListBackups(context.Background(), "game1")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if len(backups) != 0 {
-		t.Fatalf("partial backup left behind: %+v", backups)
-	}
+	require.NoError(t, err)
+	require.Empty(t, backups)
 	after, _ := pc.States.Load("game1")
-	if !after.LastSyncAt.Equal(before.LastSyncAt) || after.LastError != "" {
-		t.Fatalf("cancelled sync changed state: %+v", after)
-	}
-	if got := read(t, cloudSaves(cloudDir), "a.sav"); got != "a-1" {
-		t.Fatalf("cloud a.sav = %q, want untouched", got)
-	}
+	require.True(t, after.LastSyncAt.Equal(before.LastSyncAt), "cancelled sync changed the last sync time")
+	require.Empty(t, after.LastError, "cancelled sync recorded an error")
+	require.Equal(t, "a-1", read(t, cloudSaves(cloudDir), "a.sav"))
 
 	// The next sync does the work.
 	mustSync(t, pc, job, ResolveAuto, ActionPush)
-	if got := read(t, cloudSaves(cloudDir), "a.sav"); got != "a-2!" {
-		t.Fatalf("cloud a.sav after retry = %q", got)
-	}
+	require.Equal(t, "a-2!", read(t, cloudSaves(cloudDir), "a.sav"))
 }
 
 // A cancelled context stops the local scan.
@@ -464,9 +367,8 @@ func TestScanLocalCancelled(t *testing.T) {
 	write(t, dir, "a.sav", "x")
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
-	if _, err := ScanLocal(ctx, []Slot{{Key: "s", LocalPath: dir}}, nil); !errors.Is(err, context.Canceled) {
-		t.Fatalf("err = %v, want context.Canceled", err)
-	}
+	_, err := ScanLocal(ctx, []Slot{{Key: "s", LocalPath: dir}}, nil)
+	require.ErrorIs(t, err, context.Canceled)
 }
 
 // A backup archive whose upload didn't complete is deleted.
@@ -476,9 +378,7 @@ func TestDiscardPartialBackup(t *testing.T) {
 	backups := filepath.Join(cloudDir, "games", "game1", "backups")
 	write(t, backups, "20260101T000000.000Z_pc_cloud.zip", "half")
 	pc.discardBackup("game1", "20260101T000000.000Z_pc_cloud")
-	if _, err := os.Stat(filepath.Join(backups, "20260101T000000.000Z_pc_cloud.zip")); !os.IsNotExist(err) {
-		t.Fatalf("partial backup still there, err=%v", err)
-	}
+	require.NoFileExists(t, filepath.Join(backups, "20260101T000000.000Z_pc_cloud.zip"), "partial backup still there")
 }
 
 // Restoring a backup keeps the current saves as a backup even when backups
@@ -492,33 +392,23 @@ func TestRestoreBacksUpLocalWhenRetentionOff(t *testing.T) {
 	write(t, job.Slots[0].LocalPath, "a.sav", "a-2")
 	mustSync(t, pc, job, ResolveAuto, ActionPush) // backs up a-1 (cloud)
 	backups, err := pc.ListBackups(ctx, "game1")
-	if err != nil || len(backups) != 1 {
-		t.Fatalf("backups = %+v, %v", backups, err)
-	}
+	require.NoError(t, err)
+	require.Len(t, backups, 1)
 	pc.Retention = 0
-	if err := pc.RestoreBackup(ctx, job, backups[0].Name); err != nil {
-		t.Fatal(err)
-	}
-	if got := read(t, job.Slots[0].LocalPath, "a.sav"); got != "a-1" {
-		t.Fatalf("restored a.sav = %q, want a-1", got)
-	}
+	require.NoError(t, pc.RestoreBackup(ctx, job, backups[0].Name))
+	require.Equal(t, "a-1", read(t, job.Slots[0].LocalPath, "a.sav"))
 	after, _ := pc.ListBackups(ctx, "game1")
-	if len(after) != 2 {
-		t.Fatalf("backups after restore = %+v, want the old one plus a local backup of a-2", after)
-	}
+	require.Len(t, after, 2)
 }
 
 // A truncated state file counts as "never synced" instead of failing syncs.
 func TestCorruptStateIsIgnored(t *testing.T) {
 	dir := t.TempDir()
 	s := &StateStore{Dir: dir}
-	if err := os.WriteFile(filepath.Join(dir, "g.json"), []byte(`{"lastSyn`), 0o644); err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "g.json"), []byte(`{"lastSyn`), 0o644))
 	st, err := s.Load("g")
-	if err != nil || st.LastSynced != nil {
-		t.Fatalf("Load = %+v, %v", st, err)
-	}
+	require.NoError(t, err)
+	require.Nil(t, st.LastSynced)
 }
 
 // "Back up now" works with backups off, pins the backup, and pruning keeps it
@@ -528,18 +418,17 @@ func TestManualBackupIsPinned(t *testing.T) {
 	pc, job := newDevice(t, cloudDir, "pc")
 	ctx := context.Background()
 	pc.Retention = 0
-	if _, err := pc.BackupNow(ctx, job); err == nil {
-		t.Fatal("BackupNow with no local saves should fail")
-	}
+	_, err := pc.BackupNow(ctx, job)
+	require.Error(t, err, "BackupNow with no local saves should fail")
 	write(t, job.Slots[0].LocalPath, "a.sav", "a-1")
 	name, err := pc.BackupNow(ctx, job)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 	list, err := pc.ListBackups(ctx, "game1")
-	if err != nil || len(list) != 1 || list[0].Name != name || list[0].Kind != "manual" || !list[0].Pinned {
-		t.Fatalf("backups = %+v, %v", list, err)
-	}
+	require.NoError(t, err)
+	require.Len(t, list, 1)
+	require.Equal(t, name, list[0].Name)
+	require.Equal(t, "manual", list[0].Kind)
+	require.True(t, list[0].Pinned)
 
 	// Backups on, keep 1: later automatic backups rotate, the pinned one stays.
 	pc.Retention = 1
@@ -548,34 +437,23 @@ func TestManualBackupIsPinned(t *testing.T) {
 		mustSync(t, pc, job, ResolveAuto, ActionPush)
 	}
 	list, _ = pc.ListBackups(ctx, "game1")
-	if len(list) != 2 {
-		t.Fatalf("backups = %+v, want the pinned one plus 1 automatic", list)
-	}
+	require.Len(t, list, 2)
 	var kept bool
 	for _, b := range list {
 		kept = kept || (b.Name == name && b.Pinned)
 	}
-	if !kept {
-		t.Fatalf("pinned backup was pruned: %+v", list)
-	}
+	require.True(t, kept)
 
 	// Unpinned, it is pruned like any other once there are more than Retention.
-	if err := pc.SetBackupPinned(ctx, "game1", name, false); err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, pc.SetBackupPinned(ctx, "game1", name, false))
 	write(t, job.Slots[0].LocalPath, "a.sav", "a-5")
 	mustSync(t, pc, job, ResolveAuto, ActionPush)
 	// Pruning runs in the background of the sync; run it again to be sure.
-	if err := pc.prune(ctx, "game1"); err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, pc.prune(ctx, "game1"))
 	list, _ = pc.ListBackups(ctx, "game1")
-	if len(list) != 1 || list[0].Name == name {
-		t.Fatalf("backups = %+v, want only the latest automatic one", list)
-	}
-	if err := pc.SetBackupPinned(ctx, "game1", "nope", true); err == nil {
-		t.Error("pinning an unknown backup should fail")
-	}
+	require.Len(t, list, 1, "want only the latest automatic backup")
+	require.NotEqual(t, name, list[0].Name)
+	assert.Error(t, pc.SetBackupPinned(ctx, "game1", "nope", true), "pinning an unknown backup should fail")
 }
 
 // Retention 0 means backups are off: pruning never deletes anything.
@@ -584,27 +462,20 @@ func TestPruneWithRetentionOffKeepsEverything(t *testing.T) {
 	pc, job := newDevice(t, cloudDir, "pc")
 	ctx := context.Background()
 	write(t, job.Slots[0].LocalPath, "a.sav", "a-1")
-	if _, err := pc.BackupNow(ctx, job); err != nil {
-		t.Fatal(err)
-	}
-	if err := pc.SetBackupPinned(ctx, "game1", mustOnlyBackup(t, pc), false); err != nil {
-		t.Fatal(err)
-	}
+	_, err := pc.BackupNow(ctx, job)
+	require.NoError(t, err)
+	require.NoError(t, pc.SetBackupPinned(ctx, "game1", mustOnlyBackup(t, pc), false))
 	pc.Retention = 0
-	if err := pc.prune(ctx, "game1"); err != nil {
-		t.Fatal(err)
-	}
-	if list, _ := pc.ListBackups(ctx, "game1"); len(list) != 1 {
-		t.Fatalf("backups = %+v, want 1", list)
-	}
+	require.NoError(t, pc.prune(ctx, "game1"))
+	list, _ := pc.ListBackups(ctx, "game1")
+	require.Len(t, list, 1)
 }
 
 func mustOnlyBackup(t *testing.T, e *Engine) string {
 	t.Helper()
 	list, err := e.ListBackups(context.Background(), "game1")
-	if err != nil || len(list) != 1 {
-		t.Fatalf("backups = %+v, %v", list, err)
-	}
+	require.NoError(t, err)
+	require.Len(t, list, 1)
 	return list[0].Name
 }
 
@@ -625,9 +496,8 @@ func TestPlanActionFor(t *testing.T) {
 	}
 	for _, c := range cases {
 		got, err := c.p.ActionFor(c.res)
-		if got != c.want || (err != nil) != c.err {
-			t.Errorf("ActionFor(%q) = %v, %v; want %v (err %v)", c.res, got, err, c.want, c.err)
-		}
+		assert.Equal(t, c.want, got, "ActionFor(%q)", c.res)
+		assert.Equal(t, c.err, err != nil, "ActionFor(%q) error", c.res)
 	}
 }
 
@@ -639,29 +509,18 @@ func TestDeleteBackup(t *testing.T) {
 	write(t, job.Slots[0].LocalPath, "a.sav", "a-1")
 	mustSync(t, pc, job, ResolveAuto, ActionPush) // the cloud has nothing to back up yet
 	pinned, err := pc.BackupNow(ctx, job)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 	write(t, job.Slots[0].LocalPath, "a.sav", "a-2")
 	mustSync(t, pc, job, ResolveAuto, ActionPush) // automatic backup of the cloud side
 	list, _ := pc.ListBackups(ctx, "game1")
-	if len(list) != 2 {
-		t.Fatalf("backups = %+v, want 2", list)
-	}
-	if err := pc.DeleteBackup(ctx, "game1", pinned); err != nil {
-		t.Fatal(err)
-	}
+	require.Len(t, list, 2)
+	require.NoError(t, pc.DeleteBackup(ctx, "game1", pinned))
 	list, _ = pc.ListBackups(ctx, "game1")
-	if len(list) != 1 || list[0].Name == pinned || list[0].Pinned {
-		t.Fatalf("backups after delete = %+v", list)
-	}
-	if pins, _ := pc.readPins(ctx, "game1"); len(pins) != 0 {
-		t.Errorf("pins = %v, want none", pins)
-	}
-	if err := pc.DeleteBackup(ctx, "game1", pinned); err == nil {
-		t.Error("deleting a missing backup should fail")
-	}
-	if err := pc.DeleteBackup(ctx, "game1", "../x"); err == nil {
-		t.Error("invalid name should fail")
-	}
+	require.Len(t, list, 1, "backups after delete")
+	require.NotEqual(t, pinned, list[0].Name)
+	require.False(t, list[0].Pinned)
+	pins, _ := pc.readPins(ctx, "game1")
+	assert.Empty(t, pins, "pins")
+	assert.Error(t, pc.DeleteBackup(ctx, "game1", pinned), "deleting a missing backup should fail")
+	assert.Error(t, pc.DeleteBackup(ctx, "game1", "../x"), "invalid name should fail")
 }

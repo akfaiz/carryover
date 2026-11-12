@@ -6,6 +6,8 @@ import (
 	"testing"
 
 	"github.com/rclone/rclone/fs/config"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/akfaiz/carryover/internal/appdir"
 	"github.com/akfaiz/carryover/internal/core"
@@ -26,30 +28,20 @@ func newSyncEnv(t *testing.T) syncEnv {
 	home := t.TempDir()
 	t.Setenv(appdir.EnvHome, home)
 	c, err := core.New()
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 	config.FileSetValue("cloud", "type", "local")
 	st := c.Settings.Get()
 	st.Remote, st.RemoteRoot = "cloud", filepath.ToSlash(filepath.Join(home, "cloud"))
-	if err := c.Settings.Update(st); err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, c.Settings.Update(st))
 	saves := filepath.Join(home, "saves")
-	if err := os.MkdirAll(saves, 0o755); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(filepath.Join(saves, "a.sav"), []byte("one"), 0o644); err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, os.MkdirAll(saves, 0o755))
+	require.NoError(t, os.WriteFile(filepath.Join(saves, "a.sav"), []byte("one"), 0o644))
 	g, err := c.Library.Save(library.Game{
 		Name:    "Game A",
 		Slots:   []library.SaveSlot{{Key: "saves"}},
 		Devices: map[string]library.DeviceConfig{c.DeviceID(): {Paths: map[string]string{"saves": saves}, Exe: "x"}},
 	}, c.DeviceID())
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 	return syncEnv{c: c, svc: NewSyncService(c, NewBus()), id: g.ID, saves: saves}
 }
 
@@ -57,40 +49,33 @@ func TestPlanThenSyncAll(t *testing.T) {
 	e := newSyncEnv(t)
 
 	p, err := e.svc.Plan(e.id)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if p.Action != string(syncer.ActionPush) || p.HasRemote || p.Local.Files != 1 {
-		t.Fatalf("Plan = %+v, want a push of 1 local file and no cloud copy", p)
-	}
-	if _, err := e.svc.Plan("no-such-game"); err == nil {
-		t.Fatal("Plan of an unknown game: want an error")
-	}
+	require.NoError(t, err)
+	require.Equal(t, string(syncer.ActionPush), p.Action, "Plan: want a push")
+	require.False(t, p.HasRemote, "Plan: want no cloud copy")
+	require.Equal(t, 1, p.Local.Files, "Plan: want 1 local file")
+	_, err = e.svc.Plan("no-such-game")
+	require.Error(t, err, "Plan of an unknown game")
 
 	res, err := e.svc.SyncAll()
-	if err != nil || len(res) != 1 {
-		t.Fatalf("SyncAll = %+v, %v", res, err)
-	}
-	if res[0].GameID != e.id || res[0].Action != string(syncer.ActionPush) || res[0].Error != "" {
-		t.Fatalf("SyncAll result = %+v", res[0])
-	}
+	require.NoError(t, err)
+	require.Len(t, res, 1)
+	require.Equal(t, e.id, res[0].GameID)
+	require.Equal(t, string(syncer.ActionPush), res[0].Action)
+	require.Empty(t, res[0].Error)
 
 	// Everything is uploaded now: a second run has nothing to do.
 	res, err = e.svc.SyncAll()
-	if err != nil || len(res) != 1 || res[0].Action != string(syncer.ActionNone) {
-		t.Fatalf("second SyncAll = %+v, %v", res, err)
-	}
+	require.NoError(t, err, "second SyncAll")
+	require.Len(t, res, 1)
+	require.Equal(t, string(syncer.ActionNone), res[0].Action)
 }
 
 func TestSyncAllNeedsCloud(t *testing.T) {
 	t.Setenv(appdir.EnvHome, t.TempDir())
 	c, err := core.New()
-	if err != nil {
-		t.Fatal(err)
-	}
-	if _, err := NewSyncService(c, NewBus()).SyncAll(); err == nil {
-		t.Fatal("SyncAll without a remote: want an error")
-	}
+	require.NoError(t, err)
+	_, err = NewSyncService(c, NewBus()).SyncAll()
+	require.Error(t, err, "SyncAll without a remote")
 }
 
 func TestSettingsRoundTrip(t *testing.T) {
@@ -98,74 +83,55 @@ func TestSettingsRoundTrip(t *testing.T) {
 	st := e.svc.GetSettings()
 	st.BackupRetention = 7
 	got, err := e.svc.SaveSettings(st)
-	if err != nil || got.BackupRetention != 7 || e.svc.GetSettings().BackupRetention != 7 {
-		t.Fatalf("SaveSettings = %+v, %v", got, err)
-	}
+	require.NoError(t, err)
+	require.Equal(t, 7, got.BackupRetention)
+	require.Equal(t, 7, e.svc.GetSettings().BackupRetention)
 }
 
 // BackupNow stores a pinned backup; it can be unpinned, restored over changed
 // saves and deleted.
 func TestBackupLifecycle(t *testing.T) {
 	e := newSyncEnv(t)
-	if _, err := e.svc.Sync(e.id, ""); err != nil {
-		t.Fatal(err)
-	}
+	_, err := e.svc.Sync(e.id, "")
+	require.NoError(t, err)
 
-	if b, err := e.svc.Backups(e.id); err != nil || b == nil || len(b) != 0 {
-		t.Fatalf("Backups before any = %v, %v; want an empty, non-nil list", b, err)
-	}
+	none, err := e.svc.Backups(e.id)
+	require.NoError(t, err)
+	require.NotNil(t, none, "want an empty, non-nil list")
+	require.Empty(t, none)
 
-	if err := e.svc.BackupNow(e.id); err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, e.svc.BackupNow(e.id))
 	backups, err := e.svc.Backups(e.id)
-	if err != nil || len(backups) != 1 {
-		t.Fatalf("Backups = %+v, %v; want one", backups, err)
-	}
+	require.NoError(t, err)
+	require.Len(t, backups, 1)
 	b := backups[0]
-	if !b.Pinned || b.Kind != "manual" || b.Local {
-		t.Fatalf("manual backup = %+v", b)
-	}
+	require.True(t, b.Pinned, "manual backup is pinned")
+	require.Equal(t, "manual", b.Kind)
+	require.False(t, b.Local)
 
-	if err := e.svc.SetBackupPinned(e.id, b.Name, false); err != nil {
-		t.Fatal(err)
-	}
-	if backups, _ = e.svc.Backups(e.id); backups[0].Pinned {
-		t.Fatal("backup still pinned")
-	}
+	require.NoError(t, e.svc.SetBackupPinned(e.id, b.Name, false))
+	backups, _ = e.svc.Backups(e.id)
+	require.False(t, backups[0].Pinned, "backup still pinned")
 
 	// Change the saves, then restore: the old content comes back and is the
 	// current cloud version.
 	save := filepath.Join(e.saves, "a.sav")
-	if err := os.WriteFile(save, []byte("two, changed"), 0o644); err != nil {
-		t.Fatal(err)
-	}
-	if err := e.svc.RestoreBackup(e.id, b.Name); err != nil {
-		t.Fatal(err)
-	}
-	if got, _ := os.ReadFile(save); string(got) != "one" {
-		t.Fatalf("restored save = %q, want %q", got, "one")
-	}
-	if err := e.svc.RestoreBackup(e.id, "../evil"); err == nil {
-		t.Fatal("RestoreBackup with a path in the name: want an error")
-	}
+	require.NoError(t, os.WriteFile(save, []byte("two, changed"), 0o644))
+	require.NoError(t, e.svc.RestoreBackup(e.id, b.Name))
+	got, _ := os.ReadFile(save)
+	require.Equal(t, "one", string(got), "restored save")
+	require.Error(t, e.svc.RestoreBackup(e.id, "../evil"), "RestoreBackup with a path in the name")
 
-	if err := e.svc.DeleteBackup(e.id, b.Name); err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, e.svc.DeleteBackup(e.id, b.Name))
 	for _, left := range mustBackups(t, e) {
-		if left.Name == b.Name {
-			t.Fatalf("backup %s not deleted", b.Name)
-		}
+		require.NotEqual(t, b.Name, left.Name)
 	}
 }
 
 func mustBackups(t *testing.T, e syncEnv) []syncer.Backup {
 	t.Helper()
 	b, err := e.svc.Backups(e.id)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 	return b
 }
 
@@ -173,25 +139,16 @@ func mustBackups(t *testing.T, e syncEnv) []syncer.Backup {
 func TestBusyGameIsRefused(t *testing.T) {
 	e := newSyncEnv(t)
 	e.svc.busy.Store(e.id, struct{}{})
-	if _, err := e.svc.Sync(e.id, ""); err == nil {
-		t.Error("Sync while busy: want an error")
-	}
-	if err := e.svc.BackupNow(e.id); err == nil {
-		t.Error("BackupNow while busy: want an error")
-	}
-	if err := e.svc.DeleteBackup(e.id, "x"); err == nil {
-		t.Error("DeleteBackup while busy: want an error")
-	}
-	if err := e.svc.RestoreBackup(e.id, "x"); err == nil {
-		t.Error("RestoreBackup while busy: want an error")
-	}
+	_, err := e.svc.Sync(e.id, "")
+	assert.Error(t, err, "Sync while busy")
+	assert.Error(t, e.svc.BackupNow(e.id), "BackupNow while busy")
+	assert.Error(t, e.svc.DeleteBackup(e.id, "x"), "DeleteBackup while busy")
+	assert.Error(t, e.svc.RestoreBackup(e.id, "x"), "RestoreBackup while busy")
 }
 
 func TestRecoverSessionsService(t *testing.T) {
 	e := newSyncEnv(t)
-	if err := e.svc.RecoverSessions(); err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, e.svc.RecoverSessions())
 }
 
 func TestLibraryDeleteAndPathHelpers(t *testing.T) {
@@ -199,33 +156,18 @@ func TestLibraryDeleteAndPathHelpers(t *testing.T) {
 	lib := NewLibraryService(e.c, NewBus(), nil)
 
 	dir := t.TempDir()
-	if err := lib.CheckFolder(dir); err != nil {
-		t.Fatalf("CheckFolder(existing) = %v", err)
-	}
-	if err := lib.CheckFolder(filepath.Join(dir, "missing")); err == nil {
-		t.Fatal("CheckFolder(missing): want an error")
-	}
+	require.NoError(t, lib.CheckFolder(dir))
+	require.Error(t, lib.CheckFolder(filepath.Join(dir, "missing")), "CheckFolder(missing)")
 	file := filepath.Join(dir, "f")
-	if err := os.WriteFile(file, nil, 0o644); err != nil {
-		t.Fatal(err)
-	}
-	if err := lib.CheckFolder(file); err == nil {
-		t.Fatal("CheckFolder(file): want an error")
-	}
+	require.NoError(t, os.WriteFile(file, nil, 0o644))
+	require.Error(t, lib.CheckFolder(file), "CheckFolder(file)")
 
 	home, _ := os.UserHomeDir()
-	if got := lib.ContractPath(filepath.Join(home, "Games", "A")); got != "{home}/Games/A" {
-		t.Fatalf("ContractPath = %q", got)
-	}
+	require.Equal(t, "{home}/Games/A", lib.ContractPath(filepath.Join(home, "Games", "A")))
 
-	if err := lib.Delete(e.id); err != nil {
-		t.Fatal(err)
-	}
-	if _, err := e.c.Library.Get(e.id); err == nil {
-		t.Fatal("game still in the library after Delete")
-	}
+	require.NoError(t, lib.Delete(e.id))
+	_, err := e.c.Library.Get(e.id)
+	require.Error(t, err, "game still in the library after Delete")
 	// Deleting again is harmless.
-	if err := lib.Delete(e.id); err != nil {
-		t.Fatalf("second Delete = %v", err)
-	}
+	require.NoError(t, lib.Delete(e.id))
 }

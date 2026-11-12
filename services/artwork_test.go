@@ -3,8 +3,10 @@ package services
 import (
 	"os"
 	"path/filepath"
-	"strings"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/akfaiz/carryover/internal/appdir"
 	"github.com/akfaiz/carryover/internal/core"
@@ -24,25 +26,17 @@ func newLibEnv(t *testing.T) (*LibraryService, *core.Core, string) {
 	t.Setenv(appdir.EnvHome, t.TempDir())
 	t.Setenv("CARRYOVER_STEAM_ROOT", t.TempDir())
 	c, err := core.New()
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := os.MkdirAll(c.Dirs.CoversDir(), 0o755); err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
+	require.NoError(t, os.MkdirAll(c.Dirs.CoversDir(), 0o755))
 	g, err := c.Library.Save(library.Game{Name: "Game A", Slots: []library.SaveSlot{{Key: "saves"}}}, c.DeviceID())
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 	return NewLibraryService(c, NewBus(), nil), c, g.ID
 }
 
 func writeImage(t *testing.T, name string) string {
 	t.Helper()
 	p := filepath.Join(t.TempDir(), name)
-	if err := os.WriteFile(p, pngBytes, 0o644); err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, os.WriteFile(p, pngBytes, 0o644))
 	return p
 }
 
@@ -50,194 +44,139 @@ func TestSetCoverCopiesAndReplaces(t *testing.T) {
 	svc, c, id := newLibEnv(t)
 
 	v, err := svc.SetCover(id, writeImage(t, "c.png"))
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 	g, _ := c.Library.Get(id)
-	if g.Cover != id+".png" || v.ID != id {
-		t.Fatalf("cover = %q", g.Cover)
-	}
-	if _, err := os.Stat(filepath.Join(c.Dirs.CoversDir(), g.Cover)); err != nil {
-		t.Fatalf("cover file missing: %v", err)
-	}
+	require.Equal(t, id+".png", g.Cover)
+	require.Equal(t, id, v.ID)
+	require.FileExists(t, filepath.Join(c.Dirs.CoversDir(), g.Cover), "cover file missing")
 
 	// A different format replaces the old file.
-	if _, err := svc.SetCover(id, writeImage(t, "c.jpg")); err != nil {
-		t.Fatal(err)
-	}
+	_, err = svc.SetCover(id, writeImage(t, "c.jpg"))
+	require.NoError(t, err)
 	g, _ = c.Library.Get(id)
-	if g.Cover != id+".jpg" {
-		t.Fatalf("cover = %q, want the .jpg", g.Cover)
-	}
-	if _, err := os.Stat(filepath.Join(c.Dirs.CoversDir(), id+".png")); !os.IsNotExist(err) {
-		t.Fatal("the replaced cover file was kept")
-	}
+	require.Equal(t, id+".jpg", g.Cover)
+	require.NoFileExists(t, filepath.Join(c.Dirs.CoversDir(), id+".png"), "the replaced cover file was kept")
 
 	// Re-selecting the stored cover itself keeps it.
-	if _, err := svc.SetCover(id, filepath.Join(c.Dirs.CoversDir(), id+".jpg")); err != nil {
-		t.Fatalf("SetCover(stored cover) = %v", err)
-	}
+	_, err = svc.SetCover(id, filepath.Join(c.Dirs.CoversDir(), id+".jpg"))
+	require.NoError(t, err, "SetCover(stored cover)")
 }
 
 func TestSetCoverErrors(t *testing.T) {
 	svc, _, id := newLibEnv(t)
-	if _, err := svc.SetCover(id, filepath.Join(t.TempDir(), "x.gif")); err == nil {
-		t.Error("a .gif cover: want an error")
-	}
-	if _, err := svc.SetCover(id, filepath.Join(t.TempDir(), "missing.png")); err == nil {
-		t.Error("a missing file: want an error")
-	}
-	if _, err := svc.SetCover("no-such-game", writeImage(t, "c.png")); err == nil {
-		t.Error("an unknown game: want an error")
-	}
+	_, err := svc.SetCover(id, filepath.Join(t.TempDir(), "x.gif"))
+	assert.Error(t, err, "a .gif cover")
+	_, err = svc.SetCover(id, filepath.Join(t.TempDir(), "missing.png"))
+	assert.Error(t, err, "a missing file")
+	_, err = svc.SetCover("no-such-game", writeImage(t, "c.png"))
+	assert.Error(t, err, "an unknown game")
 }
 
 func TestArtworkSetAndClear(t *testing.T) {
 	svc, c, id := newLibEnv(t)
 
-	if _, err := svc.SetArt(id, "hero", writeImage(t, "h.png")); err != nil {
-		t.Fatal(err)
-	}
+	_, err := svc.SetArt(id, "hero", writeImage(t, "h.png"))
+	require.NoError(t, err)
 	g, _ := c.Library.Get(id)
 	name := g.Art["hero"]
-	if name != id+"_hero.png" {
-		t.Fatalf("art = %v", g.Art)
-	}
-	if _, err := os.Stat(filepath.Join(c.Dirs.CoversDir(), name)); err != nil {
-		t.Fatalf("artwork file missing: %v", err)
-	}
+	require.Equal(t, id+"_hero.png", name)
+	require.FileExists(t, filepath.Join(c.Dirs.CoversDir(), name), "artwork file missing")
 
 	// Another kind doesn't disturb it.
-	if _, err := svc.SetArt(id, "logo", writeImage(t, "l.png")); err != nil {
-		t.Fatal(err)
-	}
+	_, err = svc.SetArt(id, "logo", writeImage(t, "l.png"))
+	require.NoError(t, err)
 	g, _ = c.Library.Get(id)
-	if len(g.Art) != 2 {
-		t.Fatalf("art = %v, want hero and logo", g.Art)
-	}
+	require.Len(t, g.Art, 2)
 
-	if _, err := svc.ClearArt(id, "hero"); err != nil {
-		t.Fatal(err)
-	}
+	_, err = svc.ClearArt(id, "hero")
+	require.NoError(t, err)
 	g, _ = c.Library.Get(id)
-	if _, ok := g.Art["hero"]; ok || g.Art["logo"] == "" {
-		t.Fatalf("art after clearing hero = %v", g.Art)
-	}
-	if _, err := os.Stat(filepath.Join(c.Dirs.CoversDir(), name)); !os.IsNotExist(err) {
-		t.Fatal("cleared artwork file was kept")
-	}
+	require.NotContains(t, g.Art, "hero", "art after clearing hero")
+	require.NotEmpty(t, g.Art["logo"])
+	require.NoFileExists(t, filepath.Join(c.Dirs.CoversDir(), name), "cleared artwork file was kept")
 }
 
 func TestArtworkErrors(t *testing.T) {
 	svc, _, id := newLibEnv(t)
 	img := writeImage(t, "a.png")
-	if _, err := svc.SetArt(id, "poster", img); err == nil || !strings.Contains(err.Error(), "unknown artwork kind") {
-		t.Errorf("SetArt with an unknown kind = %v", err)
-	}
-	if _, err := svc.SetArt(id, "hero", filepath.Join(t.TempDir(), "a.gif")); err == nil {
-		t.Error("SetArt with a .gif: want an error")
-	}
-	if _, err := svc.SetArt(id, "hero", filepath.Join(t.TempDir(), "missing.png")); err == nil {
-		t.Error("SetArt with a missing file: want an error")
-	}
-	if _, err := svc.SetArt("no-such-game", "hero", img); err == nil {
-		t.Error("SetArt for an unknown game: want an error")
-	}
-	if _, err := svc.ClearArt(id, "poster"); err == nil {
-		t.Error("ClearArt with an unknown kind: want an error")
-	}
-	if _, err := svc.ClearArt("no-such-game", "hero"); err == nil {
-		t.Error("ClearArt for an unknown game: want an error")
-	}
+	_, err := svc.SetArt(id, "poster", img)
+	assert.ErrorContains(t, err, "unknown artwork kind", "SetArt with an unknown kind")
+	_, err = svc.SetArt(id, "hero", filepath.Join(t.TempDir(), "a.gif"))
+	assert.Error(t, err, "SetArt with a .gif")
+	_, err = svc.SetArt(id, "hero", filepath.Join(t.TempDir(), "missing.png"))
+	assert.Error(t, err, "SetArt with a missing file")
+	_, err = svc.SetArt("no-such-game", "hero", img)
+	assert.Error(t, err, "SetArt for an unknown game")
+	_, err = svc.ClearArt(id, "poster")
+	assert.Error(t, err, "ClearArt with an unknown kind")
+	_, err = svc.ClearArt("no-such-game", "hero")
+	assert.Error(t, err, "ClearArt for an unknown game")
 	// Only SteamGridDB's own https hosts are ever downloaded.
-	if _, err := svc.SetArtFromURL(id, "hero", "http://example.com/a.png"); err == nil {
-		t.Error("SetArtFromURL with a foreign URL: want an error")
-	}
-	if _, err := svc.SetCoverFromURL(id, "https://example.com/a.png"); err == nil {
-		t.Error("SetCoverFromURL with a foreign URL: want an error")
-	}
-	if _, err := svc.SetArtFromURL(id, "poster", "https://cdn2.steamgriddb.com/a.png"); err == nil {
-		t.Error("SetArtFromURL with an unknown kind: want an error")
-	}
-	if _, err := svc.SetCoverFromURL("no-such-game", "https://cdn2.steamgriddb.com/a.png"); err == nil {
-		t.Error("SetCoverFromURL for an unknown game: want an error")
-	}
+	_, err = svc.SetArtFromURL(id, "hero", "http://example.com/a.png")
+	assert.Error(t, err, "SetArtFromURL with a foreign URL")
+	_, err = svc.SetCoverFromURL(id, "https://example.com/a.png")
+	assert.Error(t, err, "SetCoverFromURL with a foreign URL")
+	_, err = svc.SetArtFromURL(id, "poster", "https://cdn2.steamgriddb.com/a.png")
+	assert.Error(t, err, "SetArtFromURL with an unknown kind")
+	_, err = svc.SetCoverFromURL("no-such-game", "https://cdn2.steamgriddb.com/a.png")
+	assert.Error(t, err, "SetCoverFromURL for an unknown game")
 }
 
 func TestSteamGridKeyHandling(t *testing.T) {
 	svc, c, _ := newLibEnv(t)
-	if svc.HasSteamGridKey() {
-		t.Fatal("HasSteamGridKey without a key")
-	}
-	if _, err := svc.SearchGridGames("zelda"); err == nil {
-		t.Error("SearchGridGames without a key: want an error")
-	}
-	if _, err := svc.GridArt("cover", 1, ""); err == nil {
-		t.Error("GridArt without a key: want an error")
-	}
-	if err := svc.TestSteamGridKey("   "); err == nil {
-		t.Error("TestSteamGridKey with a blank key: want an error")
-	}
+	require.False(t, svc.HasSteamGridKey(), "HasSteamGridKey without a key")
+	_, err := svc.SearchGridGames("zelda")
+	assert.Error(t, err, "SearchGridGames without a key")
+	_, err = svc.GridArt("cover", 1, "")
+	assert.Error(t, err, "GridArt without a key")
+	assert.Error(t, svc.TestSteamGridKey("   "), "TestSteamGridKey with a blank key")
 
 	st := c.Settings.Get()
 	st.SteamGridDBKey = "secret"
-	if err := c.Settings.Update(st); err != nil {
-		t.Fatal(err)
-	}
-	if !svc.HasSteamGridKey() {
-		t.Fatal("HasSteamGridKey after setting a key")
-	}
+	require.NoError(t, c.Settings.Update(st))
+	require.True(t, svc.HasSteamGridKey(), "HasSteamGridKey after setting a key")
 	// A blank search needs no request.
-	if got, err := svc.SearchGridGames("  "); err != nil || got == nil || len(got) != 0 {
-		t.Fatalf("SearchGridGames(blank) = %v, %v", got, err)
-	}
+	got, err := svc.SearchGridGames("  ")
+	require.NoError(t, err)
+	require.NotNil(t, got)
+	require.Empty(t, got, "SearchGridGames(blank)")
 }
 
 func TestSteamSearchTooShort(t *testing.T) {
 	svc, _, _ := newLibEnv(t)
 	got, err := svc.SearchSteam(" a ")
-	if err != nil || got == nil || len(got) != 0 {
-		t.Fatalf("SearchSteam(short) = %v, %v; want an empty list and no request", got, err)
-	}
+	require.NoError(t, err)
+	require.NotNil(t, got)
+	require.Empty(t, got, "SearchSteam(short): want an empty list and no request")
 }
 
 func TestFetchSteamCoverNeedsLink(t *testing.T) {
 	svc, _, id := newLibEnv(t)
-	if _, err := svc.FetchSteamCover(id); err == nil || !strings.Contains(err.Error(), "link the game") {
-		t.Fatalf("FetchSteamCover on an unlinked game = %v", err)
-	}
-	if _, err := svc.FetchSteamCover("no-such-game"); err == nil {
-		t.Fatal("FetchSteamCover for an unknown game: want an error")
-	}
+	_, err := svc.FetchSteamCover(id)
+	require.ErrorContains(t, err, "link the game", "FetchSteamCover on an unlinked game")
+	_, err = svc.FetchSteamCover("no-such-game")
+	require.Error(t, err, "FetchSteamCover for an unknown game")
 }
 
 func TestSteamLibraryMarksLinkedGames(t *testing.T) {
 	svc, c, id := newLibEnv(t)
 	steamapps := filepath.Join(c.SteamRoot(), "steamapps")
-	if err := os.MkdirAll(steamapps, 0o755); err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, os.MkdirAll(steamapps, 0o755))
 	for id, name := range map[string]string{"367520": "Hollow Knight", "105600": "Terraria"} {
 		acf := "\"AppState\"\n{\n\t\"appid\"\t\t\"" + id + "\"\n\t\"name\"\t\t\"" + name + "\"\n\t\"installdir\"\t\t\"" + name + "\"\n}\n"
-		if err := os.WriteFile(filepath.Join(steamapps, "appmanifest_"+id+".acf"), []byte(acf), 0o644); err != nil {
-			t.Fatal(err)
-		}
+		require.NoError(t, os.WriteFile(filepath.Join(steamapps, "appmanifest_"+id+".acf"), []byte(acf), 0o644))
 	}
 	g, _ := c.Library.Get(id)
 	g.StoreAppID = "105600"
-	if _, err := c.Library.Save(g, ""); err != nil {
-		t.Fatal(err)
-	}
+	_, err := c.Library.Save(g, "")
+	require.NoError(t, err)
 
 	got := svc.SteamLibrary()
-	if len(got) != 2 {
-		t.Fatalf("SteamLibrary = %+v", got)
-	}
+	require.Len(t, got, 2)
 	linked := map[string]string{}
 	for _, a := range got {
 		linked[a.AppID] = a.GameID
 	}
-	if linked["105600"] != id || linked["367520"] != "" {
-		t.Fatalf("linked games = %v", linked)
-	}
+	require.Equal(t, id, linked["105600"], "linked games = %v", linked)
+	require.Empty(t, linked["367520"], "linked games = %v", linked)
 }

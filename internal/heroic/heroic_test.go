@@ -6,16 +6,15 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func writeFile(t *testing.T, p, content string) {
 	t.Helper()
-	if err := os.MkdirAll(filepath.Dir(p), 0o755); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(p, []byte(content), 0o644); err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, os.MkdirAll(filepath.Dir(p), 0o755))
+	require.NoError(t, os.WriteFile(p, []byte(content), 0o644))
 }
 
 // js writes a path into a JSON string.
@@ -47,9 +46,7 @@ func TestInstalledAndForExe(t *testing.T) {
 	writeFile(t, filepath.Join(native, "sideload_apps", "library.json"),
 		`{"games":[{"app_name":"abc","title":"Side","install":{"executable":"`+js(side)+`"}}]}`)
 
-	if got := Installed(home); len(got) != 4 {
-		t.Fatalf("Installed: got %d games %+v, want 4", len(got), got)
-	}
+	require.Len(t, Installed(home), 4)
 	cases := []struct {
 		exe, runner, app, title string
 		flatpak                 bool
@@ -61,26 +58,28 @@ func TestInstalledAndForExe(t *testing.T) {
 	}
 	for _, c := range cases {
 		g, ok := ForExe(home, c.exe)
-		if !ok || g.Runner != c.runner || g.AppName != c.app || g.Title != c.title || g.Flatpak != c.flatpak {
-			t.Errorf("ForExe(%s) = %+v, %v", c.exe, g, ok)
+		if assert.True(t, ok, "ForExe(%s)", c.exe) {
+			assert.Equal(t, c.runner, g.Runner, c.exe)
+			assert.Equal(t, c.app, g.AppName, c.exe)
+			assert.Equal(t, c.title, g.Title, c.exe)
+			assert.Equal(t, c.flatpak, g.Flatpak, c.exe)
 		}
 	}
 	// A folder that only shares a name prefix is not the game's.
-	if g, ok := ForExe(home, j("Games", "Heroic", "Hades2", "Hades2.exe")); ok {
-		t.Errorf("ForExe matched a sibling folder: %+v", g)
-	}
+	_, ok := ForExe(home, j("Games", "Heroic", "Hades2", "Hades2.exe"))
+	assert.False(t, ok, "ForExe matched a sibling folder")
 }
 
 func TestCommand(t *testing.T) {
 	g := Game{Runner: GOG, AppName: "12 34", Flatpak: true}
 	cmd := g.Command()
 	want := []string{"flatpak", "run", FlatpakID, "--no-gui", "--no-sandbox"}
-	if len(cmd) != len(want)+1 || strings.Join(cmd[:len(want)], " ") != strings.Join(want, " ") {
-		t.Fatalf("Command() = %q", cmd)
-	}
+	require.Len(t, cmd, len(want)+1)
+	assert.Equal(t, want, cmd[:len(want)])
 	u, err := url.Parse(cmd[len(cmd)-1])
-	if err != nil || u.Scheme != "heroic" || u.Host != "launch" ||
-		u.Query().Get("appName") != "12 34" || u.Query().Get("runner") != GOG {
-		t.Errorf("launch URL = %q", cmd[len(cmd)-1])
-	}
+	require.NoError(t, err)
+	assert.Equal(t, "heroic", u.Scheme)
+	assert.Equal(t, "launch", u.Host)
+	assert.Equal(t, "12 34", u.Query().Get("appName"))
+	assert.Equal(t, GOG, u.Query().Get("runner"))
 }
