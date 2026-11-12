@@ -30,8 +30,7 @@ func TestPagesRender(t *testing.T) {
 	// Like the real app, run all UI work on one goroutine (this one): queue
 	// it and drain the queue in settle().
 	queue := make(chan func(), 1024)
-	onUI = func(f func()) { queue <- f }
-	t.Cleanup(func() { onUI = fyne.Do })
+	activeQueue.Store(&queue)
 
 	a := test.NewApp()
 	a.Settings().SetTheme(appTheme{})
@@ -133,8 +132,7 @@ func TestCloudActiveBadgeFollowsSavedRemote(t *testing.T) {
 		require.NoError(t, err)
 	}
 	queue := make(chan func(), 1024)
-	onUI = func(f func()) { queue <- f }
-	t.Cleanup(func() { onUI = fyne.Do })
+	activeQueue.Store(&queue)
 	u := newUI(c, test.NewApp(), services.NewBus())
 	u.buildMain()
 	settle := func() {
