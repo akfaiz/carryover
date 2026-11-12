@@ -39,7 +39,12 @@ func TestCheckOAuthPortReportsBlockedPort(t *testing.T) {
 func TestExplainOAuthErrorPortInUse(t *testing.T) {
 	in := errors.New("listen tcp 127.0.0.1:53682: bind: address already in use")
 	got := explainOAuthError(in)
-	require.ErrorContains(t, got, "Another program")
+	if runtime.GOOS == "windows" {
+		// "bind" errors get the Windows reserved-port hint there.
+		require.ErrorContains(t, got, "net stop winnat")
+	} else {
+		require.ErrorContains(t, got, "Another program")
+	}
 	require.True(t, strings.HasPrefix(got.Error(), in.Error()), "message = %v", got)
 	require.Equal(t, got.Error(), explainOAuthError(got).Error(), "hint added twice")
 	require.Nil(t, explainOAuthError(nil), "nil error changed")

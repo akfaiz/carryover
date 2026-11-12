@@ -65,6 +65,7 @@ func capture(t *testing.T, fn func() int) (string, int) {
 		defer func() {
 			os.Stdout, os.Stderr = oldOut, oldErr
 			log.SetOutput(oldLog)
+			closeLogFile() // Windows can't delete the data dir while the log is open
 			w.Close()
 		}()
 		code = fn()

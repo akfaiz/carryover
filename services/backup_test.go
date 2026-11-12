@@ -152,8 +152,9 @@ func TestRecoverSessionsService(t *testing.T) {
 }
 
 func TestLibraryDeleteAndPathHelpers(t *testing.T) {
-	e := newSyncEnv(t)
-	lib := NewLibraryService(e.c, NewBus(), nil)
+	// No cloud remote: Delete publishes the library in the background, which
+	// must not still be writing when the temp dir is removed.
+	lib, c, id := newLibEnv(t)
 
 	dir := t.TempDir()
 	require.NoError(t, lib.CheckFolder(dir))
@@ -165,9 +166,9 @@ func TestLibraryDeleteAndPathHelpers(t *testing.T) {
 	home, _ := os.UserHomeDir()
 	require.Equal(t, "{home}/Games/A", lib.ContractPath(filepath.Join(home, "Games", "A")))
 
-	require.NoError(t, lib.Delete(e.id))
-	_, err := e.c.Library.Get(e.id)
+	require.NoError(t, lib.Delete(id))
+	_, err := c.Library.Get(id)
 	require.Error(t, err, "game still in the library after Delete")
 	// Deleting again is harmless.
-	require.NoError(t, lib.Delete(e.id))
+	require.NoError(t, lib.Delete(id))
 }
