@@ -133,8 +133,8 @@ runs the CI checks, so a failing test stops the release. Every file is named
   name as the `APPIMAGE` build argument rather than renaming it afterwards, because the `.zsync` file refers to
   the AppImage by name. The embedded update information finds the `.zsync` file in the latest release with the
   wildcard `carryover-*-linux-amd64.AppImage.zsync`.
-- `carryover-<version>-linux-amd64.tar.gz` (`packaging/linux/tarball.sh`): the binary, `.desktop` file and icon
-  laid out like an install prefix, plus `install.sh`, which installs into `~/.local` (or a prefix given as
+- `carryover-<version>-linux-amd64.tar.gz` (`packaging/linux/tarball.sh`): the binary, `.desktop` file, icon and
+  AppStream metadata laid out like an install prefix, plus `install.sh`, which installs into `~/.local` (or a prefix given as
   argument).
 
 A tag with a suffix, such as `v0.2.0-rc1`, is published as a pre-release; the workflow sets this from the tag and

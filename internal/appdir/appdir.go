@@ -58,7 +58,7 @@ type Settings struct {
 	RemoteRoot      string `json:"remoteRoot"`      // folder inside the remote
 	BackupRetention int    `json:"backupRetention"` // 0 = no backups (default)
 	SyncLibrary     bool   `json:"syncLibrary"`     // mirror library catalog to the cloud
-	Theme           string `json:"theme,omitempty"` // "dark" (default) or "light"
+	Theme           string `json:"theme,omitempty"` // "" (follow the system, default), "dark" or "light"
 	// SteamGridDBKey is the user's own SteamGridDB API key (optional), used
 	// to find cover art. Stored only on this device.
 	SteamGridDBKey string `json:"steamGridDbKey,omitempty"`
@@ -135,8 +135,8 @@ func (st *SettingsStore) Update(s Settings) error {
 	st.mu.Lock()
 	defer st.mu.Unlock()
 	s.DeviceID = st.s.DeviceID
-	if s.Theme != "light" {
-		s.Theme = "dark"
+	if s.Theme != "light" && s.Theme != "dark" {
+		s.Theme = "" // follow the system
 	}
 	if s.BackupRetention < 0 {
 		s.BackupRetention = 0

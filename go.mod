@@ -6,6 +6,7 @@ require (
 	fyne.io/fyne/v2 v2.8.2
 	github.com/google/uuid v1.6.0
 	github.com/rclone/rclone v1.76.0
+	github.com/rymdport/portal v0.4.2
 	github.com/shirou/gopsutil/v4 v4.26.10
 	golang.org/x/image v0.48.0
 	golang.org/x/sys v0.50.0
@@ -98,7 +99,6 @@ require (
 	github.com/prometheus/procfs v0.22.0 // indirect
 	github.com/rfjakob/eme v1.2.0 // indirect
 	github.com/russross/blackfriday/v2 v2.1.0 // indirect
-	github.com/rymdport/portal v0.4.2 // indirect
 	github.com/skratchdot/open-golang v0.0.0-20200116055534-eef842397966 // indirect
 	github.com/smarty/assertions v1.16.0 // indirect
 	github.com/spf13/pflag v1.0.10 // indirect

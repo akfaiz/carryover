@@ -15,9 +15,11 @@ prefix="${1:-$HOME/.local}"
 install -Dm755 bin/carryover "$prefix/bin/carryover"
 install -Dm644 share/icons/hicolor/scalable/apps/carryover.svg \
   "$prefix/share/icons/hicolor/scalable/apps/carryover.svg"
+install -Dm644 share/metainfo/com.akfaiz.carryover.appdata.xml \
+  "$prefix/share/metainfo/com.akfaiz.carryover.appdata.xml"
 mkdir -p "$prefix/share/applications"
-sed "s|^Exec=carryover\$|Exec=$prefix/bin/carryover|" share/applications/carryover.desktop \
-  > "$prefix/share/applications/carryover.desktop"
+sed "s|^Exec=carryover\$|Exec=$prefix/bin/carryover|" share/applications/com.akfaiz.carryover.desktop \
+  > "$prefix/share/applications/com.akfaiz.carryover.desktop"
 
 echo "Installed Carryover to $prefix/bin/carryover"
 echo "It is now in your applications menu (log out and back in if it doesn't show up)."

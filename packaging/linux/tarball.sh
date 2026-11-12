@@ -1,13 +1,14 @@
 #!/usr/bin/env bash
-# Builds the Linux release tarball: the binary, its .desktop file and icon,
-# laid out like an install prefix, plus install.sh.
+# Builds the Linux release tarball: the binary, its .desktop file, icon and
+# AppStream metadata, laid out like an install prefix, plus install.sh.
 #
 #   packaging/linux/tarball.sh path/to/carryover <name> [outdir]
 #
 # writes <outdir>/<name>.tar.gz (outdir defaults to dist) holding
 #   <name>/bin/carryover
-#   <name>/share/applications/carryover.desktop
+#   <name>/share/applications/com.akfaiz.carryover.desktop
 #   <name>/share/icons/hicolor/scalable/apps/carryover.svg
+#   <name>/share/metainfo/com.akfaiz.carryover.appdata.xml
 #   <name>/install.sh, README.md, LICENSE
 set -euo pipefail
 
@@ -23,8 +24,9 @@ trap 'rm -rf "$stage"' EXIT
 d="$stage/$name"
 
 install -Dm755 "$bin" "$d/bin/carryover"
-install -Dm644 packaging/linux/carryover.desktop "$d/share/applications/carryover.desktop"
+install -Dm644 packaging/linux/com.akfaiz.carryover.desktop "$d/share/applications/com.akfaiz.carryover.desktop"
 install -Dm644 ui/assets/appicon.svg "$d/share/icons/hicolor/scalable/apps/carryover.svg"
+install -Dm644 packaging/linux/com.akfaiz.carryover.appdata.xml "$d/share/metainfo/com.akfaiz.carryover.appdata.xml"
 install -m755 packaging/linux/install.sh "$d/install.sh"
 install -m644 README.md LICENSE "$d/"
 

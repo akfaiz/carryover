@@ -7,6 +7,20 @@ All notable changes to Carryover are listed here. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- A "System" theme, now the default, follows the system's light or dark setting (Windows, and Linux desktops
+  through the XDG desktop portal). When the system states no preference, Carryover starts light. A theme chosen
+  before stays as it is.
+- The AppImage and the tarball carry AppStream metadata, so software centers and AppImage tools show a
+  description. The AppImage also carries the scalable icon and meets the requirements of the AppImageHub catalog.
+
+### Changed
+
+- The menu entry is now `com.akfaiz.carryover.desktop`, named after the app ID. If you installed the tarball
+  before, delete the old `~/.local/share/applications/carryover.desktop` (or the one under your install prefix)
+  after running the new `install.sh`, or the menu shows Carryover twice.
+
 ## [0.1.0] - 2026-11-12
 
 First stable release.

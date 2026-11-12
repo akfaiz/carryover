@@ -20,7 +20,7 @@ RUN --mount=type=cache,target=/go/pkg/mod --mount=type=cache,target=/root/.cache
 FROM build AS appimage
 ARG APPIMAGETOOL_VERSION=1.9.1
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends curl ca-certificates file desktop-file-utils zsync \
+    && apt-get install -y --no-install-recommends curl ca-certificates file desktop-file-utils zsync appstream \
     && rm -rf /var/lib/apt/lists/* \
     && curl -fsSL -o /usr/local/bin/appimagetool \
         https://github.com/AppImage/appimagetool/releases/download/${APPIMAGETOOL_VERSION}/appimagetool-x86_64.AppImage \
