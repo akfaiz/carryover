@@ -1,0 +1,87 @@
+name: Bug report
+description: Something doesn't work, or saves didn't sync as expected.
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting. If saves may be lost, don't sync that game again until it's sorted out:
+        a backup or the local copy kept before a download (Game → Backups) can still restore it.
+  - type: input
+    id: version
+    attributes:
+      label: Carryover version
+      description: From Settings → About, or `carryover --version`.
+      placeholder: 0.1.0
+    validations:
+      required: true
+  - type: dropdown
+    id: platform
+    attributes:
+      label: Platform
+      options:
+        - Windows
+        - Steam Deck, Game Mode
+        - Steam Deck, Desktop Mode
+        - Linux (other)
+    validations:
+      required: true
+  - type: dropdown
+    id: install
+    attributes:
+      label: How Carryover is installed
+      options:
+        - Windows exe
+        - AppImage
+        - Tarball (install.sh)
+        - Built from source
+    validations:
+      required: true
+  - type: dropdown
+    id: cloud
+    attributes:
+      label: Cloud storage
+      options:
+        - Google Drive
+        - Dropbox
+        - OneDrive
+        - WebDAV
+        - SFTP
+        - SMB
+        - None set up yet
+        - Not related to cloud storage
+  - type: dropdown
+    id: launch
+    attributes:
+      label: Launch mode of the game (if the bug is about a game)
+      options:
+        - Carryover
+        - Heroic Games Launcher
+        - Steam
+        - Not related to a game
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened
+      description: What you did, what you expected, and what happened instead. Screenshots help.
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Add game ...
+        2. Play it on the Steam Deck ...
+        3. ...
+  - type: textarea
+    id: log
+    attributes:
+      label: Log
+      description: |
+        The end of `carryover.log`, around the time of the problem:
+        - Windows: `%AppData%\Carryover\logs\carryover.log`
+        - Linux / Steam Deck: `~/.config/Carryover/logs/carryover.log`
+
+        Check it for anything private (paths, remote names) before posting.
+      render: text
