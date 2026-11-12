@@ -182,6 +182,12 @@ func (c *Client) Purge(ctx context.Context, rel string) error {
 	if err != nil {
 		return err
 	}
+	// A folder that isn't there is already purged. Check first: not every
+	// backend reports it as "directory not found" when purging (the local
+	// one doesn't).
+	if _, err := f.List(ctx, p); isNotFound(err) {
+		return nil
+	}
 	err = operations.Purge(ctx, f, p)
 	if isNotFound(err) {
 		return nil
