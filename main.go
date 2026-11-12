@@ -103,6 +103,7 @@ func cmdRun(args []string) int {
 	survivePolite()
 	if *headless {
 		c := openCore()
+		recoverSessions(c)
 		log.Printf("run %s (headless)", gameID)
 		res, err := c.Play(context.Background(), gameID, opts, core.HeadlessUI{Logf: log.Printf})
 		if err != nil {
@@ -174,6 +175,9 @@ func cmdSync(args []string) int {
 		if err := c.SyncLibrary(ctx); err != nil {
 			log.Printf("library sync: %v", err)
 		}
+	}
+	if !*dryRun {
+		recoverSessions(c)
 	}
 	eng, err := c.Engine()
 	if err != nil {
@@ -357,5 +361,17 @@ func cmdList() int {
 }
 
 func runGUI(wrapGameID string, opts core.RunOptions) int {
-	return ui.Run(openCore(), wrapGameID, opts)
+	c := openCore()
+	if wrapGameID != "" { // the launcher recovers on its own start
+		recoverSessions(c)
+	}
+	return ui.Run(c, wrapGameID, opts)
+}
+
+// recoverSessions releases the cloud locks of play sessions that were killed
+// before they could release them. Without a killed session it does no I/O.
+func recoverSessions(c *core.Core) {
+	if _, err := c.RecoverSessions(context.Background()); err != nil {
+		log.Printf("recover sessions: %v", err)
+	}
 }

@@ -14,6 +14,9 @@ All notable changes to Carryover are listed here. The format follows
   before stays as it is.
 - The AppImage and the tarball carry AppStream metadata, so software centers and AppImage tools show a
   description. The AppImage also carries the scalable icon and meets the requirements of the AppImageHub catalog.
+- When a play session is killed before it can release its cloud lock (for example Steam's "Exit Game", or a
+  power loss), the next launcher start, `carryover run` or `carryover sync` releases that lock, so other devices stop warning that the
+  game is being played here.
 
 ### Changed
 

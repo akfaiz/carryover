@@ -276,3 +276,10 @@ func (s *SyncService) RestoreBackup(gameID, name string) error {
 	defer done()
 	return cancelled(ctx, eng.RestoreBackup(ctx, job, name))
 }
+
+// RecoverSessions releases the cloud locks left by play sessions that were
+// killed before they could release them (see core.Core.RecoverSessions).
+func (s *SyncService) RecoverSessions() error {
+	_, err := s.c.RecoverSessions(context.Background())
+	return err
+}

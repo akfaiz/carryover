@@ -35,6 +35,8 @@ type Core struct {
 	onEvent func(syncer.Event)
 
 	libMu sync.Mutex // serializes SyncLibrary (read, merge, write)
+
+	playing sync.Map // gameID -> struct{}: games Play is running in this process
 }
 
 // New opens Carryover's data directory.

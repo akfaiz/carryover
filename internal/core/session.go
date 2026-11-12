@@ -88,6 +88,8 @@ func (c *Core) Play(ctx context.Context, gameID string, opt RunOptions, ui Sessi
 		return res, err
 	}
 	defer lock.Release()
+	c.playing.Store(game.ID, struct{}{})
+	defer c.playing.Delete(game.ID)
 
 	var eng *syncer.Engine
 	var job syncer.Job
@@ -140,7 +142,9 @@ func (c *Core) Play(ctx context.Context, gameID string, opt RunOptions, ui Sessi
 			return res, ErrCancelled
 		}
 		// Mark the game as being played without delaying its start; the
-		// release afterwards waits for this write.
+		// release afterwards waits for this write. The marker lets a later
+		// run release the lock if this process is killed (RecoverSessions).
+		c.markSession(game.ID)
 		go func() {
 			defer close(lockWritten)
 			_ = eng.AcquireLock(ctx, game.ID)
@@ -174,7 +178,9 @@ func (c *Core) Play(ctx context.Context, gameID string, opt RunOptions, ui Sessi
 		var wg sync.WaitGroup
 		wg.Go(func() {
 			<-lockWritten
-			_ = eng.ReleaseLock(postCtx, game.ID)
+			if err := eng.ReleaseLock(postCtx, game.ID); err == nil {
+				c.clearSession(game.ID)
+			}
 		})
 		wg.Go(func() {
 			if err := c.SyncLibrary(postCtx); err != nil {
