@@ -60,6 +60,9 @@ func (c *Core) RecoverSessions(ctx context.Context) (int, error) {
 		if !ok || e.IsDir() {
 			continue
 		}
+		if _, ok := c.playing.Load(id); ok {
+			continue // this process is playing it: AcquireLocalLock can't tell
+		}
 		// Holding the local lock proves no live Carryover process is playing
 		// this game; a dead process's lock is taken over.
 		lock, err := syncer.AcquireLocalLock(c.Dirs.StateDir(), id)

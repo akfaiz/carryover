@@ -88,6 +88,8 @@ func (c *Core) Play(ctx context.Context, gameID string, opt RunOptions, ui Sessi
 		return res, err
 	}
 	defer lock.Release()
+	c.playing.Store(game.ID, struct{}{})
+	defer c.playing.Delete(game.ID)
 
 	var eng *syncer.Engine
 	var job syncer.Job

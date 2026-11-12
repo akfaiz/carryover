@@ -201,3 +201,24 @@ func TestRecoverSessions(t *testing.T) {
 		t.Fatalf("second RecoverSessions = %d, want 0", n)
 	}
 }
+
+// A game Play is running in this process is never recovered, even though its
+// local lock (same process id) looks takeable.
+func TestRecoverSessionsSkipsPlayingGame(t *testing.T) {
+	c, id, _, cloudDir := newPlayable(t)
+	eng, err := c.Engine()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := eng.AcquireLock(context.Background(), id); err != nil {
+		t.Fatal(err)
+	}
+	c.markSession(id)
+	c.playing.Store(id, struct{}{})
+	if n, err := c.RecoverSessions(context.Background()); err != nil || n != 0 {
+		t.Fatalf("RecoverSessions = %d, %v; want 0", n, err)
+	}
+	if _, err := os.Stat(filepath.Join(cloudDir, "games", id, "lock.json")); err != nil {
+		t.Fatalf("lock of a game being played was released: %v", err)
+	}
+}
