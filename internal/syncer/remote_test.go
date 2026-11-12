@@ -2,10 +2,12 @@ package syncer
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"path/filepath"
 	"slices"
 	"testing"
+	"time"
 
 	_ "github.com/rclone/rclone/backend/memory" // a non-local remote for tests
 	"github.com/rclone/rclone/fs/config"
@@ -18,7 +20,9 @@ import (
 func TestSyncAgainstNamedRemote(t *testing.T) {
 	setupCloud(t) // initialises rclone's config
 	config.FileSetValue("mem", "type", "memory")
-	base := "mem:Carryover"
+	// A folder of its own: the in-memory backend lives as long as the process,
+	// so a repeated run (-count=2) must not find the files of the last one.
+	base := fmt.Sprintf("mem:Carryover-%d", time.Now().UnixNano())
 	pc, pcJob := newDevice(t, base, "pc")
 	deck, deckJob := newDevice(t, base, "deck")
 	pcSaves, deckSaves := pcJob.Slots[0].LocalPath, deckJob.Slots[0].LocalPath

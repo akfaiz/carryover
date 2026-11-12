@@ -35,6 +35,9 @@ func Init(configPath string) error {
 			return
 		}
 		configfile.Install()
+		// rclone loads its config lazily on first use, without a lock. The sync
+		// engine's goroutines would race to do it, so load it here, once.
+		_ = config.LoadedData()
 		ci := fs.GetConfig(context.Background())
 		ci.LogLevel = fs.LogLevelNotice
 		ci.Transfers = 4
