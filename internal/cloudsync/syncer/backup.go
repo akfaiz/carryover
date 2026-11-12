@@ -16,7 +16,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/akfaiz/carryover/internal/cloud"
+	"github.com/akfaiz/carryover/internal/cloudsync/cloud"
 )
 
 // Backups live in games/<id>/backups/<time>_<device>_<kind>.zip, holding

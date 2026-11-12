@@ -13,8 +13,8 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/akfaiz/carryover/internal/appdir"
-	"github.com/akfaiz/carryover/internal/cloud"
+	"github.com/akfaiz/carryover/internal/app/appdir"
+	"github.com/akfaiz/carryover/internal/cloudsync/cloud"
 )
 
 // ErrConflict is returned by Apply when both sides changed and no resolution was given.

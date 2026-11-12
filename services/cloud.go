@@ -8,7 +8,7 @@ import (
 	"runtime"
 	"time"
 
-	"github.com/akfaiz/carryover/internal/cloud"
+	"github.com/akfaiz/carryover/internal/cloudsync/cloud"
 	"github.com/akfaiz/carryover/internal/core"
 )
 

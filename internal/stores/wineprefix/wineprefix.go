@@ -16,7 +16,7 @@ import (
 
 	"gopkg.in/yaml.v3"
 
-	"github.com/akfaiz/carryover/internal/heroic"
+	"github.com/akfaiz/carryover/internal/stores/heroic"
 )
 
 // Launchers a prefix can come from.

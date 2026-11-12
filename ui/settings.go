@@ -9,9 +9,9 @@ import (
 	"fyne.io/fyne/v2/lang"
 	"fyne.io/fyne/v2/widget"
 
-	"github.com/akfaiz/carryover/internal/appdir"
-	"github.com/akfaiz/carryover/internal/syncer"
-	"github.com/akfaiz/carryover/internal/version"
+	"github.com/akfaiz/carryover/internal/app/appdir"
+	"github.com/akfaiz/carryover/internal/app/version"
+	"github.com/akfaiz/carryover/internal/cloudsync/syncer"
 )
 
 type settingsPage struct {

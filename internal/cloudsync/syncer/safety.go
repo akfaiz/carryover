@@ -11,7 +11,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/akfaiz/carryover/internal/cloud"
+	"github.com/akfaiz/carryover/internal/cloudsync/cloud"
 )
 
 // Safety copies: when cloud backups are off (Retention 0) and a download is

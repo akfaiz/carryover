@@ -13,12 +13,12 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/akfaiz/carryover/internal/appdir"
-	"github.com/akfaiz/carryover/internal/cloud"
+	"github.com/akfaiz/carryover/internal/app/appdir"
+	"github.com/akfaiz/carryover/internal/cloudsync/cloud"
+	"github.com/akfaiz/carryover/internal/cloudsync/syncer"
 	"github.com/akfaiz/carryover/internal/library"
-	"github.com/akfaiz/carryover/internal/pathvar"
-	"github.com/akfaiz/carryover/internal/steam"
-	"github.com/akfaiz/carryover/internal/syncer"
+	"github.com/akfaiz/carryover/internal/saves/pathvar"
+	"github.com/akfaiz/carryover/internal/stores/steam"
 )
 
 // Core holds application state.

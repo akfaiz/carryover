@@ -19,10 +19,10 @@ import (
 	"fyne.io/fyne/v2/theme"
 	"fyne.io/fyne/v2/widget"
 
-	"github.com/akfaiz/carryover/internal/appdir"
+	"github.com/akfaiz/carryover/internal/app/appdir"
+	"github.com/akfaiz/carryover/internal/app/singleinstance"
+	"github.com/akfaiz/carryover/internal/cloudsync/syncer"
 	"github.com/akfaiz/carryover/internal/core"
-	"github.com/akfaiz/carryover/internal/singleinstance"
-	"github.com/akfaiz/carryover/internal/syncer"
 	"github.com/akfaiz/carryover/services"
 )
 

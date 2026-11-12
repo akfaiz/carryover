@@ -20,16 +20,16 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/akfaiz/carryover/internal/cloudsync/syncer"
 	"github.com/akfaiz/carryover/internal/core"
-	"github.com/akfaiz/carryover/internal/heroic"
 	"github.com/akfaiz/carryover/internal/library"
-	"github.com/akfaiz/carryover/internal/ludusavi"
-	"github.com/akfaiz/carryover/internal/pathvar"
-	"github.com/akfaiz/carryover/internal/steam"
-	"github.com/akfaiz/carryover/internal/steamgrid"
-	"github.com/akfaiz/carryover/internal/steamstore"
-	"github.com/akfaiz/carryover/internal/syncer"
-	"github.com/akfaiz/carryover/internal/wineprefix"
+	"github.com/akfaiz/carryover/internal/saves/ludusavi"
+	"github.com/akfaiz/carryover/internal/saves/pathvar"
+	"github.com/akfaiz/carryover/internal/stores/heroic"
+	"github.com/akfaiz/carryover/internal/stores/steam"
+	"github.com/akfaiz/carryover/internal/stores/steamgrid"
+	"github.com/akfaiz/carryover/internal/stores/steamstore"
+	"github.com/akfaiz/carryover/internal/stores/wineprefix"
 )
 
 // LibraryService manages games.

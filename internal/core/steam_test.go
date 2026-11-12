@@ -10,9 +10,9 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/akfaiz/carryover/internal/cloudsync/syncer"
 	"github.com/akfaiz/carryover/internal/library"
-	"github.com/akfaiz/carryover/internal/steam"
-	"github.com/akfaiz/carryover/internal/syncer"
+	"github.com/akfaiz/carryover/internal/stores/steam"
 )
 
 func TestQuote(t *testing.T) {

@@ -12,7 +12,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/akfaiz/carryover/internal/appdir"
+	"github.com/akfaiz/carryover/internal/app/appdir"
 	"github.com/akfaiz/carryover/internal/core"
 	"github.com/akfaiz/carryover/internal/library"
 )

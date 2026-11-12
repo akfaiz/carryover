@@ -149,7 +149,7 @@ updates only work once there is a full release. The Windows exe is not code-sign
 run ("More info → Run anyway").
 
 The tag is the only version number. Before building, each release job runs `scripts/stamp-version.sh <tag> <sha>`,
-which writes the git-ignored `internal/version/zz_release.go` setting `version.Version` and `version.Commit`; the app
+which writes the git-ignored `internal/app/version/zz_release.go` setting `version.Version` and `version.Commit`; the app
 shows them in Settings → About, `carryover --version` and the log. (A generated file rather than `-ldflags -X`,
 because `fyne package` drops `-ldflags` from `GOFLAGS` when it rebuilds the Windows exe with its icon.) The Windows
 exe's file version is the tag's `x.y.z` plus the workflow run number as build number.
@@ -173,13 +173,13 @@ Safety copies taken before a download (when cloud backups are off) stay on the d
 
 ## Code map
 
-- `internal/syncer`: sync decision engine and backups
-- `internal/cloud`: rclone wrapper
-- `internal/steam`: VDF files and shortcuts
-- `internal/pathvar`: path variables
+- `internal/cloudsync/syncer`: sync decision engine and backups
+- `internal/cloudsync/cloud`: rclone wrapper
+- `internal/stores/steam`: VDF files and shortcuts
+- `internal/saves/pathvar`: path variables
 - `internal/library`: game library store
 - `internal/core`: play session
-- `internal/ludusavi`: save-location index (generated, do not edit by hand; run `go run ./internal/ludusavi/gen`)
+- `internal/saves/ludusavi`: save-location index (generated, do not edit by hand; run `go run ./internal/saves/ludusavi/gen`)
 - `services/`: API used by the GUI
 - `ui/`: Fyne GUI
 

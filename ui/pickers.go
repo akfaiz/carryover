@@ -12,7 +12,7 @@ import (
 	"fyne.io/fyne/v2/lang"
 	"fyne.io/fyne/v2/widget"
 
-	"github.com/akfaiz/carryover/internal/steamgrid"
+	"github.com/akfaiz/carryover/internal/stores/steamgrid"
 	"github.com/akfaiz/carryover/services"
 )
 
