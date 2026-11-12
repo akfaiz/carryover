@@ -9,22 +9,21 @@ All notable changes to Carryover are listed here. The format follows
 
 ### Added
 
-- Games can be played through several emulators, for example one Switch game with both Eden and Ryujinx on the
-  same PC. Emulators are set up once per device on the new Emulators page; each game picks its emulators, with
-  a ROM and save locations per emulator. Every emulator keeps its own cloud saves and backups, so progress is
-  never mixed between emulators, while the same emulator on another device shares them. Play starts the emulator
-  used last (a menu next to Play picks another), `carryover run <game> --emulator <name>` and
-  `carryover sync <game> --emulator <name>` choose one from the command line, and each emulator can have its
-  own Steam shortcut. Two emulators that use the same save format can opt in to sharing one cloud save
-  (in the game's editor, per emulator); they then can't be played at the same time. Update all your devices before using this: an older version would drop the emulator
-  settings when it saves the library.
-- Save location suggestions for emulated games. Give an emulator its type (Eden/yuzu, Ryujinx, Dolphin, Cemu,
-  PCSX2, DuckStation, RPCS3, RetroArch and more) and data folder on the Emulators page, and the game editor
-  suggests the game's save folders from its ROM's title ID or its name; locations found on disk are filled in
-  when you choose the ROM. Choosing a ROM also proposes the game's name. The per-game lists come from
-  [ludusavi-emulator-manifests](https://github.com/sharkusmanch/ludusavi-emulator-manifests) and are downloaded
-  once per emulator type, then cached. Choosing the type also suggests the usual command line arguments\n  for starting a game (for example `-f -g {rom}` for Eden), which you can change. Choosing the emulator's executable or AppImage also proposes its name and type. For Ryujinx, whose save folders are numbered, Carryover reads Ryujinx's own save index and suggests just the selected game's account and device save folders, so other games' saves are not synced (path token `{ryujinx:<title id>:account|device}`). Start the game once in Ryujinx first so it has a save folder. For Eden, yuzu, Citron and Suyu the suggestion is the game's exact save folders on this device, one for the account save and one for the device save, instead of the manifest's wildcard path. The profile ID, which differs on every installation, is then not part of the cloud layout, so a second device (a Steam Deck) no longer gets an "orphaned profile" in the emulator. Games set up with the older wildcard location should get their Eden save locations re-suggested on each device. Ryujinx's suggested locations use the same account and device names, so Eden and Ryujinx can share one cloud save for a game; the Ryujinx entry then fills in its own paths for Eden's two locations.
-- A game with emulators can be added to Steam as one game. When Steam starts it, Carryover asks which emulator to use (the one played last is highlighted) and starts that one by itself after 5 seconds; a click picks another, "Stop countdown" waits. The game page offers this as "The whole game" next to a shortcut for a single emulator.
+- Play a game through several emulators, for example one Switch game with Eden and Ryujinx. Set emulators up once
+  per device on the new Emulators page; each game picks its emulators and sets a ROM and save locations for each.
+  Every emulator keeps its own cloud saves and backups, and the same emulator on another device shares them. Two
+  emulators that use the same save format can opt in to sharing one save (then they can't run at the same time).
+  Play starts the emulator used last; `carryover run` and `carryover sync` take `--emulator <name>`. Update all your
+  devices before using this: an older version drops the emulator settings when it saves the library.
+- Suggestions for emulated games. Choosing an emulator's executable proposes its name, type and usual arguments;
+  choosing a ROM proposes the game's name and finds its save folders, using
+  [ludusavi-emulator-manifests](https://github.com/sharkusmanch/ludusavi-emulator-manifests) (downloaded once per
+  emulator type, then cached). For Eden, yuzu, Citron and Suyu these are the exact folders of this device's profile,
+  so another device's Eden never reports an "orphaned profile". For Ryujinx, whose save folders are numbered, its own
+  save index is read, so only the selected game is synced (start the game once in Ryujinx first).
+- A game with emulators can be added to Steam as one game. When Steam starts it, Carryover asks which emulator to use
+  (the one played last is highlighted) and starts it by itself after 5 seconds. A shortcut for a single emulator is
+  also possible.
 - A "System" theme, now the default, follows the system's light or dark setting (Windows, and Linux desktops
   through the XDG desktop portal). When the system states no preference, Carryover starts light. A theme chosen
   before stays as it is.
