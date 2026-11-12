@@ -24,6 +24,14 @@ All notable changes to Carryover are listed here. The format follows
   before, delete the old `~/.local/share/applications/carryover.desktop` (or the one under your install prefix)
   after running the new `install.sh`, or the menu shows Carryover twice.
 
+### Fixed
+
+- A save location with both an include and an exclude list ignored the excludes for files the include list also
+  matched: include `*` with exclude `*.log` still synced `debug.log`. Excludes now win. Games set up this way
+  start leaving those files out, and the next sync removes them from the cloud copy.
+- The first sync after start could race while rclone loaded its configuration. The configuration is now loaded
+  once when Carryover starts.
+
 ## [0.1.0] - 2026-11-12
 
 First stable release.

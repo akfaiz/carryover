@@ -6,33 +6,28 @@ import (
 	"io"
 	"os"
 	"path/filepath"
-	"strings"
 	"testing"
 	"time"
+
+	"github.com/stretchr/testify/require"
 )
 
 func readZipEntry(t *testing.T, zipPath, name string) string {
 	t.Helper()
 	zr, err := zip.OpenReader(zipPath)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 	defer zr.Close()
 	for _, f := range zr.File {
 		if f.Name == name {
 			r, err := f.Open()
-			if err != nil {
-				t.Fatal(err)
-			}
+			require.NoError(t, err)
 			defer r.Close()
 			b, err := io.ReadAll(r)
-			if err != nil {
-				t.Fatal(err)
-			}
+			require.NoError(t, err)
 			return string(b)
 		}
 	}
-	t.Fatalf("%s not in %s", name, zipPath)
+	require.Failf(t, "entry missing", "%s not in %s", name, zipPath)
 	return ""
 }
 
@@ -44,39 +39,26 @@ func TestBackupArchive(t *testing.T) {
 	write(t, filepath.Join(saves, "sub"), "b.sav", "b-1")
 	write(t, saves, "a.sav", "a-1")
 	mt := time.Date(2024, 5, 6, 7, 8, 9, 0, time.UTC)
-	if err := os.Chtimes(filepath.Join(saves, "a.sav"), mt, mt); err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, os.Chtimes(filepath.Join(saves, "a.sav"), mt, mt))
 	mustSync(t, pc, job, ResolveAuto, ActionPush)
 	write(t, saves, "a.sav", "a-2!")
 	mustSync(t, pc, job, ResolveAuto, ActionPush) // backs up the cloud version
 
 	backups, err := pc.ListBackups(context.Background(), "game1")
-	if err != nil || len(backups) != 1 || backups[0].Kind != "cloud" {
-		t.Fatalf("backups = %+v, %v", backups, err)
-	}
+	require.NoError(t, err)
+	require.Len(t, backups, 1)
+	require.Equal(t, "cloud", backups[0].Kind)
 	zipPath := filepath.Join(cloudDir, "games", "game1", "backups", backups[0].Name+".zip")
-	if got := readZipEntry(t, zipPath, "saves/a.sav"); got != "a-1" {
-		t.Fatalf("a.sav in backup = %q", got)
-	}
-	if got := readZipEntry(t, zipPath, "saves/sub/b.sav"); got != "b-1" {
-		t.Fatalf("sub/b.sav in backup = %q", got)
-	}
-	if !strings.Contains(readZipEntry(t, zipPath, "manifest.json"), `"saves/a.sav"`) {
-		t.Fatal("manifest missing from backup")
-	}
+	require.Equal(t, "a-1", readZipEntry(t, zipPath, "saves/a.sav"))
+	require.Equal(t, "b-1", readZipEntry(t, zipPath, "saves/sub/b.sav"))
+	require.Contains(t, readZipEntry(t, zipPath, "manifest.json"), `"saves/a.sav"`, "manifest missing from backup")
 
 	// Restoring brings back content and modification time.
-	if err := pc.RestoreBackup(context.Background(), job, backups[0].Name); err != nil {
-		t.Fatal(err)
-	}
-	if got := read(t, saves, "a.sav"); got != "a-1" {
-		t.Fatalf("restored a.sav = %q", got)
-	}
+	require.NoError(t, pc.RestoreBackup(context.Background(), job, backups[0].Name))
+	require.Equal(t, "a-1", read(t, saves, "a.sav"))
 	fi, err := os.Stat(filepath.Join(saves, "a.sav"))
-	if err != nil || !fi.ModTime().Equal(mt) {
-		t.Fatalf("restored mtime = %v, want %v (%v)", fi.ModTime(), mt, err)
-	}
+	require.NoError(t, err)
+	require.True(t, fi.ModTime().Equal(mt), "restored mtime = %v, want %v", fi.ModTime(), mt)
 }
 
 // Folder backups made by older versions are still listed, restored and pruned.
@@ -91,30 +73,20 @@ func TestLegacyFolderBackups(t *testing.T) {
 	mustSync(t, pc, job, ResolveAuto, ActionPush)
 
 	backups, err := pc.ListBackups(context.Background(), "game1")
-	if err != nil || len(backups) != 1 || backups[0].Name != legacy || backups[0].DeviceName != "deck" {
-		t.Fatalf("backups = %+v, %v", backups, err)
-	}
-	if err := pc.RestoreBackup(context.Background(), job, legacy); err != nil {
-		t.Fatal(err)
-	}
-	if got := read(t, saves, "a.sav"); got != "old" {
-		t.Fatalf("restored a.sav = %q", got)
-	}
-	if _, err := os.Stat(filepath.Join(saves, "extra.sav")); !os.IsNotExist(err) {
-		t.Fatal("file missing from the backup wasn't removed on restore")
-	}
+	require.NoError(t, err)
+	require.Len(t, backups, 1)
+	require.Equal(t, legacy, backups[0].Name)
+	require.Equal(t, "deck", backups[0].DeviceName)
+	require.NoError(t, pc.RestoreBackup(context.Background(), job, legacy))
+	require.Equal(t, "old", read(t, saves, "a.sav"))
+	require.NoFileExists(t, filepath.Join(saves, "extra.sav"), "file missing from the backup wasn't removed on restore")
 
 	// Pruning removes the oldest first, whatever its format.
 	pc.Retention = 1
-	if err := pc.prune(context.Background(), "game1"); err != nil {
-		t.Fatal(err)
-	}
-	if _, err := os.Stat(filepath.Join(cloudDir, "games", "game1", "backups", legacy)); !os.IsNotExist(err) {
-		t.Fatalf("oldest (legacy) backup not pruned, err=%v", err)
-	}
-	if backups, _ := pc.ListBackups(context.Background(), "game1"); len(backups) != 1 {
-		t.Fatalf("after prune: %+v", backups)
-	}
+	require.NoError(t, pc.prune(context.Background(), "game1"))
+	require.NoDirExists(t, filepath.Join(cloudDir, "games", "game1", "backups", legacy), "oldest (legacy) backup not pruned")
+	backups, _ = pc.ListBackups(context.Background(), "game1")
+	require.Len(t, backups, 1, "after prune")
 }
 
 // An archive entry escaping the save folder is refused.
@@ -126,13 +98,9 @@ func TestRestoreRejectsUnsafePaths(t *testing.T) {
 
 	name := "20200101T000000.000Z_evil_cloud"
 	dir := filepath.Join(cloudDir, "games", "game1", "backups")
-	if err := os.MkdirAll(dir, 0o755); err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, os.MkdirAll(dir, 0o755))
 	f, err := os.Create(filepath.Join(dir, name+".zip"))
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 	zw := zip.NewWriter(f)
 	w, _ := zw.Create("saves/../../escaped.txt")
 	_, _ = w.Write([]byte("pwned"))
@@ -140,10 +108,6 @@ func TestRestoreRejectsUnsafePaths(t *testing.T) {
 	_ = f.Close()
 
 	err = pc.RestoreBackup(context.Background(), job, name)
-	if err == nil || !strings.Contains(err.Error(), "unsafe path") {
-		t.Fatalf("restore err = %v, want unsafe path", err)
-	}
-	if _, err := os.Stat(filepath.Join(filepath.Dir(job.Slots[0].LocalPath), "escaped.txt")); !os.IsNotExist(err) {
-		t.Fatal("file was written outside the save folder")
-	}
+	require.ErrorContains(t, err, "unsafe path")
+	require.NoFileExists(t, filepath.Join(filepath.Dir(job.Slots[0].LocalPath), "escaped.txt"), "file was written outside the save folder")
 }

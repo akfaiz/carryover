@@ -1,6 +1,10 @@
 package version
 
-import "testing"
+import (
+	"testing"
+
+	"github.com/stretchr/testify/assert"
+)
 
 func TestInfo(t *testing.T) {
 	cases := []struct {
@@ -14,15 +18,9 @@ func TestInfo(t *testing.T) {
 		{Info{Version: "dev"}, "dev", RepoURL + "/releases", false},
 	}
 	for _, c := range cases {
-		if got := c.info.String(); got != c.str {
-			t.Errorf("String() = %q, want %q", got, c.str)
-		}
-		if got := c.info.ReleaseURL(); got != c.url {
-			t.Errorf("ReleaseURL() = %q, want %q", got, c.url)
-		}
-		if got := c.info.IsRelease(); got != c.wantRelease {
-			t.Errorf("%q IsRelease() = %v", c.info.Version, got)
-		}
+		assert.Equal(t, c.str, c.info.String())
+		assert.Equal(t, c.url, c.info.ReleaseURL())
+		assert.Equal(t, c.wantRelease, c.info.IsRelease(), "%q IsRelease()", c.info.Version)
 	}
 }
 
@@ -30,12 +28,11 @@ func TestGetFromLinkerValues(t *testing.T) {
 	defer func(v, c string) { Version, Commit = v, c }(Version, Commit)
 
 	Version, Commit = "v0.2.0", "0123456789abcdef"
-	if got := Get(); got.Version != "0.2.0" || got.Commit != "0123456" || got.Modified {
-		t.Errorf("Get() = %+v, want version 0.2.0, commit 0123456", got)
-	}
+	got := Get()
+	assert.Equal(t, "0.2.0", got.Version)
+	assert.Equal(t, "0123456", got.Commit)
+	assert.False(t, got.Modified)
 
 	Version, Commit = "", "abc"
-	if got := Get(); got.Version != "dev" {
-		t.Errorf("empty version: Get().Version = %q, want dev", got.Version)
-	}
+	assert.Equal(t, "dev", Get().Version, "empty version")
 }

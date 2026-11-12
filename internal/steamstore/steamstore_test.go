@@ -2,13 +2,15 @@ package steamstore
 
 import (
 	"context"
-	"errors"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func fakeSteam(t *testing.T) *httptest.Server {
@@ -48,40 +50,36 @@ func TestSearchAndName(t *testing.T) {
 	fakeSteam(t)
 	ctx := context.Background()
 	m, err := Search(ctx, "hollow")
-	if err != nil || len(m) != 1 || m[0].AppID != "367520" || m[0].Name != "Hollow Knight" {
-		t.Fatalf("search = %+v, %v", m, err)
-	}
-	if n, err := AppName(ctx, "1245620"); err != nil || n != "ELDEN RING" {
-		t.Fatalf("edition-keyed name = %q, %v", n, err)
-	}
-	if _, err := AppName(ctx, "9"); !errors.Is(err, ErrNotFound) {
-		t.Fatalf("unknown app err = %v", err)
-	}
-	if _, err := AppName(ctx, "../etc"); err == nil {
-		t.Fatal("non-numeric id accepted")
-	}
+	require.NoError(t, err)
+	require.Len(t, m, 1)
+	assert.Equal(t, "367520", m[0].AppID)
+	assert.Equal(t, "Hollow Knight", m[0].Name)
+
+	n, err := AppName(ctx, "1245620")
+	require.NoError(t, err, "edition-keyed name")
+	assert.Equal(t, "ELDEN RING", n)
+
+	_, err = AppName(ctx, "9")
+	assert.ErrorIs(t, err, ErrNotFound, "unknown app")
+
+	_, err = AppName(ctx, "../etc")
+	assert.Error(t, err, "non-numeric id accepted")
 }
 
 func TestCoverFallsBackToHeaderAndPrefersLocal(t *testing.T) {
 	fakeSteam(t)
 	ctx := context.Background()
 	data, err := Cover(ctx, "", "367520")
-	if err != nil || string(data) != "HEADER" {
-		t.Fatalf("cover = %q, %v", data, err)
-	}
-	if _, err := Cover(ctx, "", "999"); !errors.Is(err, ErrNotFound) {
-		t.Fatalf("missing cover err = %v", err)
-	}
+	require.NoError(t, err)
+	assert.Equal(t, "HEADER", string(data))
+	_, err = Cover(ctx, "", "999")
+	assert.ErrorIs(t, err, ErrNotFound, "missing cover")
 
 	root := t.TempDir()
 	dir := filepath.Join(root, "appcache", "librarycache", "367520", "abc123")
-	if err := os.MkdirAll(dir, 0o755); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(filepath.Join(dir, "library_600x900.jpg"), []byte("LOCAL"), 0o644); err != nil {
-		t.Fatal(err)
-	}
-	if data, err := Cover(ctx, root, "367520"); err != nil || string(data) != "LOCAL" {
-		t.Fatalf("local cover = %q, %v", data, err)
-	}
+	require.NoError(t, os.MkdirAll(dir, 0o755))
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "library_600x900.jpg"), []byte("LOCAL"), 0o644))
+	data, err = Cover(ctx, root, "367520")
+	require.NoError(t, err)
+	assert.Equal(t, "LOCAL", string(data), "local cover")
 }

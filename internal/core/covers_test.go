@@ -7,6 +7,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
 	"github.com/akfaiz/carryover/internal/cloud"
 	"github.com/akfaiz/carryover/internal/library"
 )
@@ -18,21 +21,15 @@ func TestImageFiles(t *testing.T) {
 		{Cover: "../evil.png", Art: map[string]string{"icon": `x\y.png`, "wide": "a.png"}},
 	})
 	want := []string{"a.png", "a_hero.jpg"}
-	if len(got) != len(want) || got[0] != want[0] || got[1] != want[1] {
-		t.Fatalf("imageFiles = %v, want %v", got, want)
-	}
+	require.Equal(t, want, got, "imageFiles")
 }
 
 func TestCoverDelta(t *testing.T) {
 	dir := t.TempDir()
 	put := func(name, data string, mt time.Time) {
 		p := filepath.Join(dir, name)
-		if err := os.WriteFile(p, []byte(data), 0o644); err != nil {
-			t.Fatal(err)
-		}
-		if err := os.Chtimes(p, mt, mt); err != nil {
-			t.Fatal(err)
-		}
+		require.NoError(t, os.WriteFile(p, []byte(data), 0o644))
+		require.NoError(t, os.Chtimes(p, mt, mt))
 	}
 	old, recent := time.Now().Add(-time.Hour), time.Now()
 	put("only-local.png", "aaa", recent)
@@ -47,12 +44,10 @@ func TestCoverDelta(t *testing.T) {
 	}
 	names := []string{"cloud-newer.png", "local-newer.png", "only-cloud.png", "only-local.png", "same.png"}
 	up, down, upBytes, downBytes := coverDelta(names, dir, cloudFiles)
-	if len(up) != 2 || up[0] != "local-newer.png" || up[1] != "only-local.png" || upBytes != 7 {
-		t.Errorf("up = %v (%d bytes)", up, upBytes)
-	}
-	if len(down) != 2 || down[0] != "cloud-newer.png" || down[1] != "only-cloud.png" || downBytes != 12 {
-		t.Errorf("down = %v (%d bytes)", down, downBytes)
-	}
+	assert.Equal(t, []string{"local-newer.png", "only-local.png"}, up)
+	assert.EqualValues(t, 7, upBytes)
+	assert.Equal(t, []string{"cloud-newer.png", "only-cloud.png"}, down)
+	assert.EqualValues(t, 12, downBytes)
 }
 
 // A cover set on one device reaches the cloud, and a device that lacks the
@@ -60,32 +55,21 @@ func TestCoverDelta(t *testing.T) {
 func TestSyncLibraryCopiesCovers(t *testing.T) {
 	c, gameID, _, cloudDir := newPlayable(t)
 	g, err := c.Library.Get(gameID)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 	g.Cover = gameID + ".png"
-	if _, err := c.Library.Save(g, ""); err != nil {
-		t.Fatal(err)
-	}
+	_, err = c.Library.Save(g, "")
+	require.NoError(t, err)
 	local := filepath.Join(c.Dirs.CoversDir(), g.Cover)
-	if err := os.WriteFile(local, []byte("PNGDATA"), 0o644); err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, os.WriteFile(local, []byte("PNGDATA"), 0o644))
 	ctx := context.Background()
-	if err := c.SyncLibrary(ctx); err != nil {
-		t.Fatal(err)
-	}
-	if b, err := os.ReadFile(filepath.Join(cloudDir, "covers", g.Cover)); err != nil || string(b) != "PNGDATA" {
-		t.Fatalf("cloud cover = %q, %v", b, err)
-	}
+	require.NoError(t, c.SyncLibrary(ctx))
+	b, err := os.ReadFile(filepath.Join(cloudDir, "covers", g.Cover))
+	require.NoError(t, err, "cloud cover")
+	require.Equal(t, "PNGDATA", string(b))
 	// Another device: no local file yet.
-	if err := os.Remove(local); err != nil {
-		t.Fatal(err)
-	}
-	if err := c.SyncLibrary(ctx); err != nil {
-		t.Fatal(err)
-	}
-	if b, err := os.ReadFile(local); err != nil || string(b) != "PNGDATA" {
-		t.Fatalf("downloaded cover = %q, %v", b, err)
-	}
+	require.NoError(t, os.Remove(local))
+	require.NoError(t, c.SyncLibrary(ctx))
+	b, err = os.ReadFile(local)
+	require.NoError(t, err, "downloaded cover")
+	require.Equal(t, "PNGDATA", string(b))
 }

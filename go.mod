@@ -8,6 +8,7 @@ require (
 	github.com/rclone/rclone v1.76.0
 	github.com/rymdport/portal v0.4.2
 	github.com/shirou/gopsutil/v4 v4.26.10
+	github.com/stretchr/testify v1.12.1
 	golang.org/x/image v0.48.0
 	golang.org/x/sys v0.50.0
 	gopkg.in/yaml.v3 v3.0.1
@@ -104,7 +105,6 @@ require (
 	github.com/spf13/pflag v1.0.10 // indirect
 	github.com/srwiley/oksvg v0.0.0-20221011165216-be6e8873101c // indirect
 	github.com/srwiley/rasterx v0.0.0-20220730225603-2ab79fcdd4ef // indirect
-	github.com/stretchr/testify v1.12.1 // indirect
 	github.com/tklauser/go-sysconf v0.4.0 // indirect
 	github.com/tklauser/numcpus v0.12.0 // indirect
 	github.com/unknwon/goconfig v1.0.0 // indirect

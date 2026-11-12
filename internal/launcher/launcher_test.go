@@ -1,8 +1,10 @@
 package launcher
 
 import (
-	"reflect"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestSplitArgs(t *testing.T) {
@@ -15,16 +17,11 @@ func TestSplitArgs(t *testing.T) {
 	}
 	for in, want := range cases {
 		got, err := SplitArgs(in)
-		if err != nil {
-			t.Fatalf("%q: %v", in, err)
-		}
-		if !reflect.DeepEqual(got, want) {
-			t.Errorf("%q: got %#v want %#v", in, got, want)
-		}
+		require.NoError(t, err, "%q", in)
+		assert.Equal(t, want, got, "%q", in)
 	}
-	if _, err := SplitArgs(`"open`); err == nil {
-		t.Error("expected error for unterminated quote")
-	}
+	_, err := SplitArgs(`"open`)
+	assert.Error(t, err, "unterminated quote")
 }
 
 func TestNameMatches(t *testing.T) {
@@ -39,8 +36,6 @@ func TestNameMatches(t *testing.T) {
 		{"Game-Win64-Shi.", "Game-Win64-Shipping.exe", false}, // 15 chars, different prefix
 	}
 	for _, c := range cases {
-		if got := nameMatches(c.got, c.want); got != c.ok {
-			t.Errorf("nameMatches(%q, %q) = %v, want %v", c.got, c.want, got, c.ok)
-		}
+		assert.Equal(t, c.ok, nameMatches(c.got, c.want), "nameMatches(%q, %q)", c.got, c.want)
 	}
 }

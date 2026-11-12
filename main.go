@@ -68,12 +68,27 @@ func openCore() *core.Core {
 	return c
 }
 
+// logFile is the open log file, kept for the life of the process.
+var logFile *os.File
+
+// closeLogFile closes the log file. The process normally keeps it open until
+// it exits; tests that run commands in-process close it so the data dir can
+// be deleted (Windows refuses to delete an open file).
+func closeLogFile() {
+	if logFile != nil {
+		_ = logFile.Close()
+		logFile = nil
+	}
+}
+
 // setupLogFile mirrors logs to <data>/logs/carryover.log (useful when launched from Steam).
 func setupLogFile(c *core.Core) {
 	f, err := os.OpenFile(filepath.Join(c.Dirs.LogsDir(), "carryover.log"), os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0o644)
 	if err != nil {
 		return
 	}
+	closeLogFile()
+	logFile = f
 	if fi, err := f.Stat(); err == nil && fi.Size() > 5<<20 {
 		_ = f.Truncate(0)
 	}

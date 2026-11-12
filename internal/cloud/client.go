@@ -182,6 +182,12 @@ func (c *Client) Purge(ctx context.Context, rel string) error {
 	if err != nil {
 		return err
 	}
+	// A folder that isn't there is already purged. Check first: not every
+	// backend reports it as "directory not found" when purging (the local
+	// one doesn't).
+	if _, err := f.List(ctx, p); isNotFound(err) {
+		return nil
+	}
 	err = operations.Purge(ctx, f, p)
 	if isNotFound(err) {
 		return nil
@@ -420,11 +426,25 @@ type Filters struct {
 func (f Filters) Empty() bool { return len(f.Include) == 0 && len(f.Exclude) == 0 }
 
 // NewFilter builds an rclone filter from f.
+//
+// A file is kept when it matches an include rule (or there are none) and no
+// exclude rule. rclone applies the first rule that matches, so the exclude
+// rules go first. Passing both sets as --include and --exclude style options
+// instead would apply the includes first, which makes every excluded file that
+// an include also matches (such as "*" and "*.log") slip through.
 func (f Filters) NewFilter() (*filter.Filter, error) {
 	opt := filter.Opt
 	opt.RulesOpt = filter.RulesOpt{}
-	opt.ExcludeRule = append(opt.ExcludeRule, f.Exclude...)
-	opt.IncludeRule = append(opt.IncludeRule, f.Include...)
+	for _, g := range f.Exclude {
+		opt.FilterRule = append(opt.FilterRule, "- "+g)
+	}
+	for _, g := range f.Include {
+		opt.FilterRule = append(opt.FilterRule, "+ "+g)
+	}
+	if len(f.Include) > 0 {
+		// With an include list, everything that isn't listed is left out.
+		opt.FilterRule = append(opt.FilterRule, "- /**")
+	}
 	return filter.NewFilter(&opt)
 }
 
