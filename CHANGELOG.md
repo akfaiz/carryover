@@ -7,6 +7,10 @@ All notable changes to Carryover are listed here. The format follows
 
 ## [Unreleased]
 
+## [0.1.0] - 2026-11-12
+
+First stable release.
+
 ### Added
 
 - New launch mode, "Carryover starts it through Heroic", for games installed by Heroic Games Launcher (GOG, Epic,
@@ -19,7 +23,7 @@ All notable changes to Carryover are listed here. The format follows
 ### Changed
 
 - Release files share one naming scheme, `carryover-<version>-<os>-<arch>`, with the version written without its
-  `v` (for example `carryover-0.2.0-windows-amd64.exe`). The AppImage, previously `Carryover-x86_64.AppImage`, is
+  `v` (for example `carryover-0.1.0-windows-amd64.exe`). The AppImage, previously `Carryover-x86_64.AppImage`, is
   now `carryover-<version>-linux-amd64.AppImage`; rename it to `carryover.AppImage` so Steam shortcuts survive
   updates.
 - The README explains how to download, install, verify and update each release file.
@@ -59,5 +63,6 @@ First public pre-release.
 - Downloads: a Windows exe, a Linux AppImage with in-place updates through Gear Lever or AppImageUpdate, and a
   Linux tarball with an `install.sh`, plus `SHA256SUMS.txt`.
 
-[Unreleased]: https://github.com/akfaiz/carryover/compare/v0.1.0-rc1...HEAD
+[Unreleased]: https://github.com/akfaiz/carryover/compare/v0.1.0...HEAD
+[0.1.0]: https://github.com/akfaiz/carryover/compare/v0.1.0-rc1...v0.1.0
 [0.1.0-rc1]: https://github.com/akfaiz/carryover/releases/tag/v0.1.0-rc1

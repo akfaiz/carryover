@@ -43,10 +43,9 @@ Cloud storage: Google Drive, Dropbox, OneDrive, WebDAV (Nextcloud, ownCloud, NAS
 
 ## Download
 
-Get the latest version from the [Releases page](https://github.com/akfaiz/carryover/releases). Carryover is still
-in testing, so the current downloads are pre-releases (`-rc` versions).
+Get the latest version from the [Releases page](https://github.com/akfaiz/carryover/releases).
 
-Every file is named `carryover-<version>-<os>-<arch>`, for example `carryover-0.2.0-rc1-windows-amd64.exe`.
+Every file is named `carryover-<version>-<os>-<arch>`, for example `carryover-0.1.0-windows-amd64.exe`.
 
 | Platform | File | How to run |
 |---|---|---|
