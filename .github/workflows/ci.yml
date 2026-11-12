@@ -3,7 +3,17 @@ name: CI
 on:
   push:
     branches: [main]
+    paths-ignore:
+      - "**.md"
+      - "docs/**"
+      - LICENSE
+      - .github/ISSUE_TEMPLATE/**
   pull_request:
+    paths-ignore:
+      - "**.md"
+      - "docs/**"
+      - LICENSE
+      - .github/ISSUE_TEMPLATE/**
   workflow_call: # the release workflow runs these checks first
 
 permissions:
