@@ -38,3 +38,22 @@ func TestCheckOAuthPortReportsBlockedPort(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 }
+
+func TestExplainOAuthErrorPortInUse(t *testing.T) {
+	in := errors.New("listen tcp 127.0.0.1:53682: bind: address already in use")
+	got := explainOAuthError(in)
+	if !strings.Contains(got.Error(), "Another program") || !strings.HasPrefix(got.Error(), in.Error()) {
+		t.Fatalf("message = %v", got)
+	}
+	if again := explainOAuthError(got); again.Error() != got.Error() {
+		t.Fatal("hint added twice")
+	}
+	if explainOAuthError(nil) != nil {
+		t.Fatal("nil error changed")
+	}
+	// An error that doesn't mention the OAuth port is returned as is.
+	other := errors.New("address already in use")
+	if explainOAuthError(other) != other {
+		t.Fatal("unrelated error changed")
+	}
+}

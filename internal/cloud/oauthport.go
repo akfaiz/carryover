@@ -43,7 +43,7 @@ func explainOAuthError(err error) error {
 		return nil
 	}
 	msg := err.Error()
-	if !strings.Contains(msg, "53682") || strings.Contains(msg, "To fix") {
+	if !strings.Contains(msg, "53682") || strings.Contains(msg, "To fix") || strings.Contains(msg, "Another program") {
 		return err
 	}
 	var hint string
