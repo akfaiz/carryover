@@ -112,10 +112,6 @@ func (p *settingsPage) form(st appdir.Settings) fyne.CanvasObject {
 		})
 	})
 
-	cli := mono("carryover run <game> [--headless] [-- command…]\n" +
-		"carryover sync <game>|--all [--push|--pull] [--dry-run] [--yes]\n" +
-		"carryover list\n" +
-		"carryover --version")
 	narrow := func(o fyne.CanvasObject) fyne.CanvasObject { return maxWidth(640, o) }
 	return stack(
 		pageHead(nil, lang.L("Settings")),
@@ -137,9 +133,6 @@ func (p *settingsPage) form(st appdir.Settings) fyne.CanvasObject {
 			keyTest.Result,
 			muted(lang.L("Lets you search community covers for any game, including ones not on Steam, and fills in covers Steam doesn't have. Get a free key at steamgriddb.com/profile/preferences/api (log in with Steam). The key is stored only on this device.")))),
 		hbox(save),
-		narrow(card(lang.L("Command line"),
-			muted(lang.L("Useful for scripts or other launchers (Lutris, Heroic, Playnite…):")),
-			cli)),
 		narrow(aboutCard()),
 	)
 }
