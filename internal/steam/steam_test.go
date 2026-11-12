@@ -153,3 +153,114 @@ func TestSetGridArt(t *testing.T) {
 		t.Fatal("unknown kind accepted")
 	}
 }
+
+func TestUsers(t *testing.T) {
+	root := t.TempDir()
+	for _, d := range []string{"0", "abc", "67890", "12345", "99999999999"} {
+		if err := os.MkdirAll(filepath.Join(root, "userdata", d), 0o755); err != nil {
+			t.Fatal(err)
+		}
+	}
+	// A plain file in userdata is not an account.
+	if err := os.WriteFile(filepath.Join(root, "userdata", "11111"), nil, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(filepath.Join(root, "config"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	// SteamID64 = base + 12345 is named; 67890 has no entry and falls back to its id.
+	vdf := `"users"
+{
+	"76561197960278073"
+	{
+		"AccountName"	"login"
+		"PersonaName"	"Alice"
+	}
+	"1234"
+	{
+		"PersonaName"	"too small to be a SteamID64"
+	}
+}`
+	if err := os.WriteFile(filepath.Join(root, "config", "loginusers.vdf"), []byte(vdf), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	users, err := Users(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Sorted by name, so the account shown by its id comes first.
+	want := []User{{ID: "67890", Name: "67890"}, {ID: "12345", Name: "Alice"}}
+	if len(users) != len(want) {
+		t.Fatalf("Users = %+v, want %+v", users, want)
+	}
+	for i := range want {
+		if users[i] != want[i] {
+			t.Fatalf("Users[%d] = %+v, want %+v", i, users[i], want[i])
+		}
+	}
+}
+
+func TestUsersErrors(t *testing.T) {
+	if _, err := Users(""); err == nil {
+		t.Error("Users without a Steam root: want an error")
+	}
+	if _, err := Users(t.TempDir()); err == nil {
+		t.Error("Users without a userdata folder: want an error")
+	}
+}
+
+// Without login names (or with a broken file) accounts keep their id as name.
+func TestLoginUserNamesTolerant(t *testing.T) {
+	root := t.TempDir()
+	if got := loginUserNames(root); len(got) != 0 {
+		t.Fatalf("missing file: %v", got)
+	}
+	if err := os.MkdirAll(filepath.Join(root, "config"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(root, "config", "loginusers.vdf"), []byte(`"users" {`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if got := loginUserNames(root); len(got) != 0 {
+		t.Fatalf("broken file: %v", got)
+	}
+}
+
+func TestFindRootEnvOverride(t *testing.T) {
+	dir := t.TempDir()
+	t.Setenv("CARRYOVER_STEAM_ROOT", dir)
+	if got := FindRoot(); got != dir {
+		t.Fatalf("FindRoot = %q, want %q", got, dir)
+	}
+}
+
+func TestShortcutAppID(t *testing.T) {
+	a := ShortcutAppID(`"/opt/carryover"`, "Game A")
+	if a&0x80000000 == 0 {
+		t.Fatalf("high bit not set: %x", a)
+	}
+	if a != ShortcutAppID(`"/opt/carryover"`, "Game A") {
+		t.Fatal("not deterministic")
+	}
+	if a == ShortcutAppID(`"/opt/carryover"`, "Game B") {
+		t.Fatal("different games share an app id")
+	}
+}
+
+func TestCompatDataPrefixFallsBackToRoot(t *testing.T) {
+	root := t.TempDir()
+	want := filepath.Join(root, "steamapps", "compatdata", "42", "pfx", "drive_c", "users", "steamuser")
+	if got := CompatDataPrefix(root, "42"); got != want {
+		t.Fatalf("CompatDataPrefix = %q, want %q", got, want)
+	}
+	if err := os.MkdirAll(want, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if got := CompatDataPrefix(root, "42"); got != want {
+		t.Fatalf("existing prefix = %q, want %q", got, want)
+	}
+}
+
+// IsRunning depends on the machine; it must just answer without failing.
+func TestIsRunningDoesNotPanic(t *testing.T) { _ = IsRunning() }
