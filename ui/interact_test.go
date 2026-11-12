@@ -4,6 +4,7 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -378,6 +379,19 @@ func entryByPlaceholder(t *testing.T, h *harness, placeholder string) *widget.En
 	return nil
 }
 
+// exeEntry finds the executable field. Its placeholder is an example path in
+// the running OS's style (C:\Games\A\Game.exe or /home/deck/Games/A/Game.exe).
+func exeEntry(t *testing.T, h *harness) *widget.Entry {
+	t.Helper()
+	for _, e := range pageWidgets[*widget.Entry](h) {
+		if strings.HasSuffix(e.PlaceHolder, "A/Game.exe") || strings.HasSuffix(e.PlaceHolder, `A\Game.exe`) {
+			return e
+		}
+	}
+	require.Fail(t, "no executable entry found")
+	return nil
+}
+
 // Only the name is required: a game can be added without a path, and another
 // device sets its own later.
 func TestEditorSaveNeedsAName(t *testing.T) {
@@ -402,7 +416,7 @@ func TestEditorCreatesGame(t *testing.T) {
 	h.open("/new")
 
 	entryByPlaceholder(t, h, "Game name").SetText("Game A")
-	entryByPlaceholder(t, h, "/home/deck/Games/A/Game.exe").SetText("/games/a/a.exe")
+	exeEntry(t, h).SetText("/games/a/a.exe")
 	entryByPlaceholder(t, h, "-windowed").SetText("-windowed -nosplash")
 	entryByPlaceholder(t, h, "Game-Win64-Shipping.exe").SetText("Game-Win64-Shipping.exe")
 	entryByPlaceholder(t, h, "{appdata}/Game/Saves").SetText("{home}/GameA/Saves")
