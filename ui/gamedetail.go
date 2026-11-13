@@ -34,6 +34,7 @@ type gameDetail struct {
 	steamTarget   string // "game" (default for a game with emulators) or "profile"
 	wrapOpts      string
 	confirmDelete bool
+	deleteSaves   bool // the delete also removes the cloud saves
 	cancelling    bool // Cancel pressed; waiting for the sync to stop
 	wrapOpen      bool
 	wrapSection   *accordionSection // to keep its open state across renders
@@ -565,14 +566,30 @@ func (p *gameDetail) steamCard(g, orig services.GameView, busy bool) fyne.Canvas
 
 func (p *gameDetail) deleteCard(g services.GameView) fyne.CanvasObject {
 	if !p.confirmDelete {
-		return card("", hbox(dangerButton(lang.L("Delete from library…"), func() { p.confirmDelete = true; p.render() })))
+		return card("", hbox(dangerButton(lang.L("Delete from library…"), func() { p.confirmDelete, p.deleteSaves = true, false; p.render() })))
+	}
+	msg := lang.L("Move {{.Game}} to the trash on all devices? You can restore it from the Trash page. Cloud saves and backups are kept.", map[string]any{"Game": g.Name})
+	if p.deleteSaves {
+		msg = lang.L("Delete {{.Game}} permanently on all devices, with its cloud saves and backups (for every emulator too)? It can't be restored.", map[string]any{"Game": g.Name})
+	}
+	saves := rebuildingCheck(lang.L("Also delete its cloud saves and backups"), p.deleteSaves, func(on bool) { p.deleteSaves = on; p.render() })
+	hint := muted("")
+	if !p.deleteSaves {
+		hint = muted(lang.L("The cloud saves stay until you delete them. Once it is gone for good, they are listed under Trash → Leftover cloud saves."))
 	}
 	return card("",
-		colored(lang.L("Remove {{.Game}} from the library on all devices? Cloud saves and backups are kept.", map[string]any{"Game": g.Name}), widget.MediumImportance),
-		hbox(widget.NewButton(lang.L("Cancel"), func() { p.confirmDelete = false; p.render() }),
+		colored(msg, widget.MediumImportance),
+		saves,
+		hint,
+		hbox(widget.NewButton(lang.L("Cancel"), func() { p.confirmDelete, p.deleteSaves = false, false; p.render() }),
 			dangerButton(lang.L("Delete"), func() {
-				p.run("delete", func() error { return p.u.lib.Delete(p.id) }, func(err error) {
+				del := p.u.lib.Delete
+				if p.deleteSaves {
+					del = p.u.lib.DeleteWithSaves
+				}
+				p.run("delete", func() error { return del(p.id) }, func(err error) {
 					if err == nil {
+						p.u.reloadLeftoverCount()
 						p.u.navigate("/")
 					}
 				})

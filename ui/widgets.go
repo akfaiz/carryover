@@ -193,6 +193,17 @@ func setEnabled(w fyne.Disableable, on bool) {
 	}
 }
 
+// rebuildingCheck is a checkbox whose change redraws the page that holds it.
+// Its initial state is set before the callback is attached: SetChecked calls
+// the callback, and a callback that redraws would build the checkbox again,
+// without end.
+func rebuildingCheck(label string, on bool, changed func(bool)) *widget.Check {
+	c := widget.NewCheck(label, nil)
+	c.SetChecked(on)
+	c.OnChanged = changed
+	return c
+}
+
 func hbox(objs ...fyne.CanvasObject) *fyne.Container { return container.NewHBox(objs...) }
 
 func vbox(objs ...fyne.CanvasObject) *fyne.Container { return container.NewVBox(objs...) }

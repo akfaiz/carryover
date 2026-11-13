@@ -3,9 +3,11 @@ package services
 import (
 	"context"
 	"errors"
+	"slices"
 	"strings"
 	"time"
 
+	"github.com/akfaiz/carryover/internal/cloudsync/syncer"
 	"github.com/akfaiz/carryover/internal/core"
 	"github.com/akfaiz/carryover/internal/library"
 	"github.com/akfaiz/carryover/internal/saves/emumanifest"
@@ -113,11 +115,68 @@ func (s *EmulatorService) Save(in EmulatorSetup) (EmulatorView, error) {
 	return s.view(saved, s.c.Library.List()), nil
 }
 
-// Delete removes an emulator. Games keep their profile (it just can't be
-// launched) and the cloud saves are kept.
+// Delete moves an emulator to the trash on all devices. Games keep their
+// profile (it just can't be launched) and the cloud saves are kept; Restore
+// brings it back.
 func (s *EmulatorService) Delete(id string) error {
 	if err := s.c.Library.DeleteEmulator(id); err != nil {
 		return err
+	}
+	s.bus.libraryChanged("")
+	s.publish()
+	return nil
+}
+
+// DeleteForever deletes an emulator, live or in the trash, for good: it is
+// taken out of every game that uses it and its settings can't be restored.
+// The games' cloud saves made with it stay and show up as leftovers.
+func (s *EmulatorService) DeleteForever(id string) error { return s.deleteForever(id, false) }
+
+// DeleteWithSaves is DeleteForever that also permanently deletes the cloud
+// saves and backups made with the emulator, and their sync state and safety
+// copies on this device. The emulator stays if the cloud saves can't be deleted.
+//
+// A game whose other emulator uses this one's cloud save keeps that cloud
+// folder (it holds the other emulator's save too). The other emulator gets a
+// cloud save of its own from then on and asks before syncing, like when it
+// stops sharing in the game editor.
+func (s *EmulatorService) DeleteWithSaves(id string) error { return s.deleteForever(id, true) }
+
+func (s *EmulatorService) deleteForever(id string, saves bool) error {
+	if _, err := s.c.Library.EmulatorAny(id); err != nil {
+		return err
+	}
+	keep := map[string]bool{} // cloud folders another emulator still uses
+	var reset []string        // sync keys of the emulators that shared this one's
+	// Games in the trash lose the emulator too (they can be restored).
+	for _, g := range append(s.c.Library.List(), s.c.Library.Trash()...) {
+		if _, ok := g.Emulator(id); !ok {
+			continue
+		}
+		for _, ge := range g.Emulators {
+			if ge.ShareWith == id {
+				keep[core.SyncKey(g.ID, id)] = true
+				reset = append(reset, core.SyncKey(g.ID, ge.EmulatorID))
+			}
+		}
+	}
+	if saves {
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+		defer cancel()
+		keys, err := s.c.SaveKeysOfEmulator(ctx, id)
+		if err != nil {
+			return err
+		}
+		keys = slices.DeleteFunc(keys, func(k string) bool { return keep[k] })
+		if err := s.c.PurgeSaves(ctx, keys); err != nil {
+			return err
+		}
+	}
+	if _, err := s.c.Library.DeleteEmulatorEverywhere(id); err != nil {
+		return err
+	}
+	for _, k := range reset {
+		_ = s.c.States.Save(k, syncer.State{})
 	}
 	s.bus.libraryChanged("")
 	s.publish()

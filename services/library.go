@@ -558,10 +558,16 @@ func (s *LibraryService) Save(in GameInput) (GameView, error) {
 // game added or changed on this device shows up on the others without
 // pressing "Sync all". Failures (offline, no cloud yet) are not fatal: the
 // change is kept locally and goes out with the next library sync.
-func (s *LibraryService) publish() {
+func (s *LibraryService) publish() { s.publishAfter(nil) }
+
+// publishAfter is publish that first runs before in the same background job.
+func (s *LibraryService) publishAfter(before func(context.Context)) {
 	go func() {
 		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
 		defer cancel()
+		if before != nil {
+			before(ctx)
+		}
 		if err := s.c.SyncLibrary(ctx); err != nil {
 			log.Printf("library sync: %v", err)
 			return
@@ -589,13 +595,53 @@ func cleanList(in []string) []string {
 	return out
 }
 
-// Delete removes a game from the library (cloud saves are kept).
+// Delete moves a game to the trash on all devices. Its settings are kept for
+// library.TrashRetention (see Restore) and its cloud saves and backups stay
+// until they are deleted (see DeleteWithSaves).
 func (s *LibraryService) Delete(id string) error {
 	if err := s.c.Library.Delete(id); err != nil {
 		return err
 	}
 	s.bus.libraryChanged(id)
 	s.publish()
+	return nil
+}
+
+// DeleteForever deletes a game for good, live or in the trash: its settings
+// can't be restored any more. Its cloud saves stay and show up as leftovers.
+func (s *LibraryService) DeleteForever(id string) error {
+	return s.deleteForever(id, false)
+}
+
+// DeleteWithSaves is DeleteForever that also permanently deletes everything
+// the game has in the cloud (saves, backups and lock, for its own profile and
+// every emulator) and its sync state and safety copies on this device. The game
+// stays as it is if the cloud saves can't be deleted.
+func (s *LibraryService) DeleteWithSaves(id string) error {
+	return s.deleteForever(id, true)
+}
+
+func (s *LibraryService) deleteForever(id string, saves bool) error {
+	g, err := s.c.Library.GetAny(id)
+	if err != nil {
+		return err
+	}
+	if saves {
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+		defer cancel()
+		keys, err := s.c.SaveKeysOf(ctx, id)
+		if err != nil {
+			return err
+		}
+		if err := s.c.PurgeSaves(ctx, keys); err != nil {
+			return err
+		}
+	}
+	if err := s.c.Library.DeleteForever(id); err != nil {
+		return err
+	}
+	s.bus.libraryChanged(id)
+	s.publishAfter(func(ctx context.Context) { s.c.DropImages(ctx, g) })
 	return nil
 }
 

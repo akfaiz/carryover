@@ -776,3 +776,166 @@ func TestGamePageSyncAndBackup(t *testing.T) {
 	assert.Equal(t, "manual", backups[0].Kind)
 	assert.True(t, backups[0].Pinned)
 }
+
+// ---- Trash ----
+
+// A deleted game waits on the Trash page and Restore brings it back.
+func TestTrashPageRestoresAGame(t *testing.T) {
+	h := newHarness(t)
+	g := h.addGame("Game A", t.TempDir())
+	h.open("/game/" + g.ID)
+	tapButton(t, h, "Delete from library…")
+	h.settle()
+	tapButton(t, h, "Delete")
+	h.settle()
+	require.Empty(t, h.c.Library.List())
+
+	h.open("/trash")
+	tapButton(t, h, "Restore")
+	h.settle()
+	require.Len(t, h.c.Library.List(), 1, "restored")
+	assert.Empty(t, h.c.Library.Trash())
+}
+
+// "Delete permanently" asks first, and a game deleted for good can't be restored.
+func TestTrashPageDeleteForever(t *testing.T) {
+	h := newHarness(t)
+	g := h.addGame("Game A", t.TempDir())
+	require.NoError(t, h.u.lib.Delete(g.ID))
+
+	h.open("/trash")
+	tapButton(t, h, "Delete permanently…")
+	h.settle()
+	tapButton(t, h, "Cancel")
+	h.settle()
+	require.Len(t, h.c.Library.Trash(), 1)
+
+	tapButton(t, h, "Delete permanently…")
+	h.settle()
+	tapButton(t, h, "Delete")
+	h.settle()
+	assert.Empty(t, h.c.Library.Trash())
+	_, err := h.c.Library.Restore(g.ID)
+	require.ErrorIs(t, err, library.ErrNotRestorable)
+}
+
+// Cloud saves no game uses are listed and can be restored into the editor.
+func TestTrashPageLeftoverSaves(t *testing.T) {
+	h := newHarness(t)
+	h.useLocalCloud()
+	saves := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(saves, "a.sav"), []byte("save"), 0o644))
+	g := h.addGame("Game A", saves)
+	_, err := h.u.sync.SyncAll()
+	require.NoError(t, err)
+	require.NoError(t, h.u.lib.DeleteForever(g.ID)) // keeps the cloud saves
+
+	h.open("/trash")
+	h.settle()
+	tapButton(t, h, "Restore")
+	h.settle()
+	assert.Equal(t, "/edit/"+g.ID, h.u.route, "the editor opens to set the save location")
+	v, err := h.u.lib.Get(g.ID)
+	require.NoError(t, err)
+	assert.Equal(t, "Game A", v.Name)
+}
+
+// Ticking "also delete the cloud saves" redraws the confirmation without
+// looping, and the choice decides what is deleted.
+func TestDeleteConfirmationCheckbox(t *testing.T) {
+	h := newHarness(t)
+	cloud := h.useLocalCloud()
+	saves := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(saves, "a.sav"), []byte("save"), 0o644))
+	g := h.addGame("Game A", saves)
+	_, err := h.u.sync.SyncAll()
+	require.NoError(t, err)
+	folder := filepath.Join(cloud, "games", g.ID)
+	require.DirExists(t, folder)
+
+	// Trash page.
+	require.NoError(t, h.u.lib.Delete(g.ID))
+	h.open("/trash")
+	tapButton(t, h, "Delete permanently…")
+	h.settle()
+	for _, c := range pageWidgets[*widget.Check](h) {
+		test.Tap(c)
+	}
+	h.settle()
+	checks := pageWidgets[*widget.Check](h)
+	require.Len(t, checks, 1)
+	assert.True(t, checks[0].Checked, "stays ticked after the page redraws")
+	tapButton(t, h, "Delete")
+	h.settle()
+	assert.NoDirExists(t, folder, "the cloud saves went too")
+
+	// Game page: ticking works there too.
+	g2 := h.addGame("Game B", saves)
+	h.open("/game/" + g2.ID)
+	tapButton(t, h, "Delete from library…")
+	h.settle()
+	for _, c := range pageWidgets[*widget.Check](h) {
+		test.Tap(c)
+	}
+	h.settle()
+	require.True(t, pageWidgets[*widget.Check](h)[0].Checked)
+}
+
+func labelTexts(h *harness) []string {
+	var out []string
+	for _, l := range pageWidgets[*widget.Label](h) {
+		out = append(out, l.Text)
+	}
+	return out
+}
+
+// The delete confirmation says where kept cloud saves can be found again, and
+// drops the line once they are being deleted too.
+func TestDeleteConfirmationExplainsKeptSaves(t *testing.T) {
+	h := newHarness(t)
+	g := h.addGame("Game A", t.TempDir())
+	h.open("/game/" + g.ID)
+	tapButton(t, h, "Delete from library…")
+	h.settle()
+	assert.Contains(t, strings.Join(labelTexts(h), "\n"), "Leftover cloud saves")
+	for _, c := range pageWidgets[*widget.Check](h) {
+		test.Tap(c)
+	}
+	h.settle()
+	assert.NotContains(t, strings.Join(labelTexts(h), "\n"), "Leftover cloud saves")
+}
+
+// The sidebar counts what is in the trash plus the cloud saves no game uses.
+func TestSidebarTrashCount(t *testing.T) {
+	h := newHarness(t)
+	h.useLocalCloud()
+	saves := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(saves, "a.sav"), []byte("save"), 0o644))
+	g := h.addGame("Game A", saves)
+	_, err := h.u.sync.SyncAll()
+	require.NoError(t, err)
+	h.settle()
+	assert.Equal(t, "Trash", h.u.navBtns["/trash"].Text)
+
+	h.open("/game/" + g.ID)
+	tapButton(t, h, "Delete from library…")
+	h.settle()
+	tapButton(t, h, "Delete") // to the trash, saves kept
+	h.settle()
+	h.u.refresh()
+	h.settle()
+	assert.Equal(t, "Trash (1)", h.u.navBtns["/trash"].Text, "one game in the trash")
+
+	h.open("/trash")
+	tapButton(t, h, "Delete permanently…")
+	h.settle()
+	tapButton(t, h, "Delete") // gone for good, saves kept
+	h.settle()
+	assert.Equal(t, "Trash (1)", h.u.navBtns["/trash"].Text, "its cloud saves are a leftover now")
+
+	tapButton(t, h, "Delete…")
+	h.settle()
+	tapButton(t, h, "Delete")
+	h.settle()
+	assert.Equal(t, "Trash", h.u.navBtns["/trash"].Text, "nothing left")
+}

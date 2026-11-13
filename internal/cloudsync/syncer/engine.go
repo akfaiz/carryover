@@ -524,6 +524,14 @@ func (s *StateStore) Save(id string, st State) error {
 	return appdir.WriteJSONAtomic(s.path(id), st)
 }
 
+// Delete forgets the state of a game (no error if there is none).
+func (s *StateStore) Delete(id string) error {
+	if err := os.Remove(s.path(id)); err != nil && !errors.Is(err, os.ErrNotExist) {
+		return err
+	}
+	return nil
+}
+
 // SetError records the last error (or clears it with "").
 func (s *StateStore) SetError(id, msg string) {
 	st, err := s.Load(id)
