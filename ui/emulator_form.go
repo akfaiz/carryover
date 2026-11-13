@@ -8,7 +8,6 @@ import (
 
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/container"
-	"fyne.io/fyne/v2/dialog"
 	"fyne.io/fyne/v2/lang"
 	"fyne.io/fyne/v2/widget"
 
@@ -93,7 +92,7 @@ func (f *emulatorForm) form() fyne.CanvasObject {
 	}
 	exe := kit.MonoEntry(example, s.Exe, func(v string) { s.Exe = v })
 	browse := widget.NewButton(lang.L("Browse…"), func() {
-		pickFileDialog(f.u, lang.L("Choose the emulator executable"), nil, func(path string) {
+		kit.PickFile(f.u.win, lang.L("Choose the emulator executable"), nil, func(path string) {
 			s.Exe = path
 			exe.SetText(path)
 			f.exePicked(path)
@@ -273,15 +272,6 @@ func showEmulatorDialog(u *UI, onSaved func(services.EmulatorView)) {
 			scroll.Content = container.NewStack(f.host)
 			scroll.Refresh()
 		}
-		d = newScrollDialog(u, f.title(), scroll)
+		d = kit.ScrollDialog(u.win, f.title(), scroll)
 	})
-}
-
-// newScrollDialog shows a scrolling content in a dialog sized to the window;
-// the content has its own buttons.
-func newScrollDialog(u *UI, title string, scroll *container.Scroll) dialogHider {
-	d := dialog.NewCustomWithoutButtons(title, scroll, u.win)
-	d.Resize(dialogSize(u.win))
-	d.Show()
-	return d
 }

@@ -1,13 +1,9 @@
 package ui
 
 import (
-	"path/filepath"
-
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/container"
-	"fyne.io/fyne/v2/dialog"
 	"fyne.io/fyne/v2/lang"
-	"fyne.io/fyne/v2/storage"
 	"fyne.io/fyne/v2/theme"
 	"fyne.io/fyne/v2/widget"
 
@@ -15,24 +11,6 @@ import (
 	"github.com/akfaiz/carryover/internal/ui/kit"
 	"github.com/akfaiz/carryover/services"
 )
-
-// pickFileDialog asks for a file and passes its path to done.
-func pickFileDialog(u *UI, title string, exts []string, done func(string)) {
-	d := dialog.NewFileOpen(func(r fyne.URIReadCloser, err error) {
-		if err != nil || r == nil {
-			return
-		}
-		p := filepath.FromSlash(r.URI().Path())
-		_ = r.Close()
-		done(p)
-	}, u.win)
-	d.SetTitleText(title)
-	if len(exts) > 0 {
-		d.SetFilter(storage.NewExtensionFileFilter(exts))
-	}
-	d.Resize(dialogSize(u.win))
-	d.Show()
-}
 
 // emulatorsPage lists the emulators and edits them: where each is installed on
 // this device and how it is started. A game then picks its emulators.

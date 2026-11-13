@@ -19,7 +19,7 @@ import (
 // and updates them in place with set, so a status change or a search doesn't
 // rebuild the grid and reload every cover.
 type gameTile struct {
-	widget.BaseWidget
+	kit.Composite
 	u        *UI
 	g        services.GameView
 	coverKey string
@@ -27,7 +27,6 @@ type gameTile struct {
 	name     *widget.Label
 	status   *fyne.Container
 	play     *widget.Button
-	content  fyne.CanvasObject
 }
 
 func newGameTile(u *UI, g services.GameView) *gameTile {
@@ -36,9 +35,8 @@ func newGameTile(u *UI, g services.GameView) *gameTile {
 	t.name.Truncation = fyne.TextTruncateEllipsis
 	t.play = widget.NewButton("", t.playTapped)
 	open := kit.NewTappable(kit.VBox(t.cover, t.name, t.status), func() { u.navigate("/game/" + t.g.ID) })
-	t.content = kit.VBox(open, t.play)
+	t.Init(t, kit.VBox(open, t.play))
 	t.set(g)
-	t.ExtendBaseWidget(t)
 	return t
 }
 
@@ -114,6 +112,3 @@ func openSteam(u *UI, g services.GameView) {
 	}
 	u.toast(lang.L("Starting {{.Game}} in Steam…", map[string]any{"Game": g.Name}), kit.ToastInfo)
 }
-
-// CreateRenderer implements fyne.Widget.
-func (t *gameTile) CreateRenderer() fyne.WidgetRenderer { return widget.NewSimpleRenderer(t.content) }

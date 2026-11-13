@@ -2,8 +2,6 @@ package ui
 
 import (
 	"math"
-	"regexp"
-	"strings"
 	"time"
 
 	"fyne.io/fyne/v2/lang"
@@ -41,25 +39,4 @@ func fmtDate(t time.Time) string {
 		return "—"
 	}
 	return t.Local().Format("2006-01-02 15:04")
-}
-
-var nonSlug = regexp.MustCompile(`[^a-z0-9]+`)
-
-func slug(s string) string {
-	out := strings.Trim(nonSlug.ReplaceAllString(strings.ToLower(s), "-"), "-")
-	if out == "" {
-		return "saves"
-	}
-	return out
-}
-
-// splitLines splits on newlines and commas, trimming blanks.
-func splitLines(t string) []string {
-	var out []string
-	for _, x := range strings.FieldsFunc(t, func(r rune) bool { return r == '\n' || r == ',' }) {
-		if x = strings.TrimSpace(x); x != "" {
-			out = append(out, x)
-		}
-	}
-	return out
 }

@@ -18,8 +18,7 @@ import (
 // pathInput is a path entry with token insertion, a folder browser and a
 // live preview of the expanded path.
 type pathInput struct {
-	widget.BaseWidget
-	content fyne.CanvasObject
+	kit.Composite
 	u       *UI
 	entry   *widget.Entry
 	preview *widget.Label
@@ -60,14 +59,10 @@ func newPathInput(u *UI, gameID string, tokens []pathvar.Token, value, placehold
 		right = append(right, tokBtn)
 	}
 	right = append(right, widget.NewButton(lang.L("Browse…"), p.browse))
-	p.content = kit.VBox(kit.RowFill(p.entry, right...), p.preview)
-	p.ExtendBaseWidget(p)
+	p.Init(p, kit.VBox(kit.RowFill(p.entry, right...), p.preview))
 	p.updatePreview()
 	return p
 }
-
-// CreateRenderer implements fyne.Widget.
-func (p *pathInput) CreateRenderer() fyne.WidgetRenderer { return widget.NewSimpleRenderer(p.content) }
 
 func (p *pathInput) insert(tok string) {
 	tok = strings.Replace(tok, "<appid>", "", 1)
@@ -93,7 +88,7 @@ func (p *pathInput) browse() {
 		}
 		p.entry.SetText(p.u.lib.ContractPath(filepath.FromSlash(dir.Path())))
 	}, p.u.win)
-	d.Resize(dialogSize(p.u.win))
+	d.Resize(kit.DialogSize(p.u.win))
 	d.Show()
 }
 
@@ -125,7 +120,3 @@ func (p *pathInput) updatePreview() {
 }
 
 // dialogSize is a comfortable size for file and picker dialogs.
-func dialogSize(w fyne.Window) fyne.Size {
-	s := w.Canvas().Size()
-	return fyne.NewSize(min(820, s.Width-40), min(600, s.Height-40))
-}
