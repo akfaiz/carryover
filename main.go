@@ -6,7 +6,6 @@ import (
 	"errors"
 	"flag"
 	"fmt"
-	"io"
 	"log"
 	"os"
 	"os/signal"
@@ -15,6 +14,8 @@ import (
 	"strings"
 	"syscall"
 
+	"github.com/akfaiz/carryover/internal/app/appdir"
+	"github.com/akfaiz/carryover/internal/app/applog"
 	"github.com/akfaiz/carryover/internal/app/version"
 	"github.com/akfaiz/carryover/internal/cloudsync/syncer"
 	"github.com/akfaiz/carryover/internal/core"
@@ -46,15 +47,15 @@ func main() {
 	attachConsole()
 	args := os.Args[1:]
 	if len(args) == 0 {
-		os.Exit(runGUI("", core.RunOptions{}))
+		applog.Exit(runGUI("", core.RunOptions{}))
 	}
 	switch args[0] {
 	case "run":
-		os.Exit(cmdRun(args[1:]))
+		applog.Exit(cmdRun(args[1:]))
 	case "sync":
-		os.Exit(cmdSync(args[1:]))
+		applog.Exit(cmdSync(args[1:]))
 	case "list":
-		os.Exit(cmdList())
+		applog.Exit(cmdList())
 	case "--version", "version":
 		fmt.Println("carryover " + version.Get().String())
 	case "-h", "--help", "help":
@@ -68,39 +69,57 @@ func main() {
 func openCore() *core.Core {
 	c, err := core.New()
 	if err != nil {
-		log.Fatalf("carryover: %v", err)
+		startupFailed(err)
 	}
 	setupLogFile(c)
 	return c
 }
 
-// logFile is the open log file, kept for the life of the process.
-var logFile *os.File
+// startupFailed reports an error that stops Carryover before its log is open
+// (e.g. an unreadable settings file): to the log, if the data dir can be
+// found, and on stderr or, for a Windows GUI launch, in a message box.
+func startupFailed(err error) {
+	logged := ""
+	if d, derr := appdir.Resolve(); derr == nil && applog.WriteStartupError(d.LogsDir(), err) == nil {
+		logged = filepath.Join(d.LogsDir(), applog.FileName)
+	}
+	msg := fmt.Sprintf("Carryover could not start:\n\n%v", err)
+	if logged != "" {
+		msg += "\n\nDetails were written to " + logged
+	}
+	_, _ = fmt.Fprintln(os.Stderr, "carryover: "+err.Error())
+	showFatal(msg)
+	os.Exit(1)
+}
+
+// logFile is the open log, kept for the life of the process.
+var logFile *applog.Log
 
 // closeLogFile closes the log file. The process normally keeps it open until
 // it exits; tests that run commands in-process close it so the data dir can
 // be deleted (Windows refuses to delete an open file).
 func closeLogFile() {
 	if logFile != nil {
-		_ = logFile.Close()
+		logFile.Close()
 		logFile = nil
 	}
 }
 
-// setupLogFile mirrors logs to <data>/logs/carryover.log (useful when launched from Steam).
+// setupLogFile mirrors logs to <data>/logs/carryover.log (useful when launched
+// from Steam) and records crashes there.
 func setupLogFile(c *core.Core) {
-	f, err := os.OpenFile(filepath.Join(c.Dirs.LogsDir(), "carryover.log"), os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0o644)
+	closeLogFile()
+	// The header is only in the file: it tells which build wrote the log
+	// (e.g. one sent with a bug report).
+	data := "default data dir"
+	if os.Getenv(appdir.EnvHome) != "" {
+		data = appdir.EnvHome + " data dir"
+	}
+	l, err := applog.Open(c.Dirs.LogsDir(), fmt.Sprintf("Carryover %s started, args %q, %s", version.Get(), os.Args[1:], data))
 	if err != nil {
 		return
 	}
-	closeLogFile()
-	logFile = f
-	if fi, err := f.Stat(); err == nil && fi.Size() > 5<<20 {
-		_ = f.Truncate(0)
-	}
-	log.SetOutput(io.MultiWriter(os.Stderr, f))
-	// Only in the file: tells which build wrote the log (e.g. one sent with a bug report).
-	log.New(f, "", log.LstdFlags).Printf("Carryover %s started, args %q", version.Get(), os.Args[1:])
+	logFile = l
 }
 
 func cmdRun(args []string) int {

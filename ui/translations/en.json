@@ -306,6 +306,8 @@
   "Release notes": "Release notes",
   "All releases": "All releases",
   "Source code": "Source code",
+  "Open logs folder": "Open logs folder",
+  "When reporting a problem, attach carryover.log from this folder (and carryover.1.log if it happened a while ago).": "When reporting a problem, attach carryover.log from this folder (and carryover.1.log if it happened a while ago).",
   "{{.Game}} is installed by Heroic — it will be started through Heroic.": "{{.Game}} is installed by Heroic — it will be started through Heroic.",
   "Launch with": "Launch with",
   "Carryover": "Carryover",

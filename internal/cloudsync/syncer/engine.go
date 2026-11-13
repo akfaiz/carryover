@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log"
 	"os"
 	"path/filepath"
 	"sort"
@@ -141,6 +142,14 @@ func validateJob(job Job) error {
 
 // Plan scans local saves, fetches the cloud manifest and decides an action.
 func (e *Engine) Plan(ctx context.Context, job Job) (*Plan, error) {
+	p, err := e.plan(ctx, job)
+	if err != nil && ctx.Err() == nil {
+		log.Printf("sync %s: plan failed: %v", job.StateID(), err)
+	}
+	return p, err
+}
+
+func (e *Engine) plan(ctx context.Context, job Job) (*Plan, error) {
 	if err := validateJob(job); err != nil {
 		return nil, err
 	}
@@ -199,20 +208,57 @@ func (e *Engine) Plan(ctx context.Context, job Job) (*Plan, error) {
 // Apply executes a plan. With ResolveLocal/ResolveCloud the plan's action is overridden.
 // It returns the action actually performed.
 func (e *Engine) Apply(ctx context.Context, p *Plan, res Resolution) (Action, error) {
+	start := time.Now()
+	action, summary, err := e.apply(ctx, p, res)
+	logApply(p, res, action, summary, err, ctx.Err() != nil, time.Since(start))
+	return action, err
+}
+
+// logApply writes one line per sync to the log: what was decided, from what
+// (file counts and sizes; no paths or device names), and how it ended.
+func logApply(p *Plan, res Resolution, action Action, summary string, err error, cancelled bool, took time.Duration) {
+	resolution := "auto"
+	if res != ResolveAuto {
+		resolution = "keep " + string(res)
+	}
+	l, r := p.LocalSummary, p.RemoteSummary
+	cloud := "none"
+	if p.HasRemote {
+		cloud = fmt.Sprintf("%d files %d B", r.Files, r.Bytes)
+	}
+	last := "never synced"
+	if p.Last != nil {
+		ls := p.Last.Summarize()
+		last = fmt.Sprintf("%d files %d B", ls.Files, ls.Bytes)
+	}
+	outcome := summary
+	switch {
+	case cancelled:
+		outcome = "cancelled"
+	case errors.Is(err, ErrConflict):
+		outcome = "conflict, nothing changed"
+	case err != nil:
+		outcome = "failed: " + err.Error()
+	}
+	log.Printf("sync %s: planned %s, %s -> %s; local %d files %d B, cloud %s, last synced %s; %s (%s)",
+		p.Job.StateID(), p.Action, resolution, action, l.Files, l.Bytes, cloud, last, outcome, took.Round(time.Millisecond))
+}
+
+func (e *Engine) apply(ctx context.Context, p *Plan, res Resolution) (Action, string, error) {
 	action, err := p.ActionFor(res)
 	if err != nil {
-		return ActionNone, err
+		return ActionNone, "", err
 	}
 	st, err := e.States.Load(p.Job.StateID())
 	if err != nil {
-		return ActionNone, err
+		return ActionNone, "", err
 	}
 	done := doneMessage(action)
 	switch action {
 	case ActionConflict:
 		st.Conflict = true
 		_ = e.States.Save(p.Job.StateID(), st)
-		return ActionConflict, ErrConflict
+		return ActionConflict, "", ErrConflict
 	case ActionNone:
 		if p.Remote != nil && SameFiles(p.Local, p.Remote) {
 			adopted := *p.Remote
@@ -222,14 +268,14 @@ func (e *Engine) Apply(ctx context.Context, p *Plan, res Resolution) (Action, er
 	case ActionPush:
 		m, summary, err := e.push(ctx, p)
 		if err != nil {
-			return action, err
+			return action, "", err
 		}
 		st.LastSynced = m
 		done = summary
 	case ActionPull:
 		summary, err := e.pull(ctx, p)
 		if err != nil {
-			return action, err
+			return action, "", err
 		}
 		done = summary
 		st.LastSynced = p.Remote
@@ -239,10 +285,10 @@ func (e *Engine) Apply(ctx context.Context, p *Plan, res Resolution) (Action, er
 	st.LastSyncAt = time.Now().UTC()
 	st.LastAction = action
 	if err := e.States.Save(p.Job.StateID(), st); err != nil {
-		return action, err
+		return action, "", err
 	}
 	e.emit(p.Job.GameID, "done", done, cloud.Progress{})
-	return action, nil
+	return action, done, nil
 }
 
 // ActionFor returns what applying the plan with res would do: the plan's own

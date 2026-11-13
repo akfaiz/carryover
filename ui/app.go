@@ -546,6 +546,10 @@ func (u *UI) copyField(text string) fyne.CanvasObject {
 }
 
 func (u *UI) toast(text string, kind kit.ToastKind) {
+	if kind == kit.ToastErr {
+		// The log is what a bug report carries: record every error the user saw.
+		log.Printf("ui error: %s", text)
+	}
 	u.toasts.Show(text, kind)
 }
 

@@ -79,9 +79,13 @@ body:
     attributes:
       label: Log
       description: |
-        The end of `carryover.log`, around the time of the problem:
+        The end of `carryover.log`, around the time of the problem. Settings → About → **Open logs folder** opens its folder:
         - Windows: `%AppData%\Carryover\logs\carryover.log`
         - Linux / Steam Deck: `~/.config/Carryover/logs/carryover.log`
 
-        Check it for anything private (paths, remote names) before posting.
+        If it happened a while ago, it may be in `carryover.1.log` (the previous log) instead. If Carryover crashed,
+        the end of the log has a `panic:` or `fatal error:` block: include all of it. For a cloud problem you can
+        reproduce, start Carryover with `CARRYOVER_DEBUG=1` set to log every transfer.
+
+        Check it for anything private (game names, paths, remote names) before posting.
       render: text

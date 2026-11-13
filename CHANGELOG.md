@@ -62,8 +62,17 @@ All notable changes to Carryover are listed here. The format follows
   typed. The editor asks before you leave it with unsaved changes.
 - Backups of a game load by themselves, restoring a backup asks first, and busy actions show a progress bar in the
   card they belong to.
+- The log explains more when you report a bug. A crash now writes its cause to `carryover.log`. Every sync records
+  what it decided and why, and every play session records its launch, exit code and play time. Errors you saw are
+  logged too, and each line names the process that wrote it. Settings → About has an "Open logs folder" button.
+  `CARRYOVER_DEBUG=1` adds every cloud transfer.
+- On Windows, a startup error (for example, an unreadable settings file) is shown in a message box instead of
+  Carryover silently not opening.
 
 ### Changed
+
+- A large log is kept as `carryover.1.log` at the next start, instead of being emptied, so the run you are reporting
+  is not lost.
 
 - The first cloud remote you add or import becomes the sync location by itself; the Cloud page lists remotes
   first on a fresh install and its button reads "Use this location".

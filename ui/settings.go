@@ -10,6 +10,7 @@ import (
 	"fyne.io/fyne/v2/container"
 	"fyne.io/fyne/v2/lang"
 	"fyne.io/fyne/v2/layout"
+	"fyne.io/fyne/v2/theme"
 	"fyne.io/fyne/v2/widget"
 
 	"github.com/akfaiz/carryover/internal/app/appdir"
@@ -233,7 +234,7 @@ func (p *settingsPage) form(st appdir.Settings) fyne.CanvasObject {
 			kit.Field(lang.L("SteamGridDB API key (optional)"), kit.RowFill(key, keySave, keyTest.Button)),
 			keyTest.Result,
 			kit.Muted(gridKeyHelp()))),
-		narrow(aboutCard()),
+		narrow(aboutCard(p.u)),
 	)
 }
 
@@ -285,8 +286,8 @@ func showGridKeyDialog(u *UI, onSaved func()) {
 }
 
 // aboutCard shows which build is running, with links to its release notes
-// and the source code.
-func aboutCard() fyne.CanvasObject {
+// and the source code, and the folder of the log to attach to bug reports.
+func aboutCard(u *UI) fyne.CanvasObject {
 	info := version.Get()
 	title := lang.L("Development build")
 	notes := lang.L("All releases")
@@ -306,6 +307,10 @@ func aboutCard() fyne.CanvasObject {
 		widget.NewHyperlink(notes, kit.MustURL(info.ReleaseURL())),
 		widget.NewHyperlink(lang.L("Source code"), kit.MustURL(version.RepoURL)),
 	))
+	logs := u.c.Dirs.LogsDir()
+	objs = append(objs,
+		kit.HBox(widget.NewButtonWithIcon(lang.L("Open logs folder"), theme.FolderOpenIcon(), func() { u.openFolder(logs) })),
+		kit.Muted(lang.L("When reporting a problem, attach carryover.log from this folder (and carryover.1.log if it happened a while ago).")))
 	return kit.Card(lang.L("About Carryover"), objs...)
 }
 
