@@ -15,6 +15,19 @@ type promptQueue struct {
 	u       *UI
 	queue   []services.Prompt
 	current *dialog.CustomDialog
+	nav     *kit.Nav // keyboard and gamepad control of the current prompt
+}
+
+// closeCurrent takes the current prompt's dialog down.
+func (q *promptQueue) closeCurrent() {
+	if q.nav != nil {
+		q.nav.Stop()
+		q.nav = nil
+	}
+	if q.current != nil {
+		q.current.Hide()
+		q.current = nil
+	}
 }
 
 func (q *promptQueue) add(p services.Prompt) {
@@ -37,8 +50,7 @@ func (q *promptQueue) remove(id string) {
 		}
 		q.queue = append(q.queue[:i], q.queue[i+1:]...)
 		if i == 0 && q.current != nil {
-			q.current.Hide()
-			q.current = nil
+			q.closeCurrent()
 			q.next()
 		}
 		return
@@ -53,12 +65,19 @@ func (q *promptQueue) next() {
 	p := q.queue[0]
 	answer := func(a string) {
 		q.queue = q.queue[1:]
-		if q.current != nil {
-			q.current.Hide()
-		}
-		q.current = nil
+		q.closeCurrent()
 		go q.u.sess.Respond(p.ID, a)
 		q.next()
+	}
+	// Every prompt works with the keyboard and a gamepad (a Steam shortcut on a
+	// Steam Deck is played with one): arrows or the D-pad move between the
+	// buttons, Enter or A press one, Escape or B give the safe answer. The
+	// focus starts on that safe button, so a stray press doesn't overwrite saves.
+	var back string
+	var first fyne.Focusable
+	nav := kit.NewNav(q.u.win, func() { answer(back) })
+	button := func(label string, imp widget.Importance, a string) *kit.NavButton {
+		return nav.Button(label, imp, func() { answer(a) })
 	}
 	var title string
 	var body fyne.CanvasObject
@@ -69,40 +88,55 @@ func (q *promptQueue) next() {
 		if p.BeforePlay {
 			skip = lang.L("Skip sync and play")
 		}
+		skipBtn := button(skip, widget.MediumImportance, "skip")
+		first, back = skipBtn, "skip"
 		body = kit.VBox(
 			kit.Muted(conflictIntro(p.Conflict)),
-			saveSides(p.Conflict.Local, p.Conflict.Remote, true, answer),
-			kit.HBox(widget.NewButton(skip, func() { answer("skip") })),
+			saveSidesNav(nav, p.Conflict.Local, p.Conflict.Remote, true, answer),
+			kit.HBox(skipBtn),
 		)
 	case p.Kind == "emulator":
 		title = lang.L("Play {{.Game}}", map[string]any{"Game": p.GameName})
-		body = q.emulatorChoice(p, answer)
+		body, first = q.emulatorChoice(p, answer, nav)
+		back = "cancel"
 	case p.Kind == "lock" && p.Lock != nil:
 		title = lang.L("{{.Game}} is being played elsewhere", map[string]any{"Game": p.GameName})
+		cancel := button(lang.L("Cancel"), widget.MediumImportance, "no")
+		first, back = cancel, "no"
 		body = kit.VBox(
 			kit.Colored(lang.L("{{.Device}} started playing at {{.Time}}. If you play here too, you may get a save conflict when both devices upload.",
 				map[string]any{"Device": p.Lock.DeviceName, "Time": fmtDate(p.Lock.Since)}), widget.MediumImportance),
-			kit.HBox(widget.NewButton(lang.L("Cancel"), func() { answer("no") }), kit.Primary(lang.L("Play anyway"), func() { answer("yes") })),
+			kit.HBox(cancel, button(lang.L("Play anyway"), widget.HighImportance, "yes")),
 		)
 	default:
 		errText := kit.Mono(p.Error)
 		errText.Importance = widget.DangerImportance
 		if p.BeforePlay {
 			title = lang.L("Could not sync before playing")
+			cancel := button(lang.L("Cancel"), widget.MediumImportance, "no")
+			first, back = cancel, "no"
 			body = kit.VBox(errText,
 				kit.Muted(lang.L("You can play offline; your saves will be uploaded next time sync succeeds.")),
-				kit.HBox(widget.NewButton(lang.L("Cancel"), func() { answer("no") }), kit.Primary(lang.L("Play offline"), func() { answer("yes") })))
+				kit.HBox(cancel, button(lang.L("Play offline"), widget.HighImportance, "yes")))
 		} else {
 			title = lang.L("Could not upload saves")
+			ok := button(lang.L("OK"), widget.HighImportance, "yes")
+			first, back = ok, "yes"
 			body = kit.VBox(errText,
 				kit.Muted(lang.L("Your saves are safe on this device and will upload on the next sync.")),
-				kit.HBox(kit.Primary(lang.L("OK"), func() { answer("yes") })))
+				kit.HBox(ok))
 		}
+	}
+	if _, wrapper := q.u.page.(*sessionPage); wrapper {
+		// Opened by a Steam shortcut: likely driven with a controller.
+		body = kit.VBox(body, kit.Muted(lang.L("D-pad or arrow keys to choose, A or Enter to confirm, B or Esc to go back.")))
 	}
 	size := q.u.win.Canvas().Size()
 	q.current = dialog.NewCustomWithoutButtons(title, body, q.u.win)
 	q.current.Resize(fyne.NewSize(min(560, size.Width-20), 0))
 	q.current.Show()
+	q.nav = nav
+	nav.Start(first)
 }
 
 // conflictIntro explains a conflict. A device whose saves are gone while the

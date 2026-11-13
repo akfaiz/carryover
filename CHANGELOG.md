@@ -82,6 +82,11 @@ All notable changes to Carryover are listed here. The format follows
   its settings and local paths, and the game's cover images are removed from this device and the cloud.
 - The menu entry is now `com.akfaiz.carryover.desktop`, named after the app ID. If you installed the tarball
   before, delete the old `~/.local/share/applications/carryover.desktop` (or the one under your install prefix)
+- The prompts that open before a game starts (which emulator to play with, a save conflict, a game being
+  played on another device, a sync error) can be used with a controller or the keyboard, so a Steam shortcut
+  works on the Steam Deck without the touchscreen: the D-pad, left stick or arrow keys move between the buttons,
+  A or Enter presses one, B or Esc gives the safe answer (cancel, skip, decide later). The focus starts on that safe
+  button, so a stray press never overwrites saves, and moving between the emulator choices stops the countdown.
   after running the new `install.sh`, or the menu shows Carryover twice.
 
 ### Fixed

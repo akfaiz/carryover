@@ -441,7 +441,17 @@ func tapButton(t *testing.T, h *harness, text string) {
 
 func tapOverlayButton(t *testing.T, h *harness, text string) {
 	t.Helper()
-	test.Tap(buttonWith(t, overlayWidgets[*widget.Button](h), text))
+	test.Tap(buttonWith(t, overlayButtons(h), text))
+}
+
+// overlayButtons lists the buttons of the open dialogs: plain ones and those
+// of a dialog driven by a kit.Nav (keyboard and gamepad control).
+func overlayButtons(h *harness) []*widget.Button {
+	out := overlayWidgets[*widget.Button](h)
+	for _, nb := range overlayWidgets[*kit.NavButton](h) {
+		out = append(out, &nb.Button)
+	}
+	return out
 }
 
 // ---- Game editor ----
@@ -586,7 +596,7 @@ func TestEditorEditsExistingGame(t *testing.T) {
 
 func buttonTexts(h *harness) []string {
 	var out []string
-	for _, b := range overlayWidgets[*widget.Button](h) {
+	for _, b := range overlayButtons(h) {
 		out = append(out, b.Text)
 	}
 	return out
@@ -1322,19 +1332,19 @@ func TestPlayAsksWhichEmulatorInADialog(t *testing.T) {
 	tapButton(t, h, "Play")
 	require.Eventually(t, func() bool {
 		h.settle()
-		return len(overlayWidgets[*widget.Button](h)) > 0
+		return len(overlayButtons(h)) > 0
 	}, 10*time.Second, 50*time.Millisecond)
 	var names []string
 	for _, c := range overlayWidgets[*kit.ChoiceTile](h) {
 		names = append(names, c.Name)
 	}
 	assert.ElementsMatch(t, []string{"Without an emulator", "Eden", "Ryujinx"}, names, "a square tile for each way to play")
-	stop := buttonWith(t, overlayWidgets[*widget.Button](h), "Stop countdown")
+	stop := buttonWith(t, overlayButtons(h), "Stop countdown")
 	assert.False(t, stop.Visible(), "nothing starts by itself, so there is no countdown to stop")
 
 	tapOverlayButton(t, h, "Cancel")
 	h.settle()
-	require.Eventually(t, func() bool { h.settle(); return len(overlayWidgets[*widget.Button](h)) == 0 }, 10*time.Second, 50*time.Millisecond)
+	require.Eventually(t, func() bool { h.settle(); return len(overlayButtons(h)) == 0 }, 10*time.Second, 50*time.Millisecond)
 }
 
 // "Sync all" belongs to the window: it keeps going, and is reported, when the

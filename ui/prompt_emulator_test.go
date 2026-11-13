@@ -24,7 +24,7 @@ func emulatorPrompt(h *harness, seconds int) (*promptQueue, services.Prompt, <-c
 	}
 	q := &promptQueue{u: h.u, queue: []services.Prompt{p}}
 	answers := make(chan string, 4)
-	body := q.emulatorChoice(p, func(a string) { answers <- a })
+	body, _ := q.emulatorChoice(p, func(a string) { answers <- a }, kit.NewNav(h.u.win, func() {}))
 	return q, p, answers, body
 }
 
@@ -38,6 +38,15 @@ func tile(t *testing.T, body fyne.CanvasObject, name string) *kit.ChoiceTile {
 	}
 	require.Failf(t, "tile not found", "%q", name)
 	return nil
+}
+
+// buttonsOf lists the buttons in root: plain ones and those of a kit.Nav.
+func buttonsOf(root fyne.CanvasObject) []*widget.Button {
+	out := widgetsOf[*widget.Button](root)
+	for _, nb := range widgetsOf[*kit.NavButton](root) {
+		out = append(out, &nb.Button)
+	}
+	return out
 }
 
 func button(t *testing.T, buttons []*widget.Button, text string) *widget.Button {
@@ -88,10 +97,10 @@ func TestEmulatorPromptStartsTheDefaultWhenTheCountdownEnds(t *testing.T) {
 func TestEmulatorPromptCanBeStoppedAndCancelled(t *testing.T) {
 	h := newHarness(t)
 	_, _, answers, body := emulatorPrompt(h, 2)
-	test.Tap(button(t, widgetsOf[*widget.Button](body), "Stop countdown"))
+	test.Tap(button(t, buttonsOf(body), "Stop countdown"))
 	h.settleFor(3500 * time.Millisecond)
 	assert.Empty(t, answers, "a stopped countdown never chooses")
-	test.Tap(button(t, widgetsOf[*widget.Button](body), "Cancel"))
+	test.Tap(button(t, buttonsOf(body), "Cancel"))
 	assert.Equal(t, "cancel", <-answers)
 }
 
