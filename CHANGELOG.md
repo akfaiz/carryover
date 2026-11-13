@@ -93,7 +93,7 @@ First public pre-release.
 - Detection of saves changed outside Carryover; those games are marked "not uploaded".
 - Save location suggestions for about 21,000 games from the Ludusavi manifest, translated per device: Windows
   folders, Proton prefixes, native Linux folders, and the Wine prefixes of Heroic, Lutris and Bottles.
-- Steam integration: "Find on Steam" fills in the title and cover, "Add from Steam" imports installed games, and
+- Steam integration: "Find on Steam" fills in the title, "Add from Steam" imports installed games, and
   new games are named after a known exe or their folder.
 - SteamGridDB covers and artwork (wide cover, background, logo, icon) with your own API key.
 - Shared library: the game list, covers and artwork sync between devices; a game added on one device shows up on

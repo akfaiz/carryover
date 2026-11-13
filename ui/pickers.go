@@ -265,7 +265,7 @@ func showSteamImport(u *UI) {
 			if g.GameID != "" {
 				right = container.NewCenter(badge(lang.L("in library"), badgeOK))
 			}
-			lead := coverView(coverSource{url: steamCoverURL(g.AppID)}, fyne.NewSize(36, 54))
+			lead := coverView(coverSource{name: g.Name}, fyne.NewSize(36, 54))
 			list.Add(mediaRow(lead, g.Name, right, func() {
 				d.Hide()
 				if g.GameID != "" {
@@ -280,7 +280,7 @@ func showSteamImport(u *UI) {
 	filter.OnChanged = func(string) { render() }
 
 	top := vbox(
-		muted(lang.L("Games installed through Steam on this device. The title and cover come from Steam; you still set the save locations. Steam keeps launching the game — Carryover syncs around it through the launch options shown on the game page.")),
+		muted(lang.L("Games installed through Steam on this device. The title comes from Steam; you still set the save locations. Steam keeps launching the game — Carryover syncs around it through the launch options shown on the game page.")),
 		filter)
 	d = dialog.NewCustom(lang.L("Add from Steam library"), lang.L("Close"), container.NewBorder(top, nil, nil, nil, container.NewVScroll(list)), u.win)
 	d.Resize(dialogSize(u.win))

@@ -682,7 +682,7 @@ func (s *LibraryService) CheckFolder(p string) error {
 }
 
 // SearchSteam looks up games on the Steam store by name, for filling in a
-// game's title and cover.
+// game's title.
 func (s *LibraryService) SearchSteam(term string) ([]steamstore.Match, error) {
 	term = strings.TrimSpace(term)
 	if len(term) < 2 {
@@ -713,34 +713,6 @@ func (s *LibraryService) SteamLibrary() []SteamLibraryGame {
 		out = append(out, SteamLibraryGame{InstalledApp: a, GameID: linked[a.AppID]})
 	}
 	return out
-}
-
-// FetchSteamCover downloads the game's cover from Steam (local Steam cache
-// first, then Steam's CDN) using its store app id.
-func (s *LibraryService) FetchSteamCover(id string) (GameView, error) {
-	g, err := s.c.Library.Get(id)
-	if err != nil {
-		return GameView{}, err
-	}
-	if g.StoreAppID == "" {
-		return GameView{}, errors.New("link the game to Steam first")
-	}
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-	defer cancel()
-	data, err := steamstore.Cover(ctx, s.c.SteamRoot(), g.StoreAppID)
-	if errors.Is(err, steamstore.ErrNotFound) {
-		// Steam has no portrait art; SteamGridDB often does (needs the user's key).
-		if key := s.c.Settings.Get().SteamGridDBKey; key != "" {
-			if grids, gerr := steamgrid.New(key).GridsForSteam(ctx, g.StoreAppID); gerr == nil && len(grids) > 0 {
-				return s.SetCoverFromURL(id, grids[0].URL)
-			}
-		}
-		return GameView{}, errors.New("no cover art on Steam for this game")
-	}
-	if err != nil {
-		return GameView{}, fmt.Errorf("download cover from Steam: %w", err)
-	}
-	return s.storeCover(g, data, ".jpg")
 }
 
 // storeCover saves image bytes as the game's cover, replacing any previous one.

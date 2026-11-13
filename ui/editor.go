@@ -27,34 +27,33 @@ type editor struct {
 	id         string
 	steamAppID string // pre-fill from the installed Steam library
 
-	name               string
-	slots              []*slotForm
-	emus               []*emuForm
-	kind               playKind                // how the game is played: directly, through emulators, or both
-	emuList            []services.EmulatorView // emulators that can be added
-	dev                services.DeviceInput
-	envText            string
-	tokens             []pathvar.Token
-	coverSrc           string          // local image chosen by the user
-	gridPick           *steamgrid.Grid // SteamGridDB cover, downloaded on save
-	hasGridKey         bool
-	coverPath          string
-	art                map[steamgrid.Kind]*artEdit // extra Steam artwork
-	gridGameID         int                         // SteamGridDB game picked in this editor session
-	gridGameName       string
-	coverVersion       int64
-	storeAppID         string
-	originalStoreAppID string
-	steamResults       []steamstore.Match
-	showResults        bool
-	searching          bool
-	suggest            *services.SuggestResult
-	suggesting         bool
-	others             []services.DevicePaths
-	saving             bool
-	errText            string
-	advanced           bool
-	loading            bool
+	name         string
+	slots        []*slotForm
+	emus         []*emuForm
+	kind         playKind                // how the game is played: directly, through emulators, or both
+	emuList      []services.EmulatorView // emulators that can be added
+	dev          services.DeviceInput
+	envText      string
+	tokens       []pathvar.Token
+	coverSrc     string          // local image chosen by the user
+	gridPick     *steamgrid.Grid // SteamGridDB cover, downloaded on save
+	hasGridKey   bool
+	coverPath    string
+	art          map[steamgrid.Kind]*artEdit // extra Steam artwork
+	gridGameID   int                         // SteamGridDB game picked in this editor session
+	gridGameName string
+	coverVersion int64
+	storeAppID   string
+	steamResults []steamstore.Match
+	showResults  bool
+	searching    bool
+	suggest      *services.SuggestResult
+	suggesting   bool
+	others       []services.DevicePaths
+	saving       bool
+	errText      string
+	advanced     bool
+	loading      bool
 
 	scroll    *container.Scroll
 	nameEntry *widget.Entry
@@ -108,7 +107,7 @@ func (e *editor) view() fyne.CanvasObject {
 				a := e.artEdit(steamgrid.Kind(kind))
 				a.path, a.version = f.Path, f.Version
 			}
-			e.storeAppID, e.originalStoreAppID = g.StoreAppID, g.StoreAppID
+			e.storeAppID = g.StoreAppID
 			e.others = g.OtherDevices
 			d := g.Device
 			e.dev = services.DeviceInput{
@@ -333,7 +332,7 @@ func (e *editor) gameCard() fyne.CanvasObject {
 	if e.showResults {
 		res := vbox()
 		if len(e.steamResults) == 0 {
-			res.Add(muted(lang.L("No match on Steam. You can still add the game and choose a cover yourself.")))
+			res.Add(muted(lang.L("No match on Steam. You can still add the game.")))
 		}
 		for _, m := range e.steamResults {
 			res.Add(listRow(m.Name, m.AppID, func() {
@@ -368,8 +367,6 @@ func (e *editor) gameCard() fyne.CanvasObject {
 		preview = coverView(coverSource{url: src}, size)
 	case e.coverPath != "":
 		preview = coverView(coverSource{path: e.coverPath, version: e.coverVersion}, size)
-	case e.storeAppID != "":
-		preview = coverView(coverSource{url: steamCoverURL(e.storeAppID), name: "?"}, size)
 	default:
 		preview = coverView(coverSource{name: e.name}, size)
 	}
@@ -385,25 +382,10 @@ func (e *editor) gameCard() fyne.CanvasObject {
 		}))
 	}
 	side := vbox(btns)
-	if e.id != "" && e.storeAppID != "" && e.storeAppID == e.originalStoreAppID && e.coverPath != "" {
-		side.Add(hbox(lowButton(lang.L("Use Steam cover"), func() {
-			async(func() (services.GameView, error) { return u.lib.FetchSteamCover(e.id) }, func(g services.GameView, err error) {
-				if err != nil {
-					u.toastErr(err)
-					return
-				}
-				e.coverPath, e.coverVersion, e.coverSrc = g.CoverPath, g.CoverVersion, ""
-				u.toast(lang.L("Cover updated from Steam"), toastOK)
-				e.render()
-			})
-		})))
-	}
 	hint := lang.L("Portrait image (600×900 works well). Also used as Steam grid art.")
 	switch {
 	case e.coverSrc != "":
 		hint = lang.L("{{.File}} — copied when you save.", map[string]any{"File": filepath.Base(e.coverSrc)})
-	case e.storeAppID != "" && e.coverPath == "" && e.gridPick == nil:
-		hint = lang.L("Steam's cover is downloaded when you save, unless you choose your own.")
 	case e.gridPick != nil:
 		hint = lang.L("SteamGridDB cover — downloaded when you save.")
 	}
@@ -584,7 +566,7 @@ func (e *editor) save() {
 		emus = nil
 	}
 	in := services.GameInput{ID: e.id, Name: e.name, StoreAppID: e.storeAppID, Slots: slots, Device: dev, Emulators: emus}
-	coverSrc, gridPick, coverPath, origStore := e.coverSrc, e.gridPick, e.coverPath, e.originalStoreAppID
+	coverSrc, gridPick := e.coverSrc, e.gridPick
 
 	artJobs := e.artworkJobs()
 	var coverErr, artErr error
@@ -600,9 +582,6 @@ func (e *editor) save() {
 			}
 		case gridPick != nil:
 			_, coverErr = u.lib.SetCoverFromURL(g.ID, gridPick.URL)
-		case in.StoreAppID != "" && (coverPath == "" || in.StoreAppID != origStore):
-			// Best effort: a missing cover must not block saving the game.
-			_, coverErr = u.lib.FetchSteamCover(g.ID)
 		}
 		artErr = applyArtwork(u.lib, g.ID, artJobs)
 		return g, nil

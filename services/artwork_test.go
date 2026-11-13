@@ -150,14 +150,6 @@ func TestSteamSearchTooShort(t *testing.T) {
 	require.Empty(t, got, "SearchSteam(short): want an empty list and no request")
 }
 
-func TestFetchSteamCoverNeedsLink(t *testing.T) {
-	svc, _, id := newLibEnv(t)
-	_, err := svc.FetchSteamCover(id)
-	require.ErrorContains(t, err, "link the game", "FetchSteamCover on an unlinked game")
-	_, err = svc.FetchSteamCover("no-such-game")
-	require.Error(t, err, "FetchSteamCover for an unknown game")
-}
-
 func TestSteamLibraryMarksLinkedGames(t *testing.T) {
 	svc, c, id := newLibEnv(t)
 	steamapps := filepath.Join(c.SteamRoot(), "steamapps")
