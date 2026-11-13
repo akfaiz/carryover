@@ -22,6 +22,12 @@ from Steam, including Game Mode.
 Cloud storage: Google Drive, Dropbox, OneDrive, WebDAV (Nextcloud, ownCloud, NAS), SFTP and SMB.
 [rclone](https://github.com/rclone/rclone) is built in, so there is nothing else to install.
 
+## Screenshots
+
+<p align="center">
+  <img src="docs/screenshot_gamedetail.png" alt="Game details: sync status, Play and Sync now, save folder, backups, Steam shortcut and the save path on another device" width="800">
+</p>
+
 ## Features
 
 - **Per-device save paths** — one game, one cloud copy; each device maps it to its own folder
