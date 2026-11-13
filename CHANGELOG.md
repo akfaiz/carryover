@@ -26,7 +26,7 @@ All notable changes to Carryover are listed here. The format follows
   emulators that use the same save format can opt in to sharing one save (then they can't run at the same time).
   Play asks which emulator to use in a dialog of square tiles (the one used last is highlighted; there is no
   dropdown; a Steam shortcut shows the same dialog), and the game
-  page lists the saves and backups of every emulator, each tagged with its name. `carryover run` and
+  page switches between the emulators and shows the saves and backups of the one selected. `carryover run` and
   `carryover sync` take `--emulator <name>`. Update all your
   devices before using this: an older version drops the emulator settings when it saves the library.
 - Suggestions for emulated games. Choosing an emulator's executable proposes its name, type and usual arguments;
@@ -46,9 +46,36 @@ All notable changes to Carryover are listed here. The format follows
 - When a play session is killed before it can release its cloud lock (for example Steam's "Exit Game", or a
   power loss), the next launcher start, `carryover run` or `carryover sync` releases that lock, so other devices stop warning that the
   game is being played here.
+- A Language setting (Settings → Appearance) with English and Bahasa Indonesia; "System" follows the system
+  language as before. A change applies after a restart. To add a language, copy `ui/translations/en.json` and list
+  it in `languageOptions`.
+- The library can be filtered to the games that need attention (not set up here, a conflict or error, or saves
+  not uploaded yet) and sorted by name or last sync; both are remembered. Search, filters and sort share one row.
+- "Add game" asks what kind of game it is (from Steam, a PC game or an emulated game) and opens the editor set up
+  for it.
+- "Sync all" keeps running when you leave the library: its progress shows in the sidebar (and which game is being
+  played), and games that could not be synced or have a conflict are listed in a dialog that links to each.
+- A game that Steam launches has a "Play in Steam" button instead of a disabled Play button.
+- Keyboard shortcuts: Ctrl+F searches the library, Ctrl+N adds a game, F5 syncs (all games on the library, or the
+  open game) and Esc goes back.
+- A new emulator, or the SteamGridDB key, can be added from the game editor in a dialog, without losing what you
+  typed. The editor asks before you leave it with unsaved changes.
+- Backups of a game load by themselves, restoring a backup asks first, and busy actions show a progress bar in the
+  card they belong to.
 
 ### Changed
 
+- The first cloud remote you add or import becomes the sync location by itself; the Cloud page lists remotes
+  first on a fresh install and its button reads "Use this location".
+- After "Sync now" finds a conflict, the game page shows the two versions and the buttons to keep either one
+  straight away; the play dialog and the game page share one conflict view.
+- The game editor keeps Save and Cancel in view under the form and tells you what is still missing; "How do you
+  play it?" shows its three choices as radio buttons, and a new game is one column.
+- Every deletion (game, emulator, backup, remote, trash item) uses the same confirmation dialog. Error messages
+  stay until you click them away, and the Settings page shows a quiet "Saved" note instead of a message for every
+  change.
+- Trash and Settings moved to the bottom of the sidebar. The Trash count only counts what can be restored; leftover
+  cloud saves are counted on the Trash page. After saving a game, Back no longer returns to the editor.
 - Settings save as soon as you change them (text fields a moment after you stop typing); the Save button is gone.
   The SteamGridDB API key keeps its own Save button.
 - Once a deleted game or emulator leaves the trash, the library keeps only a small marker (name and id) instead of
@@ -64,6 +91,8 @@ All notable changes to Carryover are listed here. The format follows
   start leaving those files out, and the next sync removes them from the cloud copy.
 - The first sync after start could race while rclone loaded its configuration. The configuration is now loaded
   once when Carryover starts.
+- The filter row and progress bar on the library page could be drawn over the page header when the games loaded
+  after the window opened.
 
 ## [0.1.0] - 2026-11-12
 
