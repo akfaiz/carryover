@@ -31,10 +31,7 @@ func kindLabel(kind string) string {
 
 // suggestionList shows the known save locations found for a game (from the
 // Ludusavi manifest) and lets the user use or add one.
-type suggestionList struct {
-	widget.BaseWidget
-	content fyne.CanvasObject
-}
+type suggestionList struct{ kit.Composite }
 
 // newSuggestionList builds the list for res. gameName is only used in the
 // "nothing known" message.
@@ -53,14 +50,9 @@ func newSuggestionList(gameName string, res *services.SuggestResult, onUse, onAd
 		}
 		c.Add(kit.HBox(kit.Small(lang.L("From the")), widget.NewHyperlink(lang.L("Ludusavi manifest"), kit.MustURL("https://github.com/mtkennerly/ludusavi-manifest")), kit.Small(lang.L("(PCGamingWiki)."))))
 	}
-	l := &suggestionList{content: c}
-	l.ExtendBaseWidget(l)
+	l := &suggestionList{}
+	l.Init(l, c)
 	return l
-}
-
-// CreateRenderer implements fyne.Widget.
-func (l *suggestionList) CreateRenderer() fyne.WidgetRenderer {
-	return widget.NewSimpleRenderer(l.content)
 }
 
 func suggestionRow(s services.SaveSuggestion, onUse, onAdd func(services.SaveSuggestion)) fyne.CanvasObject {

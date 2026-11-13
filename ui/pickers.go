@@ -73,7 +73,7 @@ func showArtPicker(u *UI, o artPickerOpts) {
 	if o.onClosed != nil {
 		p.d.SetOnClosed(o.onClosed)
 	}
-	p.d.Resize(dialogSize(u.win))
+	p.d.Resize(kit.DialogSize(u.win))
 	p.d.Show()
 
 	switch {
@@ -284,7 +284,7 @@ func showSteamImport(u *UI) {
 		kit.Muted(lang.L("Games installed through Steam on this device. The title comes from Steam; you still set the save locations. Steam keeps launching the game — Carryover syncs around it through the launch options shown on the game page.")),
 		filter)
 	d = dialog.NewCustom(lang.L("Add from Steam library"), lang.L("Close"), container.NewBorder(top, nil, nil, nil, container.NewVScroll(list)), u.win)
-	d.Resize(dialogSize(u.win))
+	d.Resize(kit.DialogSize(u.win))
 	d.Show()
 	kit.Async(func() ([]services.SteamLibraryGame, error) { return u.lib.SteamLibrary(), nil }, func(g []services.SteamLibraryGame, _ error) {
 		games = g

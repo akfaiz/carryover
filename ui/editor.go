@@ -11,10 +11,8 @@ import (
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/canvas"
 	"fyne.io/fyne/v2/container"
-	"fyne.io/fyne/v2/dialog"
 	"fyne.io/fyne/v2/lang"
 	"fyne.io/fyne/v2/layout"
-	"fyne.io/fyne/v2/storage"
 	"fyne.io/fyne/v2/theme"
 	"fyne.io/fyne/v2/widget"
 
@@ -276,7 +274,7 @@ func (e *editor) addSuggestion(sg services.SaveSuggestion) {
 	if len(parts) > 0 {
 		label = parts[len(parts)-1]
 	}
-	e.slots = append(e.slots, &slotForm{key: e.uniqueKey(slug(label), nil), label: label,
+	e.slots = append(e.slots, &slotForm{key: e.uniqueKey(kit.Slug(label), nil), label: label,
 		include: strings.Join(sg.Include, "\n"), path: sg.Path, isNew: true})
 }
 
@@ -309,20 +307,7 @@ func (e *editor) searchSteam() {
 }
 
 func (e *editor) pickFile(title string, exts []string, done func(string)) {
-	d := dialog.NewFileOpen(func(r fyne.URIReadCloser, err error) {
-		if err != nil || r == nil {
-			return
-		}
-		p := filepath.FromSlash(r.URI().Path())
-		_ = r.Close()
-		done(p)
-	}, e.u.win)
-	d.SetTitleText(title)
-	if len(exts) > 0 {
-		d.SetFilter(storage.NewExtensionFileFilter(exts))
-	}
-	d.Resize(dialogSize(e.u.win))
-	d.Show()
+	kit.PickFile(e.u.win, title, exts, done)
 }
 
 func (e *editor) render() {
@@ -661,7 +646,7 @@ func (e *editor) save() {
 	slots := make([]library.SaveSlot, 0, len(e.slots))
 	for _, s := range e.slots {
 		paths[s.key] = s.path
-		slots = append(slots, library.SaveSlot{Key: s.key, Label: s.label, Include: splitLines(s.include), Exclude: splitLines(s.exclude)})
+		slots = append(slots, library.SaveSlot{Key: s.key, Label: s.label, Include: kit.SplitLines(s.include), Exclude: kit.SplitLines(s.exclude)})
 	}
 	dev := e.dev
 	dev.Paths, dev.Env = paths, env

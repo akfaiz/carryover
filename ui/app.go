@@ -6,8 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"log"
-	"os/exec"
-	"runtime"
 	"strings"
 	"time"
 
@@ -535,18 +533,5 @@ func (u *UI) openFolder(p string) {
 		u.toastErr(err)
 		return
 	}
-	var cmd *exec.Cmd
-	switch runtime.GOOS {
-	case "windows":
-		cmd = exec.Command("explorer", p)
-	case "darwin":
-		cmd = exec.Command("open", p)
-	default:
-		cmd = exec.Command("xdg-open", p)
-	}
-	if err := cmd.Start(); err != nil {
-		u.toastErr(err)
-		return
-	}
-	go func() { _ = cmd.Wait() }()
+	u.toastErr(kit.OpenFolder(p))
 }

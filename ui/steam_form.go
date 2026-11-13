@@ -1,7 +1,6 @@
 package ui
 
 import (
-	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/lang"
 	"fyne.io/fyne/v2/theme"
 	"fyne.io/fyne/v2/widget"
@@ -42,10 +41,7 @@ type steamFormOpts struct {
 
 // steamForm is the "add to Steam as a non-Steam game" form: account,
 // shortcut type and the Add / Update / Remove buttons.
-type steamForm struct {
-	widget.BaseWidget
-	content fyne.CanvasObject
-}
+type steamForm struct{ kit.Composite }
 
 func newSteamForm(o steamFormOpts) *steamForm {
 	c := kit.VBox()
@@ -129,10 +125,7 @@ func newSteamForm(o steamFormOpts) *steamForm {
 			c.Add(kit.Colored(lang.L("Steam is running — restart it after adding so it picks up the change."), widget.WarningImportance))
 		}
 	}
-	f := &steamForm{content: c}
-	f.ExtendBaseWidget(f)
+	f := &steamForm{}
+	f.Init(f, c)
 	return f
 }
-
-// CreateRenderer implements fyne.Widget.
-func (f *steamForm) CreateRenderer() fyne.WidgetRenderer { return widget.NewSimpleRenderer(f.content) }

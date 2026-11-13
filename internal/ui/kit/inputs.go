@@ -30,10 +30,7 @@ func MonoMultiLine(placeholder, text string, rows int, onChange func(string)) *w
 // CopyField shows text in a read-only (but selectable) monospace entry with a
 // copy button. The button copies the text and then calls onCopy, if set (to
 // tell the user); copyLabel is its label.
-type CopyField struct {
-	widget.BaseWidget
-	content fyne.CanvasObject
-}
+type CopyField struct{ Composite }
 
 // NewCopyField creates a CopyField. clipboard receives the text to copy.
 func NewCopyField(copyLabel, text string, clipboard fyne.Clipboard, onCopy func()) *CopyField {
@@ -45,34 +42,24 @@ func NewCopyField(copyLabel, text string, clipboard fyne.Clipboard, onCopy func(
 			onCopy()
 		}
 	})
-	f := &CopyField{content: RowFill(e, btn)}
-	f.ExtendBaseWidget(f)
+	f := &CopyField{}
+	f.Init(f, RowFill(e, btn))
 	return f
 }
-
-// CreateRenderer implements fyne.Widget.
-func (f *CopyField) CreateRenderer() fyne.WidgetRenderer { return widget.NewSimpleRenderer(f.content) }
 
 // AccordionSection is a one-item accordion whose open state can be read back,
 // so a page can keep it open or closed across re-renders.
 type AccordionSection struct {
-	widget.BaseWidget
-	item    *widget.AccordionItem
-	content fyne.CanvasObject
+	Composite
+	item *widget.AccordionItem
 }
 
 func NewAccordionSection(title string, body fyne.CanvasObject, open bool) *AccordionSection {
 	s := &AccordionSection{item: widget.NewAccordionItem(title, body)}
 	s.item.Open = open
-	s.content = widget.NewAccordion(s.item)
-	s.ExtendBaseWidget(s)
+	s.Init(s, widget.NewAccordion(s.item))
 	return s
 }
 
 // Open reports whether the section is currently expanded.
 func (s *AccordionSection) Open() bool { return s.item.Open }
-
-// CreateRenderer implements fyne.Widget.
-func (s *AccordionSection) CreateRenderer() fyne.WidgetRenderer {
-	return widget.NewSimpleRenderer(s.content)
-}

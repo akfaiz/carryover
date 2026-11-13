@@ -29,10 +29,7 @@ func (s *slotForm) rememberOpen() {
 
 // slotEditor edits one save location: label, key, this device's path and the
 // include/exclude filters. It writes straight into the slotForm.
-type slotEditor struct {
-	widget.BaseWidget
-	content fyne.CanvasObject
-}
+type slotEditor struct{ kit.Composite }
 
 // newSlotEditor builds the editor for s. uniqueKey derives a key that is free
 // among the other slots; a nil onRemove hides the delete button. pathChanged
@@ -46,7 +43,7 @@ func newSlotEditor(u *UI, gameID string, tokens []pathvar.Token, s *slotForm, ot
 	label.OnChanged = func(v string) {
 		s.label = v
 		if s.isNew {
-			s.key = uniqueKey(slug(v), s)
+			s.key = uniqueKey(kit.Slug(v), s)
 			keyBadge.Objects = []fyne.CanvasObject{kit.Badge(s.key, kit.BadgeNone)}
 			keyBadge.Refresh()
 		}
@@ -82,10 +79,7 @@ func newSlotEditor(u *UI, gameID string, tokens []pathvar.Token, s *slotForm, ot
 		kit.Field(lang.L("Include only (globs, one per line)"), inc), kit.Field(lang.L("Exclude (globs)"), exc)), s.filtersOpen)
 	c.Add(s.filters)
 
-	e := &slotEditor{content: c}
-	e.ExtendBaseWidget(e)
+	e := &slotEditor{}
+	e.Init(e, c)
 	return e
 }
-
-// CreateRenderer implements fyne.Widget.
-func (e *slotEditor) CreateRenderer() fyne.WidgetRenderer { return widget.NewSimpleRenderer(e.content) }

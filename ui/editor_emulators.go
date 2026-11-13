@@ -99,7 +99,7 @@ func (e *editor) emulatorInputs() []services.GameEmulatorInput {
 		in := services.GameEmulatorInput{EmulatorID: m.id, Rom: m.rom, ShareWith: m.share, Paths: map[string]string{}}
 		for _, s := range m.slots {
 			in.Paths[s.key] = s.path
-			in.Slots = append(in.Slots, library.SaveSlot{Key: s.key, Label: s.label, Include: splitLines(s.include), Exclude: splitLines(s.exclude)})
+			in.Slots = append(in.Slots, library.SaveSlot{Key: s.key, Label: s.label, Include: kit.SplitLines(s.include), Exclude: kit.SplitLines(s.exclude)})
 		}
 		out = append(out, in)
 	}

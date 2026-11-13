@@ -13,10 +13,7 @@ import (
 
 // remoteRow is one configured rclone remote: name (with an "active" badge),
 // type (with an "unsupported" badge) and a delete button.
-type remoteRow struct {
-	widget.BaseWidget
-	content fyne.CanvasObject
-}
+type remoteRow struct{ kit.Composite }
 
 func newRemoteRow(r cloud.Remote, active bool, onDelete func()) *remoteRow {
 	name := kit.HBox(widget.NewLabelWithStyle(r.Name, fyne.TextAlignLeading, fyne.TextStyle{Bold: true}))
@@ -28,10 +25,7 @@ func newRemoteRow(r cloud.Remote, active bool, onDelete func()) *remoteRow {
 		typ.Add(container.NewCenter(kit.Badge(lang.L("unsupported"), kit.BadgeWarn)))
 	}
 	del := widget.NewButtonWithIcon(lang.L("Delete"), theme.DeleteIcon(), onDelete)
-	row := &remoteRow{content: container.NewBorder(nil, nil, nil, del, container.NewGridWithColumns(2, name, typ))}
-	row.ExtendBaseWidget(row)
+	row := &remoteRow{}
+	row.Init(row, container.NewBorder(nil, nil, nil, del, container.NewGridWithColumns(2, name, typ)))
 	return row
 }
-
-// CreateRenderer implements fyne.Widget.
-func (r *remoteRow) CreateRenderer() fyne.WidgetRenderer { return widget.NewSimpleRenderer(r.content) }

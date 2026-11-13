@@ -99,10 +99,7 @@ func planText(action string) string {
 
 // planView compares this device's saves with the cloud and, on a conflict,
 // offers to keep either side.
-type planView struct {
-	widget.BaseWidget
-	content fyne.CanvasObject
-}
+type planView struct{ kit.Composite }
 
 // newPlanView shows pl. With resolvable, "Keep …" buttons call onResolve with
 // "local" or "cloud".
@@ -114,8 +111,8 @@ func newPlanView(pl *services.PlanView, resolvable bool, onResolve func(resoluti
 		widget.NewLabelWithStyle(planText(pl.Action), fyne.TextAlignLeading, fyne.TextStyle{Bold: true}),
 		saveSides(pl.Local, pl.Remote, pl.HasRemote, onResolve),
 	)
-	v := &planView{content: c}
-	v.ExtendBaseWidget(v)
+	v := &planView{}
+	v.Init(v, c)
 	return v
 }
 
@@ -160,6 +157,3 @@ func saveSides(local, remote syncer.Summary, hasRemote bool, onKeep func(side st
 		side("local", lang.L("This device"), lang.L("Keep this device's saves"), local, true),
 		side("cloud", lang.L("Cloud"), lang.L("Keep cloud saves"), remote, hasRemote))
 }
-
-// CreateRenderer implements fyne.Widget.
-func (v *planView) CreateRenderer() fyne.WidgetRenderer { return widget.NewSimpleRenderer(v.content) }

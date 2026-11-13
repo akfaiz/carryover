@@ -125,8 +125,6 @@ func assertPaintable(t *testing.T, o fyne.CanvasObject) {
 }
 
 func TestFormat(t *testing.T) {
-	assert.Equal(t, "my-saves", slug("My Saves!"))
-	assert.Len(t, splitLines("a, b\n\nc"), 3)
 	assert.Equal(t, "never", timeAgo(""))
 }
 
