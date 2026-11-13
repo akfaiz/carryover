@@ -381,3 +381,26 @@ func TestIsNotFound(t *testing.T) {
 		assert.True(t, isNotFound(err), err.Error())
 	}
 }
+
+// Folder names that start or end with a dot (a ".carryover" remote folder, a
+// slot called "saves.") are kept as they are.
+func TestDotsInPathsAreKept(t *testing.T) {
+	for name, c := range bases(t) {
+		t.Run(name, func(t *testing.T) {
+			ctx := context.Background()
+			require.NoError(t, c.WriteJSON(ctx, ".hidden/x.json", map[string]int{"a": 1}))
+			require.NoError(t, c.WriteJSON(ctx, "saves./y.json", map[string]int{"a": 2}))
+			dirs, err := c.ListDirs(ctx, "")
+			require.NoError(t, err)
+			require.Equal(t, []string{".hidden", "saves."}, dirs)
+			var v map[string]int
+			found, err := c.ReadJSON(ctx, ".hidden/x.json", &v)
+			require.NoError(t, err)
+			require.True(t, found)
+			require.Equal(t, 1, v["a"])
+			_, files, err := c.List(ctx, "")
+			require.NoError(t, err)
+			require.Empty(t, files)
+		})
+	}
+}

@@ -56,6 +56,13 @@ func (s *SyncService) Cancel(gameID string) bool {
 	return found
 }
 
+// Active reports whether a sync, restore or backup is running.
+func (s *SyncService) Active() bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return len(s.cancels) > 0
+}
+
 // cancelled maps a context cancellation to ErrSyncCancelled.
 func cancelled(ctx context.Context, err error) error {
 	if err != nil && ctx.Err() != nil {
@@ -200,6 +207,9 @@ func (s *SyncService) SyncAll() ([]SyncResult, error) {
 		a, err := s.sync(ctx, it.key, "")
 		if errors.Is(err, ErrSyncCancelled) {
 			return out, err
+		}
+		if errors.Is(err, syncer.ErrLocked) {
+			continue // being played or synced right now: its own session syncs it
 		}
 		r.Action = a
 		if err != nil {

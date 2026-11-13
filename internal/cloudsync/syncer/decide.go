@@ -42,6 +42,13 @@ func Decide(local, remote, last *Manifest) Action {
 	case !localChanged && !remoteChanged:
 		return ActionNone
 	case localChanged && !remoteChanged:
+		// Everything here vanished while the cloud still has saves. Pushing would
+		// delete them in the cloud and then on every other device, and a folder
+		// that is missing, unmounted or reached through a broken link looks just
+		// like one the player emptied on purpose. Let the user choose.
+		if localEmpty && len(remote.Files) > 0 {
+			return ActionConflict
+		}
 		return ActionPush
 	case !localChanged && remoteChanged:
 		if SameFiles(local, remote) {

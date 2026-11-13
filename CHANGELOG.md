@@ -93,6 +93,20 @@ All notable changes to Carryover are listed here. The format follows
   once when Carryover starts.
 - The filter row and progress bar on the library page could be drawn over the page header when the games loaded
   after the window opened.
+- A save folder that went missing (an unmounted card, a changed path) or was emptied is no longer uploaded as "delete
+  everything": the sync reports a conflict that says so, and keeping the cloud saves restores the folder. Before, it
+  deleted the cloud saves and then the saves on your other devices.
+- A save folder that is a symbolic link or a Windows junction is scanned and synced; before, it looked empty.
+- A game being played can no longer be synced by "Sync all" or a manual sync (they skip it), which used to take over
+  and then delete the play session's lock. Closing the launcher window while a game runs or a sync is in progress asks
+  first, since the upload after the game would be skipped.
+- Keeping this device's saves after a long conflict prompt no longer uploads over what another device pushed in the
+  meantime; the sync stops and asks you to sync again.
+- Adding an exclude to a save location no longer deletes the newly excluded files from the cloud or from other devices,
+  and a device that only learns the new filter while launching a game plans again with it.
+- Adding a game to Steam again keeps the shortcut's app id (and so its Proton prefix) when the name or path changed.
+- A remote folder or save location name that starts or ends with a dot keeps the dot. A device id shorter than 8
+  characters in the library no longer crashes the game page. Cancelling a launch isn't recorded as a sync error.
 
 ## [0.1.0] - 2026-11-12
 

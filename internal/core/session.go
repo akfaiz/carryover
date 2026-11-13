@@ -7,6 +7,7 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"sync"
 	"time"
@@ -136,11 +137,28 @@ func (c *Core) Play(ctx context.Context, gameID string, opt RunOptions, ui Sessi
 				other = l
 			}
 		}()
-		action, err := c.syncWithUI(preCtx, eng, game, job, ui, true)
+		plan, err := eng.Plan(preCtx, job)
 		<-libDone
 		<-lockChecked
-		if preDone() {
-			return res, ErrCancelled // the game isn't launched
+		if preCtx.Err() == nil {
+			// The catalog may have brought new save locations or filters for this
+			// game. A plan made with the old ones could upload or delete files the
+			// new ones treat differently, so plan again with the new job.
+			if g, gerr := c.Library.Get(game.ID); gerr == nil {
+				if j, jerr := c.JobFor(g, emuID); jerr == nil && !reflect.DeepEqual(j, job) {
+					game, job = g, j
+					plan, err = eng.Plan(preCtx, job)
+				}
+			}
+		}
+		action := syncer.ActionNone
+		if err == nil {
+			action, err = c.resolveAndApply(preCtx, eng, game, plan, ui, true)
+		}
+		if preDone() || ctx.Err() != nil {
+			// Cancelled by the user, or the whole session was: not a sync error,
+			// and the game isn't launched.
+			return res, ErrCancelled
 		}
 		res.PreAction = action
 		if err != nil {
@@ -216,6 +234,11 @@ func (c *Core) syncWithUI(ctx context.Context, eng *syncer.Engine, game library.
 	if err != nil {
 		return syncer.ActionNone, err
 	}
+	return c.resolveAndApply(ctx, eng, game, plan, ui, before)
+}
+
+// resolveAndApply applies a plan, asking the user first when both sides changed.
+func (c *Core) resolveAndApply(ctx context.Context, eng *syncer.Engine, game library.Game, plan *syncer.Plan, ui SessionUI, before bool) (syncer.Action, error) {
 	res := syncer.ResolveAuto
 	if plan.Action == syncer.ActionConflict {
 		res = ui.ResolveConflict(ctx, game, plan, before)

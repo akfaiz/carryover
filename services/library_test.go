@@ -154,3 +154,24 @@ func TestSuggestSavesInWinePrefixes(t *testing.T) {
 	}
 	assert.Equal(t, "Bottles: Gaming", res.Suggestions[0].Prefix)
 }
+
+// A device id shorter than 8 characters (a hand-edited or damaged catalog)
+// must not crash the game's view.
+func TestViewWithShortDeviceID(t *testing.T) {
+	t.Setenv(appdir.EnvHome, t.TempDir())
+	c, err := core.New()
+	require.NoError(t, err)
+	g, err := c.Library.Save(library.Game{
+		Name:  "Game A",
+		Slots: []library.SaveSlot{{Key: "saves"}},
+		Devices: map[string]library.DeviceConfig{
+			c.DeviceID(): {Paths: map[string]string{"saves": "/x"}, Exe: "x"},
+			"abc":        {Paths: map[string]string{"saves": "/y"}},
+		},
+	}, c.DeviceID())
+	require.NoError(t, err)
+	v, err := NewLibraryService(c, nil, nil).Get(g.ID)
+	require.NoError(t, err)
+	require.Len(t, v.OtherDevices, 1)
+	require.Equal(t, "abc", v.OtherDevices[0].DeviceName)
+}

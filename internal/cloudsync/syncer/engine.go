@@ -82,11 +82,23 @@ type Plan struct {
 	// nil if listing failed. A push reuses it while fresh.
 	cloudFiles    map[string]int64
 	cloudListedAt time.Time
+	// plannedAt is when the cloud was read for this plan.
+	plannedAt time.Time
 }
 
 // cloudListingMaxAge is how long a push trusts the plan's cloud listing (a
 // conflict prompt can keep a plan waiting).
 const cloudListingMaxAge = 2 * time.Minute
+
+// planFreshFor is how long after planning a push goes ahead without looking
+// at the cloud manifest again before it uploads. A plan that waited longer (a
+// conflict prompt) may be out of date: another device may have pushed since,
+// and uploading over its files would leave the cloud with a mix of both
+// versions that matches no manifest.
+var planFreshFor = 10 * time.Second
+
+// errCloudChanged is returned by a push when another device synced meanwhile.
+var errCloudChanged = errors.New("the cloud saves changed while syncing (another device synced); sync again")
 
 // Resolution decides what to do on conflict.
 type Resolution string
@@ -132,6 +144,7 @@ func (e *Engine) Plan(ctx context.Context, job Job) (*Plan, error) {
 	if err := validateJob(job); err != nil {
 		return nil, err
 	}
+	job = withResolvedSlots(job)
 	st, err := e.States.Load(job.StateID())
 	if err != nil {
 		return nil, err
@@ -167,12 +180,14 @@ func (e *Engine) Plan(ctx context.Context, job Job) (*Plan, error) {
 	if manifestErr != nil {
 		return nil, fmt.Errorf("read cloud manifest: %w", manifestErr)
 	}
-	p := &Plan{Job: job, Local: local, Last: st.LastSynced, HasRemote: found}
+	// Compare like with like: the local scan only has what the slots' filters
+	// let through, so the manifests are cut down the same way.
+	p := &Plan{Job: job, Local: local, Last: filterManifest(st.LastSynced, job.Slots), HasRemote: found, plannedAt: cloudListedTime}
 	if listErr == nil {
 		p.cloudFiles, p.cloudListedAt = listed, cloudListedTime
 	}
 	if found {
-		p.Remote = &remote
+		p.Remote = filterManifest(&remote, job.Slots)
 	}
 	p.Action = Decide(p.Local, p.Remote, p.Last)
 	p.LocalSummary = local.Summarize()
@@ -272,6 +287,11 @@ func (e *Engine) progress(gameID, phase, msg string) func(cloud.Progress) {
 
 func (e *Engine) push(ctx context.Context, p *Plan) (*Manifest, string, error) {
 	id := p.Job.GameID
+	if time.Since(p.plannedAt) > planFreshFor {
+		if err := e.checkCloudUnchanged(ctx, p); err != nil {
+			return nil, "", err
+		}
+	}
 	// One listing of the cloud folder serves the delta and the backup; the
 	// plan's is reused while fresh.
 	listed := p.cloudFiles
@@ -321,11 +341,8 @@ func (e *Engine) push(ctx context.Context, p *Plan) (*Manifest, string, error) {
 	}
 	// Another device may have pushed since this plan was made (a conflict
 	// prompt can keep a plan waiting): don't stack our files on top of theirs.
-	var cur Manifest
-	if found, err := e.Client.ReadJSON(ctx, manifestPath(id), &cur); err != nil {
-		return nil, "", fmt.Errorf("read cloud manifest: %w", err)
-	} else if (found != (p.Remote != nil)) || (found && cur.Revision != p.Remote.Revision) {
-		return nil, "", errors.New("the cloud saves changed while syncing (another device synced); sync again")
+	if err := e.checkCloudUnchanged(ctx, p); err != nil {
+		return nil, "", err
 	}
 	m := &Manifest{
 		Revision:   uuid.NewString(),
@@ -338,6 +355,20 @@ func (e *Engine) push(ctx context.Context, p *Plan) (*Manifest, string, error) {
 		return nil, "", fmt.Errorf("write cloud manifest: %w", err)
 	}
 	return m, transferSummary("Uploaded", "from cloud", copied, deleted), nil
+}
+
+// checkCloudUnchanged returns errCloudChanged if the cloud manifest is no
+// longer the one the plan was made from.
+func (e *Engine) checkCloudUnchanged(ctx context.Context, p *Plan) error {
+	var cur Manifest
+	found, err := e.Client.ReadJSON(ctx, manifestPath(p.Job.GameID), &cur)
+	if err != nil {
+		return fmt.Errorf("read cloud manifest: %w", err)
+	}
+	if found != (p.Remote != nil) || (found && cur.Revision != p.Remote.Revision) {
+		return errCloudChanged
+	}
+	return nil
 }
 
 func (e *Engine) pull(ctx context.Context, p *Plan) (string, error) {
@@ -412,7 +443,10 @@ func pushDelta(p *Plan, s Slot, listed map[string]int64) (delta, error) {
 	if err != nil {
 		return delta{}, err
 	}
-	remote := slotFiles(p.Remote, s.Key, nil)
+	// The cloud side is filtered like the local one: a file the filters now
+	// exclude is neither uploaded nor deleted (the slot's filters may have just
+	// changed), it stays in the cloud as it is.
+	remote := slotFiles(p.Remote, s.Key, flt)
 	for k, f := range remote {
 		if size, ok := listed[k]; !ok || size != f.Size {
 			delete(remote, k)

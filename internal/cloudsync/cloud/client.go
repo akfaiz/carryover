@@ -90,7 +90,13 @@ func (c *Client) fs(ctx context.Context, rel string) (fs.Fs, string, error) {
 	if err != nil {
 		return nil, "", err
 	}
-	return f, strings.Trim(path.Join(c.prefix, rel), "/."), nil
+	// Only slashes are trimmed: a folder or slot named ".carryover" or "saves."
+	// must keep its dot. path.Join already cleaned the path, and "." is the root.
+	p := strings.Trim(path.Join(c.prefix, rel), "/")
+	if p == "." {
+		p = ""
+	}
+	return f, p, nil
 }
 
 // tuneRemote adjusts backend options for Carryover's workload (a handful of

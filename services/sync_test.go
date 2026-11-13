@@ -114,3 +114,42 @@ func TestCheckLocalChanges(t *testing.T) {
 	require.Equal(t, string(syncer.ActionPush), a)
 	require.False(t, flagged(), "still flagged after the sync uploaded the saves")
 }
+
+// A game that is being played holds its local lock: a manual sync refuses it,
+// "Sync all" skips it, and neither takes the session's lock away.
+func TestSyncSkipsGameBeingPlayed(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv(appdir.EnvHome, home)
+	c, err := core.New()
+	require.NoError(t, err)
+	config.FileSetValue("cloud", "type", "local")
+	st := c.Settings.Get()
+	st.Remote, st.RemoteRoot = "cloud", filepath.ToSlash(filepath.Join(home, "cloud"))
+	st.SyncLibrary = false
+	require.NoError(t, c.Settings.Update(st))
+	saves := filepath.Join(home, "saves")
+	require.NoError(t, os.MkdirAll(saves, 0o755))
+	require.NoError(t, os.WriteFile(filepath.Join(saves, "a.sav"), []byte("save"), 0o644))
+	g, err := c.Library.Save(library.Game{
+		Name:    "Game A",
+		Slots:   []library.SaveSlot{{Key: "saves"}},
+		Devices: map[string]library.DeviceConfig{c.DeviceID(): {Paths: map[string]string{"saves": saves}, Exe: "x"}},
+	}, c.DeviceID())
+	require.NoError(t, err)
+	svc := NewSyncService(c, NewBus())
+
+	lock, err := syncer.AcquireLocalLock(c.Dirs.StateDir(), g.ID) // the play session's
+	require.NoError(t, err)
+	_, err = svc.Sync(g.ID, "")
+	require.ErrorIs(t, err, syncer.ErrLocked)
+	res, err := svc.SyncAll()
+	require.NoError(t, err)
+	require.Empty(t, res, "Sync all touched a game that is being played")
+	require.FileExists(t, filepath.Join(c.Dirs.StateDir(), g.ID+".lock"), "the session's lock was taken away")
+	lock.Release()
+
+	res, err = svc.SyncAll()
+	require.NoError(t, err)
+	require.Len(t, res, 1)
+	require.Equal(t, string(syncer.ActionPush), res[0].Action)
+}

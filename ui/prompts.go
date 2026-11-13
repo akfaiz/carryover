@@ -70,7 +70,7 @@ func (q *promptQueue) next() {
 			skip = lang.L("Skip sync and play")
 		}
 		body = kit.VBox(
-			kit.Muted(lang.L("Saves changed both on this device and in the cloud since the last sync. Choose which to keep. The other version is stored as a backup, so nothing is lost.")),
+			kit.Muted(conflictIntro(p.Conflict)),
 			saveSides(p.Conflict.Local, p.Conflict.Remote, true, answer),
 			kit.HBox(widget.NewButton(skip, func() { answer("skip") })),
 		)
@@ -103,4 +103,15 @@ func (q *promptQueue) next() {
 	q.current = dialog.NewCustomWithoutButtons(title, body, q.u.win)
 	q.current.Resize(fyne.NewSize(min(560, size.Width-20), 0))
 	q.current.Show()
+}
+
+// conflictIntro explains a conflict. A device whose saves are gone while the
+// cloud still has them (a missing or unmounted save folder, a path that no
+// longer points at the saves) isn't a change of both sides: say so, because
+// "keep this device" would delete the cloud saves.
+func conflictIntro(c *services.ConflictInfo) string {
+	if c.Local.Files == 0 && c.Remote.Files > 0 {
+		return lang.L("There are no saves on this device any more, but the cloud still has them. If the save folder is missing or its path changed, keep the cloud saves to restore them. Keeping this device deletes the cloud copy.")
+	}
+	return lang.L("Saves changed both on this device and in the cloud since the last sync. Choose which to keep. The other version is stored as a backup, so nothing is lost.")
 }

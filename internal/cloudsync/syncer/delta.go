@@ -37,6 +37,43 @@ func slotFiles(m *Manifest, slot string, flt *filter.Filter) map[string]FileInfo
 	return out
 }
 
+// filterManifest returns m without the files its slots' filters exclude, so a
+// manifest written before the filters changed compares equal to a scan made
+// with the new ones: a newly excluded file isn't "changed" or "deleted", it is
+// simply no longer synced. Files of slots not in slots are kept. m itself is
+// not modified; nil stays nil.
+func filterManifest(m *Manifest, slots []Slot) *Manifest {
+	if m == nil {
+		return nil
+	}
+	out := *m
+	out.Files = make(map[string]FileInfo, len(m.Files))
+	filters := map[string]func(string, int64) bool{}
+	for _, sl := range slots {
+		if sl.Filters.Empty() {
+			continue
+		}
+		flt, err := sl.Filters.NewFilter()
+		if err != nil {
+			continue // the scan reports an invalid filter
+		}
+		filters[sl.Key+"/"] = func(rel string, size int64) bool { return flt.Include(rel, size, time.Time{}, nil) }
+	}
+	for k, f := range m.Files {
+		keep := true
+		for prefix, include := range filters {
+			if rel, ok := strings.CutPrefix(k, prefix); ok {
+				keep = include(rel, f.Size)
+				break
+			}
+		}
+		if keep {
+			out.Files[k] = f
+		}
+	}
+	return &out
+}
+
 // diff compares by size and SHA-256: it copies the files of src that dst
 // lacks or has with different content, and deletes the files dst has that
 // src doesn't. Unchanged files are left alone.

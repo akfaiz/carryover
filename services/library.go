@@ -191,7 +191,7 @@ func (s *LibraryService) view(g library.Game) GameView {
 		}
 		name := od.DeviceName
 		if name == "" {
-			name = id[:8]
+			name = id[:min(8, len(id))]
 		}
 		v.OtherDevices = append(v.OtherDevices, DevicePaths{DeviceName: name, Paths: od.Paths, Exe: od.Exe})
 	}

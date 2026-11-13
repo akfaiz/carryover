@@ -486,5 +486,10 @@
   },
   "Play": "Main",
   "Language": "Bahasa",
-  "Restart Carryover to apply the language.": "Mulai ulang Carryover untuk menerapkan bahasa."
+  "Restart Carryover to apply the language.": "Mulai ulang Carryover untuk menerapkan bahasa.",
+  "Close Carryover?": "Tutup Carryover?",
+  "A game is still running or a sync is in progress. If you close Carryover now, its saves won't be uploaded until the next sync, and your other devices may keep showing the game as being played.": "Game masih berjalan atau sinkronisasi sedang berlangsung. Jika Carryover ditutup sekarang, save-nya tidak akan diunggah sampai sinkronisasi berikutnya, dan perangkat lain mungkin masih menampilkan game ini sedang dimainkan.",
+  "Keep open": "Tetap buka",
+  "Close anyway": "Tutup saja",
+  "There are no saves on this device any more, but the cloud still has them. If the save folder is missing or its path changed, keep the cloud saves to restore them. Keeping this device deletes the cloud copy.": "Perangkat ini tidak punya save lagi, tetapi cloud masih menyimpannya. Jika folder save hilang atau path-nya berubah, pilih save cloud untuk memulihkannya. Memilih perangkat ini akan menghapus salinan di cloud."
 }
