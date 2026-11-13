@@ -29,18 +29,34 @@ type ChoiceTile struct {
 	Name        string
 	Highlighted bool
 	Btn         *widget.Button
-	body        fyne.CanvasObject
+	// Focus is what takes the focus (and key presses) for the tile: the button
+	// itself, or the NavButton that wraps it when the tile belongs to a Nav.
+	Focus fyne.Focusable
+	body  fyne.CanvasObject
 }
 
 func NewChoiceTile(name string, icon fyne.Resource, highlighted bool, tapped func()) *ChoiceTile {
 	btn := widget.NewButton("", tapped)
+	return newChoiceTile(name, icon, highlighted, btn, btn, btn)
+}
+
+// ChoiceTile makes a tile of the dialog that n drives: it can be reached with
+// the arrow keys and the D-pad and pressed with Enter and A.
+func (n *Nav) ChoiceTile(name string, icon fyne.Resource, highlighted bool, tapped func()) *ChoiceTile {
+	nb := n.Button("", widget.MediumImportance, tapped)
+	return newChoiceTile(name, icon, highlighted, nb, nb, &nb.Button)
+}
+
+// newChoiceTile builds a tile over layer, the button object drawn under the
+// icon and name; btn is its widget.Button and focus its Focusable.
+func newChoiceTile(name string, icon fyne.Resource, highlighted bool, layer fyne.CanvasObject, focus fyne.Focusable, btn *widget.Button) *ChoiceTile {
 	img := canvas.NewImageFromResource(icon)
 	img.FillMode = canvas.ImageFillContain
 	img.SetMinSize(fyne.NewSize(40, 40))
 	label := widget.NewLabelWithStyle(name, fyne.TextAlignCenter, fyne.TextStyle{Bold: highlighted})
 	label.Wrapping = fyne.TextWrapWord
 	layers := []fyne.CanvasObject{
-		btn,
+		layer,
 		container.NewPadded(container.NewVBox(layout.NewSpacer(), container.NewCenter(img), label, layout.NewSpacer())),
 	}
 	if highlighted {
@@ -49,7 +65,7 @@ func NewChoiceTile(name string, icon fyne.Resource, highlighted bool, tapped fun
 		ring.CornerRadius = theme.InputRadiusSize()
 		layers = append(layers, ring)
 	}
-	t := &ChoiceTile{Name: name, Highlighted: highlighted, Btn: btn, body: container.NewStack(layers...)}
+	t := &ChoiceTile{Name: name, Highlighted: highlighted, Btn: btn, Focus: focus, body: container.NewStack(layers...)}
 	t.ExtendBaseWidget(t)
 	return t
 }

@@ -121,6 +121,12 @@ func newPlanView(pl *services.PlanView, resolvable bool, onResolve func(resoluti
 // "local" or "cloud". Used wherever a conflict is settled, so it reads the
 // same in the play dialog and on the game page.
 func saveSides(local, remote syncer.Summary, hasRemote bool, onKeep func(side string)) fyne.CanvasObject {
+	return saveSidesNav(nil, local, remote, hasRemote, onKeep)
+}
+
+// saveSidesNav is saveSides whose buttons belong to nav (a dialog driven with
+// the keyboard and a gamepad); with a nil nav they are plain buttons.
+func saveSidesNav(nav *kit.Nav, local, remote syncer.Summary, hasRemote bool, onKeep func(side string)) fyne.CanvasObject {
 	newer := ""
 	if hasRemote {
 		if local.Newest.After(remote.Newest) {
@@ -147,7 +153,15 @@ func saveSides(local, remote syncer.Summary, hasRemote bool, onKeep func(side st
 		info.Wrapping = fyne.TextWrapWord
 		objs = append(objs, info)
 		if onKeep != nil {
-			keep := kit.Primary(keepLabel, func() { onKeep(key) })
+			var keep interface {
+				fyne.CanvasObject
+				fyne.Disableable
+			}
+			if nav != nil {
+				keep = nav.Button(keepLabel, widget.HighImportance, func() { onKeep(key) })
+			} else {
+				keep = kit.Primary(keepLabel, func() { onKeep(key) })
+			}
 			kit.SetEnabled(keep, has)
 			objs = append(objs, keep)
 		}

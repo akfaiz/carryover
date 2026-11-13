@@ -21,7 +21,11 @@ import (
 // which the default starts. Clicking any choice answers at once; "Stop
 // countdown" keeps the dialog open until a choice is made. answer gets a
 // choice's ID or "cancel".
-func (q *promptQueue) emulatorChoice(p services.Prompt, answer func(string)) fyne.CanvasObject {
+//
+// The tiles and buttons belong to nav (keyboard and gamepad control); the
+// focusable of the default tile is returned, to start with. Any press of nav
+// stops the countdown: whoever is moving between the choices is choosing.
+func (q *promptQueue) emulatorChoice(p services.Prompt, answer func(string), nav *kit.Nav) (fyne.CanvasObject, fyne.Focusable) {
 	stop := make(chan struct{})
 	finish := func(a string) {
 		select {
@@ -39,6 +43,7 @@ func (q *promptQueue) emulatorChoice(p services.Prompt, answer func(string)) fyn
 	}
 
 	var defName string
+	var first fyne.Focusable
 	tiles := kit.VBox()
 	var row *fyne.Container
 	for i, c := range p.Choices {
@@ -54,7 +59,10 @@ func (q *promptQueue) emulatorChoice(p services.Prompt, answer func(string)) fyn
 			row = kit.HBox()
 			tiles.Add(row)
 		}
-		tile := kit.NewChoiceTile(choiceName(c), icon, isDefault, func() { finish(c.ID) })
+		tile := nav.ChoiceTile(choiceName(c), icon, isDefault, func() { finish(c.ID) })
+		if isDefault || first == nil {
+			first = tile.Focus
+		}
 		row.Add(container.New(layout.NewGridWrapLayout(fyne.NewSize(kit.ChoiceTileSize, kit.ChoiceTileSize)), tile))
 	}
 
@@ -68,12 +76,17 @@ func (q *promptQueue) emulatorChoice(p services.Prompt, answer func(string)) fyn
 		countdown.SetText(lang.N("Starting with {{.Emulator}} in {{.Count}} second", remaining,
 			map[string]any{"Emulator": defName, "Count": remaining}))
 	}
-	pause := widget.NewButton(lang.L("Stop countdown"), nil)
-	pause.OnTapped = func() {
+	pause := nav.Button(lang.L("Stop countdown"), widget.MediumImportance, nil)
+	stopCountdown := func() {
+		if paused {
+			return
+		}
 		paused = true
 		pause.Hide()
 		update()
 	}
+	pause.OnTapped = stopCountdown
+	nav.OnInput(stopCountdown)
 	if p.Seconds <= 0 {
 		pause.Hide()
 	}
@@ -117,10 +130,11 @@ func (q *promptQueue) emulatorChoice(p services.Prompt, answer func(string)) fyn
 	if p.Seconds > 0 {
 		hint = lang.L("Choose how to play. The highlighted one starts by itself when the countdown ends.")
 	}
+	cancel := nav.Button(lang.L("Cancel"), widget.MediumImportance, func() { finish("cancel") })
 	return kit.VBox(
 		kit.Muted(hint),
 		tiles,
 		countdown,
-		kit.HBox(widget.NewButton(lang.L("Cancel"), func() { finish("cancel") }), pause),
-	)
+		kit.HBox(cancel, pause),
+	), first
 }
