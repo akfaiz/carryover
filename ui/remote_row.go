@@ -8,6 +8,7 @@ import (
 	"fyne.io/fyne/v2/widget"
 
 	"github.com/akfaiz/carryover/internal/cloudsync/cloud"
+	"github.com/akfaiz/carryover/internal/ui/kit"
 )
 
 // remoteRow is one configured rclone remote: name (with an "active" badge),
@@ -18,13 +19,13 @@ type remoteRow struct {
 }
 
 func newRemoteRow(r cloud.Remote, active bool, onDelete func()) *remoteRow {
-	name := hbox(widget.NewLabelWithStyle(r.Name, fyne.TextAlignLeading, fyne.TextStyle{Bold: true}))
+	name := kit.HBox(widget.NewLabelWithStyle(r.Name, fyne.TextAlignLeading, fyne.TextStyle{Bold: true}))
 	if active {
-		name.Add(container.NewCenter(badge(lang.L("active"), badgeOK)))
+		name.Add(container.NewCenter(kit.Badge(lang.L("active"), kit.BadgeOK)))
 	}
-	typ := hbox(small(r.Type))
+	typ := kit.HBox(kit.Small(r.Type))
 	if !r.Supported {
-		typ.Add(container.NewCenter(badge(lang.L("unsupported"), badgeWarn)))
+		typ.Add(container.NewCenter(kit.Badge(lang.L("unsupported"), kit.BadgeWarn)))
 	}
 	del := widget.NewButtonWithIcon(lang.L("Delete"), theme.DeleteIcon(), onDelete)
 	row := &remoteRow{content: container.NewBorder(nil, nil, nil, del, container.NewGridWithColumns(2, name, typ))}

@@ -9,6 +9,7 @@ import (
 	"fyne.io/fyne/v2/widget"
 
 	"github.com/akfaiz/carryover/internal/stores/steamgrid"
+	"github.com/akfaiz/carryover/internal/ui/kit"
 	"github.com/akfaiz/carryover/services"
 )
 
@@ -101,27 +102,27 @@ func (e *editor) openArtPicker(kind steamgrid.Kind) {
 // artworkCard lets the user pick the extra Steam artwork (wide cover,
 // background, logo, icon) so the game looks right once it is added to Steam.
 func (e *editor) artworkCard() fyne.CanvasObject {
-	c := vbox(heading(lang.L("Steam artwork")),
-		muted(lang.L("Written to Steam's grid folder when you add the game to Steam (or press Update Steam shortcut), so it has its images ready. The portrait cover is chosen above.")))
+	c := kit.VBox(kit.Heading(lang.L("Steam artwork")),
+		kit.Muted(lang.L("Written to Steam's grid folder when you add the game to Steam (or press Update Steam shortcut), so it has its images ready. The portrait cover is chosen above.")))
 	for _, spec := range artSpecs() {
 		a := e.artEdit(spec.kind)
 		var preview fyne.CanvasObject
-		src := coverSource{contain: spec.contain}
+		src := kit.CoverSource{Contain: spec.contain}
 		switch {
 		case a.clear:
 		case a.src != "":
-			src.path, src.name = a.src, ""
+			src.Path, src.Name = a.src, ""
 		case a.pick != nil:
-			src.url = a.pick.Thumb
-			if src.url == "" {
-				src.url = a.pick.URL
+			src.URL = a.pick.Thumb
+			if src.URL == "" {
+				src.URL = a.pick.URL
 			}
 		case a.path != "":
-			src.path, src.version = a.path, a.version
+			src.Path, src.Version = a.path, a.version
 		}
-		preview = coverView(src, spec.preview)
+		preview = kit.CoverView(src, spec.preview)
 
-		btns := hbox(widget.NewButton(lang.L("Choose file…"), func() {
+		btns := kit.HBox(widget.NewButton(lang.L("Choose file…"), func() {
 			e.pickFile(lang.L("Choose image"), []string{".png", ".jpg", ".jpeg", ".webp"}, func(p string) {
 				a.src, a.pick, a.clear = p, nil, false
 				e.render()
@@ -133,7 +134,7 @@ func (e *editor) artworkCard() fyne.CanvasObject {
 			}))
 		}
 		if a.has() {
-			btns.Add(lowButton(lang.L("Clear"), func() {
+			btns.Add(kit.LowButton(lang.L("Clear"), func() {
 				a.src, a.pick, a.clear = "", nil, a.path != ""
 				e.render()
 			}))
@@ -147,15 +148,15 @@ func (e *editor) artworkCard() fyne.CanvasObject {
 		case a.pick != nil:
 			status = lang.L("SteamGridDB image — downloaded when you save.")
 		}
-		c.Add(vbox(widget.NewSeparator(),
+		c.Add(kit.VBox(widget.NewSeparator(),
 			widget.NewLabelWithStyle(spec.label, fyne.TextAlignLeading, fyne.TextStyle{Bold: true}),
-			preview, btns, muted(status)))
+			preview, btns, kit.Muted(status)))
 	}
 	if !e.hasGridKey {
-		c.Add(container.NewBorder(nil, nil, nil, lowButton(lang.L("Add key…"), e.askGridKey),
-			muted(lang.L("Add a SteamGridDB API key to search community artwork."))))
+		c.Add(container.NewBorder(nil, nil, nil, kit.LowButton(lang.L("Add key…"), e.askGridKey),
+			kit.Muted(lang.L("Add a SteamGridDB API key to search community artwork."))))
 	}
-	return card("", c)
+	return kit.Card("", c)
 }
 
 // artworkJobs lists what to change on save, for every kind with a pending change.

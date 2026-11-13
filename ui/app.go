@@ -24,6 +24,7 @@ import (
 	"github.com/akfaiz/carryover/internal/app/singleinstance"
 	"github.com/akfaiz/carryover/internal/cloudsync/syncer"
 	"github.com/akfaiz/carryover/internal/core"
+	"github.com/akfaiz/carryover/internal/ui/kit"
 	"github.com/akfaiz/carryover/services"
 )
 
@@ -103,7 +104,7 @@ type UI struct {
 	navBtns map[string]*widget.Button
 	// activity is the sidebar line that shows a running "Sync all" or game.
 	activity *fyne.Container
-	toasts   *toaster
+	toasts   *kit.Toaster
 	prompts  *promptQueue
 
 	lastLocalCheck time.Time // last checkLocalChanges run
@@ -132,7 +133,7 @@ func newUI(c *core.Core, a fyne.App, bus *services.Bus) *UI {
 		app: a, c: c,
 		status: map[string]services.Status{}, progress: map[string]syncer.Event{},
 		navBtns: map[string]*widget.Button{},
-		toasts:  newToaster(),
+		toasts:  kit.NewToaster(),
 	}
 	u.sess = services.NewSessionService(c, bus)
 	u.lib = services.NewLibraryService(c, bus, u.sess.IsRunning)
@@ -142,35 +143,35 @@ func newUI(c *core.Core, a fyne.App, bus *services.Bus) *UI {
 	u.emus = services.NewEmulatorService(c, bus)
 	u.prompts = &promptQueue{u: u}
 
-	bus.OnLibrary(func(string) { onUI(u.refresh) })
+	bus.OnLibrary(func(string) { kit.OnUI(u.refresh) })
 	bus.OnStatus(func(st services.Status) {
-		onUI(func() {
+		kit.OnUI(func() {
 			u.status[st.GameID] = st
 			if st.Key != "" {
 				u.status[st.Key] = st // the session of one emulator profile
 			}
 			if st.Phase == "error" {
-				u.toast(st.Message, toastErr)
+				u.toast(st.Message, kit.ToastErr)
 			}
 			u.renderActivity()
 			u.notify(changeStatus)
 		})
 	})
 	bus.OnSync(func(ev syncer.Event) {
-		onUI(func() {
+		kit.OnUI(func() {
 			u.progress[ev.GameID] = ev
 			u.notify(changeProgress)
 		})
 	})
 	bus.OnSyncAll(func(p services.SyncAllProgress) {
-		onUI(func() {
+		kit.OnUI(func() {
 			u.syncAllProg = p
 			u.renderActivity()
 			u.notify(changeProgress)
 		})
 	})
-	bus.OnPrompt(func(p services.Prompt) { onUI(func() { u.prompts.add(p) }) })
-	bus.OnPromptClosed(func(id string) { onUI(func() { u.prompts.remove(id) }) })
+	bus.OnPrompt(func(p services.Prompt) { kit.OnUI(func() { u.prompts.add(p) }) })
+	bus.OnPromptClosed(func(id string) { kit.OnUI(func() { u.prompts.remove(id) }) })
 	return u
 }
 
@@ -192,14 +193,14 @@ func Run(c *core.Core, wrapGameID string, opts core.RunOptions) int {
 		u := start(c)
 		u.buildMain()
 		if inst != nil {
-			inst.OnShow(func() { onUI(func() { u.win.Show(); u.win.RequestFocus() }) })
+			inst.OnShow(func() { kit.OnUI(func() { u.win.Show(); u.win.RequestFocus() }) })
 		}
 		// Coming back to the launcher (e.g. after playing without it) looks
 		// for saves that changed since their last sync.
-		u.app.Lifecycle().SetOnEnteredForeground(func() { onUI(u.checkLocalChanges) })
+		u.app.Lifecycle().SetOnEnteredForeground(func() { kit.OnUI(u.checkLocalChanges) })
 		// Pick up games other devices added while this one was closed.
 		u.app.Lifecycle().SetOnStarted(func() {
-			onUI(u.checkLocalChanges)
+			kit.OnUI(u.checkLocalChanges)
 			// A session killed earlier (e.g. Steam's "Exit Game") may have left
 			// its cloud lock behind: release it so other devices stop warning.
 			go func() {
@@ -207,9 +208,9 @@ func Run(c *core.Core, wrapGameID string, opts core.RunOptions) int {
 					log.Printf("recover sessions: %v", err)
 				}
 			}()
-			async0(u.sync.SyncLibrary, func(err error) {
+			kit.Async0(u.sync.SyncLibrary, func(err error) {
 				if err != nil {
-					u.toast(lang.L("Library sync: {{.Err}}", map[string]any{"Err": err}), toastErr)
+					u.toast(lang.L("Library sync: {{.Err}}", map[string]any{"Err": err}), kit.ToastErr)
 				}
 			})
 		})
@@ -223,16 +224,16 @@ func start(c *core.Core) *UI {
 	startLanguage = c.Settings.Get().Language
 	initTranslations(startLanguage)
 	a := app.NewWithID(AppID)
-	systemDark.Store(initialSystemDark(a))
-	setPalette(paletteFor(c.Settings.Get().Theme))
-	a.Settings().SetTheme(appTheme{})
+	kit.SystemDark.Store(kit.InitialSystemDark(a))
+	kit.SetPalette(kit.PaletteFor(c.Settings.Get().Theme))
+	a.Settings().SetTheme(kit.AppTheme{})
 	a.SetIcon(fyne.NewStaticResource("appicon.png", appIcon))
 	u := newUI(c, a, services.NewBus())
-	watchSystemTheme(a, func(dark bool) {
-		if systemDark.Swap(dark) == dark {
+	kit.WatchSystemTheme(a, func(dark bool) {
+		if kit.SystemDark.Swap(dark) == dark {
 			return
 		}
-		onUI(func() { u.applyTheme(c.Settings.Get().Theme) })
+		kit.OnUI(func() { u.applyTheme(c.Settings.Get().Theme) })
 	})
 	return u
 }
@@ -248,7 +249,7 @@ func (u *UI) buildMain() {
 	u.refresh()
 	go func() {
 		p := u.sess.Prompts()
-		onUI(func() {
+		kit.OnUI(func() {
 			for _, x := range p {
 				u.prompts.add(x)
 			}
@@ -262,24 +263,24 @@ func (u *UI) buildLayout() {
 	u.content = container.NewStack()
 	u.sidebar = container.NewVBox()
 	u.navBtns = map[string]*widget.Button{}
-	bg := canvas.NewRectangle(colBg2)
-	sep := canvas.NewRectangle(colLine)
+	bg := canvas.NewRectangle(kit.ColBg2)
+	sep := canvas.NewRectangle(kit.ColLine)
 	sep.SetMinSize(fyne.NewSize(1, 0))
 	side := container.NewStack(bg, container.NewPadded(u.sidebar))
-	main := container.NewBorder(nil, nil, container.NewHBox(fixedWidth(200, side), sep), nil, u.content)
-	u.win.SetContent(container.NewStack(main, u.toasts.layer))
+	main := container.NewBorder(nil, nil, container.NewHBox(kit.FixedWidth(200, side), sep), nil, u.content)
+	u.win.SetContent(container.NewStack(main, u.toasts.Layer))
 	u.renderSidebar()
 }
 
 // applyTheme switches to the palette for a stored theme setting and rebuilds the UI.
 func (u *UI) applyTheme(setting string) {
-	name := paletteFor(setting)
-	if (name == themeLight) == lightOn {
+	name := kit.PaletteFor(setting)
+	if (name == kit.ThemeLight) == kit.LightOn {
 		return
 	}
-	setPalette(name)
-	u.app.Settings().SetTheme(appTheme{})
-	u.toasts.recolor()
+	kit.SetPalette(name)
+	u.app.Settings().SetTheme(kit.AppTheme{})
+	u.toasts.Recolor()
 	if u.win == nil {
 		return
 	}
@@ -307,13 +308,13 @@ func (u *UI) renderSidebar() {
 	// Secondary places, out of the way of the main ones.
 	nav("/trash", u.trashLabel(), theme.DeleteIcon())
 	nav("/settings", lang.L("Settings"), theme.SettingsIcon())
-	u.activity = vbox()
+	u.activity = kit.VBox()
 	objs = append(objs, widget.NewSeparator(), u.activity)
 	u.renderActivity()
-	dev := muted(u.settings.DeviceName)
+	dev := kit.Muted(u.settings.DeviceName)
 	objs = append(objs, dev)
 	if u.settings.Remote != "" {
-		r := mono(u.settings.Remote + ":" + u.settings.RemoteRoot)
+		r := kit.Mono(u.settings.Remote + ":" + u.settings.RemoteRoot)
 		r.SizeName = theme.SizeNameCaptionText
 		r.Importance = widget.LowImportance
 		objs = append(objs, r)
@@ -437,7 +438,7 @@ func (u *UI) refresh() {
 		games := u.lib.List()
 		st := u.sync.GetSettings()
 		trash := u.lib.TrashCount()
-		onUI(func() {
+		kit.OnUI(func() {
 			u.games, u.settings, u.loaded, u.trashCount = games, st, true, trash
 			if u.sidebar != nil {
 				u.renderSidebar()
@@ -513,30 +514,19 @@ func (u *UI) game(id string) (services.GameView, bool) {
 	return services.GameView{}, false
 }
 
-func (u *UI) toast(text string, kind toastKind) {
-	u.toasts.show(text, kind)
+// copyField is a read-only text with a Copy button that tells it copied.
+func (u *UI) copyField(text string) fyne.CanvasObject {
+	return kit.NewCopyField(lang.L("Copy"), text, u.app.Clipboard(), func() { u.toast(lang.L("Copied"), kit.ToastOK) })
+}
+
+func (u *UI) toast(text string, kind kit.ToastKind) {
+	u.toasts.Show(text, kind)
 }
 
 func (u *UI) toastErr(err error) {
 	if err != nil {
-		u.toast(err.Error(), toastErr)
+		u.toast(err.Error(), kit.ToastErr)
 	}
-}
-
-// async runs work off the UI thread and then done on it.
-func async[T any](work func() (T, error), done func(T, error)) {
-	go func() {
-		v, err := work()
-		onUI(func() { done(v, err) })
-	}()
-}
-
-// async0 is async for work without a result.
-func async0(work func() error, done func(error)) {
-	go func() {
-		err := work()
-		onUI(func() { done(err) })
-	}()
 }
 
 // openFolder opens a folder in the system file manager.
@@ -560,51 +550,3 @@ func (u *UI) openFolder(p string) {
 	}
 	go func() { _ = cmd.Wait() }()
 }
-
-// pagePadded gives page content the same margin on every side.
-func pagePadded(content fyne.CanvasObject) fyne.CanvasObject {
-	const m = 28
-	return container.New(layout.NewCustomPaddedLayout(m, m, m, m), content)
-}
-
-// scrollPage wraps page content in a padded vertical scroll.
-func scrollPage(content fyne.CanvasObject) *container.Scroll {
-	return container.NewVScroll(pagePadded(content))
-}
-
-// replaceScroll swaps a scroll's content, keeping its position.
-func replaceScroll(s *container.Scroll, content fyne.CanvasObject) {
-	off := s.Offset
-	s.Content = pagePadded(content)
-	s.Refresh()
-	s.Offset = off
-	s.Refresh()
-}
-
-// debounce returns a function that runs f on the UI thread d after its last call.
-func debounce(d time.Duration, f func()) func() {
-	var t *time.Timer
-	return func() {
-		if t != nil {
-			t.Stop()
-		}
-		t = time.AfterFunc(d, func() { onUI(f) })
-	}
-}
-
-// pageHead is a page title with an optional back button and actions.
-func pageHead(back func(), text string, actions ...fyne.CanvasObject) fyne.CanvasObject {
-	var objs []fyne.CanvasObject
-	if back != nil {
-		b := widget.NewButtonWithIcon("", theme.NavigateBackIcon(), back)
-		b.Importance = widget.LowImportance
-		objs = append(objs, b)
-	}
-	objs = append(objs, title(text), layout.NewSpacer())
-	objs = append(objs, actions...)
-	return container.NewHBox(objs...)
-}
-
-// onUI runs f on the Fyne UI goroutine. It is a variable so tests can
-// serialize UI work (Fyne's test driver runs fyne.Do inline on the caller).
-var onUI = fyne.Do

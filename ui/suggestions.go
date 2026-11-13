@@ -8,6 +8,7 @@ import (
 	"fyne.io/fyne/v2/lang"
 	"fyne.io/fyne/v2/widget"
 
+	"github.com/akfaiz/carryover/internal/ui/kit"
 	"github.com/akfaiz/carryover/services"
 )
 
@@ -38,19 +39,19 @@ type suggestionList struct {
 // newSuggestionList builds the list for res. gameName is only used in the
 // "nothing known" message.
 func newSuggestionList(gameName string, res *services.SuggestResult, onUse, onAdd func(services.SaveSuggestion), onHide func()) *suggestionList {
-	c := vbox()
+	c := kit.VBox()
 	if res.Matched == "" {
-		c.Add(muted(lang.L("No known save locations for “{{.Game}}”. Try “Find on Steam” first, or set the path yourself.", map[string]any{"Game": gameName})))
+		c.Add(kit.Muted(lang.L("No known save locations for “{{.Game}}”. Try “Find on Steam” first, or set the path yourself.", map[string]any{"Game": gameName})))
 	} else {
-		c.Add(container.NewBorder(nil, nil, nil, lowButton(lang.L("Hide"), onHide), muted(lang.L("Known save locations for {{.Game}}", map[string]any{"Game": res.Matched}))))
+		c.Add(container.NewBorder(nil, nil, nil, kit.LowButton(lang.L("Hide"), onHide), kit.Muted(lang.L("Known save locations for {{.Game}}", map[string]any{"Game": res.Matched}))))
 		if len(res.Suggestions) == 0 {
-			c.Add(muted(lang.L("None that apply to this device.")))
+			c.Add(kit.Muted(lang.L("None that apply to this device.")))
 		}
 		for _, s := range res.Suggestions {
 			c.Add(widget.NewSeparator())
 			c.Add(suggestionRow(s, onUse, onAdd))
 		}
-		c.Add(hbox(small(lang.L("From the")), widget.NewHyperlink(lang.L("Ludusavi manifest"), mustURL("https://github.com/mtkennerly/ludusavi-manifest")), small(lang.L("(PCGamingWiki)."))))
+		c.Add(kit.HBox(kit.Small(lang.L("From the")), widget.NewHyperlink(lang.L("Ludusavi manifest"), kit.MustURL("https://github.com/mtkennerly/ludusavi-manifest")), kit.Small(lang.L("(PCGamingWiki)."))))
 	}
 	l := &suggestionList{content: c}
 	l.ExtendBaseWidget(l)
@@ -73,32 +74,32 @@ func suggestionRow(s services.SaveSuggestion, onUse, onAdd func(services.SaveSug
 	if len(inc) > 0 {
 		text += " · " + strings.Join(inc, ", ")
 	}
-	path := mono(text)
+	path := kit.Mono(text)
 	if s.Files > 0 {
 		path.Importance = widget.SuccessImportance
 	}
-	badges := hbox()
+	badges := kit.HBox()
 	switch {
 	case s.Files > 0:
-		badges.Add(badge(lang.N("found · {{.Count}} file · {{.Size}} · {{.Age}}", s.Files, map[string]any{"Count": s.Files, "Size": formatBytes(s.Bytes), "Age": timeAgo(s.Newest)}), badgeOK))
+		badges.Add(kit.Badge(lang.N("found · {{.Count}} file · {{.Size}} · {{.Age}}", s.Files, map[string]any{"Count": s.Files, "Size": kit.FormatBytes(s.Bytes), "Age": timeAgo(s.Newest)}), kit.BadgeOK))
 	case s.Exists:
-		badges.Add(badge(lang.L("folder exists, no saves"), badgeNone))
+		badges.Add(kit.Badge(lang.L("folder exists, no saves"), kit.BadgeNone))
 	default:
-		badges.Add(badge(lang.L("not on this device"), badgeNone))
+		badges.Add(kit.Badge(lang.L("not on this device"), kit.BadgeNone))
 	}
 	if l := kindLabel(s.Kind); l != "" {
 		if s.Prefix != "" {
 			l = s.Prefix // which launcher's prefix, e.g. "Heroic: Hades"
 		}
-		badges.Add(badge(l, badgeNone))
+		badges.Add(kit.Badge(l, kit.BadgeNone))
 	}
 	if s.MSStore {
-		badges.Add(badge(lang.L("Microsoft Store version"), badgeWarn))
+		badges.Add(kit.Badge(lang.L("Microsoft Store version"), kit.BadgeWarn))
 	}
-	actions := hbox(widget.NewButton(lang.L("Use"), func() { onUse(s) }), lowButton(lang.L("＋ Add"), func() { onAdd(s) }))
-	row := vbox(path, container.NewBorder(nil, nil, nil, actions, container.NewHScroll(badges)))
+	actions := kit.HBox(widget.NewButton(lang.L("Use"), func() { onUse(s) }), kit.LowButton(lang.L("＋ Add"), func() { onAdd(s) }))
+	row := kit.VBox(path, container.NewBorder(nil, nil, nil, actions, container.NewHScroll(badges)))
 	if s.Kind == "steamcloud" {
-		row.Add(muted(lang.L("Steam Cloud already syncs this for the Steam version; useful for non-Steam copies.")))
+		row.Add(kit.Muted(lang.L("Steam Cloud already syncs this for the Steam version; useful for non-Steam copies.")))
 	}
 	return row
 }

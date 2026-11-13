@@ -23,17 +23,18 @@ import (
 	"github.com/akfaiz/carryover/internal/cloudsync/syncer"
 	"github.com/akfaiz/carryover/internal/core"
 	"github.com/akfaiz/carryover/internal/library"
+	"github.com/akfaiz/carryover/internal/ui/kit"
 	"github.com/akfaiz/carryover/services"
 )
 
 // activeQueue is where UI work queued from other goroutines goes: the running
-// test's queue. onUI is assigned once, here, and never again: toasts leave
+// test's queue. kit.OnUI is assigned once, here, and never again: toasts leave
 // timers behind that read it after their test ended, so reassigning it per test
 // would race with them. Late work lands in an old queue that nobody drains.
 var activeQueue atomic.Pointer[chan func()]
 
 func init() {
-	onUI = func(f func()) {
+	kit.OnUI = func(f func()) {
 		if q := activeQueue.Load(); q != nil {
 			*q <- f
 			return
@@ -137,7 +138,7 @@ func buttonWith(t *testing.T, buttons []*widget.Button, text string) *widget.But
 
 func (h *harness) toasts() []string {
 	var out []string
-	for _, l := range widgetsOf[*widget.Label](h.u.toasts.box) {
+	for _, l := range widgetsOf[*widget.Label](h.u.toasts.Box) {
 		out = append(out, l.Text)
 	}
 	return out
@@ -222,7 +223,7 @@ func TestSettingsSaveAsTheyChange(t *testing.T) {
 
 	f.theme.SetSelected("Dark")
 	h.settle()
-	assert.Equal(t, themeDark, h.c.Settings.Get().Theme)
+	assert.Equal(t, kit.ThemeDark, h.c.Settings.Get().Theme)
 
 	// Everything above stayed saved after the other changes.
 	got := h.c.Settings.Get()
@@ -243,7 +244,7 @@ func TestSettingsCoverUploadToggle(t *testing.T) {
 
 	h.open("/settings")
 	f = findSettingsForm(t, h)
-	assert.False(t, f.covers.Checked, "the saved choice is shown again")
+	assert.False(t, f.covers.Checked, "the saved kit.Choice is shown again")
 	test.Tap(f.covers)
 	h.settle()
 	assert.False(t, h.c.Settings.Get().CoversLocalOnly)
@@ -331,7 +332,7 @@ func TestSettingsThemeChoices(t *testing.T) {
 	h.open("/settings")
 	f := findSettingsForm(t, h)
 	assert.Equal(t, "System", f.theme.Selected, "the default follows the system")
-	for label, want := range map[string]string{"Light": themeLight, "Dark": themeDark, "System": themeSystem} {
+	for label, want := range map[string]string{"Light": kit.ThemeLight, "Dark": kit.ThemeDark, "System": kit.ThemeSystem} {
 		f.theme.SetSelected(label)
 		h.settle()
 		assert.Equal(t, want, h.c.Settings.Get().Theme, label)
@@ -766,14 +767,14 @@ func TestLibraryShowsAndFiltersGames(t *testing.T) {
 // tapChoice taps the tile of a choice dialog (Add a game, which emulator).
 func tapChoice(t *testing.T, h *harness, name string) {
 	t.Helper()
-	for _, c := range overlayWidgets[*choiceTile](h) {
-		if c.name == name {
-			test.Tap(c.btn)
+	for _, c := range overlayWidgets[*kit.ChoiceTile](h) {
+		if c.Name == name {
+			test.Tap(c.Btn)
 			h.settle()
 			return
 		}
 	}
-	require.Failf(t, "choice not found", "no tile %q", name)
+	require.Failf(t, "kit.Choice not found", "no tile %q", name)
 }
 
 // Adding a game asks what kind of game it is, and opens the editor set up for it.
@@ -868,7 +869,7 @@ func TestLibraryTileOpensGame(t *testing.T) {
 	h := newHarness(t)
 	g := h.addGame("Game A", t.TempDir())
 	h.open("/")
-	tiles := pageWidgets[*tappable](h)
+	tiles := pageWidgets[*kit.Tappable](h)
 	require.NotEmpty(t, tiles)
 	test.Tap(tiles[0])
 	h.settle()
@@ -1180,22 +1181,22 @@ func TestSidebarTrashCount(t *testing.T) {
 // its text follows the theme, so an old background would make it unreadable.
 func TestToastFollowsThemeChange(t *testing.T) {
 	h := newHarness(t)
-	t.Cleanup(func() { setPalette(themeDark) })
-	h.u.applyTheme(themeDark)
+	t.Cleanup(func() { kit.SetPalette(kit.ThemeDark) })
+	h.u.applyTheme(kit.ThemeDark)
 
-	h.u.toast("Settings saved", toastOK)
-	require.Len(t, h.u.toasts.bgs, 1)
-	var bg *toastBG
-	for _, b := range h.u.toasts.bgs {
+	h.u.toast("Settings saved", kit.ToastOK)
+	require.Len(t, h.u.toasts.BGs, 1)
+	var bg *kit.ToastBG
+	for _, b := range h.u.toasts.BGs {
 		bg = b
 	}
-	dark := bg.rect.FillColor
-	assert.Equal(t, colBg3, dark)
+	dark := bg.Rect.FillColor
+	assert.Equal(t, kit.ColBg3, dark)
 
-	h.u.applyTheme(themeLight)
-	assert.NotEqual(t, dark, bg.rect.FillColor, "the background changed with the theme")
-	assert.Equal(t, colBg3, bg.rect.FillColor, "it uses the light palette now")
-	assert.Equal(t, colOK.R, bg.rect.StrokeColor.(color.NRGBA).R, "the accent follows the palette too")
+	h.u.applyTheme(kit.ThemeLight)
+	assert.NotEqual(t, dark, bg.Rect.FillColor, "the background changed with the theme")
+	assert.Equal(t, kit.ColBg3, bg.Rect.FillColor, "it uses the light palette now")
+	assert.Equal(t, kit.ColOK.R, bg.Rect.StrokeColor.(color.NRGBA).R, "the accent follows the palette too")
 }
 
 // ---- Game with several emulators ----
@@ -1324,8 +1325,8 @@ func TestPlayAsksWhichEmulatorInADialog(t *testing.T) {
 		return len(overlayWidgets[*widget.Button](h)) > 0
 	}, 10*time.Second, 50*time.Millisecond)
 	var names []string
-	for _, c := range overlayWidgets[*choiceTile](h) {
-		names = append(names, c.name)
+	for _, c := range overlayWidgets[*kit.ChoiceTile](h) {
+		names = append(names, c.Name)
 	}
 	assert.ElementsMatch(t, []string{"Without an emulator", "Eden", "Ryujinx"}, names, "a square tile for each way to play")
 	stop := buttonWith(t, overlayWidgets[*widget.Button](h), "Stop countdown")

@@ -18,6 +18,7 @@ import (
 	"github.com/akfaiz/carryover/internal/cloudsync/syncer"
 	"github.com/akfaiz/carryover/internal/core"
 	"github.com/akfaiz/carryover/internal/library"
+	"github.com/akfaiz/carryover/internal/ui/kit"
 	"github.com/akfaiz/carryover/services"
 )
 
@@ -33,7 +34,7 @@ func TestPagesRender(t *testing.T) {
 	activeQueue.Store(&queue)
 
 	a := test.NewApp()
-	a.Settings().SetTheme(appTheme{})
+	a.Settings().SetTheme(kit.AppTheme{})
 	u := newUI(c, a, services.NewBus())
 
 	g, err := u.lib.Save(services.GameInput{
@@ -124,10 +125,6 @@ func assertPaintable(t *testing.T, o fyne.CanvasObject) {
 }
 
 func TestFormat(t *testing.T) {
-	cases := map[int64]string{0: "0 B", 512: "512 B", 1536: "1.5 KB", 5 << 20: "5.0 MB"}
-	for in, want := range cases {
-		assert.Equal(t, want, formatBytes(in))
-	}
 	assert.Equal(t, "my-saves", slug("My Saves!"))
 	assert.Len(t, splitLines("a, b\n\nc"), 3)
 	assert.Equal(t, "never", timeAgo(""))

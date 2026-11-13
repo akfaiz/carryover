@@ -6,6 +6,7 @@ import (
 	"fyne.io/fyne/v2/lang"
 	"fyne.io/fyne/v2/widget"
 
+	"github.com/akfaiz/carryover/internal/ui/kit"
 	"github.com/akfaiz/carryover/services"
 )
 
@@ -68,34 +69,34 @@ func (q *promptQueue) next() {
 		if p.BeforePlay {
 			skip = lang.L("Skip sync and play")
 		}
-		body = vbox(
-			muted(lang.L("Saves changed both on this device and in the cloud since the last sync. Choose which to keep. The other version is stored as a backup, so nothing is lost.")),
+		body = kit.VBox(
+			kit.Muted(lang.L("Saves changed both on this device and in the cloud since the last sync. Choose which to keep. The other version is stored as a backup, so nothing is lost.")),
 			saveSides(p.Conflict.Local, p.Conflict.Remote, true, answer),
-			hbox(widget.NewButton(skip, func() { answer("skip") })),
+			kit.HBox(widget.NewButton(skip, func() { answer("skip") })),
 		)
 	case p.Kind == "emulator":
 		title = lang.L("Play {{.Game}}", map[string]any{"Game": p.GameName})
 		body = q.emulatorChoice(p, answer)
 	case p.Kind == "lock" && p.Lock != nil:
 		title = lang.L("{{.Game}} is being played elsewhere", map[string]any{"Game": p.GameName})
-		body = vbox(
-			colored(lang.L("{{.Device}} started playing at {{.Time}}. If you play here too, you may get a save conflict when both devices upload.",
+		body = kit.VBox(
+			kit.Colored(lang.L("{{.Device}} started playing at {{.Time}}. If you play here too, you may get a save conflict when both devices upload.",
 				map[string]any{"Device": p.Lock.DeviceName, "Time": fmtDate(p.Lock.Since)}), widget.MediumImportance),
-			hbox(widget.NewButton(lang.L("Cancel"), func() { answer("no") }), primary(lang.L("Play anyway"), func() { answer("yes") })),
+			kit.HBox(widget.NewButton(lang.L("Cancel"), func() { answer("no") }), kit.Primary(lang.L("Play anyway"), func() { answer("yes") })),
 		)
 	default:
-		errText := mono(p.Error)
+		errText := kit.Mono(p.Error)
 		errText.Importance = widget.DangerImportance
 		if p.BeforePlay {
 			title = lang.L("Could not sync before playing")
-			body = vbox(errText,
-				muted(lang.L("You can play offline; your saves will be uploaded next time sync succeeds.")),
-				hbox(widget.NewButton(lang.L("Cancel"), func() { answer("no") }), primary(lang.L("Play offline"), func() { answer("yes") })))
+			body = kit.VBox(errText,
+				kit.Muted(lang.L("You can play offline; your saves will be uploaded next time sync succeeds.")),
+				kit.HBox(widget.NewButton(lang.L("Cancel"), func() { answer("no") }), kit.Primary(lang.L("Play offline"), func() { answer("yes") })))
 		} else {
 			title = lang.L("Could not upload saves")
-			body = vbox(errText,
-				muted(lang.L("Your saves are safe on this device and will upload on the next sync.")),
-				hbox(primary(lang.L("OK"), func() { answer("yes") })))
+			body = kit.VBox(errText,
+				kit.Muted(lang.L("Your saves are safe on this device and will upload on the next sync.")),
+				kit.HBox(kit.Primary(lang.L("OK"), func() { answer("yes") })))
 		}
 	}
 	size := q.u.win.Canvas().Size()

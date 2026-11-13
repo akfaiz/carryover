@@ -9,6 +9,7 @@ import (
 	"fyne.io/fyne/v2/theme"
 	"fyne.io/fyne/v2/widget"
 
+	"github.com/akfaiz/carryover/internal/ui/kit"
 	"github.com/akfaiz/carryover/services"
 )
 
@@ -46,7 +47,7 @@ func (e *editor) romPicked(m *emuForm) {
 		finish()
 		return
 	}
-	async(func() (string, error) { return e.u.emus.GuessRomName(m.id, m.rom), nil }, func(name string, _ error) {
+	kit.Async(func() (string, error) { return e.u.emus.GuessRomName(m.id, m.rom), nil }, func(name string, _ error) {
 		if name != "" && strings.TrimSpace(e.name) == "" {
 			e.name = name
 			if e.nameEntry != nil {
@@ -71,7 +72,7 @@ func (e *editor) suggestEmuSaves(m *emuForm, autofill bool) {
 	m.suggesting, m.sugErr = true, ""
 	e.render()
 	in := services.EmuSuggestInput{GameName: e.name, Rom: m.rom}
-	async(func() (services.EmuSuggestResult, error) { return e.u.emus.SuggestSaves(m.id, in) }, func(res services.EmuSuggestResult, err error) {
+	kit.Async(func() (services.EmuSuggestResult, error) { return e.u.emus.SuggestSaves(m.id, in) }, func(res services.EmuSuggestResult, err error) {
 		m.suggesting = false
 		switch {
 		case err != nil && !autofill:
@@ -209,29 +210,29 @@ func (e *editor) emuSuggestUI(m *emuForm) fyne.CanvasObject {
 		label = lang.L("Looking…")
 	}
 	btn := widget.NewButtonWithIcon(label, theme.SearchIcon(), func() { e.suggestEmuSaves(m, false) })
-	setEnabled(btn, !m.suggesting && ev.Preset != "" && (strings.TrimSpace(e.name) != "" || strings.TrimSpace(m.rom) != ""))
-	c := vbox(hbox(btn))
+	kit.SetEnabled(btn, !m.suggesting && ev.Preset != "" && (strings.TrimSpace(e.name) != "" || strings.TrimSpace(m.rom) != ""))
+	c := kit.VBox(kit.HBox(btn))
 	if ev.Preset == "" {
-		c.Add(muted(lang.L("Choose this emulator's type on the Emulators page to get save location suggestions.")))
+		c.Add(kit.Muted(lang.L("Choose this emulator's type on the Emulators page to get save location suggestions.")))
 	}
 	if m.sugErr != "" {
-		c.Add(colored(m.sugErr, widget.DangerImportance))
+		c.Add(kit.Colored(m.sugErr, widget.DangerImportance))
 	}
 	if m.sug != nil {
 		res := m.sug
-		list := vbox()
+		list := kit.VBox()
 		if len(res.Suggestions) == 0 {
-			list.Add(muted(lang.L("No save location is known for this game. Check the game's name, or enter the folder yourself.")))
+			list.Add(kit.Muted(lang.L("No save location is known for this game. Check the game's name, or enter the folder yourself.")))
 		}
 		if res.Note != "" {
-			list.Add(colored(res.Note, widget.WarningImportance))
+			list.Add(kit.Colored(res.Note, widget.WarningImportance))
 		}
 		for _, sg := range res.Suggestions {
 			var found fyne.CanvasObject
 			if sg.Exists {
-				found = badge(lang.L("found on this device"), badgeOK)
+				found = kit.Badge(lang.L("found on this device"), kit.BadgeOK)
 			}
-			list.Add(detailRow(sg.Game, sg.Path, found, func() {
+			list.Add(kit.DetailRow(sg.Game, sg.Path, found, func() {
 				m.sugErr = ""
 				if !m.useSuggestion(sg) {
 					m.sugErr = lang.L("This emulator shares another emulator's saves, whose locations aren't marked as account or device save. Suggest the locations on that emulator first, or enter the path yourself.")
@@ -239,8 +240,8 @@ func (e *editor) emuSuggestUI(m *emuForm) fyne.CanvasObject {
 				e.render()
 			}))
 		}
-		list.Add(hbox(lowButton(lang.L("Close"), func() { m.sug = nil; e.render() })))
-		c.Add(card("", list))
+		list.Add(kit.HBox(kit.LowButton(lang.L("Close"), func() { m.sug = nil; e.render() })))
+		c.Add(kit.Card("", list))
 	}
 	return c
 }

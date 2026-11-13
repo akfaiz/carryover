@@ -11,6 +11,7 @@ import (
 	"fyne.io/fyne/v2/theme"
 	"fyne.io/fyne/v2/widget"
 
+	"github.com/akfaiz/carryover/internal/ui/kit"
 	"github.com/akfaiz/carryover/services"
 )
 
@@ -68,32 +69,32 @@ func (p *libraryPage) view() fyne.CanvasObject {
 	p.search.SetPlaceHolder(lang.L("Search…"))
 	p.search.OnChanged = func(s string) { p.filter = s; p.renderGrid() }
 	p.syncBtn = widget.NewButtonWithIcon(lang.L("Sync all"), theme.ViewRefreshIcon(), p.u.syncAll)
-	p.head = pageHead(nil, lang.L("Library"),
+	p.head = kit.PageHead(nil, lang.L("Library"),
 		p.syncBtn,
-		primary(lang.L("＋ Add game"), func() { showAddGame(p.u) }),
+		kit.Primary(lang.L("＋ Add game"), func() { showAddGame(p.u) }),
 	)
 	// Search first, over the games it filters, then the filters; sort out of
 	// the way on the right. All one height.
-	sorts := &choice{}
-	sorts.add(sortName, lang.L("Sort by name"))
-	sorts.add(sortRecent, lang.L("Sort by last sync"))
-	sortSel := selectOf(sorts, p.u.librarySort(), func(v string) {
+	sorts := &kit.Choice{}
+	sorts.Add(sortName, lang.L("Sort by name"))
+	sorts.Add(sortRecent, lang.L("Sort by last sync"))
+	sortSel := kit.SelectOf(sorts, p.u.librarySort(), func(v string) {
 		p.u.app.Preferences().SetString(prefLibrarySort, v)
 		p.renderGrid()
 	})
 	p.filterHost = container.NewStack()
-	p.toolsRow = container.NewHBox(fixedWidth(280, p.search), p.filterHost, layout.NewSpacer(), fixedWidth(190, sortSel))
+	p.toolsRow = container.NewHBox(kit.FixedWidth(280, p.search), p.filterHost, layout.NewSpacer(), kit.FixedWidth(190, sortSel))
 	p.chipsHost = container.NewStack()
 	p.gridHost = container.NewStack()
 	p.emptyHost = container.NewStack()
 	p.bar = widget.NewProgressBar()
-	p.barLabel = small("")
+	p.barLabel = kit.Small("")
 	p.barHost = container.NewVBox(p.barLabel, p.bar)
 	p.barHost.Hide()
 	p.renderGrid()
 	p.updateProgress()
-	p.body = vbox(p.head, p.barHost, p.chipsHost, p.emptyHost, p.gridHost)
-	p.scroll = scrollPage(p.body)
+	p.body = kit.VBox(p.head, p.barHost, p.chipsHost, p.emptyHost, p.gridHost)
+	p.scroll = kit.ScrollPage(p.body)
 	return p.scroll
 }
 
@@ -132,7 +133,7 @@ func (p *libraryPage) updateProgress() {
 	default:
 		p.syncBtn.SetText(lang.L("Sync all"))
 		p.syncBtn.SetIcon(theme.ViewRefreshIcon())
-		setEnabled(p.syncBtn, u.settings.Remote != "")
+		kit.SetEnabled(p.syncBtn, u.settings.Remote != "")
 	}
 	if p.head != nil {
 		p.head.Refresh() // the button's label width changed
@@ -211,9 +212,9 @@ func (p *libraryPage) renderChips() {
 	// attention filter is on, so it can be turned off again).
 	p.filterHost.Objects = nil
 	if n > 0 || u.libraryFilter() == filterAttention {
-		p.filterHost.Objects = []fyne.CanvasObject{chips([]chipOption{
-			{filterAll, lang.L("All ({{.Count}})", map[string]any{"Count": len(u.games)}), nil},
-			{filterAttention, lang.L("Needs attention ({{.Count}})", map[string]any{"Count": n}), theme.WarningIcon()},
+		p.filterHost.Objects = []fyne.CanvasObject{kit.Chips([]kit.ChipOption{
+			{Value: filterAll, Label: lang.L("All ({{.Count}})", map[string]any{"Count": len(u.games)})},
+			{Value: filterAttention, Label: lang.L("Needs attention ({{.Count}})", map[string]any{"Count": n}), Icon: theme.WarningIcon()},
 		}, u.libraryFilter(), func(v string) {
 			u.setLibraryFilter(v)
 			p.renderGrid()
@@ -232,21 +233,21 @@ func (p *libraryPage) renderGrid() {
 	p.emptyHost.Objects = nil
 	switch {
 	case u.loaded && len(u.games) == 0:
-		actions := hbox(primary(lang.L("＋ Add your first game"), func() { showAddGame(u) }))
+		actions := kit.HBox(kit.Primary(lang.L("＋ Add your first game"), func() { showAddGame(u) }))
 		if u.settings.Remote == "" {
 			actions.Add(widget.NewButtonWithIcon(lang.L("Set up cloud storage"), theme.StorageIcon(), func() { u.navigate("/cloud") }))
 		}
-		p.emptyHost.Objects = []fyne.CanvasObject{card(lang.L("No games yet"),
-			muted(lang.L("Add a game, tell Carryover where its saves live on this device, and it will keep them in sync through your cloud storage every time you play — from here or from Steam.")),
+		p.emptyHost.Objects = []fyne.CanvasObject{kit.Card(lang.L("No games yet"),
+			kit.Muted(lang.L("Add a game, tell Carryover where its saves live on this device, and it will keep them in sync through your cloud storage every time you play — from here or from Steam.")),
 			actions)}
 	case len(games) == 0 && strings.TrimSpace(p.filter) != "":
-		p.emptyHost.Objects = []fyne.CanvasObject{card("",
-			muted(lang.L("No games match “{{.Query}}”.", map[string]any{"Query": strings.TrimSpace(p.filter)})),
-			hbox(widget.NewButton(lang.L("Clear search"), func() { p.search.SetText("") })))}
+		p.emptyHost.Objects = []fyne.CanvasObject{kit.Card("",
+			kit.Muted(lang.L("No games match “{{.Query}}”.", map[string]any{"Query": strings.TrimSpace(p.filter)})),
+			kit.HBox(widget.NewButton(lang.L("Clear search"), func() { p.search.SetText("") })))}
 	case len(games) == 0 && u.loaded:
-		p.emptyHost.Objects = []fyne.CanvasObject{card("",
-			muted(lang.L("Nothing needs attention: every game is set up and synced.")),
-			hbox(widget.NewButton(lang.L("Show all games"), func() { u.setLibraryFilter(filterAll); p.renderGrid() })))}
+		p.emptyHost.Objects = []fyne.CanvasObject{kit.Card("",
+			kit.Muted(lang.L("Nothing needs attention: every game is set up and synced.")),
+			kit.HBox(widget.NewButton(lang.L("Show all games"), func() { u.setLibraryFilter(filterAll); p.renderGrid() })))}
 	}
 	p.emptyHost.Refresh()
 

@@ -114,8 +114,11 @@ above (`core` is the top):
 - `internal/stores/`: other launchers and stores on the device: `steam` (VDF files, shortcuts), `steamgrid`,
   `steamstore`, `heroic`, `wineprefix`
 - `internal/app/`: application plumbing: `appdir` (data dir, settings), `version`, `singleinstance`
+- `internal/ui/kit`: reusable Fyne widgets, layouts, palette and theme, toaster and image cache. Pure Fyne: no
+  `lang`, `services` or `core` imports and no user-visible text (callers pass labels in). It exports freely; being
+  under `internal/` it is not public API
 - `services/`: API used by the GUI
-- `ui/`: Fyne GUI
+- `ui/`: Fyne GUI: the pages, and everything that knows about games, services or translations
 
 See `CLAUDE.md` for detailed notes on threading, rclone behaviour and platform rules.
 

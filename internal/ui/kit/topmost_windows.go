@@ -1,6 +1,6 @@
 //go:build windows
 
-package ui
+package kit
 
 import (
 	"fyne.io/fyne/v2"
@@ -10,9 +10,9 @@ import (
 
 var setWindowPos = windows.NewLazySystemDLL("user32.dll").NewProc("SetWindowPos")
 
-// setTopmost keeps the wrapper window above other windows (Fyne has no
+// SetTopmost keeps the wrapper window above other windows (Fyne has no
 // always-on-top option).
-func setTopmost(w fyne.Window) {
+func SetTopmost(w fyne.Window) {
 	nw, ok := w.(driver.NativeWindow)
 	if !ok {
 		return

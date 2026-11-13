@@ -1,6 +1,6 @@
 //go:build !windows
 
-package ui
+package kit
 
 import (
 	"time"
@@ -14,9 +14,9 @@ import (
 // reads it too, but without a portal it falls back to dark; Carryover falls back
 // to light, so it starts light unless the system asks for dark.
 
-// initialSystemDark asks the portal for the color scheme, waiting at most half
+// InitialSystemDark asks the portal for the color scheme, waiting at most half
 // a second: the lookup hangs on some desktops.
-func initialSystemDark(fyne.App) bool {
+func InitialSystemDark(fyne.App) bool {
 	res := make(chan bool, 1)
 	go func() {
 		scheme, err := appearance.GetColorScheme()
@@ -30,10 +30,10 @@ func initialSystemDark(fyne.App) bool {
 	}
 }
 
-// watchSystemTheme calls onChange (on a background goroutine) with the
+// WatchSystemTheme calls onChange (on a background goroutine) with the
 // desktop's color scheme, then again whenever it changes. The first call covers
 // a portal that answered too late for initialSystemDark.
-func watchSystemTheme(_ fyne.App, onChange func(dark bool)) {
+func WatchSystemTheme(_ fyne.App, onChange func(dark bool)) {
 	go func() {
 		if scheme, err := appearance.GetColorScheme(); err == nil {
 			onChange(scheme == appearance.Dark)

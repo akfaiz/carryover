@@ -15,6 +15,7 @@ import (
 	"github.com/akfaiz/carryover/internal/app/appdir"
 	"github.com/akfaiz/carryover/internal/app/version"
 	"github.com/akfaiz/carryover/internal/cloudsync/syncer"
+	"github.com/akfaiz/carryover/internal/ui/kit"
 )
 
 type settingsPage struct {
@@ -25,9 +26,9 @@ func newSettingsPage(u *UI) *settingsPage { return &settingsPage{u: u} }
 
 func (p *settingsPage) view() fyne.CanvasObject {
 	u := p.u
-	scroll := scrollPage(muted(lang.L("Loading…")))
-	async(func() (appdir.Settings, error) { return u.sync.GetSettings(), nil }, func(st appdir.Settings, _ error) {
-		replaceScroll(scroll, p.form(st))
+	scroll := kit.ScrollPage(kit.Muted(lang.L("Loading…")))
+	kit.Async(func() (appdir.Settings, error) { return u.sync.GetSettings(), nil }, func(st appdir.Settings, _ error) {
+		kit.ReplaceScroll(scroll, p.form(st))
 	})
 	return scroll
 }
@@ -43,13 +44,13 @@ func (p *settingsPage) form(st appdir.Settings) fyne.CanvasObject {
 	u := p.u
 	var commit func()
 	changed := func() { commit() }
-	later := debounce(autosaveDelay, changed)
+	later := kit.Debounce(autosaveDelay, changed)
 
 	name := widget.NewEntry()
 	name.SetText(st.DeviceName)
 	name.OnChanged = func(string) { later() }
 	name.OnSubmitted = func(string) { commit() }
-	id := monoEntry("", st.DeviceID, nil)
+	id := kit.MonoEntry("", st.DeviceID, nil)
 	id.Disable()
 
 	// Cloud backups: a checkbox turns them on, then a count of 1-100. Off is
@@ -66,13 +67,13 @@ func (p *settingsPage) form(st appdir.Settings) fyne.CanvasObject {
 	}
 	retention.OnChanged = func(string) { later() }
 	retention.OnSubmitted = func(string) { commit() }
-	backups := newCheck(lang.L("Back up saves to the cloud before they're overwritten"), st.BackupRetention > 0, func(on bool) {
-		setEnabled(retention, on)
+	backups := kit.NewCheck(lang.L("Back up saves to the cloud before they're overwritten"), st.BackupRetention > 0, func(on bool) {
+		kit.SetEnabled(retention, on)
 		commit()
 	})
-	setEnabled(retention, backups.Checked)
+	kit.SetEnabled(retention, backups.Checked)
 	themes := []struct{ setting, label string }{
-		{themeSystem, lang.L("System")}, {themeDark, lang.L("Dark")}, {themeLight, lang.L("Light")},
+		{kit.ThemeSystem, lang.L("System")}, {kit.ThemeDark, lang.L("Dark")}, {kit.ThemeLight, lang.L("Light")},
 	}
 	labels := make([]string, len(themes))
 	for i, t := range themes {
@@ -89,31 +90,31 @@ func (p *settingsPage) form(st appdir.Settings) fyne.CanvasObject {
 	themeSel.OnChanged = func(string) { commit() }
 
 	// The language applies at the next start (Fyne picks its translations once).
-	langs := &choice{}
-	langs.add("", lang.L("System"))
+	langs := &kit.Choice{}
+	langs.Add("", lang.L("System"))
 	for _, o := range languageOptions() {
-		langs.add(o.code, o.name)
+		langs.Add(o.code, o.name)
 	}
-	langNote := muted(lang.L("Restart Carryover to apply the language."))
-	showLangNote := func(code string) { setVisible(langNote, code != startLanguage) }
+	langNote := kit.Muted(lang.L("Restart Carryover to apply the language."))
+	showLangNote := func(code string) { kit.SetVisible(langNote, code != startLanguage) }
 	showLangNote(st.Language)
-	langSel := selectOf(langs, st.Language, func(v string) {
+	langSel := kit.SelectOf(langs, st.Language, func(v string) {
 		showLangNote(v)
 		commit()
 	})
 
 	// Cover art is part of the library sync, so it can only be on while that is.
-	covers := newCheck(lang.L("Upload cover art and artwork to the cloud"), !st.CoversLocalOnly, func(bool) { commit() })
-	share := newCheck(lang.L("Share the game library between devices through the cloud"), st.SyncLibrary, func(on bool) {
-		setEnabled(covers, on)
+	covers := kit.NewCheck(lang.L("Upload cover art and artwork to the cloud"), !st.CoversLocalOnly, func(bool) { commit() })
+	share := kit.NewCheck(lang.L("Share the game library between devices through the cloud"), st.SyncLibrary, func(on bool) {
+		kit.SetEnabled(covers, on)
 		commit()
 	})
-	setEnabled(covers, share.Checked)
+	kit.SetEnabled(covers, share.Checked)
 
 	key := widget.NewPasswordEntry()
 	key.SetPlaceHolder(lang.L("Paste your key"))
 	key.SetText(st.SteamGridDBKey)
-	keyTest := newTestButton(lang.L("Test"), lang.L("Key works."), func() func() error {
+	keyTest := kit.NewTestButton(lang.L("Test"), lang.L("Key works."), lang.L("Testing…"), func() func() error {
 		k := key.Text
 		return func() error { return u.lib.TestSteamGridKey(k) }
 	})
@@ -124,7 +125,7 @@ func (p *settingsPage) form(st appdir.Settings) fyne.CanvasObject {
 		commit()
 	})
 	keySave.Importance = widget.HighImportance
-	keyDirty := func() { setEnabled(keySave, strings.TrimSpace(key.Text) != st.SteamGridDBKey) }
+	keyDirty := func() { kit.SetEnabled(keySave, strings.TrimSpace(key.Text) != st.SteamGridDBKey) }
 	keyDirty()
 	key.OnChanged = func(s string) {
 		keyTest.SetAllowed(strings.TrimSpace(s) != "")
@@ -153,20 +154,20 @@ func (p *settingsPage) form(st appdir.Settings) fyne.CanvasObject {
 				next.Theme = t.setting
 			}
 		}
-		next.Language = langs.value(langSel.Selected)
+		next.Language = langs.Value(langSel.Selected)
 		next.SteamGridDBKey = keyToSave
 		return next, true, nil
 	}
 	// A quiet note next to the title says a change was saved; a toast for
 	// every change would pile up while typing.
-	savedNote := small("")
+	savedNote := kit.Small("")
 	var hideNote *time.Timer
 	showSaved := func() {
 		savedNote.SetText("✓ " + lang.L("Saved"))
 		if hideNote != nil {
 			hideNote.Stop()
 		}
-		hideNote = time.AfterFunc(2500*time.Millisecond, func() { onUI(func() { savedNote.SetText("") }) })
+		hideNote = time.AfterFunc(2500*time.Millisecond, func() { kit.OnUI(func() { savedNote.SetText("") }) })
 	}
 
 	// Saves are one at a time: a change made while one is running is saved
@@ -185,7 +186,7 @@ func (p *settingsPage) form(st appdir.Settings) fyne.CanvasObject {
 			return
 		}
 		saving = true
-		async(func() (appdir.Settings, error) { return u.sync.SaveSettings(next) }, func(saved appdir.Settings, err error) {
+		kit.Async(func() (appdir.Settings, error) { return u.sync.SaveSettings(next) }, func(saved appdir.Settings, err error) {
 			saving = false
 			if err != nil {
 				u.toastErr(err)
@@ -208,30 +209,30 @@ func (p *settingsPage) form(st appdir.Settings) fyne.CanvasObject {
 		})
 	}
 
-	narrow := func(o fyne.CanvasObject) fyne.CanvasObject { return maxWidth(640, o) }
-	return stack(
-		pageHead(nil, lang.L("Settings"), container.NewCenter(savedNote)),
-		narrow(card(lang.L("Appearance"),
-			field(lang.L("Theme"), themeSel),
-			field(lang.L("Language"), langSel),
+	narrow := func(o fyne.CanvasObject) fyne.CanvasObject { return kit.MaxWidth(640, o) }
+	return kit.Stack(
+		kit.PageHead(nil, lang.L("Settings"), container.NewCenter(savedNote)),
+		narrow(kit.Card(lang.L("Appearance"),
+			kit.Field(lang.L("Theme"), themeSel),
+			kit.Field(lang.L("Language"), langSel),
 			langNote)),
-		narrow(card(lang.L("This device"),
-			field(lang.L("Device name (shown on other devices and in backups)"), name),
-			field(lang.L("Device ID"), id))),
-		narrow(card(lang.L("Sync"),
+		narrow(kit.Card(lang.L("This device"),
+			kit.Field(lang.L("Device name (shown on other devices and in backups)"), name),
+			kit.Field(lang.L("Device ID"), id))),
+		narrow(kit.Card(lang.L("Sync"),
 			backups,
-			field(lang.L("Backups to keep per game (1–100)"), fixedWidth(120, retention)),
-			muted(lang.L("Each backup is a zip uploaded before a sync replaces saves, so syncing gets slower, especially after playing. Older backups are deleted once there are more than this; pinned backups are always kept.")),
-			muted(lang.L("When off, only the current save is in the cloud. Before a download replaces this device's saves, a copy is still kept on this device (the last {{.Count}}).",
+			kit.Field(lang.L("Backups to keep per game (1–100)"), kit.FixedWidth(120, retention)),
+			kit.Muted(lang.L("Each backup is a zip uploaded before a sync replaces saves, so syncing gets slower, especially after playing. Older backups are deleted once there are more than this; pinned backups are always kept.")),
+			kit.Muted(lang.L("When off, only the current save is in the cloud. Before a download replaces this device's saves, a copy is still kept on this device (the last {{.Count}}).",
 				map[string]any{"Count": syncer.SafetyKeep})),
 			share,
-			muted(lang.L("When enabled, games added on one device appear on the others; each device only needs to set its own paths.")),
+			kit.Muted(lang.L("When enabled, games added on one device appear on the others; each device only needs to set its own paths.")),
 			covers,
-			muted(lang.L("Covers and artwork always stay on this device. When this is on they are also uploaded to the cloud, so every device shows the same images; when off, this device neither uploads nor downloads them.")))),
-		narrow(card(lang.L("Cover art"),
-			field(lang.L("SteamGridDB API key (optional)"), rowFill(key, keySave, keyTest.Button)),
+			kit.Muted(lang.L("Covers and artwork always stay on this device. When this is on they are also uploaded to the cloud, so every device shows the same images; when off, this device neither uploads nor downloads them.")))),
+		narrow(kit.Card(lang.L("Cover art"),
+			kit.Field(lang.L("SteamGridDB API key (optional)"), kit.RowFill(key, keySave, keyTest.Button)),
 			keyTest.Result,
-			muted(gridKeyHelp()))),
+			kit.Muted(gridKeyHelp()))),
 		narrow(aboutCard()),
 	)
 }
@@ -246,18 +247,18 @@ func gridKeyHelp() string {
 func showGridKeyDialog(u *UI, onSaved func()) {
 	key := widget.NewPasswordEntry()
 	key.SetPlaceHolder(lang.L("Paste your key"))
-	keyTest := newTestButton(lang.L("Test"), lang.L("Key works."), func() func() error {
+	keyTest := kit.NewTestButton(lang.L("Test"), lang.L("Key works."), lang.L("Testing…"), func() func() error {
 		k := strings.TrimSpace(key.Text)
 		return func() error { return u.lib.TestSteamGridKey(k) }
 	})
 	keyTest.SetAllowed(false)
 	var d dialogHider
-	save := primary(lang.L("Save"), nil)
+	save := kit.Primary(lang.L("Save"), nil)
 	save.Disable()
 	save.OnTapped = func() {
 		k := strings.TrimSpace(key.Text)
 		save.Disable()
-		async(func() (appdir.Settings, error) {
+		kit.Async(func() (appdir.Settings, error) {
 			st := u.sync.GetSettings()
 			st.SteamGridDBKey = k
 			return u.sync.SaveSettings(st)
@@ -269,17 +270,17 @@ func showGridKeyDialog(u *UI, onSaved func()) {
 			}
 			d.Hide()
 			u.refresh()
-			u.toast(lang.L("SteamGridDB key saved"), toastOK)
+			u.toast(lang.L("SteamGridDB key saved"), kit.ToastOK)
 			onSaved()
 		})
 	}
 	key.OnChanged = func(s string) {
 		ok := strings.TrimSpace(s) != ""
 		keyTest.SetAllowed(ok)
-		setEnabled(save, ok)
+		kit.SetEnabled(save, ok)
 	}
-	body := vbox(muted(gridKeyHelp()), rowFill(key, keyTest.Button), keyTest.Result,
-		hbox(layout.NewSpacer(), widget.NewButton(lang.L("Cancel"), func() { d.Hide() }), save))
+	body := kit.VBox(kit.Muted(gridKeyHelp()), kit.RowFill(key, keyTest.Button), keyTest.Result,
+		kit.HBox(layout.NewSpacer(), widget.NewButton(lang.L("Cancel"), func() { d.Hide() }), save))
 	d = showCustom(u, lang.L("SteamGridDB API key"), body, 540)
 }
 
@@ -299,13 +300,13 @@ func aboutCard() fyne.CanvasObject {
 		if info.Modified {
 			commit = lang.L("Commit {{.Commit}}, with uncommitted changes", map[string]any{"Commit": info.Commit})
 		}
-		objs = append(objs, muted(commit))
+		objs = append(objs, kit.Muted(commit))
 	}
-	objs = append(objs, hbox(
-		widget.NewHyperlink(notes, mustURL(info.ReleaseURL())),
-		widget.NewHyperlink(lang.L("Source code"), mustURL(version.RepoURL)),
+	objs = append(objs, kit.HBox(
+		widget.NewHyperlink(notes, kit.MustURL(info.ReleaseURL())),
+		widget.NewHyperlink(lang.L("Source code"), kit.MustURL(version.RepoURL)),
 	))
-	return card(lang.L("About Carryover"), objs...)
+	return kit.Card(lang.L("About Carryover"), objs...)
 }
 
 // defaultRetention is the backup count offered when cloud backups are turned on.

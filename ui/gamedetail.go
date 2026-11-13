@@ -13,6 +13,7 @@ import (
 
 	"github.com/akfaiz/carryover/internal/cloudsync/syncer"
 	"github.com/akfaiz/carryover/internal/core"
+	"github.com/akfaiz/carryover/internal/ui/kit"
 	"github.com/akfaiz/carryover/services"
 )
 
@@ -40,11 +41,11 @@ type gameDetail struct {
 	wrapOpts      string
 	cancelling    bool // Cancel pressed; waiting for the sync to stop
 	wrapOpen      bool
-	wrapSection   *accordionSection // to keep its open state across renders
+	wrapSection   *kit.AccordionSection // to keep its open state across renders
 
 	scroll *container.Scroll
-	prog   *progressBar // current progress widget, updated in place
-	progOf string       // "session" or "busy"
+	prog   *kit.ProgressBar // current progress widget, updated in place
+	progOf string           // "session" or "busy"
 }
 
 func newGameDetail(u *UI, id string) *gameDetail {
@@ -150,7 +151,7 @@ func (p *gameDetail) selectedProfile(profs []profileEntry) profileEntry {
 }
 
 func (p *gameDetail) view() fyne.CanvasObject {
-	p.scroll = scrollPage(widget.NewLabel(""))
+	p.scroll = kit.ScrollPage(widget.NewLabel(""))
 	if g, ok := p.u.game(p.id); ok {
 		switch g.Device.LaunchMode {
 		case "steamwrap":
@@ -160,14 +161,14 @@ func (p *gameDetail) view() fyne.CanvasObject {
 			p.steamMode = "heroic"
 		}
 	}
-	async(func() (services.SteamInfo, error) { return p.u.steam.Info(), nil }, func(info services.SteamInfo, _ error) {
+	kit.Async(func() (services.SteamInfo, error) { return p.u.steam.Info(), nil }, func(info services.SteamInfo, _ error) {
 		p.steam = &info
 		if len(info.Users) > 0 {
 			p.steamUser = info.Users[0].ID
 		}
 		p.render()
 	})
-	async(func() (string, error) { return p.u.steam.WrapLaunchOptions(p.id) }, func(s string, err error) {
+	kit.Async(func() (string, error) { return p.u.steam.WrapLaunchOptions(p.id) }, func(s string, err error) {
 		if err == nil {
 			p.wrapOpts = s
 			p.render()
@@ -216,7 +217,7 @@ func (p *gameDetail) updateProgress() {
 			return
 		}
 		ev := p.u.progress[p.sessionKey()]
-		p.prog.set(st.Message, ev.Bytes, ev.TotalBytes)
+		p.prog.Set(st.Message, ev.Bytes, ev.TotalBytes)
 	case "busy":
 		ev := p.u.progress[p.key()]
 		msg := ev.Message
@@ -229,7 +230,7 @@ func (p *gameDetail) updateProgress() {
 				msg = lang.L("Backing up…")
 			}
 		}
-		p.prog.set(msg, ev.Bytes, ev.TotalBytes)
+		p.prog.Set(msg, ev.Bytes, ev.TotalBytes)
 	}
 }
 
@@ -240,12 +241,12 @@ func (p *gameDetail) run(label string, work func() error, done func(error)) {
 		delete(p.u.progress, p.key())
 	}
 	p.render()
-	async0(work, func(err error) {
+	kit.Async0(work, func(err error) {
 		p.busy = ""
 		p.cancelling = false
 		switch {
 		case errors.Is(err, services.ErrSyncCancelled):
-			p.u.toast(lang.L("Sync cancelled. Files already transferred are kept; the next sync continues."), toastInfo)
+			p.u.toast(lang.L("Sync cancelled. Files already transferred are kept; the next sync continues."), kit.ToastInfo)
 			err = nil
 			for _, st := range p.states {
 				st.plan = nil
@@ -268,9 +269,9 @@ func (p *gameDetail) busyFor(label, prof string) bool {
 // transferCard is the progress of a sync, restore or backup with its Cancel
 // button; it goes where the action was started.
 func (p *gameDetail) transferCard() fyne.CanvasObject {
-	p.prog, p.progOf = newProgress(), "busy"
+	p.prog, p.progOf = kit.NewProgress(), "busy"
 	p.updateProgress()
-	return card("", vbox(p.prog, hbox(p.cancelButton(lang.L("Cancel"), func() bool { return p.u.sync.Cancel(p.key()) }))))
+	return kit.Card("", kit.VBox(p.prog, kit.HBox(p.cancelButton(lang.L("Cancel"), func() bool { return p.u.sync.Cancel(p.key()) }))))
 }
 
 func (p *gameDetail) render() {
@@ -285,7 +286,7 @@ func (p *gameDetail) render() {
 		if u.loaded {
 			msg = lang.L("Game not found.")
 		}
-		replaceScroll(p.scroll, stack(pageHead(u.back, ""), muted(msg)))
+		kit.ReplaceScroll(p.scroll, kit.Stack(kit.PageHead(u.back, ""), kit.Muted(msg)))
 		return
 	}
 	g := orig
@@ -298,65 +299,65 @@ func (p *gameDetail) render() {
 	// Hero.
 	backBtn := widget.NewButtonWithIcon(lang.L("Back"), theme.NavigateBackIcon(), u.back)
 	backBtn.Importance = widget.LowImportance
-	info := vbox(
-		hbox(backBtn),
-		wrapTitle(g.Name),
-		hbox(statusBadge(g), small(lang.L("Last sync: {{.When}}", map[string]any{"When": timeAgo(g.Status.LastSyncAt)}))),
+	info := kit.VBox(
+		kit.HBox(backBtn),
+		kit.WrapTitle(g.Name),
+		kit.HBox(statusBadge(g), kit.Small(lang.L("Last sync: {{.When}}", map[string]any{"When": timeAgo(g.Status.LastSyncAt)}))),
 	)
 	if !g.Ready {
-		info.Add(colored(g.SetupHint, widget.WarningImportance))
+		info.Add(kit.Colored(g.SetupHint, widget.WarningImportance))
 	}
 	if g.Status.LastError != "" && !g.Status.Running {
-		info.Add(colored(g.Status.LastError, widget.DangerImportance))
+		info.Add(kit.Colored(g.Status.LastError, widget.DangerImportance))
 	}
 	if g.Status.LocalChanges && !g.Status.Running {
-		info.Add(colored(lang.L("The saves on this device changed after the last sync, so the game was probably played without Carryover. Use “Sync now” to upload them."), widget.WarningImportance))
+		info.Add(kit.Colored(lang.L("The saves on this device changed after the last sync, so the game was probably played without Carryover. Use “Sync now” to upload them."), widget.WarningImportance))
 	}
-	actions := hbox()
+	actions := kit.HBox()
 	steamLaunched := g.Device.LaunchMode == "steamwrap"
 	switch {
 	case g.Status.Running:
-		b := primary(lang.L("● Running"), nil)
+		b := kit.Primary(lang.L("● Running"), nil)
 		b.Disable()
 		actions.Add(b)
 	case g.Ready && steamLaunched:
-		b := primary(lang.L("Play in Steam"), func() { openSteam(u, orig) })
-		setEnabled(b, services.SteamRunURL(orig) != "")
+		b := kit.Primary(lang.L("Play in Steam"), func() { openSteam(u, orig) })
+		kit.SetEnabled(b, services.SteamRunURL(orig) != "")
 		actions.Add(b)
 	case g.Ready:
 		// A game that can be played in several ways asks which one first.
 		b := widget.NewButtonWithIcon(lang.L("Play"), theme.MediaPlayIcon(), func() { p.run("play", func() error { return u.sess.Play(p.id) }, nil) })
 		b.Importance = widget.HighImportance
-		setEnabled(b, !busy)
+		kit.SetEnabled(b, !busy)
 		actions.Add(b)
 	default:
-		actions.Add(primary(lang.L("Set up for this device"), func() { u.navigate("/edit/" + p.id) }))
+		actions.Add(kit.Primary(lang.L("Set up for this device"), func() { u.navigate("/edit/" + p.id) }))
 	}
 	syncLabel := lang.L("Sync now")
 	if p.busy == "sync" {
 		syncLabel = lang.L("Syncing…")
 	}
 	syncBtn := widget.NewButtonWithIcon(syncLabel, theme.ViewRefreshIcon(), func() { p.syncAll(profs) })
-	setEnabled(syncBtn, !busy && canSync && hasRemote && !g.Status.Running)
+	kit.SetEnabled(syncBtn, !busy && canSync && hasRemote && !g.Status.Running)
 	actions.Add(syncBtn)
 	actions.Add(widget.NewButtonWithIcon(lang.L("Edit"), theme.DocumentCreateIcon(), func() { u.navigate("/edit/" + p.id) }))
 	actions.Add(p.moreButton(orig, busy))
 	info.Add(actions)
 	if steamLaunched && g.Ready && services.SteamRunURL(orig) == "" {
-		info.Add(muted(lang.L("This game is launched from Steam on this device (Proton). Use “Add to Steam” below, then start it from Steam.")))
+		info.Add(kit.Muted(lang.L("This game is launched from Steam on this device (Proton). Use “Add to Steam” below, then start it from Steam.")))
 	}
 	if p.busy == "delete" {
-		info.Add(fixedWidth(480, busyLine(lang.L("Deleting…"))))
+		info.Add(kit.FixedWidth(480, kit.BusyLine(lang.L("Deleting…"))))
 	}
 
 	sessKey := p.sessionKey()
 	st, hasSt := u.status[p.id]
 	ev := u.progress[sessKey]
 	if hasSt && (st.Phase != "done" || g.Status.Running) && st.Phase != "error" {
-		box := vbox(widget.NewLabelWithStyle(st.Message, fyne.TextAlignLeading, fyne.TextStyle{Bold: true}))
+		box := kit.VBox(widget.NewLabelWithStyle(st.Message, fyne.TextAlignLeading, fyne.TextStyle{Bold: true}))
 		if st.Phase != "playing" && st.Phase != "choose" {
-			p.prog, p.progOf = newProgress(), "session"
-			p.prog.set("", ev.Bytes, ev.TotalBytes)
+			p.prog, p.progOf = kit.NewProgress(), "session"
+			p.prog.Set("", ev.Bytes, ev.TotalBytes)
 			box.Add(p.prog)
 		}
 		if st.Phase == "sync" {
@@ -365,41 +366,41 @@ func (p *gameDetail) render() {
 			if st.BeforePlay {
 				label = lang.L("Cancel and don't play")
 			}
-			box.Add(hbox(p.cancelButton(label, func() bool { return u.sess.Cancel(sessKey) })))
+			box.Add(kit.HBox(p.cancelButton(label, func() bool { return u.sess.Cancel(sessKey) })))
 		}
-		info.Add(fixedWidth(480, card("", box)))
+		info.Add(kit.FixedWidth(480, kit.Card("", box)))
 	} else if p.busy == "sync" {
-		info.Add(fixedWidth(480, p.transferCard()))
+		info.Add(kit.FixedWidth(480, p.transferCard()))
 	}
 
-	cover := coverView(coverSource{path: g.CoverPath, version: g.CoverVersion, name: g.Name}, fyne.NewSize(170, 255))
+	cover := kit.CoverView(kit.CoverSource{Path: g.CoverPath, Version: g.CoverVersion, Name: g.Name}, fyne.NewSize(170, 255))
 	hero := container.NewBorder(nil, nil, container.NewVBox(cover), nil, container.NewPadded(info))
 
 	// The saves and backups of one profile; a game with emulators switches
 	// between them.
 	sel := p.selectedProfile(profs)
-	left := stack()
+	left := kit.Stack()
 	if len(profs) > 1 {
 		left.Add(p.profileSwitcher(profs, sel))
 	}
 	left.Add(p.savesCard(sel, busy, hasRemote, len(profs) > 1))
 	left.Add(p.backupsCard(sel, busy, hasRemote))
-	right := stack(p.steamCard(orig, busy))
+	right := kit.Stack(p.steamCard(orig, busy))
 	if len(g.OtherDevices) > 0 {
 		right.Add(otherDevicesCard(g))
 	}
 
-	replaceScroll(p.scroll, stack(hero, newCols(420, []float32{3, 2}, left, right)))
+	kit.ReplaceScroll(p.scroll, kit.Stack(hero, kit.NewCols(420, []float32{3, 2}, left, right)))
 }
 
 // profileSwitcher is a row of buttons, one per way to play the game, each
 // with an icon for its sync state; the selected one's saves are shown below.
 func (p *gameDetail) profileSwitcher(profs []profileEntry, sel profileEntry) fyne.CanvasObject {
-	var opts []chipOption
+	var opts []kit.ChipOption
 	for _, pe := range profs {
-		opts = append(opts, chipOption{pe.id, pe.tag, statusIcon(pe.view)})
+		opts = append(opts, kit.ChipOption{Value: pe.id, Label: pe.tag, Icon: statusIcon(pe.view)})
 	}
-	return vbox(small(lang.L("Saves of")), chips(opts, sel.id, func(id string) {
+	return kit.VBox(kit.Small(lang.L("Saves of")), kit.Chips(opts, sel.id, func(id string) {
 		p.selected, p.chosen = id, true
 		p.render()
 	}))
@@ -498,36 +499,36 @@ func (p *gameDetail) savesCard(pe profileEntry, busy, hasRemote, several bool) f
 		cmpLabel = lang.L("Checking…")
 	}
 	cmp := widget.NewButton(cmpLabel, func() { p.check(pe.id) })
-	setEnabled(cmp, !busy && g.Ready && hasRemote)
+	kit.SetEnabled(cmp, !busy && g.Ready && hasRemote)
 	rows := container.NewVBox()
 	for _, sl := range g.Slots {
 		rows.Add(saveLocationRow(u, labelOf(sl.Label, sl.Key), g.ResolvedPaths[sl.Key], g.PathErrors[sl.Key]))
 	}
-	c := vbox(cardHead(lang.L("Saves"), cmp))
+	c := kit.VBox(kit.CardHead(lang.L("Saves"), cmp))
 	if several {
-		c.Add(hbox(statusBadge(g), small(lang.L("Last sync: {{.When}}", map[string]any{"When": timeAgo(g.Status.LastSyncAt)}))))
+		c.Add(kit.HBox(statusBadge(g), kit.Small(lang.L("Last sync: {{.When}}", map[string]any{"When": timeAgo(g.Status.LastSyncAt)}))))
 		if !g.Ready {
-			c.Add(colored(g.SetupHint, widget.WarningImportance))
+			c.Add(kit.Colored(g.SetupHint, widget.WarningImportance))
 		}
 		if g.Status.LastError != "" && !g.Status.Running {
-			c.Add(colored(g.Status.LastError, widget.DangerImportance))
+			c.Add(kit.Colored(g.Status.LastError, widget.DangerImportance))
 		}
 		if g.Status.LocalChanges && !g.Status.Running {
-			c.Add(colored(lang.L("These saves changed on this device after the last sync. Use “Sync now” to upload them."), widget.WarningImportance))
+			c.Add(kit.Colored(lang.L("These saves changed on this device after the last sync. Use “Sync now” to upload them."), widget.WarningImportance))
 		}
 	}
 	c.Add(rows)
 	if p.busyFor("plan", pe.id) {
-		c.Add(busyLine(lang.L("Comparing with the cloud…")))
+		c.Add(kit.BusyLine(lang.L("Comparing with the cloud…")))
 	}
 	if pl := st.plan; pl != nil {
 		c.Add(widget.NewSeparator())
 		c.Add(newPlanView(pl, pl.Action == "conflict" || g.Status.Conflict, func(resolution string) { p.doSync(pe.id, resolution) }))
 	} else if g.Status.Conflict {
 		c.Add(widget.NewSeparator())
-		c.Add(colored(lang.L("Unresolved save conflict. Compare with cloud to choose a version."), widget.WarningImportance))
+		c.Add(kit.Colored(lang.L("Unresolved save conflict. Compare with cloud to choose a version."), widget.WarningImportance))
 	}
-	return card("", c)
+	return kit.Card("", c)
 }
 
 // check compares a profile's saves with the cloud.
@@ -615,15 +616,15 @@ func (p *gameDetail) synced(profs, actions []string) {
 	}
 	switch {
 	case conflict >= 0:
-		p.u.toast(lang.L("Save conflict: choose which version to keep below"), toastErr)
+		p.u.toast(lang.L("Save conflict: choose which version to keep below"), kit.ToastErr)
 	case push && pull:
-		p.u.toast(lang.L("Synced saves"), toastOK)
+		p.u.toast(lang.L("Synced saves"), kit.ToastOK)
 	case push:
-		p.u.toast(lang.L("Uploaded saves"), toastOK)
+		p.u.toast(lang.L("Uploaded saves"), kit.ToastOK)
 	case pull:
-		p.u.toast(lang.L("Downloaded saves"), toastOK)
+		p.u.toast(lang.L("Downloaded saves"), kit.ToastOK)
 	default:
-		p.u.toast(lang.L("Already up to date"), toastOK)
+		p.u.toast(lang.L("Already up to date"), kit.ToastOK)
 	}
 	for _, prof := range profs {
 		p.state(prof).plan = nil
@@ -645,13 +646,13 @@ func (p *gameDetail) backupsCard(pe profileEntry, busy, hasRemote bool) fyne.Can
 		p.loadBackups(pe.id)
 	}
 	refresh := widget.NewButtonWithIcon("", theme.ViewRefreshIcon(), func() { p.loadBackups(pe.id) })
-	setEnabled(refresh, hasRemote && !st.backupsLoading)
+	kit.SetEnabled(refresh, hasRemote && !st.backupsLoading)
 	nowLabel := lang.L("Back up now")
 	if p.busyFor("backup", pe.id) {
 		nowLabel = lang.L("Backing up…")
 	}
 	nowBtn := widget.NewButton(nowLabel, func() { p.backupNow(pe.id) })
-	setEnabled(nowBtn, !busy && hasRemote && g.Ready && !g.Status.Running)
+	kit.SetEnabled(nowBtn, !busy && hasRemote && g.Ready && !g.Status.Running)
 
 	summary := lang.L("Cloud backups are off. A copy of this device's saves is kept here before a download replaces them.")
 	details := []string{lang.L("Cloud backups are off. Before a download replaces this device's saves, a copy is kept on this device (the last {{.Count}}). Turn on cloud backups in Settings to keep backups in the cloud.",
@@ -662,32 +663,32 @@ func (p *gameDetail) backupsCard(pe profileEntry, busy, hasRemote bool) fyne.Can
 			map[string]any{"Count": n})}
 	}
 	details = append(details, lang.L("Backups you make with “Back up now” are pinned. Pinned backups are never deleted automatically."))
-	c := vbox(cardHead(lang.L("Backups"), nowBtn, refresh), p.u.help(summary, details...))
+	c := kit.VBox(kit.CardHead(lang.L("Backups"), nowBtn, refresh), p.u.help(summary, details...))
 	if g.SafetyDir != "" {
 		dir := g.SafetyDir
-		c.Add(hbox(widget.NewButtonWithIcon(lang.L("Open copies on this device"), theme.FolderOpenIcon(), func() { p.u.openFolder(dir) })))
+		c.Add(kit.HBox(widget.NewButtonWithIcon(lang.L("Open copies on this device"), theme.FolderOpenIcon(), func() { p.u.openFolder(dir) })))
 	}
 	if (p.busy == "restore" || p.busy == "backup") && p.activeProfile() == pe.id {
 		c.Add(p.transferCard())
 	}
 	if p.busyFor("pin", pe.id) {
-		c.Add(busyLine(lang.L("Updating backups…")))
+		c.Add(kit.BusyLine(lang.L("Updating backups…")))
 	}
 	switch {
 	case !hasRemote:
-		c.Add(muted(lang.L("Set up cloud storage to keep backups in the cloud.")))
+		c.Add(kit.Muted(lang.L("Set up cloud storage to keep backups in the cloud.")))
 	case st.backupsLoading && !st.backupsLoaded:
-		c.Add(busyLine(lang.L("Loading backups…")))
+		c.Add(kit.BusyLine(lang.L("Loading backups…")))
 	case st.backupsErr != "":
-		c.Add(colored(st.backupsErr, widget.DangerImportance))
+		c.Add(kit.Colored(st.backupsErr, widget.DangerImportance))
 	case len(st.backups) == 0:
-		c.Add(muted(lang.L("No backups yet.")))
+		c.Add(kit.Muted(lang.L("No backups yet.")))
 	}
 	for _, b := range st.backups {
 		c.Add(backupRow(b, p.busyFor("restore", pe.id), !busy && g.Ready, !busy,
 			func() { p.restore(pe.id, b) }, func() { p.setPinned(pe.id, b) }, func() { p.deleteBackup(pe.id, b) }))
 	}
-	return card("", c)
+	return kit.Card("", c)
 }
 
 // loadBackups reads the backup lists of the profiles in the background: it
@@ -703,7 +704,7 @@ func (p *gameDetail) loadBackups(profs ...string) {
 		}
 		st.backupsLoading = true
 		key := core.SyncKey(p.id, prof)
-		async(func() ([]syncer.Backup, error) { return p.u.sync.Backups(key) }, func(list []syncer.Backup, err error) {
+		kit.Async(func() ([]syncer.Backup, error) { return p.u.sync.Backups(key) }, func(list []syncer.Backup, err error) {
 			st.backupsLoading, st.backupsLoaded, st.backupsErr = false, true, ""
 			if err != nil {
 				st.backupsErr = err.Error()
@@ -721,7 +722,7 @@ func (p *gameDetail) backupNow(prof string) {
 	p.setActive(prof)
 	p.run("backup", func() error { return p.u.sync.BackupNow(key) }, func(err error) {
 		if err == nil {
-			p.u.toast(lang.L("Backup saved and pinned"), toastOK)
+			p.u.toast(lang.L("Backup saved and pinned"), kit.ToastOK)
 			p.loadBackups(prof)
 		}
 	})
@@ -738,7 +739,7 @@ func (p *gameDetail) deleteBackup(prof string, b syncer.Backup) {
 		p.setActive(prof)
 		p.run("pin", func() error { return p.u.sync.DeleteBackup(key, b.Name) }, func(err error) {
 			if err == nil {
-				p.u.toast(lang.L("Backup deleted"), toastOK)
+				p.u.toast(lang.L("Backup deleted"), kit.ToastOK)
 				p.loadBackups(prof)
 				p.u.refresh() // the last copy on this device may be gone
 			}
@@ -767,7 +768,7 @@ func (p *gameDetail) restore(prof string, b syncer.Backup) {
 			p.setActive(prof)
 			p.run("restore", func() error { return p.u.sync.RestoreBackup(key, b.Name) }, func(err error) {
 				if err == nil {
-					p.u.toast(lang.L("Backup restored and uploaded"), toastOK)
+					p.u.toast(lang.L("Backup restored and uploaded"), kit.ToastOK)
 					p.loadBackups(prof)
 				}
 			})
@@ -794,7 +795,7 @@ func (p *gameDetail) steamCard(orig services.GameView, busy bool) fyne.CanvasObj
 		}
 		hideMode = len(orig.Slots) == 0 || !asks
 	}
-	c := vbox(newSteamForm(steamFormOpts{
+	c := kit.VBox(newSteamForm(steamFormOpts{
 		Game: form, Info: p.steam, User: p.steamUser, Mode: p.steamMode, Busy: busy,
 		Profiles: orig.Emulators, Target: target, AsksAtLaunch: asks, HideMode: hideMode,
 		Expanded: p.steamExpanded,
@@ -818,9 +819,9 @@ func (p *gameDetail) steamCard(orig services.GameView, busy bool) fyne.CanvasObj
 				}
 				p.steamExpanded = false
 				if res.SteamRunning {
-					u.toast(lang.L("Added to Steam. Restart Steam to see it."), toastOK)
+					u.toast(lang.L("Added to Steam. Restart Steam to see it."), kit.ToastOK)
 				} else {
-					u.toast(lang.L("Added to Steam"), toastOK)
+					u.toast(lang.L("Added to Steam"), kit.ToastOK)
 				}
 			})
 		},
@@ -832,21 +833,21 @@ func (p *gameDetail) steamCard(orig services.GameView, busy bool) fyne.CanvasObj
 				return err
 			}, func(err error) {
 				if err == nil && n > 0 {
-					u.toast(lang.L("Removed from Steam"), toastOK)
+					u.toast(lang.L("Removed from Steam"), kit.ToastOK)
 				} else if err == nil {
-					u.toast(lang.L("No shortcut found"), toastOK)
+					u.toast(lang.L("No shortcut found"), kit.ToastOK)
 				}
 			})
 		},
 	}))
 	if p.busy == "steam" {
-		c.Add(busyLine(lang.L("Updating Steam…")))
+		c.Add(kit.BusyLine(lang.L("Updating Steam…")))
 	}
 	if p.wrapOpts != "" {
-		p.wrapSection = newAccordionSection(lang.L("Already own it on Steam?"), vbox(
-			muted(lang.L("Paste this into the game's Steam launch options to sync around Steam's own launch:")),
-			newCopyField(u, p.wrapOpts)), p.wrapOpen)
+		p.wrapSection = kit.NewAccordionSection(lang.L("Already own it on Steam?"), kit.VBox(
+			kit.Muted(lang.L("Paste this into the game's Steam launch options to sync around Steam's own launch:")),
+			u.copyField(p.wrapOpts)), p.wrapOpen)
 		c.Add(p.wrapSection)
 	}
-	return card(lang.L("Steam"), c)
+	return kit.Card(lang.L("Steam"), c)
 }
