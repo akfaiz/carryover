@@ -106,30 +106,58 @@ type planView struct {
 // newPlanView shows pl. With resolvable, "Keep …" buttons call onResolve with
 // "local" or "cloud".
 func newPlanView(pl *services.PlanView, resolvable bool, onResolve func(resolution string)) *planView {
-	local := vbox(muted(lang.L("This device")),
-		widget.NewLabel(lang.N("{{.Count}} file · {{.Size}}\nmodified {{.Date}}", pl.Local.Files,
-			map[string]any{"Count": pl.Local.Files, "Size": formatBytes(pl.Local.Bytes), "Date": fmtDate(pl.Local.Newest)})))
-	cloudTitle := lang.L("Cloud")
-	if pl.Remote.DeviceName != "" {
-		cloudTitle = lang.L("Cloud (from {{.Device}})", map[string]any{"Device": pl.Remote.DeviceName})
-	}
-	cloudText := lang.L("no Carryover saves for this game yet")
-	if pl.HasRemote {
-		cloudText = lang.N("{{.Count}} file · {{.Size}}\nuploaded {{.Date}}", pl.Remote.Files,
-			map[string]any{"Count": pl.Remote.Files, "Size": formatBytes(pl.Remote.Bytes), "Date": fmtDate(pl.Remote.Time)})
+	if !resolvable {
+		onResolve = nil
 	}
 	c := vbox(
 		widget.NewLabelWithStyle(planText(pl.Action), fyne.TextAlignLeading, fyne.TextStyle{Bold: true}),
-		container.NewGridWithColumns(2, local, vbox(muted(cloudTitle), widget.NewLabel(cloudText))),
+		saveSides(pl.Local, pl.Remote, pl.HasRemote, onResolve),
 	)
-	if resolvable {
-		keepCloud := widget.NewButton(lang.L("Keep cloud saves"), func() { onResolve("cloud") })
-		setEnabled(keepCloud, pl.HasRemote)
-		c.Add(hbox(widget.NewButton(lang.L("Keep this device's saves"), func() { onResolve("local") }), keepCloud))
-	}
 	v := &planView{content: c}
 	v.ExtendBaseWidget(v)
 	return v
+}
+
+// saveSides shows this device's saves and the cloud's side by side, the newer
+// one marked. With onKeep, each side has a button that keeps it: onKeep gets
+// "local" or "cloud". Used wherever a conflict is settled, so it reads the
+// same in the play dialog and on the game page.
+func saveSides(local, remote syncer.Summary, hasRemote bool, onKeep func(side string)) fyne.CanvasObject {
+	newer := ""
+	if hasRemote {
+		if local.Newest.After(remote.Newest) {
+			newer = "local"
+		} else if remote.Newest.After(local.Newest) {
+			newer = "cloud"
+		}
+	}
+	side := func(key, label, keepLabel string, s syncer.Summary, has bool) fyne.CanvasObject {
+		head := hbox(widget.NewLabelWithStyle(label, fyne.TextAlignLeading, fyne.TextStyle{Bold: true}))
+		if newer == key {
+			head.Add(container.NewCenter(badge(lang.L("newer"), badgeOK)))
+		}
+		objs := []fyne.CanvasObject{head}
+		if s.DeviceName != "" && key == "cloud" {
+			objs = append(objs, muted(lang.L("from {{.Device}}", map[string]any{"Device": s.DeviceName})))
+		}
+		text := lang.L("no Carryover saves for this game yet")
+		if has {
+			text = lang.N("{{.Count}} file · {{.Size}}\nLast modified {{.Date}}", s.Files,
+				map[string]any{"Count": s.Files, "Size": formatBytes(s.Bytes), "Date": fmtDate(s.Newest)})
+		}
+		info := widget.NewLabel(text)
+		info.Wrapping = fyne.TextWrapWord
+		objs = append(objs, info)
+		if onKeep != nil {
+			keep := primary(keepLabel, func() { onKeep(key) })
+			setEnabled(keep, has)
+			objs = append(objs, keep)
+		}
+		return card("", objs...)
+	}
+	return container.NewGridWithColumns(2,
+		side("local", lang.L("This device"), lang.L("Keep this device's saves"), local, true),
+		side("cloud", lang.L("Cloud"), lang.L("Keep cloud saves"), remote, hasRemote))
 }
 
 // CreateRenderer implements fyne.Widget.

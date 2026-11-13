@@ -1,6 +1,7 @@
 package ui
 
 import (
+	"encoding/json"
 	"fmt"
 	"path/filepath"
 	"runtime"
@@ -8,9 +9,11 @@ import (
 	"strings"
 
 	"fyne.io/fyne/v2"
+	"fyne.io/fyne/v2/canvas"
 	"fyne.io/fyne/v2/container"
 	"fyne.io/fyne/v2/dialog"
 	"fyne.io/fyne/v2/lang"
+	"fyne.io/fyne/v2/layout"
 	"fyne.io/fyne/v2/storage"
 	"fyne.io/fyne/v2/theme"
 	"fyne.io/fyne/v2/widget"
@@ -51,15 +54,62 @@ type editor struct {
 	suggesting   bool
 	others       []services.DevicePaths
 	saving       bool
+	saved        bool // saved: leaving no longer loses anything
 	errText      string
 	advanced     bool
+	artOpen      bool
 	loading      bool
+	orig         string // the form as loaded, to tell whether it changed
 
 	scroll    *container.Scroll
+	root      *fyne.Container // the page: the scrolling form over the bar
+	bar       *fyne.Container // the Save / Cancel bar under the scrolling form
 	nameEntry *widget.Entry
 	exeEntry  *widget.Entry
-	saveBtn   *widget.Button
 	advItem   *accordionSection
+	artItem   *accordionSection
+}
+
+// snapshot is the form's content as text, to compare with what it was loaded
+// with.
+func (e *editor) snapshot() string {
+	type slot struct{ Key, Label, Include, Exclude, Path string }
+	slots := func(list []*slotForm) []slot {
+		var out []slot
+		for _, s := range list {
+			out = append(out, slot{s.key, s.label, s.include, s.exclude, s.path})
+		}
+		return out
+	}
+	type emu struct {
+		ID, Rom, Share string
+		Slots          []slot
+	}
+	var emus []emu
+	for _, m := range e.emus {
+		emus = append(emus, emu{m.id, m.rom, m.share, slots(m.slots)})
+	}
+	art := map[string]string{}
+	for k, a := range e.art {
+		if a.changed() {
+			art[string(k)] = a.src + "|" + fmt.Sprint(a.pick != nil, a.clear)
+		}
+	}
+	b, _ := json.Marshal(struct {
+		Name, Store, Env, Cover string
+		Kind                    playKind
+		Grid                    bool
+		Dev                     services.DeviceInput
+		Slots                   []slot
+		Emus                    []emu
+		Art                     map[string]string
+	}{e.name, e.storeAppID, e.envText, e.coverSrc, e.kind, e.gridPick != nil, e.dev, slots(e.slots), emus, art})
+	return string(b)
+}
+
+// dirty reports changes that leaving the page would lose.
+func (e *editor) dirty() bool {
+	return !e.loading && !e.saved && !e.saving && e.snapshot() != e.orig
 }
 
 func newEditor(u *UI, id, steamAppID string) *editor {
@@ -69,6 +119,7 @@ func newEditor(u *UI, id, steamAppID string) *editor {
 
 func (e *editor) view() fyne.CanvasObject {
 	e.scroll = scrollPage(muted(lang.L("Loading…")))
+	e.bar = container.NewStack()
 	u := e.u
 	type loaded struct {
 		tokens []pathvar.Token
@@ -94,6 +145,7 @@ func (e *editor) view() fyne.CanvasObject {
 		}
 		if e.id == "" {
 			e.slots = []*slotForm{{key: "saves", label: "Saves", isNew: true}}
+			e.orig = e.snapshot()
 			e.render()
 			if e.steamAppID != "" {
 				e.prefillFromSteam(e.steamAppID)
@@ -134,9 +186,12 @@ func (e *editor) view() fyne.CanvasObject {
 			e.loadEmulators(g)
 			e.kind = playKindOf(g, len(e.emus) > 0)
 		}
+		e.orig = e.snapshot()
 		e.render()
 	})
-	return e.scroll
+	// Save and Cancel stay in view under the form, however long it gets.
+	e.root = container.NewBorder(nil, e.bar, nil, nil, e.scroll)
+	return e.root
 }
 
 func (e *editor) prefillFromSteam(appID string) {
@@ -146,6 +201,7 @@ func (e *editor) prefillFromSteam(appID string) {
 				e.name, e.storeAppID = a.Name, a.AppID
 				// A Steam-installed game is started by Steam; Carryover wraps it via launch options.
 				e.dev.LaunchMode = library.LaunchSteamWrap
+				e.orig = e.snapshot() // the game picked in Steam is where the form starts
 				e.render()
 				e.suggestSaves(true)
 				return
@@ -277,6 +333,9 @@ func (e *editor) render() {
 	if e.advItem != nil {
 		e.advanced = e.advItem.Open()
 	}
+	if e.artItem != nil {
+		e.artOpen = e.artItem.Open()
+	}
 	for _, s := range e.slots {
 		s.rememberOpen()
 	}
@@ -284,32 +343,80 @@ func (e *editor) render() {
 	if e.id != "" {
 		head = lang.L("Edit game")
 	}
-	e.saveBtn = nil
-	left, right := stack(e.gameCard(), e.howCard()), stack()
-	if e.kind != kindEmulator {
-		left.Add(e.launchCard())
-		right.Add(e.savesCard())
+	var body fyne.CanvasObject
+	if e.id == "" {
+		// A new game is filled in from top to bottom, one card after the other;
+		// the artwork is optional, so it starts folded.
+		col := stack(e.gameCard(), e.howCard())
+		if e.kind != kindEmulator {
+			col.Add(e.launchCard())
+			col.Add(e.savesCard())
+		}
+		if e.kind != kindDirect {
+			col.Add(e.emulatorsCard())
+		}
+		e.artItem = newAccordionSection(lang.L("Steam artwork (optional)"), e.artworkCard(), e.artOpen)
+		col.Add(e.artItem)
+		body = maxWidth(780, col)
+	} else {
+		e.artItem = nil
+		left, right := stack(e.gameCard(), e.howCard()), stack()
+		if e.kind != kindEmulator {
+			left.Add(e.launchCard())
+			right.Add(e.savesCard())
+		}
+		if e.kind != kindDirect {
+			left.Add(e.emulatorsCard())
+		}
+		right.Add(e.artworkCard())
+		body = newCols(440, nil, left, right)
 	}
-	if e.kind != kindDirect {
-		left.Add(e.emulatorsCard())
-	}
-	right.Add(e.artworkCard())
-	bottom := stack()
-	if e.errText != "" {
-		bottom.Add(colored(e.errText, widget.DangerImportance))
+	replaceScroll(e.scroll, stack(pageHead(u.back, head), body))
+	e.renderBar()
+}
+
+// renderBar draws the bar under the form: an error or a hint about what is
+// still missing, Cancel and Save.
+func (e *editor) renderBar() {
+	if e.bar == nil || e.root == nil || e.loading {
+		return
 	}
 	saveLabel := lang.L("Save")
 	if e.saving {
 		saveLabel = lang.L("Saving…")
 	}
-	e.saveBtn = primary(saveLabel, e.save)
-	setEnabled(e.saveBtn, !e.saving && strings.TrimSpace(e.name) != "")
-	bottom.Add(hbox(widget.NewButton(lang.L("Cancel"), u.back), e.saveBtn))
-	replaceScroll(e.scroll, stack(pageHead(u.back, head), newCols(440, nil, left, right), bottom))
+	save := primary(saveLabel, e.save)
+	setEnabled(save, !e.saving && strings.TrimSpace(e.name) != "")
+	note := layout.NewSpacer()
+	switch {
+	case e.errText != "":
+		note = colored(e.errText, widget.DangerImportance)
+	case strings.TrimSpace(e.name) == "":
+		note = muted(lang.L("Give the game a name to save it."))
+	case e.kind != kindDirect && len(e.emus) == 0:
+		note = muted(lang.L("Add the emulator you play it with."))
+	case e.kind != kindEmulator && !slices.ContainsFunc(e.slots, func(s *slotForm) bool { return strings.TrimSpace(s.path) != "" }):
+		note = muted(lang.L("No save location is set for this device yet. You can save anyway; the game shows “needs setup” here until you set one."))
+	}
+	line := canvas.NewRectangle(colLine)
+	line.SetMinSize(fyne.NewSize(0, 1))
+	row := container.NewBorder(nil, nil, nil, hbox(widget.NewButton(lang.L("Cancel"), e.u.back), save), note)
+	e.bar.Objects = []fyne.CanvasObject{canvas.NewRectangle(colBg2),
+		container.NewBorder(line, nil, nil, nil, container.New(layout.NewCustomPaddedLayout(10, 10, 28, 28), row))}
+	// The bar's height can change (a longer note wraps; it starts empty): lay
+	// the page out again so the bar gets the height it needs.
+	e.root.Refresh()
+}
+
+// askGridKey asks for a SteamGridDB key in a dialog, so the form stays as it is.
+func (e *editor) askGridKey() {
+	showGridKeyDialog(e.u, func() {
+		e.hasGridKey = true
+		e.render()
+	})
 }
 
 func (e *editor) gameCard() fyne.CanvasObject {
-	u := e.u
 	e.nameEntry = widget.NewEntry()
 	e.nameEntry.SetPlaceHolder(lang.L("Game name"))
 	e.nameEntry.SetText(e.name)
@@ -322,9 +429,7 @@ func (e *editor) gameCard() fyne.CanvasObject {
 	e.nameEntry.OnChanged = func(s string) {
 		e.name = s
 		setEnabled(find, !e.searching && len(strings.TrimSpace(s)) >= 2)
-		if e.saveBtn != nil {
-			setEnabled(e.saveBtn, !e.saving && strings.TrimSpace(s) != "")
-		}
+		e.renderBar()
 	}
 	e.nameEntry.OnSubmitted = func(string) { e.searchSteam() }
 	c := vbox(field(lang.L("Name"), rowFill(e.nameEntry, find)))
@@ -391,7 +496,7 @@ func (e *editor) gameCard() fyne.CanvasObject {
 	}
 	side.Add(muted(hint))
 	if !e.hasGridKey {
-		side.Add(container.NewBorder(nil, nil, nil, lowButton(lang.L("Settings"), func() { u.navigate("/settings") }), muted(lang.L("Add a SteamGridDB API key to search community covers."))))
+		side.Add(container.NewBorder(nil, nil, nil, lowButton(lang.L("Add key…"), e.askGridKey), muted(lang.L("Add a SteamGridDB API key to search community covers."))))
 	}
 	c.Add(container.NewBorder(nil, nil, preview, nil, container.NewPadded(side)))
 	return card(lang.L("Game"), c)
@@ -517,8 +622,9 @@ func (e *editor) savesCard() fyne.CanvasObject {
 			func(s services.SaveSuggestion) { e.addSuggestion(s); e.render() },
 			func() { e.suggest = nil; e.render() })))
 	}
-	c.Add(muted(lang.L("Each location is synced to its own cloud folder. Every device sets its own path for the same location — e.g. {{.Win}} on Windows and {{.Deck}} on a Steam Deck.",
-		map[string]any{"Win": "{appdata}/GameA", "Deck": "{proton:shortcut}/AppData/Roaming/GameA"})))
+	c.Add(e.u.help(lang.L("Where the game keeps its saves on this device. Each device sets its own path."),
+		lang.L("Each location is synced to its own cloud folder. Every device sets its own path for the same location — e.g. {{.Win}} on Windows and {{.Deck}} on a Steam Deck.",
+			map[string]any{"Win": "{appdata}/GameA", "Deck": "{proton:shortcut}/AppData/Roaming/GameA"})))
 
 	for i, s := range e.slots {
 		c.Add(widget.NewSeparator())
@@ -529,7 +635,7 @@ func (e *editor) savesCard() fyne.CanvasObject {
 				e.render()
 			}
 		}
-		c.Add(newSlotEditor(e.u, e.id, e.tokens, s, e.others, e.uniqueKey, onRemove))
+		c.Add(newSlotEditor(e.u, e.id, e.tokens, s, e.others, e.uniqueKey, onRemove, e.renderBar))
 	}
 	return card("", c)
 }
@@ -538,12 +644,12 @@ func (e *editor) save() {
 	u := e.u
 	e.errText = ""
 	if e.kind != kindDirect && len(e.emus) == 0 {
-		e.errText = lang.L("Add at least one emulator, or choose “Directly on this device”.")
-		e.render()
+		e.errText = lang.L("Add at least one emulator, or choose “PC or Steam game”.")
+		e.renderBar()
 		return
 	}
 	e.saving = true
-	e.render()
+	e.renderBar()
 	env := map[string]string{}
 	for l := range strings.SplitSeq(e.envText, "\n") {
 		if i := strings.Index(l, "="); i > 0 {
@@ -589,9 +695,10 @@ func (e *editor) save() {
 		e.saving = false
 		if err != nil {
 			e.errText = err.Error()
-			e.render()
+			e.renderBar()
 			return
 		}
+		e.saved = true
 		if coverErr != nil {
 			u.toast(lang.L("Cover: {{.Err}}", map[string]any{"Err": coverErr}), toastErr)
 		}
@@ -600,6 +707,8 @@ func (e *editor) save() {
 		}
 		u.refresh()
 		u.toast(lang.L("Saved"), toastOK)
-		u.navigate("/game/" + g.ID)
+		// In place of the editor: Back from the game goes where the editor was
+		// opened from, not into the editor again.
+		u.replace("/game/" + g.ID)
 	})
 }

@@ -71,7 +71,7 @@ func TestPagesRender(t *testing.T) {
 	// A sync in progress, so the game page shows its progress bar.
 	u.status[g.ID] = services.Status{GameID: g.ID, Phase: "sync", Message: "Uploading"}
 	u.progress[g.ID] = syncer.Event{GameID: g.ID, Phase: "upload", Bytes: 10, TotalBytes: 100}
-	for _, route := range []string{"/", "/game/" + g.ID, "/edit/" + g.ID, "/new", "/cloud", "/settings"} {
+	for _, route := range []string{"/", "/game/" + g.ID, "/edit/" + g.ID, "/new", "/new/emulator", "/emulators", "/cloud", "/trash", "/settings"} {
 		t.Run(route, func(t *testing.T) {
 			u.navigate(route)
 			settle()
@@ -84,6 +84,17 @@ func TestPagesRender(t *testing.T) {
 			u.win.Resize(fyne.NewSize(1000, 700))
 		})
 	}
+
+	// Dialogs.
+	u.navigate("/")
+	showAddGame(u)
+	settle()
+	showSyncProblems(u, 3, []services.SyncResult{{GameID: g.ID, Name: g.Name, Action: "conflict"}, {GameID: g.ID, Name: "Other", Error: "boom"}})
+	settle()
+	showGridKeyDialog(u, func() {})
+	settle()
+	confirmDanger(u, confirmOpts{title: "Delete", message: "Sure?", check: "Also the saves", checked: "Really?", keptHint: "Kept.", onConfirm: func(bool) {}})
+	settle()
 
 	// Prompts render as dialogs.
 	u.prompts.add(services.Prompt{ID: "p1", Kind: "syncError", GameID: g.ID, GameName: g.Name, Error: "boom", BeforePlay: true})

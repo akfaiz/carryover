@@ -101,7 +101,6 @@ func (e *editor) openArtPicker(kind steamgrid.Kind) {
 // artworkCard lets the user pick the extra Steam artwork (wide cover,
 // background, logo, icon) so the game looks right once it is added to Steam.
 func (e *editor) artworkCard() fyne.CanvasObject {
-	u := e.u
 	c := vbox(heading(lang.L("Steam artwork")),
 		muted(lang.L("Written to Steam's grid folder when you add the game to Steam (or press Update Steam shortcut), so it has its images ready. The portrait cover is chosen above.")))
 	for _, spec := range artSpecs() {
@@ -153,7 +152,7 @@ func (e *editor) artworkCard() fyne.CanvasObject {
 			preview, btns, muted(status)))
 	}
 	if !e.hasGridKey {
-		c.Add(container.NewBorder(nil, nil, nil, lowButton(lang.L("Settings"), func() { u.navigate("/settings") }),
+		c.Add(container.NewBorder(nil, nil, nil, lowButton(lang.L("Add key…"), e.askGridKey),
 			muted(lang.L("Add a SteamGridDB API key to search community artwork."))))
 	}
 	return card("", c)

@@ -38,6 +38,21 @@ type page interface {
 	view() fyne.CanvasObject
 }
 
+// guarded pages hold a form: leaving them while dirty asks first.
+type guarded interface {
+	dirty() bool
+}
+
+// searchable pages focus their search field on Ctrl+F.
+type searchable interface {
+	focusSearch()
+}
+
+// syncable pages start a sync on F5.
+type syncable interface {
+	syncNow()
+}
+
 // stateful pages are told when shared state changes.
 type stateful interface {
 	stateChanged(what change)
@@ -68,13 +83,17 @@ type UI struct {
 	settings appdir.Settings
 	status   map[string]services.Status
 	progress map[string]syncer.Event
-	// syncAllProg is the latest "Sync all" progress, shown on the library page.
-	syncAllProg services.SyncAllProgress
-	loaded      bool
-	// trashCount: deleted games and emulators in the trash; leftoverCount: cloud
-	// save folders no game uses. Both show next to Trash in the sidebar.
-	trashCount, leftoverCount int
-	leftoverLoaded            bool
+	// syncAllProg is the latest "Sync all" progress. syncingAll is set while a
+	// "Sync all" runs (it outlives the page that started it), cancellingAll once
+	// it was asked to stop.
+	syncAllProg               services.SyncAllProgress
+	syncingAll, cancellingAll bool
+	loaded                    bool
+	// trashCount: deleted games and emulators in the trash, shown next to Trash
+	// in the sidebar.
+	trashCount int
+	// helpOpen: the help texts unfolded this session, by summary.
+	helpOpen map[string]bool
 
 	route   string
 	history []string
@@ -82,8 +101,10 @@ type UI struct {
 	content *fyne.Container
 	sidebar *fyne.Container
 	navBtns map[string]*widget.Button
-	toasts  *toaster
-	prompts *promptQueue
+	// activity is the sidebar line that shows a running "Sync all" or game.
+	activity *fyne.Container
+	toasts   *toaster
+	prompts  *promptQueue
 
 	lastLocalCheck time.Time // last checkLocalChanges run
 }
@@ -127,6 +148,7 @@ func newUI(c *core.Core, a fyne.App, bus *services.Bus) *UI {
 			if st.Phase == "error" {
 				u.toast(st.Message, toastErr)
 			}
+			u.renderActivity()
 			u.notify(changeStatus)
 		})
 	})
@@ -139,6 +161,7 @@ func newUI(c *core.Core, a fyne.App, bus *services.Bus) *UI {
 	bus.OnSyncAll(func(p services.SyncAllProgress) {
 		onUI(func() {
 			u.syncAllProg = p
+			u.renderActivity()
 			u.notify(changeProgress)
 		})
 	})
@@ -215,6 +238,7 @@ func (u *UI) buildMain() {
 	u.win.Resize(fyne.NewSize(1180, 760))
 	u.win.SetMaster()
 	u.buildLayout()
+	u.addShortcuts()
 	u.show("/")
 	u.refresh()
 	go func() {
@@ -265,18 +289,22 @@ func (u *UI) renderSidebar() {
 	brand := widget.NewLabelWithStyle("Carryover", fyne.TextAlignLeading, fyne.TextStyle{Bold: true})
 	brand.SizeName = theme.SizeNameSubHeadingText
 	objs := []fyne.CanvasObject{container.NewHBox(logo, brand), widget.NewSeparator()}
-	for _, n := range []struct{ path, label string }{{"/", lang.L("Library")}, {"/emulators", lang.L("Emulators")}, {"/cloud", lang.L("Cloud")}, {"/trash", u.trashLabel()}, {"/settings", lang.L("Settings")}} {
-		b := widget.NewButton(n.label, func() { u.navigate(n.path) })
+	nav := func(path, label string, icon fyne.Resource) {
+		b := widget.NewButtonWithIcon(label, icon, func() { u.navigate(path) })
 		b.Alignment = widget.ButtonAlignLeading
-		u.navBtns[n.path] = b
+		u.navBtns[path] = b
 		objs = append(objs, b)
 	}
-	u.navBtns["/"].SetIcon(theme.GridIcon())
-	u.navBtns["/emulators"].SetIcon(theme.ComputerIcon())
-	u.navBtns["/cloud"].SetIcon(theme.StorageIcon())
-	u.navBtns["/trash"].SetIcon(theme.DeleteIcon())
-	u.navBtns["/settings"].SetIcon(theme.SettingsIcon())
-	objs = append(objs, layout.NewSpacer(), widget.NewSeparator())
+	nav("/", lang.L("Library"), theme.GridIcon())
+	nav("/emulators", lang.L("Emulators"), theme.ComputerIcon())
+	nav("/cloud", lang.L("Cloud"), theme.StorageIcon())
+	objs = append(objs, layout.NewSpacer())
+	// Secondary places, out of the way of the main ones.
+	nav("/trash", u.trashLabel(), theme.DeleteIcon())
+	nav("/settings", lang.L("Settings"), theme.SettingsIcon())
+	u.activity = vbox()
+	objs = append(objs, widget.NewSeparator(), u.activity)
+	u.renderActivity()
 	dev := muted(u.settings.DeviceName)
 	objs = append(objs, dev)
 	if u.settings.Remote != "" {
@@ -313,26 +341,50 @@ func (u *UI) highlightNav() {
 	}
 }
 
-// navigate goes to a route, adding it to the history.
+// navigate goes to a route, adding it to the history. Leaving a form with
+// unsaved changes asks first.
 func (u *UI) navigate(path string) {
-	if u.route != "" && u.route != path {
-		u.history = append(u.history, u.route)
-		if len(u.history) > 50 {
-			u.history = u.history[1:]
+	u.leave(func() {
+		if u.route != "" && u.route != path {
+			u.history = append(u.history, u.route)
+			if len(u.history) > 50 {
+				u.history = u.history[1:]
+			}
 		}
+		u.show(path)
+	})
+}
+
+// replace goes to a route in place of the current one, so Back skips it: the
+// editor once it saved, a page whose game is gone. Going back to the page the
+// current one was opened from also takes it off the history.
+func (u *UI) replace(path string) {
+	if n := len(u.history); n > 0 && u.history[n-1] == path {
+		u.history = u.history[:n-1]
 	}
 	u.show(path)
 }
 
 // back returns to the previous route (Library if none).
 func (u *UI) back() {
-	if n := len(u.history); n > 0 {
-		p := u.history[n-1]
-		u.history = u.history[:n-1]
-		u.show(p)
+	u.leave(func() {
+		if n := len(u.history); n > 0 {
+			p := u.history[n-1]
+			u.history = u.history[:n-1]
+			u.show(p)
+			return
+		}
+		u.show("/")
+	})
+}
+
+// leave runs next, after asking when the current page has unsaved changes.
+func (u *UI) leave(next func()) {
+	if g, ok := u.page.(guarded); ok && g.dirty() {
+		confirmDiscard(u, next)
 		return
 	}
-	u.show("/")
+	next()
 }
 
 func (u *UI) show(path string) {
@@ -351,6 +403,10 @@ func (u *UI) show(path string) {
 		u.page = newEditor(u, arg(1), "")
 	case arg(0) == "new" && arg(1) == "steam" && arg(2) != "":
 		u.page = newEditor(u, "", arg(2))
+	case arg(0) == "new" && arg(1) == "emulator":
+		e := newEditor(u, "", "")
+		e.kind = kindEmulator
+		u.page = e
 	case arg(0) == "new":
 		u.page = newEditor(u, "", "")
 	case arg(0) == "emulators":
@@ -367,6 +423,7 @@ func (u *UI) show(path string) {
 	u.content.Objects = []fyne.CanvasObject{u.page.view()}
 	u.content.Refresh()
 	u.highlightNav()
+	u.renderActivity() // what it shows depends on the page
 }
 
 // refresh reloads games and settings.
@@ -377,10 +434,6 @@ func (u *UI) refresh() {
 		trash := u.lib.TrashCount()
 		onUI(func() {
 			u.games, u.settings, u.loaded, u.trashCount = games, st, true, trash
-			if !u.leftoverLoaded && st.Remote != "" {
-				u.leftoverLoaded = true
-				u.reloadLeftoverCount()
-			}
 			if u.sidebar != nil {
 				u.renderSidebar()
 			}
@@ -389,25 +442,49 @@ func (u *UI) refresh() {
 	}()
 }
 
-// trashLabel is the sidebar text of the Trash entry: it counts what is in the
-// trash and the cloud saves no game uses.
+// trashLabel is the sidebar text of the Trash entry: it counts the games and
+// emulators that can be restored. (Leftover cloud saves are counted on the
+// page itself: they are not something deleted from here.)
 func (u *UI) trashLabel() string {
-	if n := u.trashCount + u.leftoverCount; n > 0 {
+	if n := u.trashCount; n > 0 {
 		return fmt.Sprintf("%s (%d)", lang.L("Trash"), n)
 	}
 	return lang.L("Trash")
 }
 
-// reloadLeftoverCount counts the leftover cloud folders again (a cloud call,
-// so it runs after deletions and at startup, not on every refresh).
-func (u *UI) reloadLeftoverCount() {
-	async(u.lib.LeftoverCount, func(n int, err error) {
-		if err != nil {
-			return
+// renderActivity shows what runs in the background at the bottom of the
+// sidebar, whatever page is open: a "Sync all" and the games being played.
+// Each entry opens the page it belongs to.
+func (u *UI) renderActivity() {
+	if u.activity == nil {
+		return
+	}
+	var objs []fyne.CanvasObject
+	// The library shows "Sync all" progress itself; elsewhere it shows here.
+	if u.syncingAll && u.route != "/" {
+		text := lang.L("Syncing…")
+		if p := u.syncAllProg; p.Total > 0 {
+			text = lang.L("Syncing {{.Done}} of {{.Total}}", map[string]any{"Done": p.Done, "Total": p.Total})
 		}
-		u.leftoverCount = n
-		u.refreshSidebar()
-	})
+		b := widget.NewButtonWithIcon(text, theme.ViewRefreshIcon(), func() { u.navigate("/") })
+		b.Alignment, b.Importance = widget.ButtonAlignLeading, widget.LowImportance
+		objs = append(objs, b)
+	}
+	for _, g := range u.games {
+		if st, ok := u.status[g.ID]; ok && st.Running {
+			id := g.ID
+			b := widget.NewButtonWithIcon(lang.L("Playing {{.Game}}", map[string]any{"Game": g.Name}), theme.MediaPlayIcon(),
+				func() { u.navigate("/game/" + id) })
+			b.Alignment, b.Importance = widget.ButtonAlignLeading, widget.LowImportance
+			objs = append(objs, b)
+		}
+	}
+	grew := len(objs) != len(u.activity.Objects)
+	u.activity.Objects = objs
+	u.activity.Refresh()
+	if grew && u.sidebar != nil {
+		u.sidebar.Refresh() // its height changed: lay the sidebar out again
+	}
 }
 
 func (u *UI) refreshSidebar() {

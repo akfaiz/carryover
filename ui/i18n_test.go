@@ -63,4 +63,6 @@ func TestPluralForms(t *testing.T) {
 		got := lang.N("Synced {{.Count}} game", n, map[string]any{"Count": n})
 		assert.Equal(t, want, got, "N(%d)", n)
 	}
+	assert.Equal(t, "2 games need attention", lang.N("{{.Count}} game needs attention", 2, map[string]any{"Count": 2}))
+	assert.Equal(t, "1 game synced.", lang.N("{{.Count}} game synced.", 1, map[string]any{"Count": 1}))
 }

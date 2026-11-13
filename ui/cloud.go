@@ -94,7 +94,7 @@ func (p *cloudPage) render() {
 	location := card(lang.L("Sync location"),
 		muted(lang.L("All devices must use the same remote storage and folder. Saves go to <folder>/games/<game>/.")),
 		container.NewGridWithColumns(2, field(lang.L("Remote"), sel), field(lang.L("Folder"), root)),
-		hbox(primary(lang.L("Save"), p.saveTarget), p.test.Button),
+		hbox(primary(lang.L("Use this location"), p.saveTarget), p.test.Button),
 		p.test.Result,
 	)
 
@@ -113,19 +113,37 @@ func (p *cloudPage) render() {
 	for _, r := range p.remotes {
 		list.Add(widget.NewSeparator())
 		list.Add(newRemoteRow(r, r.Name == u.settings.Remote, func() {
-			dialog.ShowConfirm(lang.L("Delete remote"), lang.L("Delete remote “{{.Name}}”?", map[string]any{"Name": r.Name}), func(ok bool) {
-				if !ok {
-					return
-				}
+			msg := lang.L("Delete remote “{{.Name}}”? The files in it are not touched.", map[string]any{"Name": r.Name})
+			if r.Name == u.settings.Remote {
+				msg = lang.L("Delete remote “{{.Name}}”? It is the sync location, so syncing stops until you choose another one. The files in it are not touched.", map[string]any{"Name": r.Name})
+			}
+			confirmDanger(u, confirmOpts{title: lang.L("Delete remote"), message: msg, onConfirm: func(bool) {
 				async0(func() error { return u.cloud.DeleteRemote(r.Name) }, func(err error) {
 					u.toastErr(err)
 					p.load(false)
 					u.refresh()
 				})
-			}, u.win)
+			}})
 		}))
 	}
+	if u.settings.Remote == "" {
+		// First run: the remote comes first; the first one added becomes the
+		// sync location by itself.
+		intro := muted(lang.L("Carryover keeps your saves in your own cloud storage. Add a remote (or import your rclone config) and it becomes the sync location; every device then uses the same one."))
+		replaceScroll(p.scroll, stack(pageHead(nil, lang.L("Cloud storage")), intro, card("", list), location))
+		return
+	}
 	replaceScroll(p.scroll, stack(pageHead(nil, lang.L("Cloud storage")), location, card("", list)))
+}
+
+// useFirstRemote makes a remote just added the sync location when there is
+// none yet, so a first setup needs no extra step.
+func (p *cloudPage) useFirstRemote(name string) {
+	if p.u.settings.Remote != "" || name == "" {
+		return
+	}
+	p.remote = name
+	p.saveTarget()
 }
 
 func (p *cloudPage) saveTarget() {
@@ -182,6 +200,9 @@ func (p *cloudPage) importConf(path string) {
 		if len(res.Imported) > 0 {
 			u.toast(lang.L("Imported {{.Names}}", map[string]any{"Names": strings.Join(res.Imported, ", ")}), toastOK)
 		}
+		if len(res.Imported) == 1 {
+			p.useFirstRemote(res.Imported[0])
+		}
 		if len(res.Skipped) > 0 {
 			u.toast(lang.L("Skipped unsupported: {{.Names}}", map[string]any{"Names": strings.Join(res.Skipped, ", ")}), toastErr)
 		} else if len(res.Imported) == 0 {
@@ -225,8 +246,9 @@ func (w *remoteWizard) close() { w.d.Hide() }
 func (w *remoteWizard) pick() {
 	grid := container.NewGridWrap(fyne.NewSize(190, 96))
 	for _, pr := range w.p.providers {
-		b := newTappable(card("", widget.NewLabelWithStyle(pr.Type, fyne.TextAlignLeading, fyne.TextStyle{Bold: true}), muted(pr.Description)),
-			func() { w.form(pr) })
+		name := widget.NewLabelWithStyle(pr.Description, fyne.TextAlignLeading, fyne.TextStyle{Bold: true})
+		name.Wrapping = fyne.TextWrapWord
+		b := newTappable(card("", name, small(pr.Type)), func() { w.form(pr) })
 		grid.Add(b)
 	}
 	w.set(heading(lang.L("Choose storage provider")), grid, hbox(widget.NewButton(lang.L("Cancel"), w.close)))
@@ -358,9 +380,11 @@ func (w *remoteWizard) step(fn func() (*cloud.Question, error)) {
 		}
 		if q == nil || q.Done {
 			w.close()
-			w.p.remote = strings.TrimSpace(w.name)
+			name := strings.TrimSpace(w.name)
+			w.p.remote = name
 			w.p.load(false)
-			u.toast(lang.L("Remote “{{.Name}}” created", map[string]any{"Name": strings.TrimSpace(w.name)}), toastOK)
+			u.toast(lang.L("Remote “{{.Name}}” created", map[string]any{"Name": name}), toastOK)
+			w.p.useFirstRemote(name)
 			return
 		}
 		w.question = q

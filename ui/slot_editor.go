@@ -34,9 +34,10 @@ type slotEditor struct {
 }
 
 // newSlotEditor builds the editor for s. uniqueKey derives a key that is free
-// among the other slots; a nil onRemove hides the delete button.
+// among the other slots; a nil onRemove hides the delete button. pathChanged
+// (if set) is told when the path on this device changes.
 func newSlotEditor(u *UI, gameID string, tokens []pathvar.Token, s *slotForm, others []services.DevicePaths,
-	uniqueKey func(base string, self *slotForm) string, onRemove func()) *slotEditor {
+	uniqueKey func(base string, self *slotForm) string, onRemove, pathChanged func()) *slotEditor {
 	label := widget.NewEntry()
 	label.SetPlaceHolder(lang.L("Label"))
 	label.SetText(s.label)
@@ -58,7 +59,12 @@ func newSlotEditor(u *UI, gameID string, tokens []pathvar.Token, s *slotForm, ot
 
 	c := vbox(
 		rowFill(label, right...),
-		field(lang.L("Path on this device"), newPathInput(u, gameID, tokens, s.path, "{appdata}/Game/Saves", func(v string) { s.path = v })),
+		field(lang.L("Path on this device"), newPathInput(u, gameID, tokens, s.path, "{appdata}/Game/Saves", func(v string) {
+			s.path = v
+			if pathChanged != nil {
+				pathChanged()
+			}
+		})),
 	)
 	for _, o := range others {
 		if p := o.Paths[s.key]; p != "" {

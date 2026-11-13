@@ -9,6 +9,7 @@ import (
 	"fyne.io/fyne/v2/canvas"
 	"fyne.io/fyne/v2/container"
 	"fyne.io/fyne/v2/layout"
+	"fyne.io/fyne/v2/theme"
 	"fyne.io/fyne/v2/widget"
 )
 
@@ -62,23 +63,34 @@ func newToaster() *toaster {
 	return t
 }
 
-// show must be called on the UI thread.
+// maxToasts is how many toasts are shown at once; a new one pushes out the
+// oldest.
+const maxToasts = 4
+
+// show must be called on the UI thread. Errors stay until they are clicked
+// away, so one that came up while the user looked elsewhere isn't missed;
+// other toasts go by themselves.
 func (t *toaster) show(text string, kind toastKind) {
-	ttl := 3500 * time.Millisecond
-	if kind == toastErr {
-		ttl = 7 * time.Second
-	}
 	bg := &toastBG{rect: canvas.NewRectangle(colBg3), kind: kind}
 	bg.rect.CornerRadius = 8
 	bg.rect.StrokeWidth = 1
 	bg.recolor()
 	l := widget.NewLabel(text)
 	l.Wrapping = fyne.TextWrapWord
+	var body fyne.CanvasObject = l
+	if kind == toastErr {
+		body = container.NewBorder(nil, nil, nil, widget.NewIcon(theme.CancelIcon()), l)
+	}
 	var item fyne.CanvasObject
-	item = fixedWidth(360, newTappable(container.NewStack(bg.rect, container.NewPadded(l)), func() { t.remove(item) }))
+	item = fixedWidth(360, newTappable(container.NewStack(bg.rect, container.NewPadded(body)), func() { t.remove(item) }))
 	t.bgs[item] = bg
+	for len(t.box.Objects) >= maxToasts {
+		t.remove(t.box.Objects[0])
+	}
 	t.box.Add(item)
-	time.AfterFunc(ttl, func() { onUI(func() { t.remove(item) }) })
+	if kind != toastErr {
+		time.AfterFunc(3500*time.Millisecond, func() { onUI(func() { t.remove(item) }) })
+	}
 }
 
 func (t *toaster) remove(o fyne.CanvasObject) {

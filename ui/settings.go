@@ -7,7 +7,9 @@ import (
 	"time"
 
 	"fyne.io/fyne/v2"
+	"fyne.io/fyne/v2/container"
 	"fyne.io/fyne/v2/lang"
+	"fyne.io/fyne/v2/layout"
 	"fyne.io/fyne/v2/widget"
 
 	"github.com/akfaiz/carryover/internal/app/appdir"
@@ -140,6 +142,18 @@ func (p *settingsPage) form(st appdir.Settings) fyne.CanvasObject {
 		next.SteamGridDBKey = keyToSave
 		return next, true, nil
 	}
+	// A quiet note next to the title says a change was saved; a toast for
+	// every change would pile up while typing.
+	savedNote := small("")
+	var hideNote *time.Timer
+	showSaved := func() {
+		savedNote.SetText("✓ " + lang.L("Saved"))
+		if hideNote != nil {
+			hideNote.Stop()
+		}
+		hideNote = time.AfterFunc(2500*time.Millisecond, func() { onUI(func() { savedNote.SetText("") }) })
+	}
+
 	// Saves are one at a time: a change made while one is running is saved
 	// right after it, from whatever the form shows then.
 	var saving, dirty bool
@@ -167,7 +181,7 @@ func (p *settingsPage) form(st appdir.Settings) fyne.CanvasObject {
 			keyToSave = saved.SteamGridDBKey
 			keyDirty()
 			u.refresh()
-			u.toast(lang.L("Settings saved"), toastOK)
+			showSaved()
 			if themeChanged {
 				u.applyTheme(saved.Theme)
 				return // the page is built again
@@ -181,7 +195,7 @@ func (p *settingsPage) form(st appdir.Settings) fyne.CanvasObject {
 
 	narrow := func(o fyne.CanvasObject) fyne.CanvasObject { return maxWidth(640, o) }
 	return stack(
-		pageHead(nil, lang.L("Settings")),
+		pageHead(nil, lang.L("Settings"), container.NewCenter(savedNote)),
 		narrow(card(lang.L("Appearance"),
 			field(lang.L("Theme"), themeSel))),
 		narrow(card(lang.L("This device"),
@@ -200,9 +214,56 @@ func (p *settingsPage) form(st appdir.Settings) fyne.CanvasObject {
 		narrow(card(lang.L("Cover art"),
 			field(lang.L("SteamGridDB API key (optional)"), rowFill(key, keySave, keyTest.Button)),
 			keyTest.Result,
-			muted(lang.L("Lets you search community covers for any game, including ones not on Steam, and fills in covers Steam doesn't have. Get a free key at steamgriddb.com/profile/preferences/api (log in with Steam). The key is stored only on this device.")))),
+			muted(gridKeyHelp()))),
 		narrow(aboutCard()),
 	)
+}
+
+func gridKeyHelp() string {
+	return lang.L("Lets you search community covers for any game, including ones not on Steam, and fills in covers Steam doesn't have. Get a free key at steamgriddb.com/profile/preferences/api (log in with Steam). The key is stored only on this device.")
+}
+
+// showGridKeyDialog asks for the SteamGridDB key in a dialog, for pages that
+// shouldn't be left to go to Settings (the game editor). onSaved runs once it
+// is stored.
+func showGridKeyDialog(u *UI, onSaved func()) {
+	key := widget.NewPasswordEntry()
+	key.SetPlaceHolder(lang.L("Paste your key"))
+	keyTest := newTestButton(lang.L("Test"), lang.L("Key works."), func() func() error {
+		k := strings.TrimSpace(key.Text)
+		return func() error { return u.lib.TestSteamGridKey(k) }
+	})
+	keyTest.SetAllowed(false)
+	var d dialogHider
+	save := primary(lang.L("Save"), nil)
+	save.Disable()
+	save.OnTapped = func() {
+		k := strings.TrimSpace(key.Text)
+		save.Disable()
+		async(func() (appdir.Settings, error) {
+			st := u.sync.GetSettings()
+			st.SteamGridDBKey = k
+			return u.sync.SaveSettings(st)
+		}, func(_ appdir.Settings, err error) {
+			if err != nil {
+				u.toastErr(err)
+				save.Enable()
+				return
+			}
+			d.Hide()
+			u.refresh()
+			u.toast(lang.L("SteamGridDB key saved"), toastOK)
+			onSaved()
+		})
+	}
+	key.OnChanged = func(s string) {
+		ok := strings.TrimSpace(s) != ""
+		keyTest.SetAllowed(ok)
+		setEnabled(save, ok)
+	}
+	body := vbox(muted(gridKeyHelp()), rowFill(key, keyTest.Button), keyTest.Result,
+		hbox(layout.NewSpacer(), widget.NewButton(lang.L("Cancel"), func() { d.Hide() }), save))
+	d = showCustom(u, lang.L("SteamGridDB API key"), body, 540)
 }
 
 // aboutCard shows which build is running, with links to its release notes
