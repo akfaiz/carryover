@@ -1,7 +1,7 @@
 package services
 
 import (
-	"path/filepath"
+	"path"
 	"regexp"
 	"strings"
 
@@ -19,6 +19,8 @@ var (
 	// emuNoise are version, architecture and build words in release file names,
 	// such as "Eden-Linux-x86_64-v0.0.3" or "yuzu-windows-msvc-early-access".
 	emuNoise = regexp.MustCompile(`(?i)(^|[\s_.-]+)(v?\d[\d.]*|x86[_-]?64|x64|amd64|aarch64|arm64|win(dows|32|64)?|linux|mac(os)?|msvc|gcc|clang|qt\d*|appimage|portable|release|stable|nightly|early[\s_-]*access|ea|steamdeck|deck)(\b|$)`)
+	// emuDrive is a bare Windows drive such as "D:", what the folder of D:/run.exe is.
+	emuDrive = regexp.MustCompile(`^[A-Za-z]:$`)
 	// emuGeneric are executable names that don't name the emulator.
 	emuGeneric = map[string]bool{
 		"apprun": true, "launcher": true, "launch": true, "start": true, "run": true, "main": true,
@@ -39,10 +41,10 @@ func (s *EmulatorService) GuessEmulator(exe string) EmuGuess {
 	if name, preset := emumanifest.Detect(exe); name != "" {
 		return EmuGuess{Name: name, Preset: preset}
 	}
-	base := emuExt.ReplaceAllString(filepath.Base(filepath.FromSlash(exe)), "")
+	base := emuExt.ReplaceAllString(path.Base(exe), "")
 	name := cleanEmuName(base)
 	if name == "" || emuGeneric[strings.ToLower(name)] {
-		name = cleanEmuName(filepath.Base(filepath.Dir(filepath.FromSlash(exe))))
+		name = cleanEmuName(path.Base(path.Dir(exe)))
 	}
 	if emuGeneric[strings.ToLower(name)] {
 		return EmuGuess{}
@@ -61,7 +63,7 @@ func cleanEmuName(s string) string {
 	}
 	s = strings.NewReplacer("_", " ", "-", " ").Replace(s)
 	s = strings.Join(strings.Fields(s), " ")
-	if s == "." || s == "/" || s == `\` {
+	if s == "." || s == "/" || s == `\` || emuDrive.MatchString(s) {
 		return ""
 	}
 	return s
