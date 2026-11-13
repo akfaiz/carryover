@@ -68,26 +68,6 @@ jobs:
           # AppImageUpdate / Gear Lever look for the .zsync file in the latest release;
           # the wildcard matches whatever version that is.
           echo "UPDATE_INFO=gh-releases-zsync|${GITHUB_REPOSITORY_OWNER}|${GITHUB_REPOSITORY#*/}|latest|carryover-*-linux-amd64.AppImage.zsync" >> "$GITHUB_ENV"
-      # Caches are filled by the docker-cache job in ci.yml on main: a tag run can only
-      # restore caches saved on main, so saving them here would never be reused.
-      # Docker layers come from the gha cache; the Go module and build caches (the
-      # Dockerfile's RUN --mount=type=cache) are restored from actions/cache and injected
-      # into BuildKit, since the version stamp changes the source and misses the layer cache.
-      - uses: actions/cache/restore@v4
-        with:
-          path: ${{ runner.temp }}/docker-go
-          key: docker-go-${{ hashFiles('go.sum') }}
-          restore-keys: |
-            docker-go-${{ hashFiles('go.sum') }}-
-            docker-go-
-      - uses: reproducible-containers/buildkit-cache-dance@v3
-        with:
-          cache-map: |
-            {
-              "${{ runner.temp }}/docker-go/mod": "/go/pkg/mod",
-              "${{ runner.temp }}/docker-go/build": "/root/.cache/go-build"
-            }
-          skip-extraction: true
       # The AppImage gets its final name here, not by renaming it later: the .zsync file refers to it by name.
       - name: Build AppImage
         uses: docker/build-push-action@v6
@@ -98,14 +78,12 @@ jobs:
             UPDATE_INFO=${{ env.UPDATE_INFO }}
             APPIMAGE=${{ env.NAME }}.AppImage
           outputs: type=local,dest=out
-          cache-from: type=gha,scope=linux
       - name: Build binary
         uses: docker/build-push-action@v6
         with:
           context: .
           target: binary-out
           outputs: type=local,dest=out
-          cache-from: type=gha,scope=linux
       - name: Package
         run: |
           mkdir -p dist
