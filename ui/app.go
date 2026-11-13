@@ -109,6 +109,10 @@ type UI struct {
 	lastLocalCheck time.Time // last checkLocalChanges run
 }
 
+// startLanguage is the language setting the translations were loaded with; a
+// different setting applies after a restart.
+var startLanguage string
+
 // localCheckInterval limits how often the saves are scanned for changes made
 // outside Carryover (each time the window regains focus).
 const localCheckInterval = 30 * time.Second
@@ -216,7 +220,8 @@ func Run(c *core.Core, wrapGameID string, opts core.RunOptions) int {
 }
 
 func start(c *core.Core) *UI {
-	initTranslations()
+	startLanguage = c.Settings.Get().Language
+	initTranslations(startLanguage)
 	a := app.NewWithID(AppID)
 	systemDark.Store(initialSystemDark(a))
 	setPalette(paletteFor(c.Settings.Get().Theme))

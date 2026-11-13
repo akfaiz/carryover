@@ -88,6 +88,20 @@ func (p *settingsPage) form(st appdir.Settings) fyne.CanvasObject {
 	}
 	themeSel.OnChanged = func(string) { commit() }
 
+	// The language applies at the next start (Fyne picks its translations once).
+	langs := &choice{}
+	langs.add("", lang.L("System"))
+	for _, o := range languageOptions() {
+		langs.add(o.code, o.name)
+	}
+	langNote := muted(lang.L("Restart Carryover to apply the language."))
+	showLangNote := func(code string) { setVisible(langNote, code != startLanguage) }
+	showLangNote(st.Language)
+	langSel := selectOf(langs, st.Language, func(v string) {
+		showLangNote(v)
+		commit()
+	})
+
 	// Cover art is part of the library sync, so it can only be on while that is.
 	covers := newCheck(lang.L("Upload cover art and artwork to the cloud"), !st.CoversLocalOnly, func(bool) { commit() })
 	share := newCheck(lang.L("Share the game library between devices through the cloud"), st.SyncLibrary, func(on bool) {
@@ -139,6 +153,7 @@ func (p *settingsPage) form(st appdir.Settings) fyne.CanvasObject {
 				next.Theme = t.setting
 			}
 		}
+		next.Language = langs.value(langSel.Selected)
 		next.SteamGridDBKey = keyToSave
 		return next, true, nil
 	}
@@ -197,7 +212,9 @@ func (p *settingsPage) form(st appdir.Settings) fyne.CanvasObject {
 	return stack(
 		pageHead(nil, lang.L("Settings"), container.NewCenter(savedNote)),
 		narrow(card(lang.L("Appearance"),
-			field(lang.L("Theme"), themeSel))),
+			field(lang.L("Theme"), themeSel),
+			field(lang.L("Language"), langSel),
+			langNote)),
 		narrow(card(lang.L("This device"),
 			field(lang.L("Device name (shown on other devices and in backups)"), name),
 			field(lang.L("Device ID"), id))),
