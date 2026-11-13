@@ -136,6 +136,9 @@ func (c *Core) forgetLocal(key string) {
 // another game still uses are kept. Cloud failures are only logged: a stray
 // image costs nothing.
 func (c *Core) DropImages(ctx context.Context, g library.Game) {
+	// The game is a deleted one (from the trash), which imageFiles would skip;
+	// its images are the ones to drop.
+	g.Deleted = false
 	names := imageFiles([]library.Game{g})
 	if len(names) == 0 {
 		return
