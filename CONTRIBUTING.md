@@ -1,20 +1,21 @@
 # Contributing
 
-Bug reports, ideas and pull requests are welcome. Please use the issue forms for
-[bugs](https://github.com/akfaiz/carryover/issues/new?template=bug_report.yml) and
-[feature requests](https://github.com/akfaiz/carryover/issues/new?template=feature_request.yml), report security
-issues privately as described in [SECURITY.md](SECURITY.md), and follow the [code of conduct](CODE_OF_CONDUCT.md).
-For a bigger change, open an issue first so we can agree on the approach.
+Bug reports, ideas and pull requests are welcome.
+
+- Use the issue forms for [bugs](https://github.com/akfaiz/carryover/issues/new?template=bug_report.yml) and
+  [feature requests](https://github.com/akfaiz/carryover/issues/new?template=feature_request.yml).
+- Report security issues privately, as described in [SECURITY.md](SECURITY.md).
+- Follow the [code of conduct](CODE_OF_CONDUCT.md).
+- For a bigger change, open an issue first so we can agree on the approach.
 
 ## Requirements
 
 - Go (see `go.mod` for the version).
-- Fyne needs cgo, so you also need a C compiler:
+- A C compiler, because Fyne needs cgo:
   - **Windows:** MSYS2 MinGW. Run `pacman -S mingw-w64-ucrt-x86_64-gcc` and add `C:\msys64\ucrt64\bin` to `PATH`.
   - **Linux:** a C compiler plus the GL/X11 development packages (see
     [Fyne's prerequisites](https://docs.fyne.io/started/)).
-- Optional: [Docker](https://docs.docker.com/get-docker/) to build for Linux from another OS,
-  and [appimagetool](https://github.com/AppImage/appimagetool/releases) to build the AppImage.
+- Optional: [Docker](https://docs.docker.com/get-docker/), to build and test the Linux version from any OS.
 
 ## Build and run
 
@@ -24,17 +25,13 @@ CGO_ENABLED=1 go build -trimpath -ldflags "-s -w" -o bin/carryover .            
 CARRYOVER_HOME=/tmp/pr go run .                                                           # run against an isolated data dir
 ```
 
-- `-s -w` strips debug info and brings the Windows exe from about 84 MB down to about 46 MB.
-  Leave it out when you need to debug.
+- **Always set `CARRYOVER_HOME` when testing**, so you never touch your real settings, library or rclone config.
+- `-s -w` strips debug info (the Windows exe drops from about 84 MB to 46 MB). Leave it out to debug.
 - `-H windowsgui` hides the console window. The CLI subcommands re-attach it.
-- Always use `CARRYOVER_HOME` when testing, so you never touch your real settings, library or rclone config.
-- Local builds report themselves as a development build with the git commit (`carryover --version`,
-  Settings → About). Release builds get the version from the git tag (see
-  [Continuous integration and releases](#continuous-integration-and-releases)); `Version` in `FyneApp.toml`
-  is not used for them.
-- `go tool fyne package --os windows --release --name carryover` builds the exe with its icon, but it also bumps
-  `Build` in `FyneApp.toml` on every run. Don't commit that change (`git checkout FyneApp.toml`): CI sets the
-  build number of release builds itself.
+- Local builds report "dev" plus the git commit as their version. Release builds take it from the git tag
+  (see [Releases](#releases)).
+- To build the Windows exe with its icon: `go tool fyne package --os windows --release --name carryover`.
+  It bumps `Build` in `FyneApp.toml` on every run; don't commit that (`git checkout FyneApp.toml`).
 
 ## Test and lint
 
@@ -44,115 +41,83 @@ golangci-lint run ./...
 golangci-lint fmt ./...    # fixes formatting and imports
 ```
 
-The syncer tests use a temporary `local` remote and need no network.
+The tests need no network: the syncer tests use a temporary `local` remote.
 
-## Running the Linux build on Windows (Docker + WSLg)
-
-To try the Linux version without a Steam Deck, build and run it in a container; the window shows up on your
-Windows desktop through WSLg (Docker Desktop with the WSL2 backend):
-
-```powershell
-.\scripts\linux-docker.ps1 build    # build the image (Dockerfile)
-.\scripts\linux-docker.ps1 run      # open the GUI; `run list` runs a CLI subcommand
-.\scripts\linux-docker.ps1 shell    # bash inside the image
-.\scripts\linux-docker.ps1 export   # copy the binary to bin\linux\carryover
-.\scripts\linux-docker.ps1 appimage # build bin\carryover-linux-amd64.AppImage (no WSL or FUSE needed)
-```
-
-On Linux or macOS use `scripts/linux-docker.sh` with the same commands (`build`, `run`, `shell`, `export`,
-`appimage`). The GUI needs an X11/XWayland session on Linux, or XQuartz on macOS (see the script header).
-
-Data is kept in `.docker-data/` (git-ignored), separate from your real config.
-
-## Building for Linux / Steam Deck with fyne-cross
-
-[fyne-cross](https://github.com/fyne-io/fyne-cross) builds the Linux binary inside a Docker image that already
-has the C toolchain and the GL/X11 headers. Use it to build from Windows or macOS without setting up cgo for
-Linux. Docker must be installed and running.
+To test the other platform with Docker (for example from a Mac):
 
 ```
-go run github.com/fyne-io/fyne-cross@latest linux -arch=amd64 -app-id com.akfaiz.carryover -name carryover
+scripts/test-docker.sh [linux|windows|all] [go test args]    # Windows: .\scripts\test-docker.ps1
 ```
 
-- Run it from the repository root. The first run pulls the Docker image and downloads modules, so it is slow;
-  later runs are faster.
-- Output goes to `fyne-cross/` (git-ignored):
-  - `fyne-cross/bin/linux-amd64/carryover` is the bare binary. Copy it to the Deck or Linux machine and run
-    `chmod +x` on it.
-  - `fyne-cross/dist/linux-amd64/carryover.tar.xz` holds the binary plus a `.desktop` file and icon.
-- `-arch=amd64` covers PCs and the Steam Deck. Use `-arch=arm64` for ARM devices.
-- If fyne-cross cannot reach Docker, start Docker Desktop and run it again.
-- On Linux itself you do not need fyne-cross: the `go build` command above works.
+- `linux` runs `go test` on Linux, like CI, including `ui/`.
+- `windows` only cross-compiles and vets for `GOOS=windows`. It does not run the tests, because Docker can't run
+  Windows containers on Linux or macOS.
+
+## Linux and Steam Deck builds
+
+The easiest way to build or try the Linux version from any OS is `scripts/linux-docker` (Docker only, no cgo
+setup). On Windows use `.\scripts\linux-docker.ps1`, on Linux or macOS `scripts/linux-docker.sh`:
+
+```
+linux-docker build      # build the image (Dockerfile)
+linux-docker run        # open the GUI; `run list` runs a CLI subcommand instead
+linux-docker shell      # bash inside the image
+linux-docker export     # copy the binary to bin/linux/carryover
+linux-docker appimage   # build bin/carryover-linux-amd64.AppImage (no FUSE or appimagetool needed)
+```
+
+- The GUI opens on your desktop through WSLg on Windows (Docker Desktop with the WSL2 backend), your X11/XWayland
+  session on Linux, or XQuartz on macOS (see the script header).
+- Data is kept in `.docker-data/` (git-ignored), separate from your real config.
+
+On Linux itself, the `go build` command above works too.
 
 ### AppImage
 
-A bare binary has no icon of its own. The AppImage bundles the binary, `.desktop` file and icon. Build it on
-Linux (WSL or the Steam Deck) after the fyne-cross build, with `appimagetool` on `PATH`:
+The AppImage bundles the binary, `.desktop` file and icon (a bare binary has no icon). Besides
+`linux-docker appimage`, you can build it on Linux with [appimagetool](https://github.com/AppImage/appimagetool/releases)
+on `PATH`:
 
 ```
 packaging/appimage/build.sh        # writes bin/carryover-linux-amd64.AppImage
 ```
 
-Keep the AppImage in a fixed place (for example `~/Applications/`). The Steam shortcut points at its path, and
-moving it breaks the shortcut until you use "Update Steam shortcut".
+- Keep the AppImage in a fixed place (for example `~/Applications/`). The Steam shortcut points at its path;
+  after moving it, use "Update Steam shortcut".
+- Set `UPDATE_INFO` to embed update information for AppImageUpdate or Gear Lever. `build.sh` then also writes
+  `<name>.AppImage.zsync` (needs `zsyncmake` from the `zsync` package). Releases do this; local builds don't.
 
-Set `UPDATE_INFO` to embed update information, so AppImageUpdate or Gear Lever can update the AppImage in place.
-`build.sh` then also writes `<name>.AppImage.zsync` next to it (it needs `zsyncmake`, from the `zsync` package).
-The release workflow does this; local builds leave it out.
+### fyne-cross (alternative)
 
-## Continuous integration and releases
-
-GitHub Actions run on every pull request and every push to `main` (`.github/workflows/ci.yml`):
-`golangci-lint` on Linux and `go test ./...` on Linux and Windows. `setup-go` caches Go modules and the build cache,
-and `golangci-lint-action` its own results.
-
-Pushes to `main` also run the `docker-cache` job, which builds the Dockerfile's `appimage` stage only to fill caches
-for the release's Linux build: Docker layers (`type=gha`) and the Go module and build caches behind the Dockerfile's
-`RUN --mount=type=cache` (`actions/cache` plus `buildkit-cache-dance`). It runs on `main` because a tag's workflow
-can only restore caches saved on its own tag or on the default branch, so a release can't reuse an earlier
-release's cache.
-
-Record user-visible changes under `## [Unreleased]` in `CHANGELOG.md` as you make them. Before a release, rename
-that section to the new version and date (`## [0.2.0] - 2026-12-01`), add an empty `## [Unreleased]` above it,
-and update the compare links at the bottom.
-
-To publish a release, push a version tag:
+[fyne-cross](https://github.com/fyne-io/fyne-cross) also builds the Linux binary in Docker. Run it from the
+repository root:
 
 ```
-git tag v0.2.0
-git push origin v0.2.0
+go run github.com/fyne-io/fyne-cross@latest linux -arch=amd64 -app-id com.akfaiz.carryover -name carryover
 ```
 
-Or create it on GitHub: **Releases → Draft a new release → Choose a tag**, type the new tag (target `main`), write
-or generate the notes, and **Publish release**. Publishing creates the tag, which starts the same workflow; it
-attaches the files to that release a few minutes later. A saved draft does nothing until it is published.
+It writes `fyne-cross/bin/linux-amd64/carryover` (the bare binary) and `fyne-cross/dist/linux-amd64/carryover.tar.xz`
+(binary, `.desktop` file and icon). Use `-arch=arm64` for ARM devices. The first run is slow.
 
-`.github/workflows/release.yml` builds everything and attaches it, with a `SHA256SUMS.txt`, to the release (it
-creates the release, with notes generated from the commits since the last tag, if it doesn't exist yet). It first
-runs the CI checks, so a failing test stops the release. Every file is named
-`carryover-<version>-<os>-<arch>.<ext>`, where `<version>` is the tag without its `v` (tag `v0.2.0-rc1` gives
-`carryover-0.2.0-rc1-linux-amd64.AppImage`):
+## Code map
 
-- `carryover-<version>-windows-amd64.exe`, packaged with `fyne package` (icon and version info from the tag).
-- `carryover-<version>-linux-amd64.AppImage` and its `.zsync` file, built with the Dockerfile (the same build as
-  `scripts/linux-docker appimage`, which names it `carryover-linux-amd64.AppImage`). The workflow passes the final
-  name as the `APPIMAGE` build argument rather than renaming it afterwards, because the `.zsync` file refers to
-  the AppImage by name. The embedded update information finds the `.zsync` file in the latest release with the
-  wildcard `carryover-*-linux-amd64.AppImage.zsync`.
-- `carryover-<version>-linux-amd64.tar.gz` (`packaging/linux/tarball.sh`): the binary, `.desktop` file, icon and
-  AppStream metadata laid out like an install prefix, plus `install.sh`, which installs into `~/.local` (or a prefix given as
-  argument).
+`internal/` is grouped by layer. A package may import from its own group or from groups below it, never from
+above (`core` is the top):
 
-A tag with a suffix, such as `v0.2.0-rc1`, is published as a pre-release; the workflow sets this from the tag and
-overrides the "Set as a pre-release" checkbox on the website. Pre-releases don't count as "latest", so AppImage
-updates only work once there is a full release. The Windows exe is not code-signed, so SmartScreen warns on first
-run ("More info → Run anyway").
+- `internal/core`: orchestration: play sessions, library sync, Steam shortcuts
+- `internal/library`: game library store (games, emulators, per-device config)
+- `internal/launcher`: starts the game process and waits for it
+- `internal/cloudsync/`: `syncer` (sync decision engine, backups) and `cloud` (rclone wrapper)
+- `internal/saves/`: where saves live: `ludusavi` (save-location index; generated by
+  `go run ./internal/saves/ludusavi/gen`, don't edit by hand), `emumanifest` (per-game emulator manifests),
+  `ryujinx` (Ryujinx's save index), `yuzu` (yuzu-family profiles) and `pathvar` (path tokens)
+- `internal/stores/`: other launchers and stores on the device: `steam` (VDF files, shortcuts), `steamgrid`,
+  `steamstore`, `heroic`, `wineprefix`
+- `internal/app/`: application plumbing: `appdir` (data dir, settings), `version`, `singleinstance`
+- `services/`: API used by the GUI
+- `ui/`: Fyne GUI
 
-The tag is the only version number. Before building, each release job runs `scripts/stamp-version.sh <tag> <sha>`,
-which writes the git-ignored `internal/app/version/zz_release.go` setting `version.Version` and `version.Commit`; the app
-shows them in Settings → About, `carryover --version` and the log. (A generated file rather than `-ldflags -X`,
-because `fyne package` drops `-ldflags` from `GOFLAGS` when it rebuilds the Windows exe with its icon.) The Windows
-exe's file version is the tag's `x.y.z` plus the workflow run number as build number.
+See `CLAUDE.md` for detailed notes on threading, rclone behaviour and platform rules.
 
 ## Cloud layout
 
@@ -166,42 +131,79 @@ games/<id>/current/<slot>/…                       the saves
 games/<id>/lock.json                              "being played on <device>"
 games/<id>/backups/<time>_<device>_<kind>.zip     kind: local, cloud or manual; holds manifest.json + <slot>/…
 games/<id>/pinned.json                            names of pinned backups (never pruned)
-games/<id>.<emulator id>/…                        the same files for one emulator of a game (see below)
+games/<id>.<emulator id>/…                        the same files for one emulator of a game
 ```
-
-A game played through emulators has one such folder per emulator, next to the game's own `games/<id>/`:
-every emulator stores saves differently, so they must never mix. The folder name is the *sync key*
-(`core.SyncKey(gameID, emulatorID)`); the syncer only ever sees it as `Job.GameID`, so locks, state files,
-backups, safety copies and session markers all follow it. Emulators themselves (`library.Emulator`, listed in
-`library.json`) are defined once; each device says where one is installed, and a game's `DeviceConfig.Emulators`
-holds that device's ROM and save paths per emulator. The same emulator on two devices shares one cloud folder. An emulator can opt in to using another emulator's
-folder (`GameEmulator.ShareWith`, one level only, same slot layout): `Job.GameID` is then the other emulator's key
-(`core.CloudKey`) while `Job.StateKey` stays its own, so each keeps its own last-synced state.
 
 Safety copies taken before a download (when cloud backups are off) stay on the device, in
 `<data dir>/safety/<id>/`.
 
-## Code map
+**Emulators.** Every emulator stores saves differently, so a game gets one folder per emulator, next to its own
+`games/<id>/`:
 
-`internal/` is grouped by layer. A package may import packages from its own group or from groups below it, never
-from above (`core` is the top):
+- The folder name is the *sync key*, `core.SyncKey(gameID, emulatorID)`. The syncer only sees it as `Job.GameID`,
+  so locks, state files, backups, safety copies and session markers all follow it.
+- Emulators (`library.Emulator`, in `library.json`) are defined once. Each device says where an emulator is
+  installed, and a game's `DeviceConfig.Emulators` holds that device's ROM and save paths per emulator. The same
+  emulator on two devices shares one cloud folder.
+- An emulator can opt in to another emulator's folder (`GameEmulator.ShareWith`; one level only, same slot
+  layout). `Job.GameID` is then the other emulator's key (`core.CloudKey`), while `Job.StateKey` stays its own, so
+  each keeps its own last-synced state.
 
-- `internal/core`: orchestration: play sessions, library sync, Steam shortcuts
-- `internal/library`: game library store (games, emulators, per-device config)
-- `internal/launcher`: starts the game process and waits for it
-- `internal/cloudsync/`: `syncer` (sync decision engine, backups) and `cloud` (rclone wrapper)
-- `internal/saves/`: where saves live: `ludusavi` (save-location index, generated, do not edit by hand; run
-  `go run ./internal/saves/ludusavi/gen`), `emumanifest` (per-game emulator manifests), `ryujinx` (Ryujinx's save
-  index) and `pathvar` (path tokens)
-- `internal/stores/`: other launchers and stores on the device: `steam` (VDF files, shortcuts), `steamgrid`,
-  `steamstore`, `heroic`, `wineprefix`
-- `internal/app/`: application plumbing: `appdir` (data dir, settings), `version`, `singleinstance`
-- `services/`: API used by the GUI
-- `ui/`: Fyne GUI
+## Commits and changelog
 
-See `CLAUDE.md` for more detailed notes on threading, rclone behaviour and platform rules.
+- Use [Conventional Commits](https://www.conventionalcommits.org/): `feat:`, `fix:`, `chore:`, `refactor:`,
+  `test:`, `docs:`.
+- Record user-visible changes under `## [Unreleased]` in `CHANGELOG.md` as you make them.
 
-## Commits
+## Releases
 
-Use [Conventional Commits](https://www.conventionalcommits.org/): `feat:`, `fix:`, `chore:`, `refactor:`,
-`test:`, `docs:`.
+### Publishing
+
+1. In `CHANGELOG.md`, rename `## [Unreleased]` to the new version and date (`## [0.2.0] - 2026-12-01`), add an
+   empty `## [Unreleased]` above it, and update the compare links at the bottom.
+2. Push a version tag:
+
+   ```
+   git tag v0.2.0
+   git push origin v0.2.0
+   ```
+
+   Or on GitHub: **Releases → Draft a new release → Choose a tag**, type the new tag (target `main`) and
+   **Publish release**. A saved draft does nothing until it is published.
+
+`.github/workflows/release.yml` runs the CI checks first (a failing test stops the release), then builds the files
+and attaches them, with a `SHA256SUMS.txt`, to the release. It creates the release, with notes generated from the
+commits, if it doesn't exist yet.
+
+A tag with a suffix, such as `v0.2.0-rc1`, becomes a pre-release (overriding the checkbox on the website).
+Pre-releases don't count as "latest", so AppImage updates only work once there is a full release.
+
+### Release files
+
+Each file is named `carryover-<version>-<os>-<arch>.<ext>`, where `<version>` is the tag without its `v`:
+
+- `…-windows-amd64.exe`: packaged with `fyne package`. It is not code-signed, so SmartScreen warns on first run
+  ("More info → Run anyway").
+- `…-linux-amd64.AppImage` and its `.zsync` file: built with the Dockerfile, like `linux-docker appimage`. The
+  final name is passed as the `APPIMAGE` build argument instead of renaming afterwards, because the `.zsync` file
+  refers to the AppImage by name. The embedded update information finds it with the wildcard
+  `carryover-*-linux-amd64.AppImage.zsync`.
+- `…-linux-amd64.tar.gz` (`packaging/linux/tarball.sh`): the binary, `.desktop` file, icon and AppStream metadata
+  laid out like an install prefix, plus `install.sh`, which installs into `~/.local` (or a prefix given as argument).
+
+### Versions
+
+The git tag is the only version number. Each release job runs `scripts/stamp-version.sh <tag> <sha>`, which writes
+the git-ignored `internal/app/version/zz_release.go` (setting `version.Version` and `version.Commit`), shown in
+Settings → About, `carryover --version` and the log. It is a generated file rather than `-ldflags -X` because
+`fyne package` drops `-ldflags` from `GOFLAGS` when it rebuilds the Windows exe. The exe's file version is the
+tag's `x.y.z` plus the workflow run number. `Version` in `FyneApp.toml` is not used.
+
+### CI
+
+`.github/workflows/ci.yml` runs on every pull request and push to `main`: `golangci-lint` on Linux and
+`go test ./...` on Linux and Windows.
+
+Pushes to `main` also run the `docker-cache` job. It builds the Dockerfile's `appimage` stage only to fill the
+Docker layer and Go caches for the release build. It runs on `main` because a tag's workflow can only restore
+caches saved on its own tag or on the default branch.
