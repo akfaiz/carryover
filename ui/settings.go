@@ -239,7 +239,7 @@ func (p *settingsPage) form(st appdir.Settings) fyne.CanvasObject {
 }
 
 func gridKeyHelp() string {
-	return lang.L("Lets you search community covers for any game, including ones not on Steam, and fills in covers Steam doesn't have. Get a free key at steamgriddb.com/profile/preferences/api (log in with Steam). The key is stored only on this device.")
+	return lang.L("Lets you search community covers and artwork for any game, including ones not on Steam. Get a free key at steamgriddb.com/profile/preferences/api (log in with Steam). The key is stored only on this device.")
 }
 
 // showGridKeyDialog asks for the SteamGridDB key in a dialog, for pages that
