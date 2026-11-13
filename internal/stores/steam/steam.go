@@ -280,9 +280,6 @@ func UpsertShortcut(root, userID string, s Shortcut, match func(Shortcut) bool) 
 	if err != nil {
 		return 0, err
 	}
-	if s.AppID == 0 {
-		s.AppID = ShortcutAppID(s.Exe, s.AppName)
-	}
 	var target *BinNode
 	existing, _ := ListShortcuts(root, userID)
 	for i, e := range existing {
@@ -290,6 +287,16 @@ func UpsertShortcut(root, userID string, s Shortcut, match func(Shortcut) bool) 
 			target = list.Children[i]
 			break
 		}
+	}
+	if s.AppID == 0 && target != nil {
+		// Updating a shortcut keeps its app id, like renaming one in Steam does.
+		// A new id (computed from the exe and name, which may have changed) would
+		// give the game a new, empty Proton prefix, and {proton:shortcut} would
+		// then point at saves that aren't there.
+		s.AppID = target.GetInt("appid")
+	}
+	if s.AppID == 0 {
+		s.AppID = ShortcutAppID(s.Exe, s.AppName)
 	}
 	if target == nil {
 		target = &BinNode{Type: TypeMap, Key: strconv.Itoa(len(list.Children))}

@@ -2,11 +2,13 @@ package core
 
 import (
 	"context"
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"runtime"
 	"strconv"
 	"testing"
+	"time"
 
 	"github.com/rclone/rclone/fs/config"
 	"github.com/stretchr/testify/require"
@@ -162,4 +164,50 @@ func TestRecoverSessionsSkipsPlayingGame(t *testing.T) {
 	require.NoError(t, err)
 	require.Zero(t, n)
 	require.FileExists(t, filepath.Join(cloudDir, "games", id, "lock.json"), "lock of a game being played was released")
+}
+
+// Another device excludes a file from the sync and publishes the new filter in
+// the library catalog. This device only learns of it while Play checks the cloud;
+// the plan made with the old filter would delete the now-excluded file here.
+func TestPlayReplansWithFiltersFromCatalog(t *testing.T) {
+	c, id, saves, cloudDir := newPlayable(t)
+	require.NoError(t, os.WriteFile(filepath.Join(saves, "extra.dat"), []byte("keep me"), 0o644))
+	_, err := c.Play(context.Background(), id, RunOptions{}, &cancelUI{})
+	require.NoError(t, err)
+
+	// The deck syncs the same cloud folder, excludes extra.dat and changes a.sav.
+	deckSaves := t.TempDir()
+	deck, err := c.Engine()
+	require.NoError(t, err)
+	deck.Device = syncer.Device{ID: "deck", Name: "deck"}
+	deck.States = &syncer.StateStore{Dir: t.TempDir()}
+	deckJob := syncer.Job{GameID: id, Slots: []syncer.Slot{{Key: "saves", LocalPath: deckSaves}}}
+	deckJob.Slots[0].Filters.Exclude = []string{"extra.dat"}
+	_, _, err = deck.Sync(context.Background(), deckJob, syncer.ResolveAuto)
+	require.NoError(t, err)
+	require.NoError(t, os.WriteFile(filepath.Join(deckSaves, "a.sav"), []byte("changed on the deck"), 0o644))
+	_, a, err := deck.Sync(context.Background(), deckJob, syncer.ResolveAuto)
+	require.NoError(t, err)
+	require.Equal(t, syncer.ActionPush, a)
+
+	// ...and publishes the filter with the game in the catalog.
+	catalogFile := filepath.Join(cloudDir, "library.json")
+	b, err := os.ReadFile(catalogFile)
+	require.NoError(t, err)
+	var cat library.Catalog
+	require.NoError(t, json.Unmarshal(b, &cat))
+	require.Len(t, cat.Games, 1)
+	cat.Games[0].Slots[0].Exclude = []string{"extra.dat"}
+	cat.Games[0].UpdatedAt = time.Now().Add(time.Minute)
+	b, err = json.Marshal(cat)
+	require.NoError(t, err)
+	require.NoError(t, os.WriteFile(catalogFile, b, 0o644))
+
+	res, err := c.Play(context.Background(), id, RunOptions{}, &cancelUI{})
+	require.NoError(t, err)
+	require.Equal(t, syncer.ActionPull, res.PreAction)
+	require.FileExists(t, filepath.Join(saves, "extra.dat"), "the file the new filter excludes was deleted")
+	got, err := os.ReadFile(filepath.Join(saves, "a.sav"))
+	require.NoError(t, err)
+	require.Equal(t, "changed on the deck", string(got))
 }

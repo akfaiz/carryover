@@ -96,6 +96,14 @@ func (s *SessionService) IsRunning(gameID string) bool {
 	return false
 }
 
+// Active reports whether any play session (including its syncs before and
+// after the game) is running.
+func (s *SessionService) Active() bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return len(s.running) > 0
+}
+
 // setStatus records a status under the profile's key and the game id (so a
 // game tile shows the session of any of its profiles).
 func (s *SessionService) setStatus(st Status) {

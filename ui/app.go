@@ -106,6 +106,9 @@ type UI struct {
 	prompts  *promptQueue
 
 	lastLocalCheck time.Time // last checkLocalChanges run
+	// refreshSeq numbers the refreshes: only the newest one's result is shown, so
+	// a slow older one can't replace fresher data.
+	refreshSeq int
 }
 
 // startLanguage is the language setting the translations were loaded with; a
@@ -241,6 +244,7 @@ func (u *UI) buildMain() {
 	u.win = u.app.NewWindow("Carryover")
 	u.win.Resize(fyne.NewSize(1180, 760))
 	u.win.SetMaster()
+	u.win.SetCloseIntercept(u.confirmClose)
 	u.buildLayout()
 	u.addShortcuts()
 	u.show("/")
@@ -253,6 +257,25 @@ func (u *UI) buildMain() {
 			}
 		})
 	}()
+}
+
+// busy reports whether a play session or a sync is running, i.e. whether
+// quitting now would cut off an upload.
+func (u *UI) busy() bool {
+	return u.syncingAll || u.sess.Active() || u.sync.Active()
+}
+
+// confirmClose closes the main window, after asking when a game is being
+// played or a sync runs: the post-play upload and the release of the cloud lock
+// happen in this process, so closing it would skip both.
+func (u *UI) confirmClose() {
+	if !u.busy() {
+		u.win.Close()
+		return
+	}
+	kit.ConfirmDiscard(u.win, lang.L("Close Carryover?"),
+		lang.L("A game is still running or a sync is in progress. If you close Carryover now, its saves won't be uploaded until the next sync, and your other devices may keep showing the game as being played."),
+		lang.L("Keep open"), lang.L("Close anyway"), u.win.Close)
 }
 
 // buildLayout creates the window content (sidebar + page area); the palette
@@ -432,11 +455,16 @@ func (u *UI) show(path string) {
 
 // refresh reloads games and settings.
 func (u *UI) refresh() {
+	u.refreshSeq++
+	seq := u.refreshSeq
 	go func() {
 		games := u.lib.List()
 		st := u.sync.GetSettings()
 		trash := u.lib.TrashCount()
 		kit.OnUI(func() {
+			if seq != u.refreshSeq {
+				return // a newer refresh is on its way; this result may be older
+			}
 			u.games, u.settings, u.loaded, u.trashCount = games, st, true, trash
 			if u.sidebar != nil {
 				u.renderSidebar()

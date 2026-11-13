@@ -199,6 +199,9 @@ func TestDecide(t *testing.T) {
 		{"both changed", m("", "c"), m("r2", "b"), m("r1", "a"), ActionConflict},
 		{"both changed same", m("", "b"), m("r2", "b"), m("r1", "a"), ActionNone},
 		{"cloud wiped", m("", "a"), nil, m("r1", "a"), ActionPush},
+		// The local folder vanished: never push that deletion silently.
+		{"local emptied", m(""), m("r1", "a"), m("r1", "a"), ActionConflict},
+		{"local emptied, cloud changed too", m(""), m("r2", "b"), m("r1", "a"), ActionConflict},
 	}
 	for _, c := range cases {
 		assert.Equal(t, c.want, Decide(c.local, c.remote, c.last))
@@ -209,13 +212,40 @@ func TestLocalLock(t *testing.T) {
 	dir := t.TempDir()
 	l, err := AcquireLocalLock(dir, "g")
 	require.NoError(t, err)
-	if _, err := AcquireLocalLock(dir, "g"); err == nil {
-		// same pid holds it; our own pid is treated as stale only if different
-		t.Log("lock re-acquired by same process (expected: pid equals ours)")
-	}
+	// A second holder in the same process is refused, and its failed attempt
+	// leaves the first holder's lock alone.
+	l2, err := AcquireLocalLock(dir, "g")
+	require.ErrorIs(t, err, ErrLocked)
+	l2.Release() // nil: no-op
+	require.FileExists(t, filepath.Join(dir, "g.lock"))
+	_, err = AcquireLocalLock(dir, "other")
+	require.NoError(t, err, "locks of other games are independent")
 	l.Release()
-	_, err = AcquireLocalLock(dir, "g")
+	l.Release() // twice is harmless
+	l3, err := AcquireLocalLock(dir, "g")
 	require.NoError(t, err)
+	l3.Release()
+}
+
+// A lock file left by a dead process (or with a stale, unreadable PID) is
+// taken over; one another process is still writing is not.
+func TestLocalLockStaleFiles(t *testing.T) {
+	dir := t.TempDir()
+	p := filepath.Join(dir, "g.lock")
+	require.NoError(t, os.WriteFile(p, []byte("2147483646"), 0o644)) // no such process
+	l, err := AcquireLocalLock(dir, "g")
+	require.NoError(t, err, "lock of a dead process")
+	l.Release()
+
+	require.NoError(t, os.WriteFile(p, nil, 0o644)) // just created, PID not written yet
+	_, err = AcquireLocalLock(dir, "g")
+	require.ErrorIs(t, err, ErrLocked)
+
+	old := time.Now().Add(-time.Minute)
+	require.NoError(t, os.Chtimes(p, old, old)) // abandoned long ago
+	l, err = AcquireLocalLock(dir, "g")
+	require.NoError(t, err)
+	l.Release()
 }
 
 // Save-path suggestions turn "<winAppData>/Game/<storeUserId>" into the folder

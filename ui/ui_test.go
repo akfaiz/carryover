@@ -217,3 +217,23 @@ func hasText(o fyne.CanvasObject, text string) bool {
 	}
 	return false
 }
+
+// Closing the launcher while a sync or a play session runs would skip the
+// upload and the release of the cloud lock, so it asks first.
+func TestCloseAsksWhileBusy(t *testing.T) {
+	t.Setenv(appdir.EnvHome, t.TempDir())
+	c, err := core.New()
+	require.NoError(t, err)
+	queue := make(chan func(), 1024)
+	activeQueue.Store(&queue)
+	a := test.NewApp()
+	a.Settings().SetTheme(kit.AppTheme{})
+	u := newUI(c, a, services.NewBus())
+	u.buildMain()
+
+	require.False(t, u.busy())
+	u.syncingAll = true
+	require.True(t, u.busy())
+	u.confirmClose()
+	require.Len(t, u.win.Canvas().Overlays().List(), 1, "no confirmation while a sync runs")
+}

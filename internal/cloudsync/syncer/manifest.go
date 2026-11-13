@@ -94,7 +94,7 @@ func ScanLocal(ctx context.Context, slots []Slot, prev *Manifest) (*Manifest, er
 		if err != nil {
 			return nil, err
 		}
-		root := sl.LocalPath
+		root := resolveLinks(sl.LocalPath)
 		fi, err := os.Stat(root)
 		if errors.Is(err, os.ErrNotExist) {
 			continue
@@ -105,7 +105,10 @@ func ScanLocal(ctx context.Context, slots []Slot, prev *Manifest) (*Manifest, er
 		if !fi.IsDir() {
 			return nil, errors.New("save path is not a directory: " + root)
 		}
-		err = filepath.WalkDir(root, func(p string, d fs.DirEntry, err error) error {
+		// Walk through os.DirFS: it looks at the root with os.Stat, so a root
+		// that is a symbolic link or a Windows junction is entered, where
+		// filepath.WalkDir would see a non-directory and scan nothing.
+		err = fs.WalkDir(os.DirFS(root), ".", func(rel string, d fs.DirEntry, err error) error {
 			if err != nil {
 				return err
 			}
@@ -115,11 +118,7 @@ func ScanLocal(ctx context.Context, slots []Slot, prev *Manifest) (*Manifest, er
 			if d.IsDir() || !d.Type().IsRegular() {
 				return nil
 			}
-			rel, err := filepath.Rel(root, p)
-			if err != nil {
-				return err
-			}
-			rel = filepath.ToSlash(rel)
+			p := filepath.Join(root, filepath.FromSlash(rel))
 			info, err := d.Info()
 			if err != nil {
 				return err
@@ -147,6 +146,28 @@ func ScanLocal(ctx context.Context, slots []Slot, prev *Manifest) (*Manifest, er
 		}
 	}
 	return m, nil
+}
+
+// resolveLinks follows symbolic links and junctions in a save folder's path.
+// filepath.WalkDir doesn't descend into a root that is itself a link, so a
+// save folder reached through one (a game folder moved to another drive and
+// linked back, a Steam Deck SD card) would scan as empty. A path that doesn't
+// exist yet (or can't be resolved) is returned unchanged.
+func resolveLinks(p string) string {
+	if r, err := filepath.EvalSymlinks(p); err == nil {
+		return r
+	}
+	return p
+}
+
+// withResolvedSlots returns job with its save folders resolved through links,
+// so a scan and the transfers that follow it agree on the folder they use.
+func withResolvedSlots(job Job) Job {
+	job.Slots = append([]Slot(nil), job.Slots...)
+	for i := range job.Slots {
+		job.Slots[i].LocalPath = resolveLinks(job.Slots[i].LocalPath)
+	}
+	return job
 }
 
 func hashFile(p string) (string, error) {

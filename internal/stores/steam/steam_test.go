@@ -43,9 +43,13 @@ func TestShortcutsUpsertRemove(t *testing.T) {
 	id, err := UpsertShortcut(root, user, Shortcut{AppName: "Game A", Exe: `"/usr/bin/carryover"`, LaunchOptions: "run g1", Tags: []string{"Carryover"}}, match)
 	require.NoError(t, err)
 	require.NotZero(t, id&0x80000000)
-	// Upsert again replaces rather than duplicates.
-	_, err = UpsertShortcut(root, user, Shortcut{AppName: "Game A2", Exe: `"/usr/bin/carryover"`, LaunchOptions: "run g1"}, match)
+	// Upsert again replaces rather than duplicates, and keeps the app id even
+	// though the name (which the id was computed from) changed: a new id would
+	// mean a new, empty Proton prefix.
+	id2, err := UpsertShortcut(root, user, Shortcut{AppName: "Game A2", Exe: `"/usr/bin/carryover"`, LaunchOptions: "run g1"}, match)
 	require.NoError(t, err)
+	require.Equal(t, id, id2, "updating a shortcut changed its app id")
+	require.NotEqual(t, ShortcutAppID(`"/usr/bin/carryover"`, "Game A2"), id2)
 	_, err = UpsertShortcut(root, user, Shortcut{AppName: "Other", Exe: `"/x"`}, func(Shortcut) bool { return false })
 	require.NoError(t, err)
 	list, err := ListShortcuts(root, user)
