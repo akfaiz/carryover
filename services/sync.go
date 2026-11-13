@@ -174,30 +174,38 @@ func (s *SyncService) SyncAll() ([]SyncResult, error) {
 		return nil, cancelled(ctx, err)
 	}
 	s.bus.libraryChanged("")
-	var out []SyncResult
+	type item struct{ key, name string }
+	var items []item
 	for _, g := range s.c.Library.List() {
 		for _, emuID := range s.c.Profiles(g) {
 			if _, err := s.c.JobFor(g, emuID); err != nil {
 				continue // not set up on this device
 			}
-			if ctx.Err() != nil {
-				return out, ErrSyncCancelled
-			}
-			key := core.SyncKey(g.ID, emuID)
-			r := SyncResult{GameID: key, Name: g.Name}
+			name := g.Name
 			if emuID != "" {
-				r.Name += " (" + s.c.ProfileName(emuID) + ")"
+				name += " (" + s.c.ProfileName(emuID) + ")"
 			}
-			a, err := s.sync(ctx, key, "")
-			if errors.Is(err, ErrSyncCancelled) {
-				return out, err
-			}
-			r.Action = a
-			if err != nil {
-				r.Error = err.Error()
-			}
-			out = append(out, r)
+			items = append(items, item{core.SyncKey(g.ID, emuID), name})
 		}
+	}
+	var out []SyncResult
+	s.bus.syncAllProgress(SyncAllProgress{Total: len(items)})
+	defer s.bus.syncAllProgress(SyncAllProgress{Done: len(items), Total: len(items)})
+	for i, it := range items {
+		if ctx.Err() != nil {
+			return out, ErrSyncCancelled
+		}
+		s.bus.syncAllProgress(SyncAllProgress{Done: i, Total: len(items), Name: it.name})
+		r := SyncResult{GameID: it.key, Name: it.name}
+		a, err := s.sync(ctx, it.key, "")
+		if errors.Is(err, ErrSyncCancelled) {
+			return out, err
+		}
+		r.Action = a
+		if err != nil {
+			r.Error = err.Error()
+		}
+		out = append(out, r)
 	}
 	return out, nil
 }

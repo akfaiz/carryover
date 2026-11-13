@@ -24,6 +24,9 @@ type libraryPage struct {
 	head       fyne.CanvasObject // header row, refreshed when syncBtn's label changes
 	gridHost   *fyne.Container
 	emptyHost  *fyne.Container
+	barHost    *fyne.Container // "Sync all" progress, shown only while syncing
+	bar        *widget.ProgressBar
+	barLabel   *widget.Label
 }
 
 func newLibraryPage(u *UI) *libraryPage { return &libraryPage{u: u} }
@@ -43,12 +46,37 @@ func (p *libraryPage) view() fyne.CanvasObject {
 	p.gridHost = container.NewStack()
 	p.emptyHost = container.NewStack()
 	p.renderGrid()
-	p.scroll = scrollPage(vbox(p.head, p.emptyHost, p.gridHost))
+	p.bar = widget.NewProgressBar()
+	p.barLabel = small("")
+	p.barHost = container.NewVBox(p.barLabel, p.bar)
+	p.barHost.Hide()
+	p.scroll = scrollPage(vbox(p.head, p.barHost, p.emptyHost, p.gridHost))
 	return p.scroll
+}
+
+// updateProgress shows how many games "Sync all" has finished.
+func (p *libraryPage) updateProgress() {
+	if p.barHost == nil {
+		return
+	}
+	pr := p.u.syncAllProg
+	if !p.syncing || pr.Total == 0 {
+		p.barHost.Hide()
+		return
+	}
+	p.bar.Max = float64(pr.Total)
+	p.bar.SetValue(float64(pr.Done))
+	text := lang.L("Synced {{.Done}} of {{.Total}}", map[string]any{"Done": pr.Done, "Total": pr.Total})
+	if pr.Name != "" {
+		text += " · " + pr.Name
+	}
+	p.barLabel.SetText(text)
+	p.barHost.Show()
 }
 
 func (p *libraryPage) stateChanged(what change) {
 	if what == changeProgress {
+		p.updateProgress()
 		return
 	}
 	p.renderGrid()
@@ -112,6 +140,7 @@ func (p *libraryPage) syncAll() {
 	p.renderGrid()
 	async(u.sync.SyncAll, func(res []services.SyncResult, err error) {
 		p.syncing, p.cancelling = false, false
+		p.updateProgress()
 		defer u.refresh()
 		if errors.Is(err, services.ErrSyncCancelled) {
 			u.toast(lang.N("Sync cancelled after {{.Count}} game", len(res), map[string]any{"Count": len(res)}), toastInfo)

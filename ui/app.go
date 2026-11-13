@@ -68,7 +68,9 @@ type UI struct {
 	settings appdir.Settings
 	status   map[string]services.Status
 	progress map[string]syncer.Event
-	loaded   bool
+	// syncAllProg is the latest "Sync all" progress, shown on the library page.
+	syncAllProg services.SyncAllProgress
+	loaded      bool
 	// trashCount: deleted games and emulators in the trash; leftoverCount: cloud
 	// save folders no game uses. Both show next to Trash in the sidebar.
 	trashCount, leftoverCount int
@@ -131,6 +133,12 @@ func newUI(c *core.Core, a fyne.App, bus *services.Bus) *UI {
 	bus.OnSync(func(ev syncer.Event) {
 		onUI(func() {
 			u.progress[ev.GameID] = ev
+			u.notify(changeProgress)
+		})
+	})
+	bus.OnSyncAll(func(p services.SyncAllProgress) {
+		onUI(func() {
+			u.syncAllProg = p
 			u.notify(changeProgress)
 		})
 	})
