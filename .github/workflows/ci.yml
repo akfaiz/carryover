@@ -64,7 +64,14 @@ jobs:
 
       - name: Test (Linux)
         if: runner.os == 'Linux'
-        run: go test ./...
+        run: go test -coverprofile=coverage.txt ./...
+      - name: Upload coverage reports to Codecov
+        if: runner.os == 'Linux' # one report is enough
+        uses: codecov/codecov-action@v5
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          files: coverage.txt
+          fail_ci_if_error: false # forks and the release workflow have no token
       - name: Test (Windows)
         if: runner.os == 'Windows'
         shell: msys2 {0}
