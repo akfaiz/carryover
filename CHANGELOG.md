@@ -24,7 +24,10 @@ All notable changes to Carryover are listed here. The format follows
   per device on the new Emulators page; each game picks its emulators and sets a ROM and save locations for each.
   Every emulator keeps its own cloud saves and backups, and the same emulator on another device shares them. Two
   emulators that use the same save format can opt in to sharing one save (then they can't run at the same time).
-  Play starts the emulator used last; `carryover run` and `carryover sync` take `--emulator <name>`. Update all your
+  Play asks which emulator to use in a dialog of square tiles (the one used last is highlighted; there is no
+  dropdown; a Steam shortcut shows the same dialog), and the game
+  page lists the saves and backups of every emulator, each tagged with its name. `carryover run` and
+  `carryover sync` take `--emulator <name>`. Update all your
   devices before using this: an older version drops the emulator settings when it saves the library.
 - Suggestions for emulated games. Choosing an emulator's executable proposes its name, type and usual arguments;
   choosing a ROM proposes the game's name and finds its save folders, using

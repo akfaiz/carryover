@@ -365,9 +365,6 @@
   "Executable on this device": "Executable on this device",
   "{{.Token}} is replaced by the game's file or ID, which you set per game. Without it, the game file is added after the arguments.": "{{.Token}} is replaced by the game's file or ID, which you set per game. Without it, the game file is added after the arguments.",
   "Without an emulator": "Without an emulator",
-  "Play and sync with": "Play and sync with",
-  "Play without an emulator": "Play without an emulator",
-  "Play with {{.Emulator}}": "Play with {{.Emulator}}",
   "Its own saves (recommended)": "Its own saves (recommended)",
   "Share the saves of {{.Emulator}}": "Share the saves of {{.Emulator}}",
   "Both emulators now read and write one cloud save. Only do this if they use the same save format, otherwise one can overwrite the other's saves. They can't be played at the same time.": "Both emulators now read and write one cloud save. Only do this if they use the same save format, otherwise one can overwrite the other's saves. They can't be played at the same time.",
@@ -445,5 +442,8 @@
   "The cloud saves stay until you delete them. Once it is gone for good, they are listed under Trash → Leftover cloud saves.": "The cloud saves stay until you delete them. Once it is gone for good, they are listed under Trash → Leftover cloud saves.",
   "The cloud saves stay and are listed under Leftover cloud saves below until you delete them.": "The cloud saves stay and are listed under Leftover cloud saves below until you delete them.",
   "Upload cover art and artwork to the cloud": "Upload cover art and artwork to the cloud",
-  "Covers and artwork always stay on this device. When this is on they are also uploaded to the cloud, so every device shows the same images; when off, this device neither uploads nor downloads them.": "Covers and artwork always stay on this device. When this is on they are also uploaded to the cloud, so every device shows the same images; when off, this device neither uploads nor downloads them."
+  "Covers and artwork always stay on this device. When this is on they are also uploaded to the cloud, so every device shows the same images; when off, this device neither uploads nor downloads them.": "Covers and artwork always stay on this device. When this is on they are also uploaded to the cloud, so every device shows the same images; when off, this device neither uploads nor downloads them.",
+  "Choose how to play. The highlighted one is the one you played last.": "Choose how to play. The highlighted one is the one you played last.",
+  "These saves changed on this device after the last sync. Use “Sync now” to upload them.": "These saves changed on this device after the last sync. Use “Sync now” to upload them.",
+  "Synced saves": "Synced saves"
 }

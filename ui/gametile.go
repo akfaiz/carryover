@@ -2,12 +2,9 @@ package ui
 
 import (
 	"fyne.io/fyne/v2"
-	"fyne.io/fyne/v2/container"
 	"fyne.io/fyne/v2/lang"
-	"fyne.io/fyne/v2/theme"
 	"fyne.io/fyne/v2/widget"
 
-	"github.com/akfaiz/carryover/internal/core"
 	"github.com/akfaiz/carryover/services"
 )
 
@@ -39,6 +36,7 @@ func newGameTile(u *UI, g services.GameView) *gameTile {
 			return
 		}
 		play.Disable()
+		// A game that can be played in several ways asks which one in a dialog.
 		async0(func() error { return u.sess.Play(g.ID) }, func(err error) {
 			if err != nil {
 				u.toastErr(err)
@@ -58,43 +56,9 @@ func newGameTile(u *UI, g services.GameView) *gameTile {
 	if g.Ready {
 		when = timeAgo(g.Status.LastSyncAt)
 	}
-	var playRow fyne.CanvasObject = play
-	if n := len(g.Emulators); n > 0 && g.Ready && !g.Status.Running && (n > 1 || len(g.Slots) > 0) {
-		playRow = container.NewBorder(nil, nil, nil, profileMenuButton(u, g, open), play)
-	}
-	t := &gameTile{content: vbox(cover, name, hbox(statusBadge(g), small(when)), playRow)}
+	t := &gameTile{content: vbox(cover, name, hbox(statusBadge(g), small(when)), play)}
 	t.ExtendBaseWidget(t)
 	return t
-}
-
-// profileMenuButton is the small button next to Play that lists the ways to
-// play a game with emulators: its own launch config and each emulator.
-func profileMenuButton(u *UI, g services.GameView, open func()) *widget.Button {
-	var btn *widget.Button
-	start := func(emulator string) {
-		async0(func() error { return u.sess.PlayWith(g.ID, emulator) }, func(err error) {
-			if err != nil {
-				u.toastErr(err)
-				return
-			}
-			open()
-		})
-	}
-	btn = widget.NewButtonWithIcon("", theme.MenuDropDownIcon(), func() {
-		var items []*fyne.MenuItem
-		if len(g.Slots) > 0 {
-			items = append(items, fyne.NewMenuItem(lang.L("Play without an emulator"), func() { start(core.NativeProfile) }))
-		}
-		for _, pv := range g.Emulators {
-			label := lang.L("Play with {{.Emulator}}", map[string]any{"Emulator": pv.Name})
-			it := fyne.NewMenuItem(label, func() { start(pv.EmulatorID) })
-			it.Disabled = !pv.Ready
-			items = append(items, it)
-		}
-		m := widget.NewPopUpMenu(fyne.NewMenu("", items...), u.win.Canvas())
-		m.ShowAtRelativePosition(fyne.NewPos(0, btn.Size().Height), btn)
-	})
-	return btn
 }
 
 // CreateRenderer implements fyne.Widget.

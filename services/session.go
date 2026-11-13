@@ -112,6 +112,21 @@ func (s *SessionService) setStatus(st Status) {
 // (core.SyncKey) to play with one emulator; opts.Emulator picks the profile
 // otherwise ("" = the one played last).
 func (s *SessionService) play(ctx context.Context, gameID string, opts core.RunOptions) (core.SessionResult, error) {
+	ask := noChoice
+	if s.askProfile {
+		ask = EmulatorChoiceSeconds // a Steam shortcut: start the last one if nobody answers
+	}
+	return s.playAsking(ctx, gameID, opts, ask)
+}
+
+// noChoice is playAsking's askSeconds for "never ask which emulator".
+const noChoice = -1
+
+// playAsking is play that, when the game can be played in several ways and none
+// was named, first asks which one (askSeconds >= 0). With askSeconds > 0 the
+// prompt starts the one played last when it runs out; with 0 it waits for an
+// answer, as when the user pressed Play in the launcher.
+func (s *SessionService) playAsking(ctx context.Context, gameID string, opts core.RunOptions, askSeconds int) (core.SessionResult, error) {
 	g, err := s.c.Library.Find(gameID)
 	if err != nil {
 		// Not a game id or name: maybe "<game id>.<emulator id>".
@@ -124,14 +139,13 @@ func (s *SessionService) play(ctx context.Context, gameID string, opts core.RunO
 		s.setStatus(Status{GameID: gameID, Phase: "error", Message: err.Error()})
 		return core.SessionResult{}, err
 	}
-	if s.askProfile && opts.Emulator == "" && len(opts.Command) == 0 {
+	if askSeconds >= 0 && opts.Emulator == "" && len(opts.Command) == 0 {
 		if choices, def := s.profileChoices(g); len(choices) > 1 {
-			// A Steam shortcut covers the whole game: ask which emulator to use, and
-			// start the one played last if nobody answers in time.
+			// Ask which emulator to use (a Steam shortcut covers the whole game).
 			s.setStatus(Status{GameID: g.ID, Phase: "choose", Message: "Choose how to play…"})
 			ans := s.p.ask(ctx, Prompt{
 				Kind: "emulator", GameID: g.ID, GameName: g.Name,
-				Choices: choices, Default: def, Seconds: EmulatorChoiceSeconds,
+				Choices: choices, Default: def, Seconds: askSeconds,
 			})
 			if ans == "" || ans == "cancel" {
 				s.setStatus(Status{GameID: g.ID, Phase: "done", Message: "Cancelled"})
@@ -246,17 +260,22 @@ func (s *SessionService) profileChoices(g library.Game) (choices []ProfileChoice
 // Play starts a game from the launcher. It returns once the game has started
 // syncing; progress is reported via events.
 //
-// gameID is a game id (plays the profile used last) or a sync key
-// (core.SyncKey) to play with one specific emulator.
+// gameID is a game id (a game that can be played in several ways on this device
+// asks which one, see PlayWith) or a sync key (core.SyncKey) to play with one
+// specific emulator.
 func (s *SessionService) Play(gameID string) error { return s.PlayWith(gameID, "") }
 
 // PlayWith is Play with an explicit profile: an emulator id, core.NativeProfile
-// for the game's own launch config, or "" for the default.
+// for the game's own launch config, or "" to decide: a game that can be played
+// in several ways on this device asks which one (the one played last is
+// highlighted), any other starts at once.
 func (s *SessionService) PlayWith(gameID, emulator string) error {
 	if s.IsRunning(gameID) {
 		return errors.New("game is already running")
 	}
-	go func() { _, _ = s.play(context.Background(), gameID, core.RunOptions{Emulator: emulator}) }()
+	go func() {
+		_, _ = s.playAsking(context.Background(), gameID, core.RunOptions{Emulator: emulator}, 0)
+	}()
 	return nil
 }
 

@@ -1,20 +1,73 @@
 package ui
 
 import (
+	"image/color"
 	"time"
 
 	"fyne.io/fyne/v2"
+	"fyne.io/fyne/v2/canvas"
+	"fyne.io/fyne/v2/container"
 	"fyne.io/fyne/v2/lang"
+	"fyne.io/fyne/v2/layout"
+	"fyne.io/fyne/v2/theme"
 	"fyne.io/fyne/v2/widget"
 
 	"github.com/akfaiz/carryover/internal/core"
 	"github.com/akfaiz/carryover/services"
 )
 
-// emulatorChoice is the body of the "which emulator?" prompt: one button per
-// way to play the game, the default highlighted, and a countdown after which the
-// default starts. Clicking any choice answers at once; "Stop countdown" keeps
-// the dialog open until a choice is made. answer gets a choice's ID or "cancel".
+// choiceTileSize is the side of the square tile of one way to play, and
+// choicesPerRow how many fit in a row of the dialog. The rows are laid out by
+// hand: a wrapping grid works out its height from the width it had when it was
+// first laid out, which leaves a tall gap under the tiles in a dialog.
+const (
+	choiceTileSize = 124
+	choicesPerRow  = 4
+)
+
+// choiceTile is a square button for one way to play a game: an icon over its
+// name, with a ring around the highlighted one. A real button sits underneath,
+// so the tile takes focus and taps like any other button; the icon and the name
+// are drawn over it and let taps through.
+type choiceTile struct {
+	widget.BaseWidget
+	name        string
+	highlighted bool
+	btn         *widget.Button
+	body        fyne.CanvasObject
+}
+
+func newChoiceTile(name string, icon fyne.Resource, highlighted bool, tapped func()) *choiceTile {
+	btn := widget.NewButton("", tapped)
+	img := canvas.NewImageFromResource(icon)
+	img.FillMode = canvas.ImageFillContain
+	img.SetMinSize(fyne.NewSize(40, 40))
+	label := widget.NewLabelWithStyle(name, fyne.TextAlignCenter, fyne.TextStyle{Bold: highlighted})
+	label.Wrapping = fyne.TextWrapWord
+	layers := []fyne.CanvasObject{
+		btn,
+		container.NewPadded(container.NewVBox(layout.NewSpacer(), container.NewCenter(img), label, layout.NewSpacer())),
+	}
+	if highlighted {
+		ring := canvas.NewRectangle(color.Transparent)
+		ring.StrokeColor, ring.StrokeWidth = colAccent, 2
+		ring.CornerRadius = theme.InputRadiusSize()
+		layers = append(layers, ring)
+	}
+	t := &choiceTile{name: name, highlighted: highlighted, btn: btn, body: container.NewStack(layers...)}
+	t.ExtendBaseWidget(t)
+	return t
+}
+
+// CreateRenderer implements fyne.Widget.
+func (t *choiceTile) CreateRenderer() fyne.WidgetRenderer { return widget.NewSimpleRenderer(t.body) }
+
+// emulatorChoice is the body of the "which emulator?" prompt, used by the
+// launcher's Play and by a Steam shortcut: a square tile per way to play the
+// game, the default highlighted, and (for a Steam shortcut) a countdown after
+// which the default starts. Clicking any choice answers at once; "Stop
+// countdown" keeps the dialog open until a choice is made. answer gets a
+// choice's ID or "cancel".
 func (q *promptQueue) emulatorChoice(p services.Prompt, answer func(string)) fyne.CanvasObject {
 	stop := make(chan struct{})
 	finish := func(a string) {
@@ -33,14 +86,23 @@ func (q *promptQueue) emulatorChoice(p services.Prompt, answer func(string)) fyn
 	}
 
 	var defName string
-	buttons := vbox()
-	for _, c := range p.Choices {
-		b := widget.NewButton(choiceName(c), func() { finish(c.ID) })
-		if c.ID == p.Default {
-			b.Importance = widget.HighImportance
+	tiles := vbox()
+	var row *fyne.Container
+	for i, c := range p.Choices {
+		icon := theme.ComputerIcon()
+		if c.ID == core.NativeProfile {
+			icon = theme.MediaPlayIcon() // the game itself, no emulator
+		}
+		isDefault := c.ID == p.Default
+		if isDefault {
 			defName = choiceName(c)
 		}
-		buttons.Add(b)
+		if i%choicesPerRow == 0 {
+			row = hbox()
+			tiles.Add(row)
+		}
+		tile := newChoiceTile(choiceName(c), icon, isDefault, func() { finish(c.ID) })
+		row.Add(container.New(layout.NewGridWrapLayout(fyne.NewSize(choiceTileSize, choiceTileSize)), tile))
 	}
 
 	remaining, paused := p.Seconds, false
@@ -98,9 +160,13 @@ func (q *promptQueue) emulatorChoice(p services.Prompt, answer func(string)) fyn
 		}()
 	}
 
+	hint := lang.L("Choose how to play. The highlighted one is the one you played last.")
+	if p.Seconds > 0 {
+		hint = lang.L("Choose how to play. The highlighted one starts by itself when the countdown ends.")
+	}
 	return vbox(
-		muted(lang.L("Choose how to play. The highlighted one starts by itself when the countdown ends.")),
-		buttons,
+		muted(hint),
+		tiles,
 		countdown,
 		hbox(widget.NewButton(lang.L("Cancel"), func() { finish("cancel") }), pause),
 	)
