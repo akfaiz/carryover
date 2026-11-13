@@ -162,7 +162,7 @@ func (p *trashPage) row(key, name string, deleted, expires time.Time, restore fu
 	if p.deleteSaves {
 		msg = lang.L("Delete {{.Name}} permanently together with its cloud saves and backups? This cannot be undone.", map[string]any{"Name": name})
 	}
-	saves := rebuildingCheck(checkLabel, p.deleteSaves, func(on bool) { p.deleteSaves = on; p.render() })
+	saves := newCheck(checkLabel, p.deleteSaves, func(on bool) { p.deleteSaves = on; p.render() })
 	var hint fyne.CanvasObject = muted("")
 	if !p.deleteSaves {
 		hint = muted(lang.L("The cloud saves stay and are listed under Leftover cloud saves below until you delete them."))

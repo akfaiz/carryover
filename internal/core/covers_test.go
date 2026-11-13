@@ -73,3 +73,41 @@ func TestSyncLibraryCopiesCovers(t *testing.T) {
 	require.NoError(t, err, "downloaded cover")
 	require.Equal(t, "PNGDATA", string(b))
 }
+
+// With CoversLocalOnly the images never leave this device and nothing is
+// fetched from the cloud either, while the library itself still syncs.
+func TestCoversLocalOnlyKeepsImagesOnThisDevice(t *testing.T) {
+	c, gameID, _, cloudDir := newPlayable(t)
+	st := c.Settings.Get()
+	st.CoversLocalOnly = true
+	require.NoError(t, c.Settings.Update(st))
+
+	g, err := c.Library.Get(gameID)
+	require.NoError(t, err)
+	g.Cover = gameID + ".png"
+	_, err = c.Library.Save(g, "")
+	require.NoError(t, err)
+	local := filepath.Join(c.Dirs.CoversDir(), g.Cover)
+	require.NoError(t, os.WriteFile(local, []byte("PNGDATA"), 0o644))
+
+	ctx := context.Background()
+	require.NoError(t, c.SyncLibrary(ctx))
+	require.FileExists(t, filepath.Join(cloudDir, "library.json"), "the library still syncs")
+	require.NoDirExists(t, filepath.Join(cloudDir, "covers"), "nothing uploaded")
+	require.FileExists(t, local, "the cover stays on this device")
+
+	// An image another device uploaded isn't downloaded.
+	require.NoError(t, os.MkdirAll(filepath.Join(cloudDir, "covers"), 0o755))
+	require.NoError(t, os.WriteFile(filepath.Join(cloudDir, "covers", g.Cover), []byte("OTHER"), 0o644))
+	require.NoError(t, os.Remove(local))
+	require.NoError(t, c.SyncLibrary(ctx))
+	require.NoFileExists(t, local, "nothing downloaded")
+
+	// Turned back on, the images sync again.
+	st.CoversLocalOnly = false
+	require.NoError(t, c.Settings.Update(st))
+	require.NoError(t, c.SyncLibrary(ctx))
+	b, err := os.ReadFile(local)
+	require.NoError(t, err)
+	require.Equal(t, "OTHER", string(b))
+}

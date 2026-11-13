@@ -148,7 +148,7 @@ func (p *emulatorsPage) row(ev services.EmulatorView) fyne.CanvasObject {
 			msg = lang.L("Delete this emulator permanently on all devices, remove it from every game and delete the cloud saves and backups made with it? It can't be restored.")
 		}
 		c.Add(colored(msg, widget.MediumImportance))
-		saves := rebuildingCheck(lang.L("Also remove it from games and delete its cloud saves"), p.deleteSaves, func(on bool) { p.deleteSaves = on; p.render() })
+		saves := newCheck(lang.L("Also remove it from games and delete its cloud saves"), p.deleteSaves, func(on bool) { p.deleteSaves = on; p.render() })
 		c.Add(saves)
 		if !p.deleteSaves {
 			c.Add(muted(lang.L("The cloud saves stay until you delete them. Once it is gone for good, they are listed under Trash → Leftover cloud saves.")))

@@ -16,10 +16,11 @@ func TestSettingsDefaultsAndRetention(t *testing.T) {
 	first := st.Get()
 	require.Zero(t, first.BackupRetention, "first-run defaults")
 	require.True(t, first.SyncLibrary)
+	require.False(t, first.CoversLocalOnly, "images sync with the library by default")
 	require.NotEmpty(t, first.DeviceID)
 
 	s := st.Get()
-	s.BackupRetention, s.SyncLibrary = 5, false
+	s.BackupRetention, s.SyncLibrary, s.CoversLocalOnly = 5, false, true
 	require.NoError(t, st.Update(s))
 	s.BackupRetention = 0
 	require.NoError(t, st.Update(s))
@@ -29,6 +30,7 @@ func TestSettingsDefaultsAndRetention(t *testing.T) {
 	got := st2.Get()
 	require.Zero(t, got.BackupRetention, "explicit values lost on reload")
 	require.False(t, got.SyncLibrary)
+	require.True(t, got.CoversLocalOnly)
 }
 
 func TestSettingsTheme(t *testing.T) {

@@ -572,7 +572,7 @@ func (p *gameDetail) deleteCard(g services.GameView) fyne.CanvasObject {
 	if p.deleteSaves {
 		msg = lang.L("Delete {{.Game}} permanently on all devices, with its cloud saves and backups (for every emulator too)? It can't be restored.", map[string]any{"Game": g.Name})
 	}
-	saves := rebuildingCheck(lang.L("Also delete its cloud saves and backups"), p.deleteSaves, func(on bool) { p.deleteSaves = on; p.render() })
+	saves := newCheck(lang.L("Also delete its cloud saves and backups"), p.deleteSaves, func(on bool) { p.deleteSaves = on; p.render() })
 	hint := muted("")
 	if !p.deleteSaves {
 		hint = muted(lang.L("The cloud saves stay until you delete them. Once it is gone for good, they are listed under Trash → Leftover cloud saves."))

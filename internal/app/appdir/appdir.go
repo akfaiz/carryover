@@ -62,6 +62,10 @@ type Settings struct {
 	BackupRetention int    `json:"backupRetention"` // 0 = no backups (default)
 	SyncLibrary     bool   `json:"syncLibrary"`     // mirror library catalog to the cloud
 	Theme           string `json:"theme,omitempty"` // "" (follow the system, default), "dark" or "light"
+	// CoversLocalOnly keeps cover and artwork images on this device: they are
+	// neither uploaded to the cloud nor downloaded from it. The default (false)
+	// syncs them with the library, so a game looks the same on every device.
+	CoversLocalOnly bool `json:"coversLocalOnly,omitempty"`
 	// SteamGridDBKey is the user's own SteamGridDB API key (optional), used
 	// to find cover art. Stored only on this device.
 	SteamGridDBKey string `json:"steamGridDbKey,omitempty"`

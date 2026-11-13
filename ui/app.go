@@ -242,6 +242,7 @@ func (u *UI) applyTheme(setting string) {
 	}
 	setPalette(name)
 	u.app.Settings().SetTheme(appTheme{})
+	u.toasts.recolor()
 	if u.win == nil {
 		return
 	}
