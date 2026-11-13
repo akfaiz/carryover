@@ -2,12 +2,10 @@ package ui
 
 import (
 	"fyne.io/fyne/v2"
-	"fyne.io/fyne/v2/container"
 	"fyne.io/fyne/v2/dialog"
 	"fyne.io/fyne/v2/lang"
 	"fyne.io/fyne/v2/widget"
 
-	"github.com/akfaiz/carryover/internal/cloudsync/syncer"
 	"github.com/akfaiz/carryover/services"
 )
 
@@ -66,36 +64,13 @@ func (q *promptQueue) next() {
 	switch {
 	case p.Kind == "conflict" && p.Conflict != nil:
 		title = lang.L("Save conflict — {{.Game}}", map[string]any{"Game": p.GameName})
-		newer := ""
-		if p.Conflict.Local.Newest.After(p.Conflict.Remote.Newest) {
-			newer = "local"
-		} else if p.Conflict.Remote.Newest.After(p.Conflict.Local.Newest) {
-			newer = "cloud"
-		}
-		side := func(key, label, keepLabel string, s syncer.Summary) fyne.CanvasObject {
-			head := hbox(widget.NewLabelWithStyle(label, fyne.TextAlignLeading, fyne.TextStyle{Bold: true}))
-			if newer == key {
-				head.Add(container.NewCenter(badge(lang.L("newer"), badgeOK)))
-			}
-			from := ""
-			if s.DeviceName != "" {
-				from = lang.L("from {{.Device}}", map[string]any{"Device": s.DeviceName})
-			}
-			keep := primary(keepLabel, func() { answer(key) })
-			info := widget.NewLabel(lang.N("{{.Count}} file · {{.Size}}\nLast modified {{.Date}}", s.Files,
-				map[string]any{"Count": s.Files, "Size": formatBytes(s.Bytes), "Date": fmtDate(s.Newest)}))
-			info.Wrapping = fyne.TextWrapWord
-			return card("", head, muted(from), info, keep)
-		}
 		skip := lang.L("Decide later")
 		if p.BeforePlay {
 			skip = lang.L("Skip sync and play")
 		}
 		body = vbox(
 			muted(lang.L("Saves changed both on this device and in the cloud since the last sync. Choose which to keep. The other version is stored as a backup, so nothing is lost.")),
-			container.NewGridWithColumns(2,
-				side("local", lang.L("This device"), lang.L("Keep local saves"), p.Conflict.Local),
-				side("cloud", lang.L("Cloud"), lang.L("Keep cloud saves"), p.Conflict.Remote)),
+			saveSides(p.Conflict.Local, p.Conflict.Remote, true, answer),
 			hbox(widget.NewButton(skip, func() { answer("skip") })),
 		)
 	case p.Kind == "emulator":

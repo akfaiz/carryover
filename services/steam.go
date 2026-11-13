@@ -1,6 +1,9 @@
 package services
 
 import (
+	"fmt"
+	"strconv"
+
 	"github.com/akfaiz/carryover/internal/core"
 	"github.com/akfaiz/carryover/internal/library"
 	"github.com/akfaiz/carryover/internal/stores/steam"
@@ -10,6 +13,21 @@ import (
 type SteamService struct {
 	c   *core.Core
 	bus *Bus
+}
+
+// SteamRunURL is the steam:// link that starts g in Steam on this device: its
+// non-Steam shortcut if Carryover added one, else its Steam app. It is "" when
+// Steam can't start it.
+func SteamRunURL(g GameView) string {
+	if id, err := strconv.ParseUint(g.Device.SteamAppID, 10, 32); err == nil && id != 0 {
+		// A shortcut's game id is its app id in the high half with the
+		// "shortcut" type bit set.
+		return fmt.Sprintf("steam://rungameid/%d", id<<32|0x02000000)
+	}
+	if _, err := strconv.ParseUint(g.StoreAppID, 10, 32); err == nil {
+		return "steam://rungameid/" + g.StoreAppID
+	}
+	return ""
 }
 
 // NewSteamService creates the service. bus may be nil.

@@ -337,15 +337,18 @@ func (l *exactLayout) Layout(objs []fyne.CanvasObject, size fyne.Size) {
 
 func (l *exactLayout) MinSize([]fyne.CanvasObject) fyne.Size { return l.size }
 
-// tappable makes any object clickable.
+// tappable makes any object clickable. It is highlighted while the mouse is
+// over it, so it reads as clickable like a button does.
 type tappable struct {
 	widget.BaseWidget
 	content fyne.CanvasObject
 	onTap   func()
+	hover   *canvas.Rectangle
 }
 
 func newTappable(content fyne.CanvasObject, onTap func()) *tappable {
-	t := &tappable{content: content, onTap: onTap}
+	t := &tappable{content: content, onTap: onTap, hover: canvas.NewRectangle(color.Transparent)}
+	t.hover.CornerRadius = 8
 	t.ExtendBaseWidget(t)
 	return t
 }
@@ -358,7 +361,24 @@ func (t *tappable) Tapped(*fyne.PointEvent) {
 
 func (t *tappable) Cursor() desktop.Cursor { return desktop.PointerCursor }
 
-func (t *tappable) CreateRenderer() fyne.WidgetRenderer { return widget.NewSimpleRenderer(t.content) }
+// MouseIn implements desktop.Hoverable.
+func (t *tappable) MouseIn(*desktop.MouseEvent) {
+	t.hover.FillColor = colHover
+	t.hover.Refresh()
+}
+
+// MouseMoved implements desktop.Hoverable.
+func (t *tappable) MouseMoved(*desktop.MouseEvent) {}
+
+// MouseOut implements desktop.Hoverable.
+func (t *tappable) MouseOut() {
+	t.hover.FillColor = color.Transparent
+	t.hover.Refresh()
+}
+
+func (t *tappable) CreateRenderer() fyne.WidgetRenderer {
+	return widget.NewSimpleRenderer(container.NewStack(t.hover, t.content))
+}
 
 // columns lays out objects side by side when wide enough, stacked otherwise.
 type responsiveCols struct {
@@ -524,4 +544,59 @@ func small(t string) *widget.Label {
 	l.Importance = widget.LowImportance
 	l.SizeName = theme.SizeNameCaptionText
 	return l
+}
+
+// busyLine is a thin indeterminate bar with a caption, shown in the card whose
+// action is running.
+func busyLine(text string) fyne.CanvasObject {
+	bar := widget.NewProgressBarInfinite()
+	return vbox(small(text), bar)
+}
+
+// chips is a row of toggle buttons of which one is selected, such as the
+// filters above the library grid.
+func chips(options []chipOption, selected string, onSelect func(string)) *fyne.Container {
+	row := hbox()
+	for _, o := range options {
+		b := widget.NewButtonWithIcon(o.label, o.icon, func() { onSelect(o.value) })
+		b.Importance = widget.LowImportance
+		if o.value == selected {
+			b.Importance = widget.HighImportance
+		}
+		row.Add(b)
+	}
+	return row
+}
+
+// chipOption is one button of chips; icon may be nil.
+type chipOption struct {
+	value, label string
+	icon         fyne.Resource
+}
+
+// statusIcon is a small coloured icon for a game's sync state (nil when there
+// is nothing to say), for places too small for statusBadge.
+func statusIcon(g services.GameView) fyne.Resource {
+	switch {
+	case g.Status.Running:
+		return theme.MediaPlayIcon()
+	case !g.Ready, g.Status.LocalChanges:
+		return theme.NewWarningThemedResource(theme.WarningIcon())
+	case g.Status.Conflict, g.Status.LastError != "":
+		return theme.NewErrorThemedResource(theme.ErrorIcon())
+	case g.Status.LastSyncAt != "":
+		return theme.NewSuccessThemedResource(theme.ConfirmIcon())
+	}
+	return nil
+}
+
+// needsAttention reports whether the game's state asks the user to do
+// something: set it up here, settle a conflict, look at an error or upload
+// saves changed outside Carryover.
+func needsAttention(g services.GameView) bool {
+	st := g.Overall
+	if st.Running {
+		return false
+	}
+	return !g.Ready || st.Conflict || st.LastError != "" || st.LocalChanges
 }

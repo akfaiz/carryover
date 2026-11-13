@@ -3,6 +3,7 @@ package ui
 import (
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/lang"
+	"fyne.io/fyne/v2/theme"
 	"fyne.io/fyne/v2/widget"
 
 	"github.com/akfaiz/carryover/services"
@@ -26,6 +27,11 @@ type steamFormOpts struct {
 	AsksAtLaunch bool
 	HideMode     bool
 
+	// Once the shortcut exists the form folds into one line with Change and
+	// Remove; Expanded shows it in full again (OnExpand asks for that).
+	Expanded bool
+	OnExpand func()
+
 	OnUser   func(string)
 	OnTarget func(string)
 	OnMode   func(string)
@@ -48,6 +54,23 @@ func newSteamForm(o steamFormOpts) *steamForm {
 		c.Add(muted(lang.L("Detecting Steam…")))
 	case !o.Info.Found:
 		c.Add(muted(lang.L("Steam was not found on this device.")))
+	case g.Device.SteamAppID != "" && !o.Expanded:
+		c.Add(hbox(widget.NewIcon(theme.NewSuccessThemedResource(theme.ConfirmIcon())),
+			widget.NewLabel(lang.L("In Steam on this device"))))
+		change := widget.NewButton(lang.L("Change…"), o.OnExpand)
+		rm := widget.NewButton(lang.L("Remove"), o.OnRemove)
+		setEnabled(change, !o.Busy)
+		setEnabled(rm, !o.Busy)
+		c.Add(hbox(change, rm))
+		if len(o.Profiles) > 0 {
+			// The targets: the shortcut shown is the whole game's or one emulator's.
+			targets := &choice{}
+			targets.add("game", lang.L("The whole game: asks which emulator to use when it starts"))
+			for _, pv := range o.Profiles {
+				targets.add(pv.EmulatorID, lang.L("Only {{.Emulator}}", map[string]any{"Emulator": pv.Name}))
+			}
+			c.Add(field(lang.L("Shortcut for"), selectOf(targets, o.Target, o.OnTarget)))
+		}
 	default:
 		c.Add(muted(lang.L("Add {{.Game}} to Steam as a non-Steam game. Steam launches it through Carryover, so saves sync automatically before and after every session — also in Steam Deck Game Mode.",
 			map[string]any{"Game": g.Name})))

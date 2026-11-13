@@ -27,9 +27,7 @@ type trashPage struct {
 	leftLoading bool
 	leftErr     string
 
-	confirm     string // "g:<id>", "e:<id>" or "l:<key>": the row whose deletion awaits confirmation
-	deleteSaves bool   // that deletion also deletes the cloud saves
-	busy        bool
+	busy bool
 
 	scroll *container.Scroll
 }
@@ -74,9 +72,6 @@ func (p *trashPage) loadLeftovers() {
 		p.left, p.leftLoaded, p.leftLoading, p.leftErr = l, true, false, ""
 		if err != nil {
 			p.leftErr = err.Error()
-		} else {
-			p.u.leftoverCount = len(l)
-			p.u.refreshSidebar()
 		}
 		p.render()
 	})
@@ -86,7 +81,7 @@ func (p *trashPage) loadLeftovers() {
 func (p *trashPage) run(work func() error, done func()) {
 	p.busy = true
 	async0(work, func(err error) {
-		p.busy, p.confirm, p.deleteSaves = false, "", false
+		p.busy = false
 		p.u.toastErr(err)
 		if err == nil && done != nil {
 			done()
@@ -106,8 +101,7 @@ func (p *trashPage) render() {
 
 	games := stack()
 	for _, g := range p.games {
-		key := "g:" + g.ID
-		games.Add(p.row(key, g.Name, g.DeletedAt, g.ExpiresAt,
+		games.Add(p.row(g.Name, g.DeletedAt, g.ExpiresAt,
 			func() {
 				p.run(func() error { return p.u.lib.Restore(g.ID) }, func() { p.u.toast(lang.L("Restored"), toastOK) })
 			},
@@ -123,8 +117,7 @@ func (p *trashPage) render() {
 
 	emus := stack()
 	for _, e := range p.emus {
-		key := "e:" + e.ID
-		emus.Add(p.row(key, e.Name, e.DeletedAt, e.ExpiresAt,
+		emus.Add(p.row(e.Name, e.DeletedAt, e.ExpiresAt,
 			func() {
 				p.run(func() error { return p.u.emus.Restore(e.ID) }, func() { p.u.toast(lang.L("Restored"), toastOK) })
 			},
@@ -151,28 +144,24 @@ func (p *trashPage) section(title, empty string, rows *fyne.Container, n int) fy
 
 // row is a restorable item: Restore, and Delete permanently with an optional
 // deletion of its cloud saves.
-func (p *trashPage) row(key, name string, deleted, expires time.Time, restore func(), checkLabel string, del func(saves bool) error) fyne.CanvasObject {
+func (p *trashPage) row(name string, deleted, expires time.Time, restore func(), checkLabel string, del func(saves bool) error) fyne.CanvasObject {
 	sub := small(lang.L("Deleted {{.When}} · settings kept until {{.Until}}", map[string]any{"When": fmtDate(deleted), "Until": fmtDate(expires)}))
-	if p.confirm != key {
-		restoreBtn := widget.NewButtonWithIcon(lang.L("Restore"), theme.HistoryIcon(), restore)
-		deleteBtn := dangerButton(lang.L("Delete permanently…"), func() { p.confirm, p.deleteSaves = key, false; p.render() })
-		return vbox(cardHead(name, restoreBtn, deleteBtn), sub)
-	}
-	msg := lang.L("Delete {{.Name}} permanently? It can't be restored any more. Its cloud saves and backups are kept.", map[string]any{"Name": name})
-	if p.deleteSaves {
-		msg = lang.L("Delete {{.Name}} permanently together with its cloud saves and backups? This cannot be undone.", map[string]any{"Name": name})
-	}
-	saves := newCheck(checkLabel, p.deleteSaves, func(on bool) { p.deleteSaves = on; p.render() })
-	var hint fyne.CanvasObject = muted("")
-	if !p.deleteSaves {
-		hint = muted(lang.L("The cloud saves stay and are listed under Leftover cloud saves below until you delete them."))
-	}
-	return vbox(cardHead(name), colored(msg, widget.MediumImportance), saves, hint,
-		hbox(widget.NewButton(lang.L("Cancel"), func() { p.confirm, p.deleteSaves = "", false; p.render() }),
-			dangerButton(lang.L("Delete"), func() {
-				saves := p.deleteSaves
+	restoreBtn := widget.NewButtonWithIcon(lang.L("Restore"), theme.HistoryIcon(), restore)
+	deleteBtn := dangerButton(lang.L("Delete permanently…"), func() {
+		confirmDanger(p.u, confirmOpts{
+			title:    lang.L("Delete permanently"),
+			message:  lang.L("Delete {{.Name}} permanently? It can't be restored any more. Its cloud saves and backups are kept.", map[string]any{"Name": name}),
+			check:    checkLabel,
+			checked:  lang.L("Delete {{.Name}} permanently together with its cloud saves and backups? This cannot be undone.", map[string]any{"Name": name}),
+			keptHint: lang.L("The cloud saves stay and are listed under Leftover cloud saves below until you delete them."),
+			onConfirm: func(saves bool) {
 				p.run(func() error { return del(saves) }, nil)
-			})))
+			},
+		})
+	})
+	setEnabled(restoreBtn, !p.busy)
+	setEnabled(deleteBtn, !p.busy)
+	return vbox(cardHead(name, restoreBtn, deleteBtn), sub)
 }
 
 // leftovers is the card of cloud save folders no game uses.
@@ -193,7 +182,7 @@ func (p *trashPage) leftovers() fyne.CanvasObject {
 	for _, l := range p.left {
 		rows.Add(p.leftoverRow(l))
 	}
-	return card(title, rows)
+	return card(lang.L("Leftover cloud saves ({{.Count}})", map[string]any{"Count": len(p.left)}), rows)
 }
 
 func (p *trashPage) leftoverRow(l services.LeftoverView) fyne.CanvasObject {
@@ -210,25 +199,28 @@ func (p *trashPage) leftoverRow(l services.LeftoverView) fyne.CanvasObject {
 	}
 	sub := small(lang.L("{{.Count}} files, {{.Size}} · last synced {{.When}} · {{.Backups}} backups",
 		map[string]any{"Count": l.Files, "Size": formatBytes(l.Bytes), "When": fmtDate(l.Time), "Backups": l.Backups}))
-	key := "l:" + l.Key
-	if p.confirm != key {
-		restoreBtn := widget.NewButtonWithIcon(lang.L("Restore"), theme.HistoryIcon(), func() {
-			p.busy = true
-			async(func() (string, error) { return p.u.lib.RestoreLeftover(l.Key) }, func(id string, err error) {
-				p.busy = false
-				if err != nil {
-					p.u.toastErr(err)
-					return
-				}
-				p.u.toast(lang.L("Restored. Set where its saves are on this device, then sync."), toastOK)
-				p.u.navigate("/edit/" + id)
-			})
+	restoreBtn := widget.NewButtonWithIcon(lang.L("Restore"), theme.HistoryIcon(), func() {
+		p.busy = true
+		async(func() (string, error) { return p.u.lib.RestoreLeftover(l.Key) }, func(id string, err error) {
+			p.busy = false
+			if err != nil {
+				p.u.toastErr(err)
+				return
+			}
+			p.u.toast(lang.L("Restored. Set where its saves are on this device, then sync."), toastOK)
+			p.u.navigate("/edit/" + id)
 		})
-		deleteBtn := dangerButton(lang.L("Delete…"), func() { p.confirm = key; p.render() })
-		return vbox(cardHead(name, restoreBtn, deleteBtn), sub)
-	}
-	return vbox(cardHead(name), sub,
-		colored(lang.L("Permanently delete these cloud saves and backups? This cannot be undone."), widget.MediumImportance),
-		hbox(widget.NewButton(lang.L("Cancel"), func() { p.confirm = ""; p.render() }),
-			dangerButton(lang.L("Delete"), func() { p.run(func() error { return p.u.lib.DeleteLeftover(l.Key) }, nil) })))
+	})
+	deleteBtn := dangerButton(lang.L("Delete…"), func() {
+		confirmDanger(p.u, confirmOpts{
+			title:   lang.L("Delete cloud saves"),
+			message: lang.L("Permanently delete the cloud saves and backups of {{.Name}}? This cannot be undone.", map[string]any{"Name": name}),
+			onConfirm: func(bool) {
+				p.run(func() error { return p.u.lib.DeleteLeftover(l.Key) }, nil)
+			},
+		})
+	})
+	setEnabled(restoreBtn, !p.busy)
+	setEnabled(deleteBtn, !p.busy)
+	return vbox(cardHead(name, restoreBtn, deleteBtn), sub)
 }

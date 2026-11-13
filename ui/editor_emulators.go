@@ -172,13 +172,19 @@ func playKindOf(g *services.GameView, hasEmulators bool) playKind {
 // emulated game needs an emulator, a ROM and the emulator's save folders.
 func (e *editor) howCard() fyne.CanvasObject {
 	kinds := &choice{}
-	kinds.add(string(kindDirect), lang.L("Directly on this device (PC or Steam game)"))
-	kinds.add(string(kindEmulator), lang.L("Through an emulator (Switch, PlayStation, …)"))
+	kinds.add(string(kindDirect), lang.L("PC or Steam game"))
+	kinds.add(string(kindEmulator), lang.L("Emulator"))
 	kinds.add(string(kindBoth), lang.L("Both"))
-	sel := selectOf(kinds, string(e.kind), func(v string) {
-		e.kind = playKind(v)
-		e.render()
-	})
+	// All three in view: the choice decides which cards follow.
+	sel := widget.NewRadioGroup(kinds.labels, nil)
+	sel.Horizontal, sel.Required = true, true
+	sel.Selected = kinds.label(string(e.kind))
+	sel.OnChanged = func(l string) {
+		if v := playKind(kinds.value(l)); v != "" && v != e.kind {
+			e.kind = v
+			e.render()
+		}
+	}
 	c := vbox(cardHead(lang.L("How do you play it?")), sel)
 	switch e.kind {
 	case kindEmulator:
@@ -195,6 +201,20 @@ func (e *editor) howCard() fyne.CanvasObject {
 	return card("", c)
 }
 
+// addEmulator sets the game up with an emulator; its game file starts as the
+// other emulators' one.
+func (e *editor) addEmulator(ev services.EmulatorView) {
+	if e.hasEmulator(ev.ID) {
+		return
+	}
+	m := &emuForm{id: ev.ID, name: ev.Name, rom: e.firstRom(), slots: []*slotForm{{key: "saves", label: "Saves", isNew: true}}}
+	e.emus = append(e.emus, m)
+	e.render()
+	if m.rom != "" {
+		e.suggestEmuSaves(m, true) // the game file is already known from the other emulator
+	}
+}
+
 func (e *editor) emulatorsCard() fyne.CanvasObject {
 	var names []string
 	byName := map[string]services.EmulatorView{}
@@ -205,26 +225,30 @@ func (e *editor) emulatorsCard() fyne.CanvasObject {
 		}
 	}
 	c := vbox(cardHead(lang.L("Emulators")))
-	c.Add(muted(lang.L("Add each emulator you use for this game. Every emulator keeps its own save locations and its own cloud save, so progress is never mixed between emulators. The same emulator on another device shares it. The game file is asked for each emulator because its format or folder can differ; it is filled in from the first one.")))
+	c.Add(e.u.help(lang.L("Add each emulator you use for this game. Each keeps its own saves in the cloud."),
+		lang.L("Every emulator keeps its own save locations and its own cloud save, so progress is never mixed between emulators. The same emulator on another device shares it. The game file is asked for each emulator because its format or folder can differ; it is filled in from the first one.")))
+	// A new emulator is set up in a dialog, so nothing typed here is lost.
+	newEmu := widget.NewButtonWithIcon(lang.L("New emulator…"), theme.ContentAddIcon(), func() {
+		showEmulatorDialog(e.u, func(ev services.EmulatorView) {
+			e.emuList = append(e.emuList, ev)
+			e.addEmulator(ev)
+		})
+	})
 	switch {
 	case len(e.emuList) == 0:
-		c.Add(muted(lang.L("No emulators are set up on this device yet. Add them on the Emulators page (Save this game first, then come back to edit it).")))
-		c.Add(hbox(widget.NewButtonWithIcon(lang.L("Open the Emulators page"), theme.ContentAddIcon(), func() { e.u.navigate("/emulators") })))
+		c.Add(muted(lang.L("No emulators are set up on this device yet. Add the one you play this game with:")))
+		newEmu.Importance = widget.HighImportance
+		c.Add(hbox(newEmu))
 	case len(names) > 0:
 		sel := widget.NewSelect(names, func(n string) {
-			ev, ok := byName[n]
-			if !ok {
-				return
-			}
-			m := &emuForm{id: ev.ID, name: ev.Name, rom: e.firstRom(), slots: []*slotForm{{key: "saves", label: "Saves", isNew: true}}}
-			e.emus = append(e.emus, m)
-			e.render()
-			if m.rom != "" {
-				e.suggestEmuSaves(m, true) // the game file is already known from the other emulator
+			if ev, ok := byName[n]; ok {
+				e.addEmulator(ev)
 			}
 		})
 		sel.PlaceHolder = lang.L("Add an emulator…")
-		c.Add(sel)
+		c.Add(rowFill(sel, newEmu))
+	default:
+		c.Add(hbox(newEmu))
 	}
 	for i, m := range e.emus {
 		c.Add(widget.NewSeparator())
@@ -261,7 +285,7 @@ func (e *editor) emulatorsCard() fyne.CanvasObject {
 					e.render()
 				}
 			}
-			c.Add(newSlotEditor(e.u, e.id, e.tokens, s, nil, m.uniqueKey, onRemove))
+			c.Add(newSlotEditor(e.u, e.id, e.tokens, s, nil, m.uniqueKey, onRemove, nil))
 		}
 		c.Add(e.emuSuggestUI(m))
 		c.Add(hbox(widget.NewButtonWithIcon(lang.L("Add save location"), theme.ContentAddIcon(), func() {

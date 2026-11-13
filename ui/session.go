@@ -82,7 +82,7 @@ func (p *sessionPage) stateChanged(change) {
 			// A new sync phase (before or after playing): offer Cancel again.
 			p.phase = st.Message
 			p.cancel.SetText(lang.L("Cancel upload"))
-			if st.Message == "Checking cloud saves…" {
+			if st.BeforePlay {
 				p.cancel.SetText(lang.L("Cancel and don't play"))
 			}
 			p.cancel.Enable()

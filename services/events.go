@@ -22,6 +22,9 @@ type Status struct {
 	Phase   string `json:"phase"` // sync, playing, done, error
 	Message string `json:"message"`
 	Running bool   `json:"running"`
+	// BeforePlay is set during the sync before the game starts (cancelling it
+	// cancels the launch); a sync after the game closed has it false.
+	BeforePlay bool `json:"beforePlay,omitempty"`
 }
 
 // ConflictInfo is shown when local and cloud saves both changed.
@@ -240,10 +243,12 @@ type guiUI struct {
 	onStatus     func(Status)
 	onRunning    func(bool)
 	onCancelable func(cancel func())
+	played       bool // the game was started: later syncs are after playing
 }
 
 func (u *guiUI) Status(phase, message string) {
-	u.onStatus(Status{GameID: u.gameID, Profile: u.profile, Key: u.key, Phase: phase, Message: message, Running: phase == "playing"})
+	u.onStatus(Status{GameID: u.gameID, Profile: u.profile, Key: u.key, Phase: phase, Message: message,
+		Running: phase == "playing", BeforePlay: phase == "sync" && !u.played})
 }
 
 func (u *guiUI) ResolveConflict(ctx context.Context, g library.Game, plan *syncer.Plan, before bool) syncer.Resolution {
@@ -275,6 +280,9 @@ func (u *guiUI) SyncCancelable(cancel func()) {
 }
 
 func (u *guiUI) GameRunning(running bool) {
+	if running {
+		u.played = true
+	}
 	if u.onRunning != nil {
 		u.onRunning(running)
 	}

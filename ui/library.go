@@ -1,96 +1,131 @@
 package ui
 
 import (
-	"errors"
+	"slices"
 	"strings"
 
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/container"
 	"fyne.io/fyne/v2/lang"
+	"fyne.io/fyne/v2/layout"
 	"fyne.io/fyne/v2/theme"
 	"fyne.io/fyne/v2/widget"
 
 	"github.com/akfaiz/carryover/services"
 )
 
+// Library filters and sort orders (kept in the app's preferences).
+const (
+	filterAll       = "all"
+	filterAttention = "attention"
+
+	sortName   = "name"
+	sortRecent = "recent"
+
+	prefLibraryFilter = "library.filter"
+	prefLibrarySort   = "library.sort"
+)
+
+// libraryFilter is the library's filter, as last chosen.
+func (u *UI) libraryFilter() string {
+	return u.app.Preferences().StringWithFallback(prefLibraryFilter, filterAll)
+}
+
+func (u *UI) setLibraryFilter(f string) { u.app.Preferences().SetString(prefLibraryFilter, f) }
+
+func (u *UI) librarySort() string {
+	return u.app.Preferences().StringWithFallback(prefLibrarySort, sortName)
+}
+
 type libraryPage struct {
-	u          *UI
-	filter     string
-	syncing    bool
-	cancelling bool
-	scroll     *container.Scroll
-	search     *widget.Entry
-	syncBtn    *widget.Button
-	head       fyne.CanvasObject // header row, refreshed when syncBtn's label changes
+	u       *UI
+	filter  string // search text
+	scroll  *container.Scroll
+	body    *fyne.Container // the page's rows, laid out again when one changes height
+	search  *widget.Entry
+	syncBtn *widget.Button
+	head    fyne.CanvasObject // header row, refreshed when syncBtn's label changes
+	// chipsHost holds toolsRow (filters, search and sort) once there are games;
+	// filterHost is the part of it with the filter buttons, the only part
+	// drawn again (the search field stays the same widget while typing).
+	chipsHost  *fyne.Container
+	toolsRow   fyne.CanvasObject
+	filterHost *fyne.Container
 	gridHost   *fyne.Container
 	emptyHost  *fyne.Container
 	barHost    *fyne.Container // "Sync all" progress, shown only while syncing
 	bar        *widget.ProgressBar
 	barLabel   *widget.Label
+	tiles      map[string]*gameTile // by game id, kept across renders
 }
 
-func newLibraryPage(u *UI) *libraryPage { return &libraryPage{u: u} }
+func newLibraryPage(u *UI) *libraryPage {
+	return &libraryPage{u: u, tiles: map[string]*gameTile{}}
+}
 
 func (p *libraryPage) view() fyne.CanvasObject {
 	p.search = widget.NewEntry()
 	p.search.SetPlaceHolder(lang.L("Search…"))
 	p.search.OnChanged = func(s string) { p.filter = s; p.renderGrid() }
-	p.syncBtn = widget.NewButtonWithIcon(lang.L("Sync all"), theme.ViewRefreshIcon(), p.syncAll)
+	p.syncBtn = widget.NewButtonWithIcon(lang.L("Sync all"), theme.ViewRefreshIcon(), p.u.syncAll)
 	p.head = pageHead(nil, lang.L("Library"),
-		// Centered so the row (as tall as the heading) doesn't stretch the entry.
-		container.NewCenter(fixedWidth(220, p.search)),
 		p.syncBtn,
-		widget.NewButton(lang.L("Add from Steam"), func() { showSteamImport(p.u) }),
-		primary(lang.L("＋ Add game"), func() { p.u.navigate("/new") }),
+		primary(lang.L("＋ Add game"), func() { showAddGame(p.u) }),
 	)
+	// Search first, over the games it filters, then the filters; sort out of
+	// the way on the right. All one height.
+	sorts := &choice{}
+	sorts.add(sortName, lang.L("Sort by name"))
+	sorts.add(sortRecent, lang.L("Sort by last sync"))
+	sortSel := selectOf(sorts, p.u.librarySort(), func(v string) {
+		p.u.app.Preferences().SetString(prefLibrarySort, v)
+		p.renderGrid()
+	})
+	p.filterHost = container.NewStack()
+	p.toolsRow = container.NewHBox(fixedWidth(280, p.search), p.filterHost, layout.NewSpacer(), fixedWidth(190, sortSel))
+	p.chipsHost = container.NewStack()
 	p.gridHost = container.NewStack()
 	p.emptyHost = container.NewStack()
-	p.renderGrid()
 	p.bar = widget.NewProgressBar()
 	p.barLabel = small("")
 	p.barHost = container.NewVBox(p.barLabel, p.bar)
 	p.barHost.Hide()
-	p.scroll = scrollPage(vbox(p.head, p.barHost, p.emptyHost, p.gridHost))
+	p.renderGrid()
+	p.updateProgress()
+	p.body = vbox(p.head, p.barHost, p.chipsHost, p.emptyHost, p.gridHost)
+	p.scroll = scrollPage(p.body)
 	return p.scroll
 }
 
-// updateProgress shows how many games "Sync all" has finished.
+// relayout lays the page out again after a row's height changed: the filter
+// row and the empty-state card come and go (on startup the page is drawn
+// before the games are read), and a refreshed row alone keeps its old height.
+func (p *libraryPage) relayout() {
+	if p.body == nil {
+		return
+	}
+	p.body.Refresh()
+	p.scroll.Refresh()
+}
+
+func (p *libraryPage) focusSearch() { p.u.win.Canvas().Focus(p.search) }
+
+func (p *libraryPage) syncNow() {
+	if !p.u.syncingAll && p.u.settings.Remote != "" {
+		p.u.syncAll()
+	}
+}
+
+// updateProgress shows how many games "Sync all" has finished, and turns its
+// button into Cancel while it runs.
 func (p *libraryPage) updateProgress() {
-	if p.barHost == nil {
-		return
-	}
-	pr := p.u.syncAllProg
-	if !p.syncing || pr.Total == 0 {
-		p.barHost.Hide()
-		return
-	}
-	p.bar.Max = float64(pr.Total)
-	p.bar.SetValue(float64(pr.Done))
-	text := lang.L("Synced {{.Done}} of {{.Total}}", map[string]any{"Done": pr.Done, "Total": pr.Total})
-	if pr.Name != "" {
-		text += " · " + pr.Name
-	}
-	p.barLabel.SetText(text)
-	p.barHost.Show()
-}
-
-func (p *libraryPage) stateChanged(what change) {
-	if what == changeProgress {
-		p.updateProgress()
-		return
-	}
-	p.renderGrid()
-}
-
-func (p *libraryPage) renderGrid() {
 	u := p.u
-	// While syncing, the same button cancels the run.
 	switch {
-	case p.cancelling:
+	case u.cancellingAll:
 		p.syncBtn.SetText(lang.L("Cancelling…"))
 		p.syncBtn.SetIcon(theme.CancelIcon())
 		p.syncBtn.Disable()
-	case p.syncing:
+	case u.syncingAll:
 		p.syncBtn.SetText(lang.L("Cancel sync"))
 		p.syncBtn.SetIcon(theme.CancelIcon())
 		p.syncBtn.Enable()
@@ -102,74 +137,137 @@ func (p *libraryPage) renderGrid() {
 	if p.head != nil {
 		p.head.Refresh() // the button's label width changed
 	}
+	pr := u.syncAllProg
+	if !u.syncingAll || pr.Total == 0 {
+		if p.barHost.Visible() {
+			p.barHost.Hide()
+			p.relayout()
+		}
+		return
+	}
+	p.bar.Max = float64(pr.Total)
+	p.bar.SetValue(float64(pr.Done))
+	text := lang.L("Synced {{.Done}} of {{.Total}}", map[string]any{"Done": pr.Done, "Total": pr.Total})
+	if pr.Name != "" {
+		text += " · " + pr.Name
+	}
+	p.barLabel.SetText(text)
+	if !p.barHost.Visible() {
+		p.barHost.Show()
+		p.relayout()
+	}
+}
+
+func (p *libraryPage) stateChanged(what change) {
+	if what == changeProgress {
+		p.updateProgress()
+		return
+	}
+	p.updateProgress() // the remote may have been set up
+	p.renderGrid()
+}
+
+// visible returns the games the search and filter let through, in the chosen
+// order.
+func (p *libraryPage) visible() []services.GameView {
+	u := p.u
+	f := strings.ToLower(strings.TrimSpace(p.filter))
+	attention := u.libraryFilter() == filterAttention
+	var out []services.GameView
+	for _, g := range u.games {
+		if !strings.Contains(strings.ToLower(g.Name), f) || (attention && !needsAttention(g)) {
+			continue
+		}
+		out = append(out, g)
+	}
+	if u.librarySort() == sortRecent {
+		// Most recently synced first (the times are RFC 3339, so they sort as
+		// text); never synced last.
+		slices.SortStableFunc(out, func(a, b services.GameView) int {
+			return strings.Compare(b.Overall.LastSyncAt, a.Overall.LastSyncAt)
+		})
+	} else {
+		slices.SortStableFunc(out, func(a, b services.GameView) int {
+			return strings.Compare(strings.ToLower(a.Name), strings.ToLower(b.Name))
+		})
+	}
+	return out
+}
+
+func (p *libraryPage) renderChips() {
+	u := p.u
+	if len(u.games) == 0 {
+		p.chipsHost.Objects = nil
+		p.chipsHost.Refresh()
+		return
+	}
+	n := 0
+	for _, g := range u.games {
+		if needsAttention(g) {
+			n++
+		}
+	}
+	// The filters only show when there is something to filter for (or the
+	// attention filter is on, so it can be turned off again).
+	p.filterHost.Objects = nil
+	if n > 0 || u.libraryFilter() == filterAttention {
+		p.filterHost.Objects = []fyne.CanvasObject{chips([]chipOption{
+			{filterAll, lang.L("All ({{.Count}})", map[string]any{"Count": len(u.games)}), nil},
+			{filterAttention, lang.L("Needs attention ({{.Count}})", map[string]any{"Count": n}), theme.WarningIcon()},
+		}, u.libraryFilter(), func(v string) {
+			u.setLibraryFilter(v)
+			p.renderGrid()
+		})}
+	}
+	p.filterHost.Refresh()
+	p.chipsHost.Objects = []fyne.CanvasObject{p.toolsRow}
+	p.chipsHost.Refresh()
+}
+
+func (p *libraryPage) renderGrid() {
+	u := p.u
+	p.renderChips()
+	games := p.visible()
 
 	p.emptyHost.Objects = nil
-	if u.loaded && len(u.games) == 0 {
-		actions := hbox(primary(lang.L("＋ Add your first game"), func() { u.navigate("/new") }))
+	switch {
+	case u.loaded && len(u.games) == 0:
+		actions := hbox(primary(lang.L("＋ Add your first game"), func() { showAddGame(u) }))
 		if u.settings.Remote == "" {
 			actions.Add(widget.NewButtonWithIcon(lang.L("Set up cloud storage"), theme.StorageIcon(), func() { u.navigate("/cloud") }))
 		}
 		p.emptyHost.Objects = []fyne.CanvasObject{card(lang.L("No games yet"),
 			muted(lang.L("Add a game, tell Carryover where its saves live on this device, and it will keep them in sync through your cloud storage every time you play — from here or from Steam.")),
 			actions)}
+	case len(games) == 0 && strings.TrimSpace(p.filter) != "":
+		p.emptyHost.Objects = []fyne.CanvasObject{card("",
+			muted(lang.L("No games match “{{.Query}}”.", map[string]any{"Query": strings.TrimSpace(p.filter)})),
+			hbox(widget.NewButton(lang.L("Clear search"), func() { p.search.SetText("") })))}
+	case len(games) == 0 && u.loaded:
+		p.emptyHost.Objects = []fyne.CanvasObject{card("",
+			muted(lang.L("Nothing needs attention: every game is set up and synced.")),
+			hbox(widget.NewButton(lang.L("Show all games"), func() { u.setLibraryFilter(filterAll); p.renderGrid() })))}
 	}
 	p.emptyHost.Refresh()
 
+	// Reuse the tiles: only games new to the page get one built.
 	grid := container.NewGridWrap(fyne.NewSize(170, 330))
-	f := strings.ToLower(p.filter)
-	for _, g := range u.games {
-		if !strings.Contains(strings.ToLower(g.Name), f) {
-			continue
+	for _, g := range games {
+		t := p.tiles[g.ID]
+		if t == nil {
+			t = newGameTile(u, g)
+			p.tiles[g.ID] = t
+		} else {
+			t.set(g)
 		}
-		grid.Add(newGameTile(p.u, g))
+		grid.Add(t)
+	}
+	for id := range p.tiles {
+		if _, ok := u.game(id); !ok {
+			delete(p.tiles, id)
+		}
 	}
 	p.gridHost.Objects = []fyne.CanvasObject{grid}
 	p.gridHost.Refresh()
-}
-
-func (p *libraryPage) syncAll() {
-	u := p.u
-	if p.syncing {
-		if u.sync.Cancel("") {
-			p.cancelling = true
-			p.renderGrid()
-		}
-		return
-	}
-	p.syncing = true
-	p.renderGrid()
-	async(u.sync.SyncAll, func(res []services.SyncResult, err error) {
-		p.syncing, p.cancelling = false, false
-		p.updateProgress()
-		defer u.refresh()
-		if errors.Is(err, services.ErrSyncCancelled) {
-			u.toast(lang.N("Sync cancelled after {{.Count}} game", len(res), map[string]any{"Count": len(res)}), toastInfo)
-			p.renderGrid()
-			return
-		}
-		if err != nil {
-			u.toastErr(err)
-			p.renderGrid()
-			return
-		}
-		var failed, conflicts []services.SyncResult
-		for _, r := range res {
-			if r.Error != "" {
-				failed = append(failed, r)
-			}
-			if r.Action == "conflict" {
-				conflicts = append(conflicts, r)
-			}
-		}
-		switch {
-		case len(failed) > 0:
-			u.toast(lang.N("{{.Count}} game failed to sync: {{.Name}}: {{.Error}}", len(failed),
-				map[string]any{"Count": len(failed), "Name": failed[0].Name, "Error": failed[0].Error}), toastErr)
-		case len(conflicts) > 0:
-			u.toast(lang.N("{{.Count}} game has save conflicts", len(conflicts), map[string]any{"Count": len(conflicts)}), toastErr)
-		default:
-			u.toast(lang.N("Synced {{.Count}} game", len(res), map[string]any{"Count": len(res)}), toastOK)
-		}
-		p.renderGrid()
-	})
+	p.relayout()
 }
