@@ -91,11 +91,13 @@ func (c *Core) Play(ctx context.Context, gameID string, opt RunOptions, ui Sessi
 	ckey := CloudKey(game, emuID)  // the cloud folder, locks and session marker; shared by emulators sharing saves
 	spec, err := c.launchSpec(game, dev, opt, emuID)
 	if err != nil {
+		log.Printf("play %s: %v", key, err)
 		return res, err
 	}
 
 	lock, err := syncer.AcquireLocalLock(c.Dirs.StateDir(), ckey)
 	if err != nil {
+		log.Printf("play %s: %v", key, err)
 		return res, err
 	}
 	defer lock.Release()
@@ -106,11 +108,14 @@ func (c *Core) Play(ctx context.Context, gameID string, opt RunOptions, ui Sessi
 	var job syncer.Job
 	slots, _, _ := c.profileData(game, emuID)
 	doSync := !opt.NoSync && c.CloudConfigured() && len(slots) > 0
+	log.Printf("play %s (%s): profile %s, launch %s, sync %s", key, game.Name, profileLabel(emuID), launchLabel(dev, opt, emuID), syncLabel(opt, c.CloudConfigured(), len(slots)))
 	if doSync {
 		if job, err = c.JobFor(game, emuID); err != nil {
+			log.Printf("play %s: %v", key, err)
 			return res, err
 		}
 		if eng, err = c.Engine(); err != nil {
+			log.Printf("play %s: %v", key, err)
 			return res, err
 		}
 	}
@@ -158,17 +163,24 @@ func (c *Core) Play(ctx context.Context, gameID string, opt RunOptions, ui Sessi
 		if preDone() || ctx.Err() != nil {
 			// Cancelled by the user, or the whole session was: not a sync error,
 			// and the game isn't launched.
+			log.Printf("play %s: cancelled before launch", key)
 			return res, ErrCancelled
 		}
 		res.PreAction = action
 		if err != nil {
 			c.States.SetError(key, err.Error())
 			if errors.Is(err, ErrCancelled) || !ui.ConfirmSyncFailure(ctx, game, err, true) {
+				log.Printf("play %s: not launched after the sync before playing failed: %v", key, err)
 				return res, ErrCancelled
 			}
+			log.Printf("play %s: launching although the sync before playing failed", key)
 		}
-		if other != nil && !ui.ConfirmLock(ctx, game, other) {
-			return res, ErrCancelled
+		if other != nil {
+			log.Printf("play %s: cloud lock held by another device since %s", key, other.Since.UTC().Format(time.RFC3339))
+			if !ui.ConfirmLock(ctx, game, other) {
+				log.Printf("play %s: not launched (locked by another device)", key)
+				return res, ErrCancelled
+			}
 		}
 		// Mark the game as being played without delaying its start; the
 		// release afterwards waits for this write. The marker lets a later
@@ -189,9 +201,16 @@ func (c *Core) Play(ctx context.Context, gameID string, opt RunOptions, ui Sessi
 	}
 	ui.Status("playing", "Playing "+title)
 	ui.GameRunning(true)
+	log.Printf("play %s: starting %s", key, filepath.Base(spec.Exe))
+	started := time.Now()
 	run, runErr := launcher.Run(ctx, spec, nil)
 	ui.GameRunning(false)
 	res.ExitCode = run.ExitCode
+	if runErr != nil {
+		log.Printf("play %s: game ended after %s, exit code %d: %v", key, time.Since(started).Round(time.Second), run.ExitCode, runErr)
+	} else {
+		log.Printf("play %s: game ended after %s, exit code %d", key, time.Since(started).Round(time.Second), run.ExitCode)
+	}
 
 	if doSync {
 		// Use a fresh context: the game may have been closed because ctx was cancelled.
@@ -203,6 +222,7 @@ func (c *Core) Play(ctx context.Context, gameID string, opt RunOptions, ui Sessi
 		if upDone() {
 			// Saves stay as they are locally; the next sync uploads them.
 			action, err = syncer.ActionNone, ErrCancelled
+			log.Printf("play %s: upload after playing cancelled by the user", key)
 		}
 		res.PostAction, res.PostError = action, err
 		if err != nil && !errors.Is(err, ErrCancelled) {
@@ -214,6 +234,8 @@ func (c *Core) Play(ctx context.Context, gameID string, opt RunOptions, ui Sessi
 			<-lockWritten
 			if err := eng.ReleaseLock(postCtx, ckey); err == nil {
 				c.clearSession(ckey)
+			} else {
+				log.Printf("play %s: release cloud lock: %v", key, err)
 			}
 		})
 		wg.Go(func() {
@@ -227,6 +249,40 @@ func (c *Core) Play(ctx context.Context, gameID string, opt RunOptions, ui Sessi
 		return res, runErr
 	}
 	return res, nil
+}
+
+// profileLabel names a profile in the log.
+func profileLabel(emuID string) string {
+	if emuID == "" {
+		return "native"
+	}
+	return "emulator " + emuID
+}
+
+// launchLabel says how a game is started, for the log.
+func launchLabel(dev library.DeviceConfig, opt RunOptions, emuID string) string {
+	switch {
+	case len(opt.Command) > 0:
+		return "given command (Steam)"
+	case emuID != "":
+		return "emulator"
+	case dev.LaunchMode == "":
+		return string(library.LaunchDirect)
+	}
+	return string(dev.LaunchMode)
+}
+
+// syncLabel says whether a session syncs, and why not, for the log.
+func syncLabel(opt RunOptions, cloud bool, slots int) string {
+	switch {
+	case opt.NoSync:
+		return "off (--no-sync)"
+	case !cloud:
+		return "off (no cloud set up)"
+	case slots == 0:
+		return "off (no save locations)"
+	}
+	return "on"
 }
 
 func (c *Core) syncWithUI(ctx context.Context, eng *syncer.Engine, game library.Game, job syncer.Job, ui SessionUI, before bool) (syncer.Action, error) {

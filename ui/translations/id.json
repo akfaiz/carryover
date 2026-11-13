@@ -306,6 +306,8 @@
   "Release notes": "Catatan rilis",
   "All releases": "Semua rilis",
   "Source code": "Kode sumber",
+  "Open logs folder": "Buka folder log",
+  "When reporting a problem, attach carryover.log from this folder (and carryover.1.log if it happened a while ago).": "Saat melaporkan masalah, lampirkan carryover.log dari folder ini (dan carryover.1.log jika masalahnya terjadi beberapa waktu lalu).",
   "{{.Game}} is installed by Heroic — it will be started through Heroic.": "{{.Game}} dipasang oleh Heroic — akan dijalankan lewat Heroic.",
   "Launch with": "Jalankan dengan",
   "Carryover": "Carryover",

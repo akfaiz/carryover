@@ -26,6 +26,10 @@ var (
 	configMu sync.Mutex
 )
 
+// EnvDebug, when set (e.g. CARRYOVER_DEBUG=1), makes rclone log at INFO level
+// instead of NOTICE: every transfer and retry goes to the log.
+const EnvDebug = "CARRYOVER_DEBUG"
+
 // Init points rclone at Carryover's own config file. Safe to call more than once;
 // only the first call has effect.
 func Init(configPath string) error {
@@ -40,6 +44,10 @@ func Init(configPath string) error {
 		_ = config.LoadedData()
 		ci := fs.GetConfig(context.Background())
 		ci.LogLevel = fs.LogLevelNotice
+		if os.Getenv(EnvDebug) != "" {
+			// rclone's INFO lines (each transfer, retries) for chasing a cloud problem.
+			ci.LogLevel = fs.LogLevelInfo
+		}
 		ci.Transfers = 4
 		ci.Checkers = 8
 		// Saves change rarely and are small: compare by checksum when the

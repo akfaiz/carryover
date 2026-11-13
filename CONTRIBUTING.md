@@ -31,6 +31,10 @@ CARRYOVER_HOME=/tmp/pr go run .                                                 
 - Local builds report "dev" plus the git commit as their version. Release builds take it from the git tag
   (see [Releases](#releases)).
 - To build the Windows exe with its icon: `go tool fyne package --os windows --release --name carryover`.
+- Logs go to `<data>/logs/carryover.log` and to stderr (`internal/app/applog`). Every line carries the writer's PID,
+  because the launcher, `carryover run` windows and the CLI share the file. A crash's stack is written there too. Over
+  5 MB it is moved to `carryover.1.log` at the next start. `CARRYOVER_DEBUG=1` turns on rclone's INFO lines (every
+  transfer and retry). Log ids, counts and file base names, not full save paths, remote names or launch arguments.
   It bumps `Build` in `FyneApp.toml` on every run; don't commit that (`git checkout FyneApp.toml`).
 
 ## Test and lint

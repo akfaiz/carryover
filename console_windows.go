@@ -26,3 +26,19 @@ func attachConsole() {
 		os.Stderr = os.NewFile(uintptr(h), "stderr")
 	}
 }
+
+// showFatal shows a startup error in a message box when there is no console
+// to print it to (the GUI build started from a shortcut or by Steam).
+// Otherwise stderr already has it.
+func showFatal(msg string) {
+	kernel32 := windows.NewLazySystemDLL("kernel32.dll")
+	if hwnd, _, _ := kernel32.NewProc("GetConsoleWindow").Call(); hwnd != 0 {
+		return
+	}
+	text, err := windows.UTF16PtrFromString(msg)
+	if err != nil {
+		return
+	}
+	title, _ := windows.UTF16PtrFromString("Carryover")
+	_, _ = windows.MessageBox(0, text, title, windows.MB_OK|windows.MB_ICONERROR)
+}
