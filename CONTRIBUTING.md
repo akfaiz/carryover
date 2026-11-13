@@ -203,7 +203,3 @@ tag's `x.y.z` plus the workflow run number. `Version` in `FyneApp.toml` is not u
 
 `.github/workflows/ci.yml` runs on every pull request and push to `main`: `golangci-lint` on Linux and
 `go test ./...` on Linux and Windows.
-
-Pushes to `main` also run the `docker-cache` job. It builds the Dockerfile's `appimage` stage only to fill the
-Docker layer and Go caches for the release build. It runs on `main` because a tag's workflow can only restore
-caches saved on its own tag or on the default branch.

@@ -69,39 +69,3 @@ jobs:
         if: runner.os == 'Windows'
         shell: msys2 {0}
         run: go test ./...
-
-  # Fills the caches the release's Linux build restores (see release.yml). A tag run can
-  # only restore caches saved on main, so this runs on pushes to main and nowhere else
-  # (not on pull requests, and skipped when release.yml calls this workflow from a tag).
-  docker-cache:
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: docker/setup-buildx-action@v3
-      # Go module and build caches used by the Dockerfile's RUN --mount=type=cache.
-      # A new key per run, so the cache follows main; restore-keys pick the newest.
-      - uses: actions/cache@v4
-        with:
-          path: ${{ runner.temp }}/docker-go
-          key: docker-go-${{ hashFiles('go.sum') }}-${{ github.run_id }}
-          restore-keys: |
-            docker-go-${{ hashFiles('go.sum') }}-
-            docker-go-
-      - uses: reproducible-containers/buildkit-cache-dance@v3
-        with:
-          cache-map: |
-            {
-              "${{ runner.temp }}/docker-go/mod": "/go/pkg/mod",
-              "${{ runner.temp }}/docker-go/build": "/root/.cache/go-build"
-            }
-      # The appimage stage builds on the build stage, so this caches every layer the
-      # release needs (base image, apt, appimagetool, go mod download).
-      - name: Build Docker layers
-        uses: docker/build-push-action@v6
-        with:
-          context: .
-          target: appimage
-          outputs: type=cacheonly
-          cache-from: type=gha,scope=linux
-          cache-to: type=gha,scope=linux,mode=max
