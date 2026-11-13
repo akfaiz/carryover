@@ -155,3 +155,64 @@ func TestWrapperDoesNotAskWhenTheEmulatorIsNamedOrThereIsNoChoice(t *testing.T) 
 	default:
 	}
 }
+
+// Pressing Play in the launcher asks which emulator, like a Steam shortcut does,
+// but waits for the answer: no countdown starts anything by itself.
+func TestLauncherPlayAsksWhichEmulator(t *testing.T) {
+	c := newChoiceEnv(t)
+	s := NewSessionService(c.e.c, c.bus)
+	require.NoError(t, s.Play(c.e.id))
+	p := c.nextPrompt(t)
+	assert.Equal(t, "emulator", p.Kind)
+	assert.Len(t, p.Choices, 3)
+	assert.Zero(t, p.Seconds, "no countdown in the launcher")
+	assert.Equal(t, core.NativeProfile, p.Default)
+
+	// Cancelling plays nothing.
+	require.True(t, s.Respond(p.ID, "cancel"))
+	require.Eventually(t, func() bool { return !s.IsRunning(c.e.id) && s.messageOf(c.e.id) == "Cancelled" }, 10*time.Second, 20*time.Millisecond)
+	g, err := c.e.c.Library.Get(c.e.id)
+	require.NoError(t, err)
+	assert.Empty(t, g.Devices[c.e.c.DeviceID()].LastEmulator)
+
+	// Answering starts that emulator, and it is the highlighted one next time.
+	require.NoError(t, s.Play(c.e.id))
+	p = c.nextPrompt(t)
+	require.True(t, s.Respond(p.ID, c.b.ID))
+	require.Eventually(t, func() bool {
+		g, err := c.e.c.Library.Get(c.e.id)
+		return err == nil && g.Devices[c.e.c.DeviceID()].LastEmulator == c.b.ID && !s.IsRunning(c.e.id)
+	}, 20*time.Second, 20*time.Millisecond)
+	require.NoError(t, s.Play(c.e.id))
+	p = c.nextPrompt(t)
+	assert.Equal(t, c.b.ID, p.Default, "the one played last")
+	require.True(t, s.Respond(p.ID, "cancel"))
+}
+
+// Playing a named emulator (its sync key, or PlayWith) starts it without asking.
+func TestLauncherPlayDoesNotAskWhenTheEmulatorIsNamed(t *testing.T) {
+	c := newChoiceEnv(t)
+	s := NewSessionService(c.e.c, c.bus)
+	require.NoError(t, s.PlayWith(c.e.id, c.a.ID))
+	require.Eventually(t, func() bool {
+		g, err := c.e.c.Library.Get(c.e.id)
+		return err == nil && g.Devices[c.e.c.DeviceID()].LastEmulator == c.a.ID && !s.IsRunning(c.e.id)
+	}, 20*time.Second, 20*time.Millisecond)
+	require.NoError(t, s.Play(c.e.id+"."+c.b.ID))
+	require.Eventually(t, func() bool {
+		g, err := c.e.c.Library.Get(c.e.id)
+		return err == nil && g.Devices[c.e.c.DeviceID()].LastEmulator == c.b.ID && !s.IsRunning(c.e.id)
+	}, 20*time.Second, 20*time.Millisecond)
+	select {
+	case p := <-c.prompts:
+		require.Fail(t, "asked although the emulator was named", "%+v", p)
+	default:
+	}
+}
+
+// messageOf is the last status message of a game.
+func (s *SessionService) messageOf(id string) string {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.status[id].Message
+}

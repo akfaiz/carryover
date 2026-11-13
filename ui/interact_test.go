@@ -11,7 +11,9 @@ import (
 	"time"
 
 	"fyne.io/fyne/v2"
+	"fyne.io/fyne/v2/canvas"
 	"fyne.io/fyne/v2/test"
+	"fyne.io/fyne/v2/theme"
 	"fyne.io/fyne/v2/widget"
 	"github.com/rclone/rclone/fs/config"
 	"github.com/stretchr/testify/assert"
@@ -1035,4 +1037,101 @@ func TestToastFollowsThemeChange(t *testing.T) {
 	assert.NotEqual(t, dark, bg.rect.FillColor, "the background changed with the theme")
 	assert.Equal(t, colBg3, bg.rect.FillColor, "it uses the light palette now")
 	assert.Equal(t, colOK.R, bg.rect.StrokeColor.(color.NRGBA).R, "the accent follows the palette too")
+}
+
+// ---- Game with several emulators ----
+
+// addEmulatorGame adds a game with its own saves and two emulators.
+func (h *harness) addEmulatorGame() (services.GameView, services.EmulatorView, services.EmulatorView) {
+	h.t.Helper()
+	eden, err := h.u.emus.Save(services.EmulatorSetup{Name: "Eden", Exe: "eden"})
+	require.NoError(h.t, err)
+	ryu, err := h.u.emus.Save(services.EmulatorSetup{Name: "Ryujinx", Exe: "ryujinx"})
+	require.NoError(h.t, err)
+	slots := []library.SaveSlot{{Key: "saves", Label: "Saves"}}
+	g, err := h.u.lib.Save(services.GameInput{
+		Name: "Mario Kart", Slots: slots,
+		Device: services.DeviceInput{Paths: map[string]string{"saves": h.t.TempDir()}, Exe: "/x/game.exe", LaunchMode: library.LaunchDirect},
+		Emulators: []services.GameEmulatorInput{
+			{EmulatorID: eden.ID, Slots: slots, Rom: "mk.nsp", Paths: map[string]string{"saves": h.t.TempDir()}},
+			{EmulatorID: ryu.ID, Slots: slots, Rom: "mk.nsp", Paths: map[string]string{"saves": h.t.TempDir()}},
+		},
+	})
+	require.NoError(h.t, err)
+	h.u.refresh()
+	h.settle()
+	return g, eden, ryu
+}
+
+// The game page has no emulator dropdown: it lists the saves and backups of
+// every profile, each tagged with its emulator.
+func TestGamePageShowsEveryEmulatorsSaves(t *testing.T) {
+	h := newHarness(t)
+	g, _, _ := h.addEmulatorGame()
+	h.open("/game/" + g.ID)
+
+	for _, sel := range pageWidgets[*widget.Select](h) { // the Steam form has its own
+		assert.NotContains(t, sel.Options, "Without an emulator", "no dropdown to pick the emulator")
+	}
+	assert.NotContains(t, strings.Join(labelTexts(h), "|"), "Play and sync with")
+
+	// The tags are badges: one on each profile's Saves card and Backups card.
+	tags := map[string]int{}
+	for _, tx := range widgetsOf[*canvas.Text](h.u.content) {
+		tags[tx.Text]++
+	}
+	for _, tag := range []string{"Without an emulator", "Eden", "Ryujinx"} {
+		assert.Equal(t, 2, tags[tag], "%s tags its saves and its backups", tag)
+	}
+	// One "Compare with cloud" and one "Back up now" per profile.
+	buttons := map[string]int{}
+	for _, b := range pageWidgets[*widget.Button](h) {
+		buttons[b.Text]++
+	}
+	assert.Equal(t, 3, buttons["Compare with cloud"])
+	assert.Equal(t, 3, buttons["Back up now"])
+}
+
+// A plain game (no emulators) shows no tags.
+func TestGamePageWithoutEmulatorsHasNoTags(t *testing.T) {
+	h := newHarness(t)
+	g := h.addGame("Game A", t.TempDir())
+	h.open("/game/" + g.ID)
+	texts := strings.Join(labelTexts(h), "\n")
+	assert.NotContains(t, texts, "Without an emulator")
+	assert.Contains(t, texts, "Saves")
+}
+
+// The library tile has a single Play button; the choice is asked in a dialog.
+func TestTileHasNoEmulatorDropdown(t *testing.T) {
+	h := newHarness(t)
+	h.addEmulatorGame()
+	h.open("/")
+	for _, b := range pageWidgets[*widget.Button](h) {
+		assert.NotEqual(t, theme.MenuDropDownIcon(), b.Icon, "no dropdown next to Play")
+	}
+}
+
+// Play on a game with several emulators opens the "which emulator?" dialog
+// (no countdown: the user pressed Play), and cancelling plays nothing.
+func TestPlayAsksWhichEmulatorInADialog(t *testing.T) {
+	h := newHarness(t)
+	h.addEmulatorGame()
+	h.open("/")
+	tapButton(t, h, "▶ Play")
+	require.Eventually(t, func() bool {
+		h.settle()
+		return len(overlayWidgets[*widget.Button](h)) > 0
+	}, 10*time.Second, 50*time.Millisecond)
+	var names []string
+	for _, c := range overlayWidgets[*choiceTile](h) {
+		names = append(names, c.name)
+	}
+	assert.ElementsMatch(t, []string{"Without an emulator", "Eden", "Ryujinx"}, names, "a square tile for each way to play")
+	stop := buttonWith(t, overlayWidgets[*widget.Button](h), "Stop countdown")
+	assert.False(t, stop.Visible(), "nothing starts by itself, so there is no countdown to stop")
+
+	tapOverlayButton(t, h, "Cancel")
+	h.settle()
+	require.Eventually(t, func() bool { h.settle(); return len(overlayWidgets[*widget.Button](h)) == 0 }, 10*time.Second, 50*time.Millisecond)
 }

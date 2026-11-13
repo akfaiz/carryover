@@ -4,6 +4,7 @@ import (
 	"testing"
 	"time"
 
+	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/test"
 	"fyne.io/fyne/v2/widget"
 	"github.com/stretchr/testify/assert"
@@ -15,7 +16,7 @@ import (
 
 // emulatorPrompt is a prompt with the game's own launch config and two emulators,
 // Ryujinx being the default, shown in a queue like the real one.
-func emulatorPrompt(h *harness, seconds int) (*promptQueue, services.Prompt, <-chan string, func() []*widget.Button) {
+func emulatorPrompt(h *harness, seconds int) (*promptQueue, services.Prompt, <-chan string, fyne.CanvasObject) {
 	p := services.Prompt{
 		ID: "p1", Kind: "emulator", GameName: "Game A", Default: "ryu", Seconds: seconds,
 		Choices: []services.ProfileChoice{{ID: core.NativeProfile, Name: "Without an emulator"}, {ID: "eden", Name: "Eden"}, {ID: "ryu", Name: "Ryujinx"}},
@@ -23,7 +24,19 @@ func emulatorPrompt(h *harness, seconds int) (*promptQueue, services.Prompt, <-c
 	q := &promptQueue{u: h.u, queue: []services.Prompt{p}}
 	answers := make(chan string, 4)
 	body := q.emulatorChoice(p, func(a string) { answers <- a })
-	return q, p, answers, func() []*widget.Button { return widgetsOf[*widget.Button](body) }
+	return q, p, answers, body
+}
+
+// tile is the choice tile named name.
+func tile(t *testing.T, body fyne.CanvasObject, name string) *choiceTile {
+	t.Helper()
+	for _, c := range widgetsOf[*choiceTile](body) {
+		if c.name == name {
+			return c
+		}
+	}
+	require.Failf(t, "tile not found", "%q", name)
+	return nil
 }
 
 func button(t *testing.T, buttons []*widget.Button, text string) *widget.Button {
@@ -47,12 +60,12 @@ func (h *harness) settleFor(d time.Duration) {
 
 func TestEmulatorPromptButtons(t *testing.T) {
 	h := newHarness(t)
-	_, _, answers, buttons := emulatorPrompt(h, 30)
-	bs := buttons()
-	assert.Equal(t, widget.HighImportance, button(t, bs, "Ryujinx").Importance, "the default is highlighted")
-	assert.NotEqual(t, widget.HighImportance, button(t, bs, "Eden").Importance)
+	_, _, answers, body := emulatorPrompt(h, 30)
+	assert.True(t, tile(t, body, "Ryujinx").highlighted, "the default is highlighted")
+	assert.False(t, tile(t, body, "Eden").highlighted)
+	assert.Len(t, widgetsOf[*choiceTile](body), 3, "one square tile per way to play")
 
-	test.Tap(button(t, bs, "Eden"))
+	test.Tap(tile(t, body, "Eden").btn)
 	assert.Equal(t, "eden", <-answers)
 	h.settleFor(1500 * time.Millisecond)
 	assert.Empty(t, answers, "the countdown stops once a choice is made")
@@ -73,11 +86,11 @@ func TestEmulatorPromptStartsTheDefaultWhenTheCountdownEnds(t *testing.T) {
 
 func TestEmulatorPromptCanBeStoppedAndCancelled(t *testing.T) {
 	h := newHarness(t)
-	_, _, answers, buttons := emulatorPrompt(h, 2)
-	test.Tap(button(t, buttons(), "Stop countdown"))
+	_, _, answers, body := emulatorPrompt(h, 2)
+	test.Tap(button(t, widgetsOf[*widget.Button](body), "Stop countdown"))
 	h.settleFor(3500 * time.Millisecond)
 	assert.Empty(t, answers, "a stopped countdown never chooses")
-	test.Tap(button(t, buttons(), "Cancel"))
+	test.Tap(button(t, widgetsOf[*widget.Button](body), "Cancel"))
 	assert.Equal(t, "cancel", <-answers)
 }
 
