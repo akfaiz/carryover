@@ -64,6 +64,7 @@
   "Cancel sync": "Cancel sync",
   "Cancel upload": "Cancel upload",
   "Cancelling…": "Cancelling…",
+  "Synced {{.Done}} of {{.Total}}": "Synced {{.Done}} of {{.Total}}",
   "Checking…": "Checking…",
   "Choose cover image": "Choose cover image",
   "Choose file…": "Choose file…",

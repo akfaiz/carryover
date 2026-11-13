@@ -65,6 +65,31 @@ type Bus struct {
 	prompt  []func(Prompt)
 	closed  []func(promptID string)
 	sync    []func(syncer.Event)
+	syncAll []func(SyncAllProgress)
+}
+
+// SyncAllProgress reports how far SyncAll is: Done of Total games finished,
+// Name being the game now syncing (empty once finished).
+type SyncAllProgress struct {
+	Done  int    `json:"done"`
+	Total int    `json:"total"`
+	Name  string `json:"name"`
+}
+
+// OnSyncAll subscribes to SyncAll progress.
+func (b *Bus) OnSyncAll(f func(SyncAllProgress)) {
+	b.mu.Lock()
+	b.syncAll = append(b.syncAll, f)
+	b.mu.Unlock()
+}
+
+func (b *Bus) syncAllProgress(p SyncAllProgress) {
+	if b == nil {
+		return
+	}
+	for _, f := range snapshot(b, &b.syncAll) {
+		f(p)
+	}
 }
 
 // NewBus creates an empty bus.
