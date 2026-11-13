@@ -176,8 +176,6 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for build, test and Linux / Steam Deck pa
 
 ## Credits
 
-- The Steam cover lookup (local library cache, CDN host fallbacks, store API quirks) is adapted from
-  [OpenSave](https://github.com/Liquid-co/OpenSave) (MIT).
 - Save locations come from the [Ludusavi manifest](https://github.com/mtkennerly/ludusavi-manifest)
   (MIT), compiled from [PCGamingWiki](https://www.pcgamingwiki.com/).
 - Save locations of emulated games come from

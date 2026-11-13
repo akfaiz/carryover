@@ -121,11 +121,6 @@ func (c *imageCache) loadURL(url string, done func(image.Image)) {
 	}, done)
 }
 
-// steamCoverURL is Steam's portrait library art for an app.
-func steamCoverURL(appID string) string {
-	return "https://cdn.cloudflare.steamstatic.com/steam/apps/" + appID + "/library_600x900.jpg"
-}
-
 // coverSource says where a cover comes from (first non-empty wins).
 type coverSource struct {
 	path    string

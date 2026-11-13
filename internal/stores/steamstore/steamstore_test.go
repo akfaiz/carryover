@@ -4,8 +4,6 @@ import (
 	"context"
 	"net/http"
 	"net/http/httptest"
-	"os"
-	"path/filepath"
 	"strings"
 	"testing"
 
@@ -32,17 +30,14 @@ func fakeSteam(t *testing.T) *httptest.Server {
 			default:
 				_, _ = w.Write([]byte(`{"9":{"success":false}}`))
 			}
-		case strings.HasSuffix(r.URL.Path, "/367520/header.jpg"):
-			_, _ = w.Write([]byte("HEADER"))
 		default:
 			w.WriteHeader(http.StatusNotFound)
 		}
 	}))
 	t.Cleanup(srv.Close)
-	oldSearch, oldDetails, oldCDN := searchURL, appDetailsURL, cdnTemplates
+	oldSearch, oldDetails := searchURL, appDetailsURL
 	searchURL, appDetailsURL = srv.URL+"/search", srv.URL+"/details"
-	cdnTemplates = []string{srv.URL + "/a/%s/%s", srv.URL + "/b/%s/%s"}
-	t.Cleanup(func() { searchURL, appDetailsURL, cdnTemplates = oldSearch, oldDetails, oldCDN })
+	t.Cleanup(func() { searchURL, appDetailsURL = oldSearch, oldDetails })
 	return srv
 }
 
@@ -64,22 +59,4 @@ func TestSearchAndName(t *testing.T) {
 
 	_, err = AppName(ctx, "../etc")
 	assert.Error(t, err, "non-numeric id accepted")
-}
-
-func TestCoverFallsBackToHeaderAndPrefersLocal(t *testing.T) {
-	fakeSteam(t)
-	ctx := context.Background()
-	data, err := Cover(ctx, "", "367520")
-	require.NoError(t, err)
-	assert.Equal(t, "HEADER", string(data))
-	_, err = Cover(ctx, "", "999")
-	assert.ErrorIs(t, err, ErrNotFound, "missing cover")
-
-	root := t.TempDir()
-	dir := filepath.Join(root, "appcache", "librarycache", "367520", "abc123")
-	require.NoError(t, os.MkdirAll(dir, 0o755))
-	require.NoError(t, os.WriteFile(filepath.Join(dir, "library_600x900.jpg"), []byte("LOCAL"), 0o644))
-	data, err = Cover(ctx, root, "367520")
-	require.NoError(t, err)
-	assert.Equal(t, "LOCAL", string(data), "local cover")
 }

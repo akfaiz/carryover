@@ -1,8 +1,4 @@
-// Package steamstore looks up game titles and cover art from Steam.
-//
-// The cover lookup order (Steam's local library cache, then several CDN
-// hosts, portrait art before the landscape header) and the appdetails quirks
-// are adapted from OpenSave (MIT, https://github.com/Liquid-co/OpenSave).
+// Package steamstore looks up game titles on the Steam store.
 package steamstore
 
 import (
@@ -13,8 +9,6 @@ import (
 	"io"
 	"net/http"
 	"net/url"
-	"os"
-	"path/filepath"
 	"strconv"
 	"time"
 )
@@ -23,14 +17,6 @@ import (
 var (
 	searchURL     = "https://store.steampowered.com/api/storesearch/"
 	appDetailsURL = "https://store.steampowered.com/api/appdetails"
-	// cdnTemplates are tried in order; Steam has moved its image hosts and
-	// path layout more than once.
-	cdnTemplates = []string{
-		"https://cdn.cloudflare.steamstatic.com/steam/apps/%s/%s",
-		"https://shared.cloudflare.steamstatic.com/store_item_assets/steam/apps/%s/%s",
-		"https://cdn.akamai.steamstatic.com/steam/apps/%s/%s",
-		"https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/%s/%s",
-	}
 )
 
 // The Store API rejects requests without a browser-like User-Agent.
@@ -45,9 +31,6 @@ var ErrNotFound = errors.New("not found on Steam")
 type Match struct {
 	AppID string `json:"appId"`
 	Name  string `json:"name"`
-	// CoverURL is the portrait art on Steam's CDN. It may not exist for
-	// every game; callers should fall back gracefully.
-	CoverURL string `json:"coverUrl"`
 }
 
 // ValidAppID reports whether s is a plain numeric app id. Only such ids are
@@ -58,11 +41,6 @@ func ValidAppID(s string) bool {
 	}
 	_, err := strconv.ParseUint(s, 10, 32)
 	return err == nil
-}
-
-// PortraitURL is the CDN address of an app's 600x900 library art.
-func PortraitURL(appID string) string {
-	return fmt.Sprintf(cdnTemplates[0], appID, "library_600x900.jpg")
 }
 
 func get(ctx context.Context, rawURL string) (*http.Response, error) {
@@ -101,7 +79,7 @@ func Search(ctx context.Context, term string) ([]Match, error) {
 			continue
 		}
 		id := strconv.FormatInt(it.ID, 10)
-		out = append(out, Match{AppID: id, Name: it.Name, CoverURL: PortraitURL(id)})
+		out = append(out, Match{AppID: id, Name: it.Name})
 	}
 	return out, nil
 }
@@ -146,69 +124,4 @@ func AppName(ctx context.Context, appID string) (string, error) {
 		return "", ErrNotFound
 	}
 	return entry.Data.Name, nil
-}
-
-// coverFiles are tried in order: tall library art first, then the wide
-// header (the wrong shape, but better than nothing).
-var coverFiles = []string{"library_600x900.jpg", "header.jpg"}
-
-// Cover returns cover art for an app id: from Steam's local library cache when
-// the client has already downloaded it, otherwise from the CDN.
-func Cover(ctx context.Context, steamRoot, appID string) ([]byte, error) {
-	if !ValidAppID(appID) {
-		return nil, fmt.Errorf("invalid Steam app id %q", appID)
-	}
-	if data := localCover(steamRoot, appID); len(data) > 0 {
-		return data, nil
-	}
-	lastErr := ErrNotFound
-	for _, f := range coverFiles {
-		for _, tmpl := range cdnTemplates {
-			data, err := fetchImage(ctx, fmt.Sprintf(tmpl, appID, f))
-			if err == nil {
-				return data, nil
-			}
-			lastErr = err
-			if ctx.Err() != nil {
-				return nil, ctx.Err()
-			}
-		}
-	}
-	return nil, lastErr
-}
-
-// localCover reads art from <steam>/appcache/librarycache/<appid>/. Newer
-// Steam clients nest the files one directory deeper under a hash.
-func localCover(steamRoot, appID string) []byte {
-	if steamRoot == "" {
-		return nil
-	}
-	dir := filepath.Join(steamRoot, "appcache", "librarycache", appID)
-	for _, f := range coverFiles {
-		candidates := []string{filepath.Join(dir, f)}
-		if nested, _ := filepath.Glob(filepath.Join(dir, "*", f)); len(nested) > 0 {
-			candidates = append(candidates, nested...)
-		}
-		for _, p := range candidates {
-			if data, err := os.ReadFile(p); err == nil && len(data) > 0 {
-				return data
-			}
-		}
-	}
-	return nil
-}
-
-func fetchImage(ctx context.Context, rawURL string) ([]byte, error) {
-	resp, err := get(ctx, rawURL)
-	if err != nil {
-		return nil, err
-	}
-	defer resp.Body.Close()
-	if resp.StatusCode == http.StatusNotFound {
-		return nil, ErrNotFound
-	}
-	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("steam cdn: %s", resp.Status)
-	}
-	return io.ReadAll(io.LimitReader(resp.Body, 8<<20))
 }
