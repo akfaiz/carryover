@@ -6,3 +6,5 @@ fyne-cross
 .docker-data
 # written by scripts/stamp-version.sh for release builds
 /internal/app/version/zz_release.go
+# written by go test -coverprofile (CI uploads it to Codecov)
+/coverage.txt
