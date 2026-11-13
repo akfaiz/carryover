@@ -11,6 +11,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/akfaiz/carryover/internal/core"
+	"github.com/akfaiz/carryover/internal/ui/kit"
 	"github.com/akfaiz/carryover/services"
 )
 
@@ -28,10 +29,10 @@ func emulatorPrompt(h *harness, seconds int) (*promptQueue, services.Prompt, <-c
 }
 
 // tile is the choice tile named name.
-func tile(t *testing.T, body fyne.CanvasObject, name string) *choiceTile {
+func tile(t *testing.T, body fyne.CanvasObject, name string) *kit.ChoiceTile {
 	t.Helper()
-	for _, c := range widgetsOf[*choiceTile](body) {
-		if c.name == name {
+	for _, c := range widgetsOf[*kit.ChoiceTile](body) {
+		if c.Name == name {
 			return c
 		}
 	}
@@ -61,14 +62,14 @@ func (h *harness) settleFor(d time.Duration) {
 func TestEmulatorPromptButtons(t *testing.T) {
 	h := newHarness(t)
 	_, _, answers, body := emulatorPrompt(h, 30)
-	assert.True(t, tile(t, body, "Ryujinx").highlighted, "the default is highlighted")
-	assert.False(t, tile(t, body, "Eden").highlighted)
-	assert.Len(t, widgetsOf[*choiceTile](body), 3, "one square tile per way to play")
+	assert.True(t, tile(t, body, "Ryujinx").Highlighted, "the default is highlighted")
+	assert.False(t, tile(t, body, "Eden").Highlighted)
+	assert.Len(t, widgetsOf[*kit.ChoiceTile](body), 3, "one square tile per way to play")
 
-	test.Tap(tile(t, body, "Eden").btn)
+	test.Tap(tile(t, body, "Eden").Btn)
 	assert.Equal(t, "eden", <-answers)
 	h.settleFor(1500 * time.Millisecond)
-	assert.Empty(t, answers, "the countdown stops once a choice is made")
+	assert.Empty(t, answers, "the countdown stops once a kit.Choice is made")
 }
 
 func TestEmulatorPromptStartsTheDefaultWhenTheCountdownEnds(t *testing.T) {

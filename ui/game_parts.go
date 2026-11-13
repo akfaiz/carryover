@@ -8,6 +8,7 @@ import (
 	"fyne.io/fyne/v2/widget"
 
 	"github.com/akfaiz/carryover/internal/cloudsync/syncer"
+	"github.com/akfaiz/carryover/internal/ui/kit"
 	"github.com/akfaiz/carryover/services"
 )
 
@@ -18,15 +19,15 @@ func saveLocationRow(u *UI, label, resolved, pathErr string) fyne.CanvasObject {
 	var val fyne.CanvasObject
 	switch {
 	case pathErr != "":
-		val = colored(pathErr, widget.DangerImportance)
+		val = kit.Colored(pathErr, widget.DangerImportance)
 	case resolved != "":
-		l := mono(resolved)
+		l := kit.Mono(resolved)
 		l.Importance = widget.HighImportance
-		val = newTappable(container.NewBorder(nil, nil, widget.NewIcon(theme.FolderOpenIcon()), nil, l), func() { u.openFolder(resolved) })
+		val = kit.NewTappable(container.NewBorder(nil, nil, widget.NewIcon(theme.FolderOpenIcon()), nil, l), func() { u.openFolder(resolved) })
 	default:
-		val = colored(lang.L("not set on this device"), widget.WarningImportance)
+		val = kit.Colored(lang.L("not set on this device"), widget.WarningImportance)
 	}
-	return labeledRow(110, name, val)
+	return kit.LabeledRow(110, name, val)
 }
 
 // backupRow is one backup with Pin, Delete and Restore buttons (no Pin for
@@ -53,32 +54,32 @@ func backupRow(b syncer.Backup, restoring, canRestore, canPin bool, onRestore, o
 		label = "…"
 	}
 	restore := widget.NewButton(label, onRestore)
-	setEnabled(restore, canRestore)
+	kit.SetEnabled(restore, canRestore)
 	pin := widget.NewButton(pinLabel, onPin)
-	setEnabled(pin, canPin)
+	kit.SetEnabled(pin, canPin)
 	del := widget.NewButtonWithIcon("", theme.DeleteIcon(), onDelete)
-	setEnabled(del, canPin)
+	kit.SetEnabled(del, canPin)
 	if b.Local {
-		return labeledRow(140, widget.NewLabel(fmtDate(b.Time)), muted(desc), del, restore)
+		return kit.LabeledRow(140, widget.NewLabel(fmtDate(b.Time)), kit.Muted(desc), del, restore)
 	}
-	return labeledRow(140, widget.NewLabel(fmtDate(b.Time)), muted(desc), pin, del, restore)
+	return kit.LabeledRow(140, widget.NewLabel(fmtDate(b.Time)), kit.Muted(desc), pin, del, restore)
 }
 
 // otherDevicesCard lists the save paths other devices use for the game.
 func otherDevicesCard(g services.GameView) fyne.CanvasObject {
-	devs := vbox()
+	devs := kit.VBox()
 	for _, d := range g.OtherDevices {
 		devs.Add(widget.NewLabelWithStyle(d.DeviceName, fyne.TextAlignLeading, fyne.TextStyle{Bold: true}))
 		for _, s := range g.Slots {
 			if v := d.Paths[s.Key]; v != "" {
-				l := mono(labelOf(s.Label, s.Key) + ": " + v)
+				l := kit.Mono(labelOf(s.Label, s.Key) + ": " + v)
 				l.Importance = widget.LowImportance
 				l.SizeName = theme.SizeNameCaptionText
 				devs.Add(l)
 			}
 		}
 	}
-	return card(lang.L("Other devices"), devs)
+	return kit.Card(lang.L("Other devices"), devs)
 }
 
 // planText describes a sync plan action in words.
@@ -109,7 +110,7 @@ func newPlanView(pl *services.PlanView, resolvable bool, onResolve func(resoluti
 	if !resolvable {
 		onResolve = nil
 	}
-	c := vbox(
+	c := kit.VBox(
 		widget.NewLabelWithStyle(planText(pl.Action), fyne.TextAlignLeading, fyne.TextStyle{Bold: true}),
 		saveSides(pl.Local, pl.Remote, pl.HasRemote, onResolve),
 	)
@@ -132,28 +133,28 @@ func saveSides(local, remote syncer.Summary, hasRemote bool, onKeep func(side st
 		}
 	}
 	side := func(key, label, keepLabel string, s syncer.Summary, has bool) fyne.CanvasObject {
-		head := hbox(widget.NewLabelWithStyle(label, fyne.TextAlignLeading, fyne.TextStyle{Bold: true}))
+		head := kit.HBox(widget.NewLabelWithStyle(label, fyne.TextAlignLeading, fyne.TextStyle{Bold: true}))
 		if newer == key {
-			head.Add(container.NewCenter(badge(lang.L("newer"), badgeOK)))
+			head.Add(container.NewCenter(kit.Badge(lang.L("newer"), kit.BadgeOK)))
 		}
 		objs := []fyne.CanvasObject{head}
 		if s.DeviceName != "" && key == "cloud" {
-			objs = append(objs, muted(lang.L("from {{.Device}}", map[string]any{"Device": s.DeviceName})))
+			objs = append(objs, kit.Muted(lang.L("from {{.Device}}", map[string]any{"Device": s.DeviceName})))
 		}
 		text := lang.L("no Carryover saves for this game yet")
 		if has {
 			text = lang.N("{{.Count}} file · {{.Size}}\nLast modified {{.Date}}", s.Files,
-				map[string]any{"Count": s.Files, "Size": formatBytes(s.Bytes), "Date": fmtDate(s.Newest)})
+				map[string]any{"Count": s.Files, "Size": kit.FormatBytes(s.Bytes), "Date": fmtDate(s.Newest)})
 		}
 		info := widget.NewLabel(text)
 		info.Wrapping = fyne.TextWrapWord
 		objs = append(objs, info)
 		if onKeep != nil {
-			keep := primary(keepLabel, func() { onKeep(key) })
-			setEnabled(keep, has)
+			keep := kit.Primary(keepLabel, func() { onKeep(key) })
+			kit.SetEnabled(keep, has)
 			objs = append(objs, keep)
 		}
-		return card("", objs...)
+		return kit.Card("", objs...)
 	}
 	return container.NewGridWithColumns(2,
 		side("local", lang.L("This device"), lang.L("Keep this device's saves"), local, true),

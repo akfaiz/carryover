@@ -13,6 +13,7 @@ import (
 	"fyne.io/fyne/v2/widget"
 
 	"github.com/akfaiz/carryover/internal/stores/steamgrid"
+	"github.com/akfaiz/carryover/internal/ui/kit"
 	"github.com/akfaiz/carryover/services"
 )
 
@@ -64,10 +65,10 @@ func showArtPicker(u *UI, o artPickerOpts) {
 	p.query.SetText(o.term)
 	p.query.OnSubmitted = func(string) { p.search() }
 	p.body = container.NewStack()
-	p.errLabel = colored("", widget.DangerImportance)
+	p.errLabel = kit.Colored("", widget.DangerImportance)
 	p.errLabel.Hide()
 
-	top := vbox(rowFill(p.query, widget.NewButton(lang.L("Search"), p.search)), p.errLabel)
+	top := kit.VBox(kit.RowFill(p.query, widget.NewButton(lang.L("Search"), p.search)), p.errLabel)
 	p.d = dialog.NewCustom(lang.L("Find artwork on SteamGridDB"), lang.L("Done"), container.NewBorder(top, nil, nil, nil, p.body), u.win)
 	if o.onClosed != nil {
 		p.d.SetOnClosed(o.onClosed)
@@ -106,9 +107,9 @@ func (p *artPicker) search() {
 	}
 	p.gen++
 	p.showErr(nil)
-	p.setBody(muted(lang.L("Searching…")))
+	p.setBody(kit.Muted(lang.L("Searching…")))
 	term := p.query.Text
-	async(func() ([]steamgrid.Game, error) { return p.u.lib.SearchGridGames(term) }, func(list []steamgrid.Game, err error) {
+	kit.Async(func() ([]steamgrid.Game, error) { return p.u.lib.SearchGridGames(term) }, func(list []steamgrid.Game, err error) {
 		p.showErr(err)
 		if list == nil {
 			list = []steamgrid.Game{}
@@ -137,7 +138,7 @@ func (p *artPicker) loadGame(id int, name string) {
 	p.grids = map[steamgrid.Kind][]steamgrid.Grid{}
 	p.loaded = map[steamgrid.Kind]bool{}
 
-	back := lowButton(lang.L("← Change game"), func() {
+	back := kit.LowButton(lang.L("← Change game"), func() {
 		if p.games == nil && strings.TrimSpace(p.query.Text) != "" {
 			p.search()
 			return
@@ -145,14 +146,14 @@ func (p *artPicker) loadGame(id int, name string) {
 		p.gen++
 		p.showGames(p.games)
 	})
-	crumbs := hbox(back, widget.NewLabelWithStyle(name, fyne.TextAlignLeading, fyne.TextStyle{Bold: true}))
+	crumbs := kit.HBox(back, widget.NewLabelWithStyle(name, fyne.TextAlignLeading, fyne.TextStyle{Bold: true}))
 
 	kinds := append([]steamgrid.Kind{steamgrid.KindCover}, steamgrid.ArtKinds...)
 	tabs := container.NewAppTabs()
 	byTab := map[*container.TabItem]steamgrid.Kind{}
 	var startItem *container.TabItem
 	for _, k := range kinds {
-		host := container.NewStack(muted(lang.L("Loading…")))
+		host := container.NewStack(kit.Muted(lang.L("Loading…")))
 		p.hosts[k] = host
 		item := container.NewTabItem(artSpecFor(k).label, host)
 		byTab[item] = k
@@ -162,7 +163,7 @@ func (p *artPicker) loadGame(id int, name string) {
 		}
 	}
 	tabs.OnSelected = func(ti *container.TabItem) { p.ensure(byTab[ti]) }
-	p.setBody(container.NewBorder(crumbs, muted(lang.L("Pick an image in each tab you want, then press Done. Art by the SteamGridDB community.")), nil, nil, tabs))
+	p.setBody(container.NewBorder(crumbs, kit.Muted(lang.L("Pick an image in each tab you want, then press Done. Art by the SteamGridDB community.")), nil, nil, tabs))
 	if startItem != nil {
 		tabs.Select(startItem)
 	}
@@ -179,7 +180,7 @@ func (p *artPicker) ensure(kind steamgrid.Kind) {
 	if id == 0 {
 		appID = p.steamAppID
 	}
-	async(func() ([]steamgrid.Grid, error) { return p.u.lib.GridArt(string(kind), id, appID) }, func(grids []steamgrid.Grid, err error) {
+	kit.Async(func() ([]steamgrid.Grid, error) { return p.u.lib.GridArt(string(kind), id, appID) }, func(grids []steamgrid.Grid, err error) {
 		if gen != p.gen {
 			return
 		}
@@ -193,7 +194,7 @@ func (p *artPicker) render(kind steamgrid.Kind) {
 	host, spec := p.hosts[kind], artSpecFor(kind)
 	grids := p.grids[kind]
 	if len(grids) == 0 {
-		host.Objects = []fyne.CanvasObject{muted(spec.empty)}
+		host.Objects = []fyne.CanvasObject{kit.Muted(spec.empty)}
 		host.Refresh()
 		return
 	}
@@ -203,7 +204,7 @@ func (p *artPicker) render(kind steamgrid.Kind) {
 		if src == "" {
 			src = g.URL
 		}
-		tile := newTappable(coverView(coverSource{url: src, contain: spec.contain}, spec.pick), func() {
+		tile := kit.NewTappable(kit.CoverView(kit.CoverSource{URL: src, Contain: spec.contain}, spec.pick), func() {
 			p.picked[kind] = g.ID
 			p.onPick(kind, g)
 			p.render(kind)
@@ -211,7 +212,7 @@ func (p *artPicker) render(kind steamgrid.Kind) {
 		mark := canvas.NewRectangle(color.Transparent)
 		mark.CornerRadius = 8
 		if p.picked[kind] == g.ID {
-			mark.StrokeColor, mark.StrokeWidth = colAccent, 3
+			mark.StrokeColor, mark.StrokeWidth = kit.ColAccent, 3
 		}
 		grid.Add(container.NewStack(mark, container.NewPadded(tile)))
 	}
@@ -220,9 +221,9 @@ func (p *artPicker) render(kind steamgrid.Kind) {
 }
 
 func showGames(body *fyne.Container, list []steamgrid.Game, onPick func(steamgrid.Game)) {
-	items := vbox()
+	items := kit.VBox()
 	if len(list) == 0 {
-		items.Add(muted(lang.L("No games found.")))
+		items.Add(kit.Muted(lang.L("No games found.")))
 	}
 	for _, g := range list {
 		info := ""
@@ -232,7 +233,7 @@ func showGames(body *fyne.Container, list []steamgrid.Game, onPick func(steamgri
 		if g.Verified {
 			info += " ✓"
 		}
-		items.Add(listRow(g.Name, info, func() {
+		items.Add(kit.ListRow(g.Name, info, func() {
 			if onPick != nil {
 				onPick(g)
 			}
@@ -247,7 +248,7 @@ func showGames(body *fyne.Container, list []steamgrid.Game, onPick func(steamgri
 func showSteamImport(u *UI) {
 	filter := widget.NewEntry()
 	filter.SetPlaceHolder(lang.L("Filter…"))
-	list := container.NewVBox(muted(lang.L("Reading Steam library…")))
+	list := container.NewVBox(kit.Muted(lang.L("Reading Steam library…")))
 	var games []services.SteamLibraryGame
 	var d *dialog.CustomDialog
 
@@ -255,7 +256,7 @@ func showSteamImport(u *UI) {
 		f := strings.ToLower(filter.Text)
 		list.Objects = nil
 		if len(games) == 0 {
-			list.Add(muted(lang.L("No installed Steam games found on this device.")))
+			list.Add(kit.Muted(lang.L("No installed Steam games found on this device.")))
 		}
 		for _, g := range games {
 			if !strings.Contains(strings.ToLower(g.Name), f) {
@@ -263,10 +264,10 @@ func showSteamImport(u *UI) {
 			}
 			var right fyne.CanvasObject
 			if g.GameID != "" {
-				right = container.NewCenter(badge(lang.L("in library"), badgeOK))
+				right = container.NewCenter(kit.Badge(lang.L("in library"), kit.BadgeOK))
 			}
-			lead := coverView(coverSource{name: g.Name}, fyne.NewSize(36, 54))
-			list.Add(mediaRow(lead, g.Name, right, func() {
+			lead := kit.CoverView(kit.CoverSource{Name: g.Name}, fyne.NewSize(36, 54))
+			list.Add(kit.MediaRow(lead, g.Name, right, func() {
 				d.Hide()
 				if g.GameID != "" {
 					u.navigate("/game/" + g.GameID)
@@ -279,13 +280,13 @@ func showSteamImport(u *UI) {
 	}
 	filter.OnChanged = func(string) { render() }
 
-	top := vbox(
-		muted(lang.L("Games installed through Steam on this device. The title comes from Steam; you still set the save locations. Steam keeps launching the game — Carryover syncs around it through the launch options shown on the game page.")),
+	top := kit.VBox(
+		kit.Muted(lang.L("Games installed through Steam on this device. The title comes from Steam; you still set the save locations. Steam keeps launching the game — Carryover syncs around it through the launch options shown on the game page.")),
 		filter)
 	d = dialog.NewCustom(lang.L("Add from Steam library"), lang.L("Close"), container.NewBorder(top, nil, nil, nil, container.NewVScroll(list)), u.win)
 	d.Resize(dialogSize(u.win))
 	d.Show()
-	async(func() ([]services.SteamLibraryGame, error) { return u.lib.SteamLibrary(), nil }, func(g []services.SteamLibraryGame, _ error) {
+	kit.Async(func() ([]services.SteamLibraryGame, error) { return u.lib.SteamLibrary(), nil }, func(g []services.SteamLibraryGame, _ error) {
 		games = g
 		render()
 	})

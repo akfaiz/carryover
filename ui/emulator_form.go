@@ -13,6 +13,7 @@ import (
 	"fyne.io/fyne/v2/widget"
 
 	"github.com/akfaiz/carryover/internal/saves/pathvar"
+	"github.com/akfaiz/carryover/internal/ui/kit"
 	"github.com/akfaiz/carryover/services"
 )
 
@@ -25,7 +26,7 @@ type emulatorForm struct {
 	tokens   []pathvar.Token
 	envText  string
 	advanced bool
-	advItem  *accordionSection
+	advItem  *kit.AccordionSection
 	saving   bool
 	errText  string
 	orig     string // what the form started with, to tell whether it changed
@@ -90,7 +91,7 @@ func (f *emulatorForm) form() fyne.CanvasObject {
 	if runtime.GOOS == "windows" {
 		example = `C:\Emulators\Eden\eden.exe`
 	}
-	exe := monoEntry(example, s.Exe, func(v string) { s.Exe = v })
+	exe := kit.MonoEntry(example, s.Exe, func(v string) { s.Exe = v })
 	browse := widget.NewButton(lang.L("Browse…"), func() {
 		pickFileDialog(f.u, lang.L("Choose the emulator executable"), nil, func(path string) {
 			s.Exe = path
@@ -103,39 +104,39 @@ func (f *emulatorForm) form() fyne.CanvasObject {
 	if preset.Args != "" {
 		argsPlaceholder = preset.Args
 	}
-	args := monoEntry(argsPlaceholder, s.Args, func(v string) { s.Args = v })
-	wait := monoEntry("eden.exe", s.WaitProcess, func(v string) { s.WaitProcess = v })
-	env := monoMultiLine("", f.envText, 3, func(v string) { f.envText = v })
+	args := kit.MonoEntry(argsPlaceholder, s.Args, func(v string) { s.Args = v })
+	wait := kit.MonoEntry("eden.exe", s.WaitProcess, func(v string) { s.WaitProcess = v })
+	env := kit.MonoMultiLine("", f.envText, 3, func(v string) { f.envText = v })
 	workDir := newPathInput(f.u, "", nil, s.WorkDir, "", func(v string) { s.WorkDir = v })
 	if f.advItem != nil {
 		f.advanced = f.advItem.Open()
 	}
-	f.advItem = newAccordionSection(lang.L("Advanced"), vbox(
-		field(lang.L("Working directory (default: executable's folder)"), workDir),
-		field(lang.L("Wait for process (when the exe is a launcher that exits immediately)"), wait),
-		field(lang.L("Environment variables (KEY=value per line)"), env),
+	f.advItem = kit.NewAccordionSection(lang.L("Advanced"), kit.VBox(
+		kit.Field(lang.L("Working directory (default: executable's folder)"), workDir),
+		kit.Field(lang.L("Wait for process (when the exe is a launcher that exits immediately)"), wait),
+		kit.Field(lang.L("Environment variables (KEY=value per line)"), env),
 	), f.advanced)
 
 	label := lang.L("Save")
 	if f.saving {
 		label = lang.L("Saving…")
 	}
-	save := primary(label, f.save)
-	setEnabled(save, !f.saving)
-	c := vbox(
-		field(lang.L("Executable on this device"), rowFill(exe, browse)),
-		field(lang.L("Name"), name),
+	save := kit.Primary(label, f.save)
+	kit.SetEnabled(save, !f.saving)
+	c := kit.VBox(
+		kit.Field(lang.L("Executable on this device"), kit.RowFill(exe, browse)),
+		kit.Field(lang.L("Name"), name),
 		f.typeField(),
-		field(lang.L("Arguments"), args),
+		kit.Field(lang.L("Arguments"), args),
 		f.argsHints(preset),
 		f.dataFolderFields(preset),
 		f.advItem,
 	)
 	if f.errText != "" {
-		c.Add(colored(f.errText, widget.DangerImportance))
+		c.Add(kit.Colored(f.errText, widget.DangerImportance))
 	}
-	c.Add(hbox(widget.NewButton(lang.L("Cancel"), f.onCancel), save))
-	return card("", c)
+	c.Add(kit.HBox(widget.NewButton(lang.L("Cancel"), f.onCancel), save))
+	return kit.Card("", c)
 }
 
 // exePicked proposes the emulator's name, type and usual arguments from the
@@ -172,12 +173,12 @@ func (f *emulatorForm) preset(id string) services.PresetView {
 // arguments (when none are set), and lets the game editor suggest save locations.
 func (f *emulatorForm) typeField() fyne.CanvasObject {
 	s := f.s
-	types := &choice{}
-	types.add("", lang.L("Not listed"))
+	types := &kit.Choice{}
+	types.Add("", lang.L("Not listed"))
 	for _, pr := range f.u.emus.Presets() {
-		types.add(pr.ID, pr.Name)
+		types.Add(pr.ID, pr.Name)
 	}
-	kind := selectOf(types, s.Preset, func(v string) {
+	kind := kit.SelectOf(types, s.Preset, func(v string) {
 		old := f.preset(s.Preset)
 		s.Preset = v
 		// Replace the arguments only if the user hasn't written their own.
@@ -186,22 +187,22 @@ func (f *emulatorForm) typeField() fyne.CanvasObject {
 		}
 		f.render()
 	})
-	return field(lang.L("Emulator type (suggests the arguments and save locations)"), kind)
+	return kit.Field(lang.L("Emulator type (suggests the arguments and save locations)"), kind)
 }
 
 // argsHints explains {rom} and offers the type's usual arguments.
 func (f *emulatorForm) argsHints(preset services.PresetView) fyne.CanvasObject {
 	s := f.s
-	c := vbox(muted(lang.L("{{.Token}} is replaced by the game's file or ID, which you set per game. Without it, the game file is added after the arguments.", map[string]any{"Token": "{rom}"})))
+	c := kit.VBox(kit.Muted(lang.L("{{.Token}} is replaced by the game's file or ID, which you set per game. Without it, the game file is added after the arguments.", map[string]any{"Token": "{rom}"})))
 	if preset.Args != "" && s.Args != preset.Args {
-		c.Add(hbox(small(lang.L("Usual for this type: {{.Args}}", map[string]any{"Args": preset.Args})),
-			lowButton(lang.L("Use"), func() { s.Args = preset.Args; f.render() })))
+		c.Add(kit.HBox(kit.Small(lang.L("Usual for this type: {{.Args}}", map[string]any{"Args": preset.Args})),
+			kit.LowButton(lang.L("Use"), func() { s.Args = preset.Args; f.render() })))
 	}
 	if preset.ArgsNote != "" {
-		c.Add(muted(preset.ArgsNote))
+		c.Add(kit.Muted(preset.ArgsNote))
 	}
 	if preset.Args != "" {
-		c.Add(muted(lang.L("Suggested arguments can differ between versions of the emulator; check its command line help.")))
+		c.Add(kit.Muted(lang.L("Suggested arguments can differ between versions of the emulator; check its command line help.")))
 	}
 	return c
 }
@@ -210,17 +211,17 @@ func (f *emulatorForm) argsHints(preset services.PresetView) fyne.CanvasObject {
 func (f *emulatorForm) dataFolderFields(preset services.PresetView) fyne.CanvasObject {
 	s := f.s
 	if s.Preset == "" {
-		return vbox()
+		return kit.VBox()
 	}
-	c := vbox()
+	c := kit.VBox()
 	placeholder := f.u.emus.DefaultDataDir(s.Preset, s.Name)
-	c.Add(field(lang.L("Data folder on this device: {{.Hint}}", map[string]any{"Hint": preset.RootHint}),
+	c.Add(kit.Field(lang.L("Data folder on this device: {{.Hint}}", map[string]any{"Hint": preset.RootHint}),
 		newPathInput(f.u, "", f.tokens, s.DataDir, placeholder, func(v string) { s.DataDir = v })))
 	if placeholder != "" {
-		c.Add(muted(lang.L("Left empty, the usual folder shown above is used.")))
+		c.Add(kit.Muted(lang.L("Left empty, the usual folder shown above is used.")))
 	}
 	if !preset.PerGame {
-		c.Add(muted(lang.L("This emulator keeps the saves of every game together, so all games share one save location.")))
+		c.Add(kit.Muted(lang.L("This emulator keeps the saves of every game together, so all games share one save location.")))
 	}
 	return c
 }
@@ -235,7 +236,7 @@ func (f *emulatorForm) save() {
 	}
 	f.saving, f.errText = true, ""
 	f.render()
-	async(func() (services.EmulatorView, error) { return f.u.emus.Save(s) }, func(ev services.EmulatorView, err error) {
+	kit.Async(func() (services.EmulatorView, error) { return f.u.emus.Save(s) }, func(ev services.EmulatorView, err error) {
 		f.saving = false
 		if err != nil {
 			f.errText = err.Error()
@@ -243,7 +244,7 @@ func (f *emulatorForm) save() {
 			return
 		}
 		f.orig = f.snapshot()
-		f.u.toast(lang.L("Saved"), toastOK)
+		f.u.toast(lang.L("Saved"), kit.ToastOK)
 		f.onSaved(ev)
 	})
 }
@@ -251,7 +252,7 @@ func (f *emulatorForm) save() {
 // showEmulatorDialog adds an emulator in a dialog, so a form open underneath
 // (the game editor) keeps what was typed into it. onSaved gets the new one.
 func showEmulatorDialog(u *UI, onSaved func(services.EmulatorView)) {
-	async(func() ([]pathvar.Token, error) { return u.lib.Tokens(""), nil }, func(tokens []pathvar.Token, _ error) {
+	kit.Async(func() ([]pathvar.Token, error) { return u.lib.Tokens(""), nil }, func(tokens []pathvar.Token, _ error) {
 		var d dialogHider
 		var f *emulatorForm
 		f = newEmulatorForm(u, services.EmulatorSetup{}, tokens,

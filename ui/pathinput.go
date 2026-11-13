@@ -12,6 +12,7 @@ import (
 	"fyne.io/fyne/v2/widget"
 
 	"github.com/akfaiz/carryover/internal/saves/pathvar"
+	"github.com/akfaiz/carryover/internal/ui/kit"
 )
 
 // pathInput is a path entry with token insertion, a folder browser and a
@@ -27,13 +28,13 @@ type pathInput struct {
 }
 
 func newPathInput(u *UI, gameID string, tokens []pathvar.Token, value, placeholder string, onChange func(string)) *pathInput {
-	p := &pathInput{u: u, gameID: gameID, entry: widget.NewEntry(), preview: mono("")}
+	p := &pathInput{u: u, gameID: gameID, entry: widget.NewEntry(), preview: kit.Mono("")}
 	p.entry.TextStyle.Monospace = true
 	p.entry.SetPlaceHolder(placeholder)
 	p.entry.SetText(value)
 	p.preview.SizeName = theme.SizeNameCaptionText
 	p.preview.Hide()
-	schedule := debounce(250*time.Millisecond, p.updatePreview)
+	schedule := kit.Debounce(250*time.Millisecond, p.updatePreview)
 	p.entry.OnChanged = func(s string) {
 		if onChange != nil {
 			onChange(s)
@@ -59,7 +60,7 @@ func newPathInput(u *UI, gameID string, tokens []pathvar.Token, value, placehold
 		right = append(right, tokBtn)
 	}
 	right = append(right, widget.NewButton(lang.L("Browse…"), p.browse))
-	p.content = vbox(rowFill(p.entry, right...), p.preview)
+	p.content = kit.VBox(kit.RowFill(p.entry, right...), p.preview)
 	p.ExtendBaseWidget(p)
 	p.updatePreview()
 	return p
@@ -104,7 +105,7 @@ func (p *pathInput) updatePreview() {
 		p.preview.Hide()
 		return
 	}
-	async(func() (string, error) { return p.u.lib.PreviewPath(p.gameID, v) }, func(out string, err error) {
+	kit.Async(func() (string, error) { return p.u.lib.PreviewPath(p.gameID, v) }, func(out string, err error) {
 		if gen != p.gen {
 			return
 		}

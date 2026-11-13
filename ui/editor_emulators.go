@@ -11,6 +11,7 @@ import (
 	"fyne.io/fyne/v2/widget"
 
 	"github.com/akfaiz/carryover/internal/library"
+	"github.com/akfaiz/carryover/internal/ui/kit"
 	"github.com/akfaiz/carryover/services"
 )
 
@@ -138,11 +139,11 @@ func (e *editor) shareField(m *emuForm) fyne.CanvasObject {
 			sel.Selected = lang.L("Share the saves of {{.Emulator}}", map[string]any{"Emulator": t.name})
 		}
 	}
-	box := vbox(sel)
+	box := kit.VBox(sel)
 	if m.share != "" {
-		box.Add(colored(lang.L("Both emulators now read and write one cloud save. Only do this if they use the same save format, otherwise one can overwrite the other's saves. They can't be played at the same time."), widget.WarningImportance))
+		box.Add(kit.Colored(lang.L("Both emulators now read and write one cloud save. Only do this if they use the same save format, otherwise one can overwrite the other's saves. They can't be played at the same time."), widget.WarningImportance))
 	}
-	return field(lang.L("Cloud save"), box)
+	return kit.Field(lang.L("Cloud save"), box)
 }
 
 // playKind is how a game is played: the choice that decides which cards the
@@ -171,34 +172,34 @@ func playKindOf(g *services.GameView, hasEmulators bool) playKind {
 // shows what applies: a PC game needs an executable and save folders, an
 // emulated game needs an emulator, a ROM and the emulator's save folders.
 func (e *editor) howCard() fyne.CanvasObject {
-	kinds := &choice{}
-	kinds.add(string(kindDirect), lang.L("PC or Steam game"))
-	kinds.add(string(kindEmulator), lang.L("Emulator"))
-	kinds.add(string(kindBoth), lang.L("Both"))
+	kinds := &kit.Choice{}
+	kinds.Add(string(kindDirect), lang.L("PC or Steam game"))
+	kinds.Add(string(kindEmulator), lang.L("Emulator"))
+	kinds.Add(string(kindBoth), lang.L("Both"))
 	// All three in view: the choice decides which cards follow.
-	sel := widget.NewRadioGroup(kinds.labels, nil)
+	sel := widget.NewRadioGroup(kinds.Labels, nil)
 	sel.Horizontal, sel.Required = true, true
-	sel.Selected = kinds.label(string(e.kind))
+	sel.Selected = kinds.Label(string(e.kind))
 	sel.OnChanged = func(l string) {
-		if v := playKind(kinds.value(l)); v != "" && v != e.kind {
+		if v := playKind(kinds.Value(l)); v != "" && v != e.kind {
 			e.kind = v
 			e.render()
 		}
 	}
-	c := vbox(cardHead(lang.L("How do you play it?")), sel)
+	c := kit.VBox(kit.CardHead(lang.L("How do you play it?")), sel)
 	switch e.kind {
 	case kindEmulator:
-		c.Add(muted(lang.L("Carryover starts the emulator with your game file and syncs the emulator's save folder before and after.")))
+		c.Add(kit.Muted(lang.L("Carryover starts the emulator with your game file and syncs the emulator's save folder before and after.")))
 	case kindBoth:
-		c.Add(muted(lang.L("Set up the game's own launch and saves below, and one entry per emulator you also use.")))
+		c.Add(kit.Muted(lang.L("Set up the game's own launch and saves below, and one entry per emulator you also use.")))
 	default:
 		if len(e.emus) > 0 {
-			c.Add(colored(lang.L("The emulators set up for this game are removed from it when you save. Their cloud saves are kept."), widget.WarningImportance))
+			c.Add(kit.Colored(lang.L("The emulators set up for this game are removed from it when you save. Their cloud saves are kept."), widget.WarningImportance))
 		} else {
-			c.Add(muted(lang.L("Carryover starts the game and syncs its save folders before and after.")))
+			c.Add(kit.Muted(lang.L("Carryover starts the game and syncs its save folders before and after.")))
 		}
 	}
-	return card("", c)
+	return kit.Card("", c)
 }
 
 // addEmulator sets the game up with an emulator; its game file starts as the
@@ -224,7 +225,7 @@ func (e *editor) emulatorsCard() fyne.CanvasObject {
 			byName[ev.Name] = ev
 		}
 	}
-	c := vbox(cardHead(lang.L("Emulators")))
+	c := kit.VBox(kit.CardHead(lang.L("Emulators")))
 	c.Add(e.u.help(lang.L("Add each emulator you use for this game. Each keeps its own saves in the cloud."),
 		lang.L("Every emulator keeps its own save locations and its own cloud save, so progress is never mixed between emulators. The same emulator on another device shares it. The game file is asked for each emulator because its format or folder can differ; it is filled in from the first one.")))
 	// A new emulator is set up in a dialog, so nothing typed here is lost.
@@ -236,9 +237,9 @@ func (e *editor) emulatorsCard() fyne.CanvasObject {
 	})
 	switch {
 	case len(e.emuList) == 0:
-		c.Add(muted(lang.L("No emulators are set up on this device yet. Add the one you play this game with:")))
+		c.Add(kit.Muted(lang.L("No emulators are set up on this device yet. Add the one you play this game with:")))
 		newEmu.Importance = widget.HighImportance
-		c.Add(hbox(newEmu))
+		c.Add(kit.HBox(newEmu))
 	case len(names) > 0:
 		sel := widget.NewSelect(names, func(n string) {
 			if ev, ok := byName[n]; ok {
@@ -246,9 +247,9 @@ func (e *editor) emulatorsCard() fyne.CanvasObject {
 			}
 		})
 		sel.PlaceHolder = lang.L("Add an emulator…")
-		c.Add(rowFill(sel, newEmu))
+		c.Add(kit.RowFill(sel, newEmu))
 	default:
-		c.Add(hbox(newEmu))
+		c.Add(kit.HBox(newEmu))
 	}
 	for i, m := range e.emus {
 		c.Add(widget.NewSeparator())
@@ -257,8 +258,8 @@ func (e *editor) emulatorsCard() fyne.CanvasObject {
 			e.render()
 		})
 		rm.Importance = widget.DangerImportance
-		c.Add(rowFill(widget.NewLabelWithStyle(m.name, fyne.TextAlignLeading, fyne.TextStyle{Bold: true}), rm))
-		rom := monoEntry("", m.rom, func(s string) { m.rom = s })
+		c.Add(kit.RowFill(widget.NewLabelWithStyle(m.name, fyne.TextAlignLeading, fyne.TextStyle{Bold: true}), rm))
+		rom := kit.MonoEntry("", m.rom, func(s string) { m.rom = s })
 		browse := widget.NewButton(lang.L("Browse…"), func() {
 			e.pickFile(lang.L("Choose the game file"), nil, func(p string) {
 				m.rom = p
@@ -266,12 +267,12 @@ func (e *editor) emulatorsCard() fyne.CanvasObject {
 				e.romPicked(m)
 			})
 		})
-		c.Add(field(lang.L("Game file / ID passed to the emulator ({rom})"), rowFill(rom, browse)))
+		c.Add(kit.Field(lang.L("Game file / ID passed to the emulator ({rom})"), kit.RowFill(rom, browse)))
 		c.Add(e.shareField(m))
 		if m.share != "" {
 			// The save locations are the other emulator's; only the paths here are this emulator's.
 			for _, s := range m.slots {
-				c.Add(field(lang.L("Path on this device: {{.Label}}", map[string]any{"Label": labelOf(s.label, s.key)}),
+				c.Add(kit.Field(lang.L("Path on this device: {{.Label}}", map[string]any{"Label": labelOf(s.label, s.key)}),
 					newPathInput(e.u, e.id, e.tokens, s.path, "{appdata}/Game/Saves", func(v string) { s.path = v })))
 			}
 			c.Add(e.emuSuggestUI(m)) // it fills in this emulator's own path for each of the other emulator's locations
@@ -288,7 +289,7 @@ func (e *editor) emulatorsCard() fyne.CanvasObject {
 			c.Add(newSlotEditor(e.u, e.id, e.tokens, s, nil, m.uniqueKey, onRemove, nil))
 		}
 		c.Add(e.emuSuggestUI(m))
-		c.Add(hbox(widget.NewButtonWithIcon(lang.L("Add save location"), theme.ContentAddIcon(), func() {
+		c.Add(kit.HBox(widget.NewButtonWithIcon(lang.L("Add save location"), theme.ContentAddIcon(), func() {
 			n := len(m.slots) + 1
 			for slices.ContainsFunc(m.slots, func(s *slotForm) bool { return s.key == fmt.Sprintf("saves-%d", n) }) {
 				n++
@@ -297,5 +298,5 @@ func (e *editor) emulatorsCard() fyne.CanvasObject {
 			e.render()
 		})))
 	}
-	return card("", c)
+	return kit.Card("", c)
 }

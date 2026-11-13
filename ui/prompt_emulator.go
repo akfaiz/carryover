@@ -1,11 +1,9 @@
 package ui
 
 import (
-	"image/color"
 	"time"
 
 	"fyne.io/fyne/v2"
-	"fyne.io/fyne/v2/canvas"
 	"fyne.io/fyne/v2/container"
 	"fyne.io/fyne/v2/lang"
 	"fyne.io/fyne/v2/layout"
@@ -13,54 +11,9 @@ import (
 	"fyne.io/fyne/v2/widget"
 
 	"github.com/akfaiz/carryover/internal/core"
+	"github.com/akfaiz/carryover/internal/ui/kit"
 	"github.com/akfaiz/carryover/services"
 )
-
-// choiceTileSize is the side of the square tile of one way to play, and
-// choicesPerRow how many fit in a row of the dialog. The rows are laid out by
-// hand: a wrapping grid works out its height from the width it had when it was
-// first laid out, which leaves a tall gap under the tiles in a dialog.
-const (
-	choiceTileSize = 124
-	choicesPerRow  = 4
-)
-
-// choiceTile is a square button for one way to play a game: an icon over its
-// name, with a ring around the highlighted one. A real button sits underneath,
-// so the tile takes focus and taps like any other button; the icon and the name
-// are drawn over it and let taps through.
-type choiceTile struct {
-	widget.BaseWidget
-	name        string
-	highlighted bool
-	btn         *widget.Button
-	body        fyne.CanvasObject
-}
-
-func newChoiceTile(name string, icon fyne.Resource, highlighted bool, tapped func()) *choiceTile {
-	btn := widget.NewButton("", tapped)
-	img := canvas.NewImageFromResource(icon)
-	img.FillMode = canvas.ImageFillContain
-	img.SetMinSize(fyne.NewSize(40, 40))
-	label := widget.NewLabelWithStyle(name, fyne.TextAlignCenter, fyne.TextStyle{Bold: highlighted})
-	label.Wrapping = fyne.TextWrapWord
-	layers := []fyne.CanvasObject{
-		btn,
-		container.NewPadded(container.NewVBox(layout.NewSpacer(), container.NewCenter(img), label, layout.NewSpacer())),
-	}
-	if highlighted {
-		ring := canvas.NewRectangle(color.Transparent)
-		ring.StrokeColor, ring.StrokeWidth = colAccent, 2
-		ring.CornerRadius = theme.InputRadiusSize()
-		layers = append(layers, ring)
-	}
-	t := &choiceTile{name: name, highlighted: highlighted, btn: btn, body: container.NewStack(layers...)}
-	t.ExtendBaseWidget(t)
-	return t
-}
-
-// CreateRenderer implements fyne.Widget.
-func (t *choiceTile) CreateRenderer() fyne.WidgetRenderer { return widget.NewSimpleRenderer(t.body) }
 
 // emulatorChoice is the body of the "which emulator?" prompt, used by the
 // launcher's Play and by a Steam shortcut: a square tile per way to play the
@@ -86,7 +39,7 @@ func (q *promptQueue) emulatorChoice(p services.Prompt, answer func(string)) fyn
 	}
 
 	var defName string
-	tiles := vbox()
+	tiles := kit.VBox()
 	var row *fyne.Container
 	for i, c := range p.Choices {
 		icon := theme.ComputerIcon()
@@ -97,16 +50,16 @@ func (q *promptQueue) emulatorChoice(p services.Prompt, answer func(string)) fyn
 		if isDefault {
 			defName = choiceName(c)
 		}
-		if i%choicesPerRow == 0 {
-			row = hbox()
+		if i%kit.ChoicesPerRow == 0 {
+			row = kit.HBox()
 			tiles.Add(row)
 		}
-		tile := newChoiceTile(choiceName(c), icon, isDefault, func() { finish(c.ID) })
-		row.Add(container.New(layout.NewGridWrapLayout(fyne.NewSize(choiceTileSize, choiceTileSize)), tile))
+		tile := kit.NewChoiceTile(choiceName(c), icon, isDefault, func() { finish(c.ID) })
+		row.Add(container.New(layout.NewGridWrapLayout(fyne.NewSize(kit.ChoiceTileSize, kit.ChoiceTileSize)), tile))
 	}
 
 	remaining, paused := p.Seconds, false
-	countdown := muted("")
+	countdown := kit.Muted("")
 	update := func() {
 		if paused || p.Seconds <= 0 || defName == "" {
 			countdown.SetText("")
@@ -135,7 +88,7 @@ func (q *promptQueue) emulatorChoice(p services.Prompt, answer func(string)) fyn
 				case <-stop:
 					return
 				case <-t.C:
-					onUI(func() {
+					kit.OnUI(func() {
 						select {
 						case <-stop:
 							return
@@ -164,10 +117,10 @@ func (q *promptQueue) emulatorChoice(p services.Prompt, answer func(string)) fyn
 	if p.Seconds > 0 {
 		hint = lang.L("Choose how to play. The highlighted one starts by itself when the countdown ends.")
 	}
-	return vbox(
-		muted(hint),
+	return kit.VBox(
+		kit.Muted(hint),
 		tiles,
 		countdown,
-		hbox(widget.NewButton(lang.L("Cancel"), func() { finish("cancel") }), pause),
+		kit.HBox(widget.NewButton(lang.L("Cancel"), func() { finish("cancel") }), pause),
 	)
 }

@@ -12,6 +12,7 @@ import (
 	"fyne.io/fyne/v2/widget"
 
 	"github.com/akfaiz/carryover/internal/saves/pathvar"
+	"github.com/akfaiz/carryover/internal/ui/kit"
 	"github.com/akfaiz/carryover/services"
 )
 
@@ -49,7 +50,7 @@ type emulatorsPage struct {
 func newEmulatorsPage(u *UI) *emulatorsPage { return &emulatorsPage{u: u} }
 
 func (p *emulatorsPage) view() fyne.CanvasObject {
-	p.scroll = scrollPage(muted(lang.L("Loading…")))
+	p.scroll = kit.ScrollPage(kit.Muted(lang.L("Loading…")))
 	p.reload()
 	return p.scroll
 }
@@ -59,7 +60,7 @@ func (p *emulatorsPage) reload() {
 		list   []services.EmulatorView
 		tokens []pathvar.Token
 	}
-	async(func() (loaded, error) { return loaded{p.u.emus.List(), p.u.lib.Tokens("")}, nil }, func(l loaded, _ error) {
+	kit.Async(func() (loaded, error) { return loaded{p.u.emus.List(), p.u.lib.Tokens("")}, nil }, func(l loaded, _ error) {
 		p.list, p.tokens, p.loaded = l.list, l.tokens, true
 		p.render()
 	})
@@ -79,20 +80,20 @@ func (p *emulatorsPage) render() {
 		return
 	}
 	if p.editing != nil {
-		replaceScroll(p.scroll, stack(pageHead(p.closeForm, p.editing.title()), p.editing.host))
+		kit.ReplaceScroll(p.scroll, kit.Stack(kit.PageHead(p.closeForm, p.editing.title()), p.editing.host))
 		return
 	}
 	add := widget.NewButtonWithIcon(lang.L("Add emulator"), theme.ContentAddIcon(), func() { p.edit(services.EmulatorSetup{}) })
 	add.Importance = widget.HighImportance
-	body := stack(pageHead(nil, lang.L("Emulators"), add),
-		muted(lang.L("An emulator is set up once per device. Games you play through it pick it in their editor, and each emulator keeps its own saves in the cloud.")))
+	body := kit.Stack(kit.PageHead(nil, lang.L("Emulators"), add),
+		kit.Muted(lang.L("An emulator is set up once per device. Games you play through it pick it in their editor, and each emulator keeps its own saves in the cloud.")))
 	if len(p.list) == 0 {
-		body.Add(card("", muted(lang.L("No emulators yet. Add one, for example Eden or Ryujinx for Nintendo Switch games."))))
+		body.Add(kit.Card("", kit.Muted(lang.L("No emulators yet. Add one, for example Eden or Ryujinx for Nintendo Switch games."))))
 	}
 	for _, ev := range p.list {
 		body.Add(p.row(ev))
 	}
-	replaceScroll(p.scroll, body)
+	kit.ReplaceScroll(p.scroll, body)
 }
 
 // closeForm goes back to the list, asking first if the form has changes.
@@ -106,19 +107,19 @@ func (p *emulatorsPage) closeForm() {
 }
 
 func (p *emulatorsPage) row(ev services.EmulatorView) fyne.CanvasObject {
-	state := badge(lang.L("Ready on this device"), badgeOK)
+	state := kit.Badge(lang.L("Ready on this device"), kit.BadgeOK)
 	if !ev.SetUp {
-		state = badge(lang.L("Not set up on this device"), badgeNone)
+		state = kit.Badge(lang.L("Not set up on this device"), kit.BadgeNone)
 	}
-	games := small(lang.N("Used by {{.Count}} game", ev.Games, map[string]any{"Count": ev.Games}))
+	games := kit.Small(lang.N("Used by {{.Count}} game", ev.Games, map[string]any{"Count": ev.Games}))
 	edit := widget.NewButtonWithIcon(lang.L("Edit"), theme.DocumentCreateIcon(), func() {
 		p.edit(services.EmulatorSetup{
 			ID: ev.ID, Name: ev.Name, Exe: ev.Device.Exe, Args: ev.Device.Args, WorkDir: ev.Device.WorkDir,
 			Env: ev.Device.Env, WaitProcess: ev.Device.WaitProcess, Preset: ev.Preset, DataDir: ev.Device.DataDir,
 		})
 	})
-	del := dangerButton(lang.L("Delete…"), func() { p.askDelete(ev) })
-	return card("", vbox(cardHead(ev.Name, state), hbox(games), hbox(edit, del)))
+	del := kit.DangerButton(lang.L("Delete…"), func() { p.askDelete(ev) })
+	return kit.Card("", kit.VBox(kit.CardHead(ev.Name, state), kit.HBox(games), kit.HBox(edit, del)))
 }
 
 // askDelete moves an emulator to the trash, or deletes it with its cloud saves.
@@ -134,7 +135,7 @@ func (p *emulatorsPage) askDelete(ev services.EmulatorView) {
 			if saves {
 				del = p.u.emus.DeleteWithSaves
 			}
-			async0(func() error { return del(ev.ID) }, func(err error) {
+			kit.Async0(func() error { return del(ev.ID) }, func(err error) {
 				p.u.toastErr(err)
 				p.reload()
 			})

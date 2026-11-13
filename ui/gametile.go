@@ -10,6 +10,7 @@ import (
 	"fyne.io/fyne/v2/theme"
 	"fyne.io/fyne/v2/widget"
 
+	"github.com/akfaiz/carryover/internal/ui/kit"
 	"github.com/akfaiz/carryover/services"
 )
 
@@ -30,12 +31,12 @@ type gameTile struct {
 }
 
 func newGameTile(u *UI, g services.GameView) *gameTile {
-	t := &gameTile{u: u, cover: container.NewStack(), status: hbox()}
+	t := &gameTile{u: u, cover: container.NewStack(), status: kit.HBox()}
 	t.name = widget.NewLabelWithStyle("", fyne.TextAlignLeading, fyne.TextStyle{Bold: true})
 	t.name.Truncation = fyne.TextTruncateEllipsis
 	t.play = widget.NewButton("", t.playTapped)
-	open := newTappable(vbox(t.cover, t.name, t.status), func() { u.navigate("/game/" + t.g.ID) })
-	t.content = vbox(open, t.play)
+	open := kit.NewTappable(kit.VBox(t.cover, t.name, t.status), func() { u.navigate("/game/" + t.g.ID) })
+	t.content = kit.VBox(open, t.play)
 	t.set(g)
 	t.ExtendBaseWidget(t)
 	return t
@@ -47,7 +48,7 @@ func (t *gameTile) set(g services.GameView) {
 	t.g = g
 	if key := fmt.Sprintf("%s?%d|%s", g.CoverPath, g.CoverVersion, g.Name); key != t.coverKey {
 		t.coverKey = key
-		t.cover.Objects = []fyne.CanvasObject{coverView(coverSource{path: g.CoverPath, version: g.CoverVersion, name: g.Name}, fyne.NewSize(160, 240))}
+		t.cover.Objects = []fyne.CanvasObject{kit.CoverView(kit.CoverSource{Path: g.CoverPath, Version: g.CoverVersion, Name: g.Name}, fyne.NewSize(160, 240))}
 		t.cover.Refresh()
 	}
 	t.name.SetText(g.Name)
@@ -55,7 +56,7 @@ func (t *gameTile) set(g services.GameView) {
 	if g.Ready {
 		when = timeAgo(g.Status.LastSyncAt)
 	}
-	t.status.Objects = []fyne.CanvasObject{statusBadge(g), small(when)}
+	t.status.Objects = []fyne.CanvasObject{statusBadge(g), kit.Small(when)}
 	t.status.Refresh()
 
 	label, icon, imp, enabled := lang.L("Play"), theme.MediaPlayIcon(), widget.HighImportance, true
@@ -71,7 +72,7 @@ func (t *gameTile) set(g services.GameView) {
 	t.play.SetText(label)
 	t.play.SetIcon(icon)
 	t.play.Importance = imp
-	setEnabled(t.play, enabled)
+	kit.SetEnabled(t.play, enabled)
 	t.play.Refresh()
 }
 
@@ -85,7 +86,7 @@ func (t *gameTile) playTapped() {
 	default:
 		t.play.Disable()
 		// A game that can be played in several ways asks which one in a dialog.
-		async0(func() error { return u.sess.Play(g.ID) }, func(err error) {
+		kit.Async0(func() error { return u.sess.Play(g.ID) }, func(err error) {
 			if err != nil {
 				u.toastErr(err)
 				t.play.Enable()
@@ -100,7 +101,7 @@ func (t *gameTile) playTapped() {
 func openSteam(u *UI, g services.GameView) {
 	link := services.SteamRunURL(g)
 	if link == "" {
-		u.toast(lang.L("Steam can't start this game yet: add it to Steam on the game's page."), toastErr)
+		u.toast(lang.L("Steam can't start this game yet: add it to Steam on the game's page."), kit.ToastErr)
 		return
 	}
 	pu, err := url.Parse(link)
@@ -111,7 +112,7 @@ func openSteam(u *UI, g services.GameView) {
 		u.toastErr(err)
 		return
 	}
-	u.toast(lang.L("Starting {{.Game}} in Steam…", map[string]any{"Game": g.Name}), toastInfo)
+	u.toast(lang.L("Starting {{.Game}} in Steam…", map[string]any{"Game": g.Name}), kit.ToastInfo)
 }
 
 // CreateRenderer implements fyne.Widget.

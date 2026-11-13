@@ -14,6 +14,7 @@ import (
 	"fyne.io/fyne/v2/widget"
 
 	"github.com/akfaiz/carryover/internal/core"
+	"github.com/akfaiz/carryover/internal/ui/kit"
 	"github.com/akfaiz/carryover/services"
 )
 
@@ -22,21 +23,21 @@ type sessionPage struct {
 	u      *UI
 	w      services.WrapperState
 	msg    *widget.Label
-	prog   *progressBar
+	prog   *kit.ProgressBar
 	cancel *widget.Button
 	phase  string // sync phase the Cancel button belongs to
 }
 
 func (p *sessionPage) view() fyne.CanvasObject {
-	brand := muted("Carryover")
-	name := title(p.w.GameName)
+	brand := kit.Muted("Carryover")
+	name := kit.Title(p.w.GameName)
 	if p.w.GameName == "" {
 		name.SetText(p.w.GameID)
 	}
 	p.msg = widget.NewLabel(lang.L("Starting…"))
 	p.msg.Wrapping = fyne.TextWrapWord
-	p.prog = newProgress()
-	p.prog.set("", 0, 0)
+	p.prog = kit.NewProgress()
+	p.prog.Set("", 0, 0)
 	p.cancel = widget.NewButtonWithIcon(lang.L("Cancel"), theme.CancelIcon(), func() {
 		if p.u.sess.Cancel(p.w.GameID) {
 			p.cancel.SetText(lang.L("Cancelling…"))
@@ -44,20 +45,20 @@ func (p *sessionPage) view() fyne.CanvasObject {
 		}
 	})
 	p.cancel.Hide()
-	content := container.NewPadded(container.NewPadded(vbox(brand, name, p.msg, p.prog, hbox(p.cancel))))
-	var bg fyne.CanvasObject = canvas.NewRectangle(colBg)
+	content := container.NewPadded(container.NewPadded(kit.VBox(brand, name, p.msg, p.prog, kit.HBox(p.cancel))))
+	var bg fyne.CanvasObject = canvas.NewRectangle(kit.ColBg)
 	if p.w.CoverPath != "" {
 		img := canvas.NewImageFromImage(nil)
 		img.FillMode = canvas.ImageFillCover
 		img.Translucency = 0.75
-		images.loadFile(p.w.CoverPath, 0, func(i image.Image) {
+		kit.Images.LoadFile(p.w.CoverPath, 0, func(i image.Image) {
 			if i != nil {
 				img.Image = i
 				img.Refresh()
 			}
 		})
-		shade := canvas.NewLinearGradient(color.NRGBA{colBg.R, colBg.G, colBg.B, 0x80}, colBg, 0)
-		bg = container.NewStack(canvas.NewRectangle(colBg), img, shade)
+		shade := canvas.NewLinearGradient(color.NRGBA{kit.ColBg.R, kit.ColBg.G, kit.ColBg.B, 0x80}, kit.ColBg, 0)
+		bg = container.NewStack(canvas.NewRectangle(kit.ColBg), img, shade)
 	}
 	return container.NewStack(bg, container.NewBorder(nil, content, nil, nil))
 }
@@ -76,7 +77,7 @@ func (p *sessionPage) stateChanged(change) {
 	p.msg.Refresh()
 	if st.Phase == "sync" {
 		ev := p.u.progress[p.w.GameID]
-		p.prog.set(ev.Message, ev.Bytes, ev.TotalBytes)
+		p.prog.Set(ev.Message, ev.Bytes, ev.TotalBytes)
 		p.prog.Show()
 		if p.phase != st.Message {
 			// A new sync phase (before or after playing): offer Cancel again.
@@ -107,10 +108,10 @@ func (u *UI) runWrapper(gameID string, opts core.RunOptions) int {
 
 	page := &sessionPage{u: u, w: u.sess.Wrapper()}
 	u.page = page
-	u.win.SetContent(container.NewStack(page.view(), u.toasts.layer))
+	u.win.SetContent(container.NewStack(page.view(), u.toasts.Layer))
 
 	u.sess.OnGameRunning = func(running bool) {
-		onUI(func() {
+		kit.OnUI(func() {
 			if running {
 				u.win.Hide()
 			} else {
@@ -118,11 +119,11 @@ func (u *UI) runWrapper(gameID string, opts core.RunOptions) int {
 			}
 		})
 	}
-	u.sess.OnPrompt = func() { onUI(func() { u.win.Show(); u.win.RequestFocus() }) }
+	u.sess.OnPrompt = func() { kit.OnUI(func() { u.win.Show(); u.win.RequestFocus() }) }
 
 	exitCode := 0
 	u.app.Lifecycle().SetOnStarted(func() {
-		setTopmost(u.win)
+		kit.SetTopmost(u.win)
 		u.sess.Start()
 		go func() {
 			out := <-done
@@ -137,7 +138,7 @@ func (u *UI) runWrapper(gameID string, opts core.RunOptions) int {
 			} else {
 				time.Sleep(1200 * time.Millisecond)
 			}
-			onUI(u.app.Quit)
+			kit.OnUI(u.app.Quit)
 		}()
 	})
 	u.win.ShowAndRun()

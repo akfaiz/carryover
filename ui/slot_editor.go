@@ -8,6 +8,7 @@ import (
 	"fyne.io/fyne/v2/widget"
 
 	"github.com/akfaiz/carryover/internal/saves/pathvar"
+	"github.com/akfaiz/carryover/internal/ui/kit"
 	"github.com/akfaiz/carryover/services"
 )
 
@@ -15,7 +16,7 @@ import (
 type slotForm struct {
 	key, label, include, exclude, path string
 	isNew                              bool
-	filters                            *accordionSection // set while a slotEditor shows this slot
+	filters                            *kit.AccordionSection // set while a slotEditor shows this slot
 	filtersOpen                        bool
 }
 
@@ -41,12 +42,12 @@ func newSlotEditor(u *UI, gameID string, tokens []pathvar.Token, s *slotForm, ot
 	label := widget.NewEntry()
 	label.SetPlaceHolder(lang.L("Label"))
 	label.SetText(s.label)
-	keyBadge := container.NewCenter(badge(s.key, badgeNone))
+	keyBadge := container.NewCenter(kit.Badge(s.key, kit.BadgeNone))
 	label.OnChanged = func(v string) {
 		s.label = v
 		if s.isNew {
 			s.key = uniqueKey(slug(v), s)
-			keyBadge.Objects = []fyne.CanvasObject{badge(s.key, badgeNone)}
+			keyBadge.Objects = []fyne.CanvasObject{kit.Badge(s.key, kit.BadgeNone)}
 			keyBadge.Refresh()
 		}
 	}
@@ -57,9 +58,9 @@ func newSlotEditor(u *UI, gameID string, tokens []pathvar.Token, s *slotForm, ot
 		right = append(right, rm)
 	}
 
-	c := vbox(
-		rowFill(label, right...),
-		field(lang.L("Path on this device"), newPathInput(u, gameID, tokens, s.path, "{appdata}/Game/Saves", func(v string) {
+	c := kit.VBox(
+		kit.RowFill(label, right...),
+		kit.Field(lang.L("Path on this device"), newPathInput(u, gameID, tokens, s.path, "{appdata}/Game/Saves", func(v string) {
 			s.path = v
 			if pathChanged != nil {
 				pathChanged()
@@ -68,17 +69,17 @@ func newSlotEditor(u *UI, gameID string, tokens []pathvar.Token, s *slotForm, ot
 	)
 	for _, o := range others {
 		if p := o.Paths[s.key]; p != "" {
-			l := mono(lang.L("On {{.Device}}: {{.Path}}", map[string]any{"Device": o.DeviceName, "Path": p}))
+			l := kit.Mono(lang.L("On {{.Device}}: {{.Path}}", map[string]any{"Device": o.DeviceName, "Path": p}))
 			l.Importance = widget.LowImportance
 			l.SizeName = theme.SizeNameCaptionText
 			c.Add(l)
 		}
 	}
 
-	inc := monoMultiLine("*.sav", s.include, 2, func(v string) { s.include = v })
-	exc := monoMultiLine("*.log\nshadercache/**", s.exclude, 2, func(v string) { s.exclude = v })
-	s.filters = newAccordionSection(lang.L("Filters"), container.NewGridWithColumns(2,
-		field(lang.L("Include only (globs, one per line)"), inc), field(lang.L("Exclude (globs)"), exc)), s.filtersOpen)
+	inc := kit.MonoMultiLine("*.sav", s.include, 2, func(v string) { s.include = v })
+	exc := kit.MonoMultiLine("*.log\nshadercache/**", s.exclude, 2, func(v string) { s.exclude = v })
+	s.filters = kit.NewAccordionSection(lang.L("Filters"), container.NewGridWithColumns(2,
+		kit.Field(lang.L("Include only (globs, one per line)"), inc), kit.Field(lang.L("Exclude (globs)"), exc)), s.filtersOpen)
 	c.Add(s.filters)
 
 	e := &slotEditor{content: c}

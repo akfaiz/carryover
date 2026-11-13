@@ -1,4 +1,4 @@
-package ui
+package kit
 
 import (
 	"image/color"
@@ -8,18 +8,15 @@ import (
 	"fyne.io/fyne/v2/canvas"
 	"fyne.io/fyne/v2/container"
 	"fyne.io/fyne/v2/driver/desktop"
-	"fyne.io/fyne/v2/lang"
 	"fyne.io/fyne/v2/layout"
 	"fyne.io/fyne/v2/theme"
 	"fyne.io/fyne/v2/widget"
-
-	"github.com/akfaiz/carryover/services"
 )
 
-// pageGap is the space between cards and page sections stacked on a page.
+// PageGap is the space between cards and page sections stacked on a page.
 // Fyne's own VBox leaves only theme.Padding() (4px), which looks cramped next
 // to the page margin.
-const pageGap float32 = 16
+const PageGap float32 = 16
 
 // gapVBox stacks objects vertically at full width with gap between them.
 type gapVBox struct{ gap float32 }
@@ -50,44 +47,44 @@ func (g gapVBox) MinSize(objs []fyne.CanvasObject) fyne.Size {
 	return fyne.NewSize(w, max(h-g.gap, 0))
 }
 
-// stack is a vertical stack of cards or page sections, pageGap apart.
-func stack(objs ...fyne.CanvasObject) *fyne.Container {
-	return container.New(gapVBox{pageGap}, objs...)
+// Stack is a vertical stack of cards or page sections, pageGap apart.
+func Stack(objs ...fyne.CanvasObject) *fyne.Container {
+	return container.New(gapVBox{PageGap}, objs...)
 }
 
-// card is a rounded panel with an optional heading.
-func card(title string, objs ...fyne.CanvasObject) fyne.CanvasObject {
-	bg := canvas.NewRectangle(colBg2)
+// Card is a rounded panel with an optional heading.
+func Card(title string, objs ...fyne.CanvasObject) fyne.CanvasObject {
+	bg := canvas.NewRectangle(ColBg2)
 	bg.CornerRadius = 10
-	bg.StrokeColor = colLine
+	bg.StrokeColor = ColLine
 	bg.StrokeWidth = 1
 	items := objs
 	if title != "" {
-		items = append([]fyne.CanvasObject{heading(title)}, objs...)
+		items = append([]fyne.CanvasObject{Heading(title)}, objs...)
 	}
 	return container.NewStack(bg, container.New(layout.NewCustomPaddedLayout(14, 14, 16, 16), container.NewVBox(items...)))
 }
 
-// cardHead is a card heading with right-aligned actions.
-func cardHead(title string, actions ...fyne.CanvasObject) fyne.CanvasObject {
-	objs := append([]fyne.CanvasObject{heading(title), layout.NewSpacer()}, actions...)
+// CardHead is a card heading with right-aligned actions.
+func CardHead(title string, actions ...fyne.CanvasObject) fyne.CanvasObject {
+	objs := append([]fyne.CanvasObject{Heading(title), layout.NewSpacer()}, actions...)
 	return container.NewHBox(objs...)
 }
 
-func heading(t string) *widget.Label {
+func Heading(t string) *widget.Label {
 	l := widget.NewLabelWithStyle(t, fyne.TextAlignLeading, fyne.TextStyle{Bold: true})
 	l.SizeName = theme.SizeNameSubHeadingText
 	return l
 }
 
-func title(t string) *widget.Label {
+func Title(t string) *widget.Label {
 	l := widget.NewLabelWithStyle(t, fyne.TextAlignLeading, fyne.TextStyle{Bold: true})
 	l.SizeName = theme.SizeNameHeadingText
 	return l
 }
 
-// muted is small grey wrapping text.
-func muted(t string) *widget.Label {
+// Muted is small grey wrapping text.
+func Muted(t string) *widget.Label {
 	l := widget.NewLabel(t)
 	l.Importance = widget.LowImportance
 	l.Wrapping = fyne.TextWrapWord
@@ -95,14 +92,14 @@ func muted(t string) *widget.Label {
 	return l
 }
 
-func colored(t string, imp widget.Importance) *widget.Label {
+func Colored(t string, imp widget.Importance) *widget.Label {
 	l := widget.NewLabel(t)
 	l.Importance = imp
 	l.Wrapping = fyne.TextWrapWord
 	return l
 }
 
-func mono(t string) *widget.Label {
+func Mono(t string) *widget.Label {
 	l := widget.NewLabelWithStyle(t, fyne.TextAlignLeading, fyne.TextStyle{Monospace: true})
 	l.Wrapping = fyne.TextWrapBreak
 	return l
@@ -115,31 +112,31 @@ func fieldLabel(t string) *widget.Label {
 	return l
 }
 
-// field is a caption above an input.
-func field(label string, input fyne.CanvasObject) fyne.CanvasObject {
+// Field is a caption above an input.
+func Field(label string, input fyne.CanvasObject) fyne.CanvasObject {
 	return container.NewVBox(fieldLabel(label), input)
 }
 
-// badge kinds.
+// Badge kinds.
 const (
-	badgeNone = iota
-	badgeOK
-	badgeWarn
-	badgeErr
-	badgeInfo
+	BadgeNone = iota
+	BadgeOK
+	BadgeWarn
+	BadgeErr
+	BadgeInfo
 )
 
-func badge(text string, kind int) fyne.CanvasObject {
-	fg := colMuted
+func Badge(text string, kind int) fyne.CanvasObject {
+	fg := ColMuted
 	switch kind {
-	case badgeOK:
-		fg = colOK
-	case badgeWarn:
-		fg = colWarn
-	case badgeErr:
-		fg = colErr
-	case badgeInfo:
-		fg = colAccent
+	case BadgeOK:
+		fg = ColOK
+	case BadgeWarn:
+		fg = ColWarn
+	case BadgeErr:
+		fg = ColErr
+	case BadgeInfo:
+		fg = ColAccent
 	}
 	bg := canvas.NewRectangle(color.NRGBA{fg.R, fg.G, fg.B, 0x26})
 	bg.CornerRadius = 9
@@ -148,44 +145,25 @@ func badge(text string, kind int) fyne.CanvasObject {
 	return container.NewStack(bg, container.New(layout.NewCustomPaddedLayout(2, 2, 8, 8), t))
 }
 
-// statusBadge is the sync state badge of a game.
-func statusBadge(g services.GameView) fyne.CanvasObject {
-	switch {
-	case g.Status.Running:
-		return badge(lang.L("running"), badgeInfo)
-	case !g.Ready:
-		return badge(lang.L("needs setup"), badgeWarn)
-	case g.Status.Conflict:
-		return badge(lang.L("conflict"), badgeErr)
-	case g.Status.LastError != "":
-		return badge(lang.L("sync error"), badgeErr)
-	case g.Status.LocalChanges:
-		return badge(lang.L("not uploaded"), badgeWarn)
-	case g.Status.LastSyncAt != "":
-		return badge(lang.L("synced"), badgeOK)
-	}
-	return badge(lang.L("not synced"), badgeNone)
-}
-
-func primary(label string, f func()) *widget.Button {
+func Primary(label string, f func()) *widget.Button {
 	b := widget.NewButton(label, f)
 	b.Importance = widget.HighImportance
 	return b
 }
 
-func lowButton(label string, f func()) *widget.Button {
+func LowButton(label string, f func()) *widget.Button {
 	b := widget.NewButton(label, f)
 	b.Importance = widget.LowImportance
 	return b
 }
 
-func dangerButton(label string, f func()) *widget.Button {
+func DangerButton(label string, f func()) *widget.Button {
 	b := widget.NewButton(label, f)
 	b.Importance = widget.DangerImportance
 	return b
 }
 
-func setEnabled(w fyne.Disableable, on bool) {
+func SetEnabled(w fyne.Disableable, on bool) {
 	if on {
 		w.Enable()
 	} else {
@@ -193,19 +171,19 @@ func setEnabled(w fyne.Disableable, on bool) {
 	}
 }
 
-// newCheck is a checkbox that calls changed when the user toggles it. Its
+// NewCheck is a checkbox that calls changed when the user toggles it. Its
 // initial state is set before the callback is attached: SetChecked calls the
 // callback, so a callback that redraws the page would build the checkbox again,
 // without end, and one that saves would save before the form is complete.
-func newCheck(label string, on bool, changed func(bool)) *widget.Check {
+func NewCheck(label string, on bool, changed func(bool)) *widget.Check {
 	c := widget.NewCheck(label, nil)
 	c.SetChecked(on)
 	c.OnChanged = changed
 	return c
 }
 
-// setVisible shows or hides an object.
-func setVisible(o fyne.CanvasObject, on bool) {
+// SetVisible shows or hides an object.
+func SetVisible(o fyne.CanvasObject, on bool) {
 	if on {
 		o.Show()
 	} else {
@@ -213,19 +191,19 @@ func setVisible(o fyne.CanvasObject, on bool) {
 	}
 }
 
-func hbox(objs ...fyne.CanvasObject) *fyne.Container { return container.NewHBox(objs...) }
+func HBox(objs ...fyne.CanvasObject) *fyne.Container { return container.NewHBox(objs...) }
 
-func vbox(objs ...fyne.CanvasObject) *fyne.Container { return container.NewVBox(objs...) }
+func VBox(objs ...fyne.CanvasObject) *fyne.Container { return container.NewVBox(objs...) }
 
-// rowFill puts main in the middle (stretched) and fixed objects at its right.
-func rowFill(main fyne.CanvasObject, right ...fyne.CanvasObject) fyne.CanvasObject {
-	return container.NewBorder(nil, nil, nil, hbox(right...), main)
+// RowFill puts main in the middle (stretched) and fixed objects at its right.
+func RowFill(main fyne.CanvasObject, right ...fyne.CanvasObject) fyne.CanvasObject {
+	return container.NewBorder(nil, nil, nil, HBox(right...), main)
 }
 
-// progressBar is a determinate or indeterminate progress indicator. It must
+// ProgressBar is a determinate or indeterminate progress indicator. It must
 // be a widget: a struct that merely embeds *fyne.Container is laid out but
 // never painted.
-type progressBar struct {
+type ProgressBar struct {
 	widget.BaseWidget
 	content fyne.CanvasObject
 	bar     *widget.ProgressBar
@@ -233,8 +211,8 @@ type progressBar struct {
 	info    *widget.Label
 }
 
-func newProgress() *progressBar {
-	p := &progressBar{bar: widget.NewProgressBar(), inf: widget.NewProgressBarInfinite(), info: muted("")}
+func NewProgress() *ProgressBar {
+	p := &ProgressBar{bar: widget.NewProgressBar(), inf: widget.NewProgressBarInfinite(), info: Muted("")}
 	p.bar.TextFormatter = func() string { return "" }
 	p.content = container.NewVBox(container.NewStack(p.bar, p.inf), p.info)
 	p.ExtendBaseWidget(p)
@@ -242,12 +220,12 @@ func newProgress() *progressBar {
 }
 
 // CreateRenderer implements fyne.Widget.
-func (p *progressBar) CreateRenderer() fyne.WidgetRenderer {
+func (p *ProgressBar) CreateRenderer() fyne.WidgetRenderer {
 	return widget.NewSimpleRenderer(p.content)
 }
 
-// set updates the bar; total 0 means indeterminate.
-func (p *progressBar) set(msg string, bytes, total int64) {
+// Set updates the bar; total 0 means indeterminate.
+func (p *ProgressBar) Set(msg string, bytes, total int64) {
 	if total > 0 {
 		p.inf.Hide()
 		p.inf.Stop()
@@ -256,7 +234,7 @@ func (p *progressBar) set(msg string, bytes, total int64) {
 		if msg != "" {
 			msg += " · "
 		}
-		msg += formatBytes(bytes) + " / " + formatBytes(total)
+		msg += FormatBytes(bytes) + " / " + FormatBytes(total)
 	} else {
 		p.bar.Hide()
 		p.inf.Show()
@@ -270,45 +248,49 @@ func (p *progressBar) set(msg string, bytes, total int64) {
 	}
 }
 
-// choice maps Select labels to values.
-type choice struct {
-	labels []string
-	values []string
+// Choice maps Select labels to values.
+type Choice struct {
+	Labels []string
+	Values []string
 }
 
-func (c *choice) add(value, label string) {
-	c.values = append(c.values, value)
-	c.labels = append(c.labels, label)
+func (c *Choice) Add(value, label string) {
+	c.Values = append(c.Values, value)
+	c.Labels = append(c.Labels, label)
 }
 
-func (c *choice) label(v string) string {
-	for i, x := range c.values {
+func (c *Choice) Label(v string) string {
+	for i, x := range c.Values {
 		if x == v {
-			return c.labels[i]
+			return c.Labels[i]
 		}
 	}
 	return ""
 }
 
-func (c *choice) value(l string) string {
-	for i, x := range c.labels {
+func (c *Choice) Value(l string) string {
+	for i, x := range c.Labels {
 		if x == l {
-			return c.values[i]
+			return c.Values[i]
 		}
 	}
 	return ""
 }
 
-// selectOf builds a Select for c with value v preselected.
-func selectOf(c *choice, v string, onChange func(string)) *widget.Select {
-	s := widget.NewSelect(c.labels, nil)
-	s.SetSelected(c.label(v))
-	s.OnChanged = func(l string) { onChange(c.value(l)) }
+// SelectOf builds a Select for c with value v preselected.
+func SelectOf(c *Choice, v string, onChange func(string)) *widget.Select {
+	s := widget.NewSelect(c.Labels, nil)
+	s.SetSelected(c.Label(v))
+	s.OnChanged = func(l string) {
+		if onChange != nil {
+			onChange(c.Value(l))
+		}
+	}
 	return s
 }
 
-// fixedWidth constrains an object's minimum width.
-func fixedWidth(w float32, o fyne.CanvasObject) fyne.CanvasObject {
+// FixedWidth constrains an object's minimum width.
+func FixedWidth(w float32, o fyne.CanvasObject) fyne.CanvasObject {
 	return container.New(&minSizeLayout{size: fyne.NewSize(w, 0)}, o)
 }
 
@@ -330,8 +312,8 @@ func (l *minSizeLayout) MinSize(objs []fyne.CanvasObject) fyne.Size {
 	return s
 }
 
-// fixedSize forces exactly size (ignores children's min size).
-func fixedSize(size fyne.Size, o fyne.CanvasObject) fyne.CanvasObject {
+// FixedSize forces exactly size (ignores children's min size).
+func FixedSize(size fyne.Size, o fyne.CanvasObject) fyne.CanvasObject {
 	return container.New(&exactLayout{size: size}, o)
 }
 
@@ -346,46 +328,46 @@ func (l *exactLayout) Layout(objs []fyne.CanvasObject, size fyne.Size) {
 
 func (l *exactLayout) MinSize([]fyne.CanvasObject) fyne.Size { return l.size }
 
-// tappable makes any object clickable. It is highlighted while the mouse is
+// Tappable makes any object clickable. It is highlighted while the mouse is
 // over it, so it reads as clickable like a button does.
-type tappable struct {
+type Tappable struct {
 	widget.BaseWidget
 	content fyne.CanvasObject
 	onTap   func()
 	hover   *canvas.Rectangle
 }
 
-func newTappable(content fyne.CanvasObject, onTap func()) *tappable {
-	t := &tappable{content: content, onTap: onTap, hover: canvas.NewRectangle(color.Transparent)}
+func NewTappable(content fyne.CanvasObject, onTap func()) *Tappable {
+	t := &Tappable{content: content, onTap: onTap, hover: canvas.NewRectangle(color.Transparent)}
 	t.hover.CornerRadius = 8
 	t.ExtendBaseWidget(t)
 	return t
 }
 
-func (t *tappable) Tapped(*fyne.PointEvent) {
+func (t *Tappable) Tapped(*fyne.PointEvent) {
 	if t.onTap != nil {
 		t.onTap()
 	}
 }
 
-func (t *tappable) Cursor() desktop.Cursor { return desktop.PointerCursor }
+func (t *Tappable) Cursor() desktop.Cursor { return desktop.PointerCursor }
 
 // MouseIn implements desktop.Hoverable.
-func (t *tappable) MouseIn(*desktop.MouseEvent) {
-	t.hover.FillColor = colHover
+func (t *Tappable) MouseIn(*desktop.MouseEvent) {
+	t.hover.FillColor = ColHover
 	t.hover.Refresh()
 }
 
 // MouseMoved implements desktop.Hoverable.
-func (t *tappable) MouseMoved(*desktop.MouseEvent) {}
+func (t *Tappable) MouseMoved(*desktop.MouseEvent) {}
 
 // MouseOut implements desktop.Hoverable.
-func (t *tappable) MouseOut() {
+func (t *Tappable) MouseOut() {
 	t.hover.FillColor = color.Transparent
 	t.hover.Refresh()
 }
 
-func (t *tappable) CreateRenderer() fyne.WidgetRenderer {
+func (t *Tappable) CreateRenderer() fyne.WidgetRenderer {
 	return widget.NewSimpleRenderer(container.NewStack(t.hover, t.content))
 }
 
@@ -396,7 +378,7 @@ type responsiveCols struct {
 	width  float32 // last laid-out width
 }
 
-func newCols(minCol float32, ratios []float32, objs ...fyne.CanvasObject) *fyne.Container {
+func NewCols(minCol float32, ratios []float32, objs ...fyne.CanvasObject) *fyne.Container {
 	return container.New(&responsiveCols{minCol: minCol, ratios: ratios}, objs...)
 }
 
@@ -405,7 +387,7 @@ func (r *responsiveCols) sideBySide(width float32, n int) bool {
 }
 
 func (r *responsiveCols) Layout(objs []fyne.CanvasObject, size fyne.Size) {
-	pad := pageGap
+	pad := PageGap
 	n := len(objs)
 	if n == 0 {
 		return
@@ -444,7 +426,7 @@ func (r *responsiveCols) ratio(i int) float32 {
 
 func (r *responsiveCols) MinSize(objs []fyne.CanvasObject) fyne.Size {
 	var w, h float32
-	pad := pageGap
+	pad := PageGap
 	if r.width > 0 && r.sideBySide(r.width, len(objs)) {
 		for _, o := range objs {
 			m := o.MinSize()
@@ -464,7 +446,7 @@ func (r *responsiveCols) MinSize(objs []fyne.CanvasObject) fyne.Size {
 	return fyne.NewSize(w, h)
 }
 
-func mustURL(s string) *url.URL {
+func MustURL(s string) *url.URL {
 	u, err := url.Parse(s)
 	if err != nil {
 		panic(err)
@@ -472,8 +454,8 @@ func mustURL(s string) *url.URL {
 	return u
 }
 
-// maxWidth left-aligns o and caps its width.
-func maxWidth(w float32, o fyne.CanvasObject) fyne.CanvasObject {
+// MaxWidth left-aligns o and caps its width.
+func MaxWidth(w float32, o fyne.CanvasObject) fyne.CanvasObject {
 	return container.New(&maxWidthLayout{w: w}, o)
 }
 
@@ -494,25 +476,25 @@ func (l *maxWidthLayout) MinSize(objs []fyne.CanvasObject) fyne.Size {
 	return s
 }
 
-// wrapTitle is a heading that wraps instead of growing the layout.
-func wrapTitle(t string) *widget.Label {
-	l := title(t)
+// WrapTitle is a heading that wraps instead of growing the layout.
+func WrapTitle(t string) *widget.Label {
+	l := Title(t)
 	l.Wrapping = fyne.TextWrapWord
 	return l
 }
 
-// listRow is a clickable list entry: a truncated name with grey detail text.
-func listRow(name, detail string, onTap func()) fyne.CanvasObject {
+// ListRow is a clickable list entry: a truncated name with grey detail text.
+func ListRow(name, detail string, onTap func()) fyne.CanvasObject {
 	n := widget.NewLabelWithStyle(name, fyne.TextAlignLeading, fyne.TextStyle{Bold: true})
 	n.Truncation = fyne.TextTruncateEllipsis
-	return newTappable(container.NewBorder(nil, nil, nil, small(detail), n), onTap)
+	return NewTappable(container.NewBorder(nil, nil, nil, Small(detail), n), onTap)
 }
 
-// detailRow is a clickable list entry for a long detail such as a folder path:
+// DetailRow is a clickable list entry for a long detail such as a folder path:
 // the name on the first line, the detail wrapped below it in a small monospace
 // font, and an optional badge last. A plain vertical stack: wrapped labels in
 // nested Border layouts reserve the wrong height.
-func detailRow(name, detail string, badgeObj fyne.CanvasObject, onTap func()) fyne.CanvasObject {
+func DetailRow(name, detail string, badgeObj fyne.CanvasObject, onTap func()) fyne.CanvasObject {
 	n := widget.NewLabelWithStyle(name, fyne.TextAlignLeading, fyne.TextStyle{Bold: true})
 	n.Wrapping = fyne.TextWrapWord
 	d := widget.NewLabelWithStyle(detail, fyne.TextAlignLeading, fyne.TextStyle{Monospace: true})
@@ -523,53 +505,53 @@ func detailRow(name, detail string, badgeObj fyne.CanvasObject, onTap func()) fy
 	if badgeObj != nil {
 		rows.Add(container.NewHBox(badgeObj))
 	}
-	return newTappable(rows, onTap)
+	return NewTappable(rows, onTap)
 }
 
-// labeledRow is a fixed-width label, a stretching value and optional objects
+// LabeledRow is a fixed-width label, a stretching value and optional objects
 // at the right.
-func labeledRow(labelWidth float32, label, value fyne.CanvasObject, right ...fyne.CanvasObject) fyne.CanvasObject {
+func LabeledRow(labelWidth float32, label, value fyne.CanvasObject, right ...fyne.CanvasObject) fyne.CanvasObject {
 	var r fyne.CanvasObject
 	if len(right) > 0 {
-		r = hbox(right...)
+		r = HBox(right...)
 	}
-	return container.NewBorder(nil, nil, fixedWidth(labelWidth, label), r, value)
+	return container.NewBorder(nil, nil, FixedWidth(labelWidth, label), r, value)
 }
 
-// mediaRow is a clickable list entry with a leading image, a truncated name
+// MediaRow is a clickable list entry with a leading image, a truncated name
 // and an optional trailing object (such as a badge).
-func mediaRow(lead fyne.CanvasObject, name string, trailing fyne.CanvasObject, onTap func()) fyne.CanvasObject {
+func MediaRow(lead fyne.CanvasObject, name string, trailing fyne.CanvasObject, onTap func()) fyne.CanvasObject {
 	n := widget.NewLabel(name)
 	n.Truncation = fyne.TextTruncateEllipsis
 	if trailing == nil {
 		trailing = widget.NewLabel("")
 	}
-	return newTappable(container.NewPadded(container.NewBorder(nil, nil, lead, trailing, n)), onTap)
+	return NewTappable(container.NewPadded(container.NewBorder(nil, nil, lead, trailing, n)), onTap)
 }
 
-// small is a non-wrapping grey caption, for use inside rows.
-func small(t string) *widget.Label {
+// Small is a non-wrapping grey caption, for use inside rows.
+func Small(t string) *widget.Label {
 	l := widget.NewLabel(t)
 	l.Importance = widget.LowImportance
 	l.SizeName = theme.SizeNameCaptionText
 	return l
 }
 
-// busyLine is a thin indeterminate bar with a caption, shown in the card whose
+// BusyLine is a thin indeterminate bar with a caption, shown in the card whose
 // action is running.
-func busyLine(text string) fyne.CanvasObject {
+func BusyLine(text string) fyne.CanvasObject {
 	bar := widget.NewProgressBarInfinite()
-	return vbox(small(text), bar)
+	return VBox(Small(text), bar)
 }
 
-// chips is a row of toggle buttons of which one is selected, such as the
+// Chips is a row of toggle buttons of which one is selected, such as the
 // filters above the library grid.
-func chips(options []chipOption, selected string, onSelect func(string)) *fyne.Container {
-	row := hbox()
+func Chips(options []ChipOption, selected string, onSelect func(string)) *fyne.Container {
+	row := HBox()
 	for _, o := range options {
-		b := widget.NewButtonWithIcon(o.label, o.icon, func() { onSelect(o.value) })
+		b := widget.NewButtonWithIcon(o.Label, o.Icon, func() { onSelect(o.Value) })
 		b.Importance = widget.LowImportance
-		if o.value == selected {
+		if o.Value == selected {
 			b.Importance = widget.HighImportance
 		}
 		row.Add(b)
@@ -577,35 +559,8 @@ func chips(options []chipOption, selected string, onSelect func(string)) *fyne.C
 	return row
 }
 
-// chipOption is one button of chips; icon may be nil.
-type chipOption struct {
-	value, label string
-	icon         fyne.Resource
-}
-
-// statusIcon is a small coloured icon for a game's sync state (nil when there
-// is nothing to say), for places too small for statusBadge.
-func statusIcon(g services.GameView) fyne.Resource {
-	switch {
-	case g.Status.Running:
-		return theme.MediaPlayIcon()
-	case !g.Ready, g.Status.LocalChanges:
-		return theme.NewWarningThemedResource(theme.WarningIcon())
-	case g.Status.Conflict, g.Status.LastError != "":
-		return theme.NewErrorThemedResource(theme.ErrorIcon())
-	case g.Status.LastSyncAt != "":
-		return theme.NewSuccessThemedResource(theme.ConfirmIcon())
-	}
-	return nil
-}
-
-// needsAttention reports whether the game's state asks the user to do
-// something: set it up here, settle a conflict, look at an error or upload
-// saves changed outside Carryover.
-func needsAttention(g services.GameView) bool {
-	st := g.Overall
-	if st.Running {
-		return false
-	}
-	return !g.Ready || st.Conflict || st.LastError != "" || st.LocalChanges
+// ChipOption is one button of chips; icon may be nil.
+type ChipOption struct {
+	Value, Label string
+	Icon         fyne.Resource
 }

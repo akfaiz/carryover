@@ -22,6 +22,7 @@ import (
 	"github.com/akfaiz/carryover/internal/saves/pathvar"
 	"github.com/akfaiz/carryover/internal/stores/steamgrid"
 	"github.com/akfaiz/carryover/internal/stores/steamstore"
+	"github.com/akfaiz/carryover/internal/ui/kit"
 	"github.com/akfaiz/carryover/services"
 )
 
@@ -66,8 +67,8 @@ type editor struct {
 	bar       *fyne.Container // the Save / Cancel bar under the scrolling form
 	nameEntry *widget.Entry
 	exeEntry  *widget.Entry
-	advItem   *accordionSection
-	artItem   *accordionSection
+	advItem   *kit.AccordionSection
+	artItem   *kit.AccordionSection
 }
 
 // snapshot is the form's content as text, to compare with what it was loaded
@@ -118,7 +119,7 @@ func newEditor(u *UI, id, steamAppID string) *editor {
 }
 
 func (e *editor) view() fyne.CanvasObject {
-	e.scroll = scrollPage(muted(lang.L("Loading…")))
+	e.scroll = kit.ScrollPage(kit.Muted(lang.L("Loading…")))
 	e.bar = container.NewStack()
 	u := e.u
 	type loaded struct {
@@ -127,7 +128,7 @@ func (e *editor) view() fyne.CanvasObject {
 		game   *services.GameView
 		emus   []services.EmulatorView
 	}
-	async(func() (loaded, error) {
+	kit.Async(func() (loaded, error) {
 		l := loaded{tokens: u.lib.Tokens(e.id), hasKey: u.lib.HasSteamGridKey(), emus: u.emus.List()}
 		if e.id != "" {
 			g, err := u.lib.Get(e.id)
@@ -195,7 +196,7 @@ func (e *editor) view() fyne.CanvasObject {
 }
 
 func (e *editor) prefillFromSteam(appID string) {
-	async(func() ([]services.SteamLibraryGame, error) { return e.u.lib.SteamLibrary(), nil }, func(lib []services.SteamLibraryGame, _ error) {
+	kit.Async(func() ([]services.SteamLibraryGame, error) { return e.u.lib.SteamLibrary(), nil }, func(lib []services.SteamLibraryGame, _ error) {
 		for _, a := range lib {
 			if a.AppID == appID {
 				e.name, e.storeAppID = a.Name, a.AppID
@@ -220,10 +221,10 @@ func (e *editor) suggestSaves(autofill bool) {
 	e.suggesting = true
 	e.render()
 	in := services.SuggestInput{GameID: e.id, Name: e.name, StoreAppID: e.storeAppID, Exe: e.dev.Exe, LaunchMode: e.dev.LaunchMode}
-	async(func() (services.SuggestResult, error) { return e.u.lib.SuggestSaves(in) }, func(res services.SuggestResult, err error) {
+	kit.Async(func() (services.SuggestResult, error) { return e.u.lib.SuggestSaves(in) }, func(res services.SuggestResult, err error) {
 		e.suggesting = false
 		if err != nil {
-			e.u.toast(lang.L("Save suggestions: {{.Err}}", map[string]any{"Err": err}), toastErr)
+			e.u.toast(lang.L("Save suggestions: {{.Err}}", map[string]any{"Err": err}), kit.ToastErr)
 			e.render()
 			return
 		}
@@ -236,7 +237,7 @@ func (e *editor) suggestSaves(autofill bool) {
 		}
 		if autofill && len(found) == 1 && len(e.slots) > 0 && e.slots[0].path == "" {
 			e.useSuggestion(found[0], e.slots[0])
-			e.u.toast(lang.L("Found {{.Game}} saves on this device", map[string]any{"Game": res.Matched}), toastOK)
+			e.u.toast(lang.L("Found {{.Game}} saves on this device", map[string]any{"Game": res.Matched}), kit.ToastOK)
 		}
 		e.render()
 	})
@@ -295,10 +296,10 @@ func (e *editor) searchSteam() {
 	}
 	e.searching = true
 	e.render()
-	async(func() ([]steamstore.Match, error) { return e.u.lib.SearchSteam(term) }, func(res []steamstore.Match, err error) {
+	kit.Async(func() ([]steamstore.Match, error) { return e.u.lib.SearchSteam(term) }, func(res []steamstore.Match, err error) {
 		e.searching = false
 		if err != nil {
-			e.u.toast(lang.L("Steam search failed: {{.Err}}", map[string]any{"Err": err}), toastErr)
+			e.u.toast(lang.L("Steam search failed: {{.Err}}", map[string]any{"Err": err}), kit.ToastErr)
 			e.showResults = false
 		} else {
 			e.steamResults, e.showResults = res, true
@@ -347,7 +348,7 @@ func (e *editor) render() {
 	if e.id == "" {
 		// A new game is filled in from top to bottom, one card after the other;
 		// the artwork is optional, so it starts folded.
-		col := stack(e.gameCard(), e.howCard())
+		col := kit.Stack(e.gameCard(), e.howCard())
 		if e.kind != kindEmulator {
 			col.Add(e.launchCard())
 			col.Add(e.savesCard())
@@ -355,12 +356,12 @@ func (e *editor) render() {
 		if e.kind != kindDirect {
 			col.Add(e.emulatorsCard())
 		}
-		e.artItem = newAccordionSection(lang.L("Steam artwork (optional)"), e.artworkCard(), e.artOpen)
+		e.artItem = kit.NewAccordionSection(lang.L("Steam artwork (optional)"), e.artworkCard(), e.artOpen)
 		col.Add(e.artItem)
-		body = maxWidth(780, col)
+		body = kit.MaxWidth(780, col)
 	} else {
 		e.artItem = nil
-		left, right := stack(e.gameCard(), e.howCard()), stack()
+		left, right := kit.Stack(e.gameCard(), e.howCard()), kit.Stack()
 		if e.kind != kindEmulator {
 			left.Add(e.launchCard())
 			right.Add(e.savesCard())
@@ -369,9 +370,9 @@ func (e *editor) render() {
 			left.Add(e.emulatorsCard())
 		}
 		right.Add(e.artworkCard())
-		body = newCols(440, nil, left, right)
+		body = kit.NewCols(440, nil, left, right)
 	}
-	replaceScroll(e.scroll, stack(pageHead(u.back, head), body))
+	kit.ReplaceScroll(e.scroll, kit.Stack(kit.PageHead(u.back, head), body))
 	e.renderBar()
 }
 
@@ -385,23 +386,23 @@ func (e *editor) renderBar() {
 	if e.saving {
 		saveLabel = lang.L("Saving…")
 	}
-	save := primary(saveLabel, e.save)
-	setEnabled(save, !e.saving && strings.TrimSpace(e.name) != "")
+	save := kit.Primary(saveLabel, e.save)
+	kit.SetEnabled(save, !e.saving && strings.TrimSpace(e.name) != "")
 	note := layout.NewSpacer()
 	switch {
 	case e.errText != "":
-		note = colored(e.errText, widget.DangerImportance)
+		note = kit.Colored(e.errText, widget.DangerImportance)
 	case strings.TrimSpace(e.name) == "":
-		note = muted(lang.L("Give the game a name to save it."))
+		note = kit.Muted(lang.L("Give the game a name to save it."))
 	case e.kind != kindDirect && len(e.emus) == 0:
-		note = muted(lang.L("Add the emulator you play it with."))
+		note = kit.Muted(lang.L("Add the emulator you play it with."))
 	case e.kind != kindEmulator && !slices.ContainsFunc(e.slots, func(s *slotForm) bool { return strings.TrimSpace(s.path) != "" }):
-		note = muted(lang.L("No save location is set for this device yet. You can save anyway; the game shows “needs setup” here until you set one."))
+		note = kit.Muted(lang.L("No save location is set for this device yet. You can save anyway; the game shows “needs setup” here until you set one."))
 	}
-	line := canvas.NewRectangle(colLine)
+	line := canvas.NewRectangle(kit.ColLine)
 	line.SetMinSize(fyne.NewSize(0, 1))
-	row := container.NewBorder(nil, nil, nil, hbox(widget.NewButton(lang.L("Cancel"), e.u.back), save), note)
-	e.bar.Objects = []fyne.CanvasObject{canvas.NewRectangle(colBg2),
+	row := container.NewBorder(nil, nil, nil, kit.HBox(widget.NewButton(lang.L("Cancel"), e.u.back), save), note)
+	e.bar.Objects = []fyne.CanvasObject{canvas.NewRectangle(kit.ColBg2),
 		container.NewBorder(line, nil, nil, nil, container.New(layout.NewCustomPaddedLayout(10, 10, 28, 28), row))}
 	// The bar's height can change (a longer note wraps; it starts empty): lay
 	// the page out again so the bar gets the height it needs.
@@ -425,34 +426,34 @@ func (e *editor) gameCard() fyne.CanvasObject {
 		findLabel = lang.L("Searching…")
 	}
 	find := widget.NewButtonWithIcon(findLabel, theme.SearchIcon(), e.searchSteam)
-	setEnabled(find, !e.searching && len(strings.TrimSpace(e.name)) >= 2)
+	kit.SetEnabled(find, !e.searching && len(strings.TrimSpace(e.name)) >= 2)
 	e.nameEntry.OnChanged = func(s string) {
 		e.name = s
-		setEnabled(find, !e.searching && len(strings.TrimSpace(s)) >= 2)
+		kit.SetEnabled(find, !e.searching && len(strings.TrimSpace(s)) >= 2)
 		e.renderBar()
 	}
 	e.nameEntry.OnSubmitted = func(string) { e.searchSteam() }
-	c := vbox(field(lang.L("Name"), rowFill(e.nameEntry, find)))
+	c := kit.VBox(kit.Field(lang.L("Name"), kit.RowFill(e.nameEntry, find)))
 
 	if e.showResults {
-		res := vbox()
+		res := kit.VBox()
 		if len(e.steamResults) == 0 {
-			res.Add(muted(lang.L("No match on Steam. You can still add the game.")))
+			res.Add(kit.Muted(lang.L("No match on Steam. You can still add the game.")))
 		}
 		for _, m := range e.steamResults {
-			res.Add(listRow(m.Name, m.AppID, func() {
+			res.Add(kit.ListRow(m.Name, m.AppID, func() {
 				e.name, e.storeAppID, e.showResults = m.Name, m.AppID, false
 				e.render()
 				e.suggestSaves(true)
 			}))
 		}
-		res.Add(hbox(lowButton(lang.L("Close"), func() { e.showResults = false; e.render() })))
+		res.Add(kit.HBox(kit.LowButton(lang.L("Close"), func() { e.showResults = false; e.render() })))
 		scroll := container.NewVScroll(res)
 		scroll.SetMinSize(fyne.NewSize(0, min(260, res.MinSize().Height)))
-		c.Add(card("", scroll))
+		c.Add(kit.Card("", scroll))
 	}
 	if e.storeAppID != "" {
-		c.Add(hbox(badge(lang.L("Steam app {{.ID}}", map[string]any{"ID": e.storeAppID}), badgeInfo), lowButton(lang.L("Unlink"), func() {
+		c.Add(kit.HBox(kit.Badge(lang.L("Steam app {{.ID}}", map[string]any{"ID": e.storeAppID}), kit.BadgeInfo), kit.LowButton(lang.L("Unlink"), func() {
 			e.storeAppID, e.showResults = "", false
 			e.render()
 		})))
@@ -463,19 +464,19 @@ func (e *editor) gameCard() fyne.CanvasObject {
 	size := fyne.NewSize(80, 120)
 	switch {
 	case e.coverSrc != "":
-		preview = coverView(coverSource{path: e.coverSrc, name: filepath.Base(e.coverSrc)}, size)
+		preview = kit.CoverView(kit.CoverSource{Path: e.coverSrc, Name: filepath.Base(e.coverSrc)}, size)
 	case e.gridPick != nil:
 		src := e.gridPick.Thumb
 		if src == "" {
 			src = e.gridPick.URL
 		}
-		preview = coverView(coverSource{url: src}, size)
+		preview = kit.CoverView(kit.CoverSource{URL: src}, size)
 	case e.coverPath != "":
-		preview = coverView(coverSource{path: e.coverPath, version: e.coverVersion}, size)
+		preview = kit.CoverView(kit.CoverSource{Path: e.coverPath, Version: e.coverVersion}, size)
 	default:
-		preview = coverView(coverSource{name: e.name}, size)
+		preview = kit.CoverView(kit.CoverSource{Name: e.name}, size)
 	}
-	btns := hbox(widget.NewButton(lang.L("Choose file…"), func() {
+	btns := kit.HBox(widget.NewButton(lang.L("Choose file…"), func() {
 		e.pickFile(lang.L("Choose cover image"), []string{".png", ".jpg", ".jpeg", ".webp"}, func(p string) {
 			e.coverSrc, e.gridPick = p, nil
 			e.render()
@@ -486,7 +487,7 @@ func (e *editor) gameCard() fyne.CanvasObject {
 			e.openArtPicker(steamgrid.KindCover)
 		}))
 	}
-	side := vbox(btns)
+	side := kit.VBox(btns)
 	hint := lang.L("Portrait image (600×900 works well). Also used as Steam grid art.")
 	switch {
 	case e.coverSrc != "":
@@ -494,25 +495,25 @@ func (e *editor) gameCard() fyne.CanvasObject {
 	case e.gridPick != nil:
 		hint = lang.L("SteamGridDB cover — downloaded when you save.")
 	}
-	side.Add(muted(hint))
+	side.Add(kit.Muted(hint))
 	if !e.hasGridKey {
-		side.Add(container.NewBorder(nil, nil, nil, lowButton(lang.L("Add key…"), e.askGridKey), muted(lang.L("Add a SteamGridDB API key to search community covers."))))
+		side.Add(container.NewBorder(nil, nil, nil, kit.LowButton(lang.L("Add key…"), e.askGridKey), kit.Muted(lang.L("Add a SteamGridDB API key to search community covers."))))
 	}
 	c.Add(container.NewBorder(nil, nil, preview, nil, container.NewPadded(side)))
-	return card(lang.L("Game"), c)
+	return kit.Card(lang.L("Game"), c)
 }
 
 func (e *editor) launchCard() fyne.CanvasObject {
-	modes := &choice{}
-	modes.add(string(library.LaunchDirect), lang.L("Carryover"))
+	modes := &kit.Choice{}
+	modes.Add(string(library.LaunchDirect), lang.L("Carryover"))
 	if runtime.GOOS == "linux" || runtime.GOOS == "windows" || e.dev.LaunchMode == library.LaunchHeroic {
-		modes.add(string(library.LaunchHeroic), lang.L("Heroic Games Launcher"))
+		modes.Add(string(library.LaunchHeroic), lang.L("Heroic Games Launcher"))
 	}
-	modes.add(string(library.LaunchSteamWrap), lang.L("Steam"))
-	e.exeEntry = monoEntry("", e.dev.Exe, func(s string) { e.dev.Exe = s })
-	hint := muted("")
-	args := monoEntry("-windowed", e.dev.Args, func(s string) { e.dev.Args = s })
-	argsField := field(lang.L("Arguments"), args)
+	modes.Add(string(library.LaunchSteamWrap), lang.L("Steam"))
+	e.exeEntry = kit.MonoEntry("", e.dev.Exe, func(s string) { e.dev.Exe = s })
+	hint := kit.Muted("")
+	args := kit.MonoEntry("-windowed", e.dev.Args, func(s string) { e.dev.Args = s })
+	argsField := kit.Field(lang.L("Arguments"), args)
 	exeExample := func(dir string) string {
 		if runtime.GOOS == "windows" {
 			return `C:\Games\` + dir + `A\Game.exe`
@@ -539,7 +540,7 @@ func (e *editor) launchCard() fyne.CanvasObject {
 		}
 	}
 	applyMode()
-	mode := selectOf(modes, string(e.dev.LaunchMode), func(v string) {
+	mode := kit.SelectOf(modes, string(e.dev.LaunchMode), func(v string) {
 		e.dev.LaunchMode = library.LaunchMode(v)
 		applyMode()
 	})
@@ -552,29 +553,29 @@ func (e *editor) launchCard() fyne.CanvasObject {
 				return
 			}
 			// Name it after the exe if it's a known game, else its folder.
-			async(func() (string, error) { return e.u.lib.GuessName(p), nil }, func(name string, _ error) {
+			kit.Async(func() (string, error) { return e.u.lib.GuessName(p), nil }, func(name string, _ error) {
 				if e.name == "" && name != "" {
 					e.nameEntry.SetText(name)
 				}
 			})
 		})
 	})
-	wait := monoEntry("Game-Win64-Shipping.exe", e.dev.WaitProcess, func(s string) { e.dev.WaitProcess = s })
-	env := monoMultiLine("", e.envText, 3, func(s string) { e.envText = s })
+	wait := kit.MonoEntry("Game-Win64-Shipping.exe", e.dev.WaitProcess, func(s string) { e.dev.WaitProcess = s })
+	env := kit.MonoMultiLine("", e.envText, 3, func(s string) { e.envText = s })
 	workDir := newPathInput(e.u, e.id, e.tokens, e.dev.WorkDir, "", func(s string) { e.dev.WorkDir = s })
-	e.advItem = newAccordionSection(lang.L("Advanced"), vbox(
-		field(lang.L("Working directory (default: executable's folder)"), workDir),
-		field(lang.L("Wait for process (when the exe is a launcher that exits immediately)"), wait),
-		field(lang.L("Environment variables (KEY=value per line)"), env),
+	e.advItem = kit.NewAccordionSection(lang.L("Advanced"), kit.VBox(
+		kit.Field(lang.L("Working directory (default: executable's folder)"), workDir),
+		kit.Field(lang.L("Wait for process (when the exe is a launcher that exits immediately)"), wait),
+		kit.Field(lang.L("Environment variables (KEY=value per line)"), env),
 	), e.advanced)
 
 	launchTitle := lang.L("Launch on this device")
 	if e.kind == kindBoth {
 		launchTitle = lang.L("Launch without an emulator")
 	}
-	return card("", cardHead(launchTitle, badge(e.u.settings.DeviceName, badgeNone)),
-		field(lang.L("Launch with"), vbox(mode, hint)),
-		field(lang.L("Executable"), rowFill(e.exeEntry, browse)),
+	return kit.Card("", kit.CardHead(launchTitle, kit.Badge(e.u.settings.DeviceName, kit.BadgeNone)),
+		kit.Field(lang.L("Launch with"), kit.VBox(mode, hint)),
+		kit.Field(lang.L("Executable"), kit.RowFill(e.exeEntry, browse)),
 		argsField,
 		e.advItem)
 }
@@ -590,7 +591,7 @@ func (e *editor) detectHeroic(exe string) {
 		title string
 		ok    bool
 	}
-	async(func() (found, error) {
+	kit.Async(func() (found, error) {
 		title, ok := e.u.lib.HeroicGame(exe)
 		return found{title, ok}, nil
 	}, func(f found, _ error) {
@@ -598,7 +599,7 @@ func (e *editor) detectHeroic(exe string) {
 			return
 		}
 		e.dev.LaunchMode = library.LaunchHeroic
-		e.u.toast(lang.L("{{.Game}} is installed by Heroic — it will be started through Heroic.", map[string]any{"Game": f.title}), toastOK)
+		e.u.toast(lang.L("{{.Game}} is installed by Heroic — it will be started through Heroic.", map[string]any{"Game": f.title}), kit.ToastOK)
 		e.render()
 	})
 }
@@ -609,15 +610,15 @@ func (e *editor) savesCard() fyne.CanvasObject {
 		suggestLabel = lang.L("Looking…")
 	}
 	sugBtn := widget.NewButtonWithIcon(suggestLabel, theme.SearchIcon(), func() { e.suggestSaves(false) })
-	setEnabled(sugBtn, !e.suggesting && (strings.TrimSpace(e.name) != "" || e.storeAppID != ""))
+	kit.SetEnabled(sugBtn, !e.suggesting && (strings.TrimSpace(e.name) != "" || e.storeAppID != ""))
 	savesTitle := lang.L("Save locations")
 	if e.kind == kindBoth {
 		savesTitle = lang.L("Save locations (without an emulator)")
 	}
-	c := vbox(cardHead(savesTitle, sugBtn, widget.NewButtonWithIcon(lang.L("Add"), theme.ContentAddIcon(), e.addSlot)))
+	c := kit.VBox(kit.CardHead(savesTitle, sugBtn, widget.NewButtonWithIcon(lang.L("Add"), theme.ContentAddIcon(), e.addSlot)))
 
 	if e.suggest != nil {
-		c.Add(card("", newSuggestionList(e.name, e.suggest,
+		c.Add(kit.Card("", newSuggestionList(e.name, e.suggest,
 			func(s services.SaveSuggestion) { e.useSuggestion(s, nil); e.render() },
 			func(s services.SaveSuggestion) { e.addSuggestion(s); e.render() },
 			func() { e.suggest = nil; e.render() })))
@@ -637,7 +638,7 @@ func (e *editor) savesCard() fyne.CanvasObject {
 		}
 		c.Add(newSlotEditor(e.u, e.id, e.tokens, s, e.others, e.uniqueKey, onRemove, e.renderBar))
 	}
-	return card("", c)
+	return kit.Card("", c)
 }
 
 func (e *editor) save() {
@@ -676,7 +677,7 @@ func (e *editor) save() {
 
 	artJobs := e.artworkJobs()
 	var coverErr, artErr error
-	async(func() (services.GameView, error) {
+	kit.Async(func() (services.GameView, error) {
 		g, err := u.lib.Save(in)
 		if err != nil {
 			return g, err
@@ -700,13 +701,13 @@ func (e *editor) save() {
 		}
 		e.saved = true
 		if coverErr != nil {
-			u.toast(lang.L("Cover: {{.Err}}", map[string]any{"Err": coverErr}), toastErr)
+			u.toast(lang.L("Cover: {{.Err}}", map[string]any{"Err": coverErr}), kit.ToastErr)
 		}
 		if artErr != nil {
-			u.toast(lang.L("Artwork: {{.Err}}", map[string]any{"Err": artErr}), toastErr)
+			u.toast(lang.L("Artwork: {{.Err}}", map[string]any{"Err": artErr}), kit.ToastErr)
 		}
 		u.refresh()
-		u.toast(lang.L("Saved"), toastOK)
+		u.toast(lang.L("Saved"), kit.ToastOK)
 		// In place of the editor: Back from the game goes where the editor was
 		// opened from, not into the editor again.
 		u.replace("/game/" + g.ID)

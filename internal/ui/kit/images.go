@@ -1,4 +1,4 @@
-package ui
+package kit
 
 import (
 	"bytes"
@@ -19,8 +19,8 @@ import (
 	_ "golang.org/x/image/webp"
 )
 
-// imageCache keeps decoded images by key (file path + version, or URL).
-type imageCache struct {
+// ImageCache keeps decoded images by key (file path + version, or URL).
+type ImageCache struct {
 	mu    sync.Mutex
 	items map[string]image.Image
 	order []string
@@ -32,14 +32,14 @@ type imageCache struct {
 
 const imageCacheMax = 300
 
-var images = &imageCache{
+var Images = &ImageCache{
 	items:   map[string]image.Image{},
 	pending: map[string][]func(image.Image){},
 	failed:  map[string]bool{},
 	client:  &http.Client{Timeout: 30 * time.Second},
 }
 
-func (c *imageCache) put(key string, img image.Image) {
+func (c *ImageCache) put(key string, img image.Image) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	if _, ok := c.items[key]; !ok {
@@ -53,7 +53,7 @@ func (c *imageCache) put(key string, img image.Image) {
 }
 
 // load calls done (on the UI thread) with the image, or nil on failure.
-func (c *imageCache) load(key string, fetch func() ([]byte, error), done func(image.Image)) {
+func (c *ImageCache) load(key string, fetch func() ([]byte, error), done func(image.Image)) {
 	c.mu.Lock()
 	if img, ok := c.items[key]; ok {
 		c.mu.Unlock()
@@ -89,7 +89,7 @@ func (c *imageCache) load(key string, fetch func() ([]byte, error), done func(im
 		if err == nil {
 			c.put(key, img)
 		}
-		onUI(func() {
+		OnUI(func() {
 			for _, w := range waiters {
 				w(img)
 			}
@@ -97,11 +97,11 @@ func (c *imageCache) load(key string, fetch func() ([]byte, error), done func(im
 	}()
 }
 
-func (c *imageCache) loadFile(path string, version int64, done func(image.Image)) {
+func (c *ImageCache) LoadFile(path string, version int64, done func(image.Image)) {
 	c.load(fmt.Sprintf("%s?%d", path, version), func() ([]byte, error) { return os.ReadFile(path) }, done)
 }
 
-func (c *imageCache) loadURL(url string, done func(image.Image)) {
+func (c *ImageCache) LoadURL(url string, done func(image.Image)) {
 	c.load(url, func() ([]byte, error) {
 		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 		defer cancel()
@@ -121,31 +121,31 @@ func (c *imageCache) loadURL(url string, done func(image.Image)) {
 	}, done)
 }
 
-// coverSource says where a cover comes from (first non-empty wins).
-type coverSource struct {
-	path    string
-	version int64
-	url     string
-	name    string // placeholder initial
-	contain bool   // show the whole image instead of filling (logos, icons)
+// CoverSource says where a cover comes from (first non-empty wins).
+type CoverSource struct {
+	Path    string
+	Version int64
+	URL     string
+	Name    string // placeholder initial
+	Contain bool   // show the whole image instead of filling (logos, icons)
 }
 
-// coverView shows a cover image (2:3) with a letter placeholder.
-func coverView(src coverSource, size fyne.Size) fyne.CanvasObject {
-	bg := canvas.NewRectangle(colBg3)
+// CoverView shows a cover image (2:3) with a letter placeholder.
+func CoverView(src CoverSource, size fyne.Size) fyne.CanvasObject {
+	bg := canvas.NewRectangle(ColBg3)
 	bg.CornerRadius = 8
-	bg.StrokeColor = colLine
+	bg.StrokeColor = ColLine
 	bg.StrokeWidth = 1
-	letter := canvas.NewText(initial(src.name), colMuted)
+	letter := canvas.NewText(initial(src.Name), ColMuted)
 	letter.TextSize = size.Height / 5
 	letter.TextStyle.Bold = true
 	letter.Alignment = fyne.TextAlignCenter
-	if src.name == "" {
+	if src.Name == "" {
 		letter.Text = ""
 	}
 	img := canvas.NewImageFromImage(nil)
 	img.FillMode = canvas.ImageFillCover
-	if src.contain {
+	if src.Contain {
 		img.FillMode = canvas.ImageFillContain
 	}
 	img.CornerRadius = 8
@@ -160,10 +160,10 @@ func coverView(src coverSource, size fyne.Size) fyne.CanvasObject {
 		img.Refresh()
 	}
 	switch {
-	case src.path != "":
-		images.loadFile(src.path, src.version, set)
-	case src.url != "":
-		images.loadURL(src.url, set)
+	case src.Path != "":
+		Images.LoadFile(src.Path, src.Version, set)
+	case src.URL != "":
+		Images.LoadURL(src.URL, set)
 	}
-	return fixedSize(size, container.NewStack(bg, container.NewCenter(letter), img))
+	return FixedSize(size, container.NewStack(bg, container.NewCenter(letter), img))
 }
