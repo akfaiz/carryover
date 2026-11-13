@@ -4,6 +4,7 @@ import (
 	"errors"
 	"strconv"
 	"strings"
+	"time"
 
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/lang"
@@ -29,10 +30,23 @@ func (p *settingsPage) view() fyne.CanvasObject {
 	return scroll
 }
 
+// autosaveDelay is how long after the last keystroke a text setting is saved.
+var autosaveDelay = 600 * time.Millisecond
+
+// form is the settings page. Every setting saves as soon as it changes (text
+// fields shortly after the last keystroke), except the SteamGridDB key, which
+// has a Save button of its own: it is a secret, and half a pasted key is
+// worthless.
 func (p *settingsPage) form(st appdir.Settings) fyne.CanvasObject {
 	u := p.u
+	var commit func()
+	changed := func() { commit() }
+	later := debounce(autosaveDelay, changed)
+
 	name := widget.NewEntry()
 	name.SetText(st.DeviceName)
+	name.OnChanged = func(string) { later() }
+	name.OnSubmitted = func(string) { commit() }
 	id := monoEntry("", st.DeviceID, nil)
 	id.Disable()
 
@@ -48,10 +62,12 @@ func (p *settingsPage) form(st appdir.Settings) fyne.CanvasObject {
 		_, err := parseRetention(s)
 		return err
 	}
-	backups := widget.NewCheck(lang.L("Back up saves to the cloud before they're overwritten"), func(on bool) {
+	retention.OnChanged = func(string) { later() }
+	retention.OnSubmitted = func(string) { commit() }
+	backups := newCheck(lang.L("Back up saves to the cloud before they're overwritten"), st.BackupRetention > 0, func(on bool) {
 		setEnabled(retention, on)
+		commit()
 	})
-	backups.SetChecked(st.BackupRetention > 0)
 	setEnabled(retention, backups.Checked)
 	themes := []struct{ setting, label string }{
 		{themeSystem, lang.L("System")}, {themeDark, lang.L("Dark")}, {themeLight, lang.L("Light")},
@@ -68,8 +84,15 @@ func (p *settingsPage) form(st appdir.Settings) fyne.CanvasObject {
 			themeSel.SetSelected(t.label)
 		}
 	}
-	share := widget.NewCheck(lang.L("Share the game library between devices through the cloud"), nil)
-	share.SetChecked(st.SyncLibrary)
+	themeSel.OnChanged = func(string) { commit() }
+
+	// Cover art is part of the library sync, so it can only be on while that is.
+	covers := newCheck(lang.L("Upload cover art and artwork to the cloud"), !st.CoversLocalOnly, func(bool) { commit() })
+	share := newCheck(lang.L("Share the game library between devices through the cloud"), st.SyncLibrary, func(on bool) {
+		setEnabled(covers, on)
+		commit()
+	})
+	setEnabled(covers, share.Checked)
 
 	key := widget.NewPasswordEntry()
 	key.SetPlaceHolder(lang.L("Paste your key"))
@@ -79,38 +102,82 @@ func (p *settingsPage) form(st appdir.Settings) fyne.CanvasObject {
 		return func() error { return u.lib.TestSteamGridKey(k) }
 	})
 	keyTest.SetAllowed(st.SteamGridDBKey != "")
-	key.OnChanged = func(s string) { keyTest.SetAllowed(strings.TrimSpace(s) != "") }
+	keyToSave := st.SteamGridDBKey
+	keySave := widget.NewButton(lang.L("Save"), func() {
+		keyToSave = strings.TrimSpace(key.Text)
+		commit()
+	})
+	keySave.Importance = widget.HighImportance
+	keyDirty := func() { setEnabled(keySave, strings.TrimSpace(key.Text) != st.SteamGridDBKey) }
+	keyDirty()
+	key.OnChanged = func(s string) {
+		keyTest.SetAllowed(strings.TrimSpace(s) != "")
+		keyDirty()
+	}
 
-	save := primary(lang.L("Save"), func() {
+	// collect returns the settings the form shows. The key is the saved one
+	// until its own button is pressed. ok is false when a value can't be saved
+	// yet; err says why when the user should hear about it.
+	collect := func() (next appdir.Settings, ok bool, err error) {
+		next = st
 		n := 0
 		if backups.Checked {
-			var err error
 			if n, err = parseRetention(retention.Text); err != nil {
-				u.toastErr(err)
-				return
+				return st, false, err
 			}
 		}
-		next := st
-		next.DeviceName = name.Text
+		if dev := strings.TrimSpace(name.Text); dev != "" {
+			next.DeviceName = dev
+		}
 		next.BackupRetention = n
 		next.SyncLibrary = share.Checked
+		next.CoversLocalOnly = !covers.Checked
 		for _, t := range themes {
 			if t.label == themeSel.Selected {
 				next.Theme = t.setting
 			}
 		}
-		next.SteamGridDBKey = strings.TrimSpace(key.Text)
+		next.SteamGridDBKey = keyToSave
+		return next, true, nil
+	}
+	// Saves are one at a time: a change made while one is running is saved
+	// right after it, from whatever the form shows then.
+	var saving, dirty bool
+	commit = func() {
+		if saving {
+			dirty = true
+			return
+		}
+		next, ok, err := collect()
+		if err != nil {
+			u.toastErr(err)
+		}
+		if !ok || next == st {
+			return
+		}
+		saving = true
 		async(func() (appdir.Settings, error) { return u.sync.SaveSettings(next) }, func(saved appdir.Settings, err error) {
+			saving = false
 			if err != nil {
 				u.toastErr(err)
 				return
 			}
+			themeChanged := saved.Theme != st.Theme
 			st = saved
-			u.applyTheme(saved.Theme)
+			keyToSave = saved.SteamGridDBKey
+			keyDirty()
 			u.refresh()
 			u.toast(lang.L("Settings saved"), toastOK)
+			if themeChanged {
+				u.applyTheme(saved.Theme)
+				return // the page is built again
+			}
+			if dirty {
+				dirty = false
+				commit()
+			}
 		})
-	})
+	}
 
 	narrow := func(o fyne.CanvasObject) fyne.CanvasObject { return maxWidth(640, o) }
 	return stack(
@@ -127,12 +194,13 @@ func (p *settingsPage) form(st appdir.Settings) fyne.CanvasObject {
 			muted(lang.L("When off, only the current save is in the cloud. Before a download replaces this device's saves, a copy is still kept on this device (the last {{.Count}}).",
 				map[string]any{"Count": syncer.SafetyKeep})),
 			share,
-			muted(lang.L("When enabled, games added on one device appear on the others; each device only needs to set its own paths.")))),
+			muted(lang.L("When enabled, games added on one device appear on the others; each device only needs to set its own paths.")),
+			covers,
+			muted(lang.L("Covers and artwork always stay on this device. When this is on they are also uploaded to the cloud, so every device shows the same images; when off, this device neither uploads nor downloads them.")))),
 		narrow(card(lang.L("Cover art"),
-			field(lang.L("SteamGridDB API key (optional)"), rowFill(key, keyTest.Button)),
+			field(lang.L("SteamGridDB API key (optional)"), rowFill(key, keySave, keyTest.Button)),
 			keyTest.Result,
 			muted(lang.L("Lets you search community covers for any game, including ones not on Steam, and fills in covers Steam doesn't have. Get a free key at steamgriddb.com/profile/preferences/api (log in with Steam). The key is stored only on this device.")))),
-		hbox(save),
 		narrow(aboutCard()),
 	)
 }

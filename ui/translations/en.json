@@ -443,5 +443,7 @@
   "Delete {{.Game}} permanently on all devices, with its cloud saves and backups (for every emulator too)? It can't be restored.": "Delete {{.Game}} permanently on all devices, with its cloud saves and backups (for every emulator too)? It can't be restored.",
   "Delete this emulator permanently on all devices, remove it from every game and delete the cloud saves and backups made with it? It can't be restored.": "Delete this emulator permanently on all devices, remove it from every game and delete the cloud saves and backups made with it? It can't be restored.",
   "The cloud saves stay until you delete them. Once it is gone for good, they are listed under Trash → Leftover cloud saves.": "The cloud saves stay until you delete them. Once it is gone for good, they are listed under Trash → Leftover cloud saves.",
-  "The cloud saves stay and are listed under Leftover cloud saves below until you delete them.": "The cloud saves stay and are listed under Leftover cloud saves below until you delete them."
+  "The cloud saves stay and are listed under Leftover cloud saves below until you delete them.": "The cloud saves stay and are listed under Leftover cloud saves below until you delete them.",
+  "Upload cover art and artwork to the cloud": "Upload cover art and artwork to the cloud",
+  "Covers and artwork always stay on this device. When this is on they are also uploaded to the cloud, so every device shows the same images; when off, this device neither uploads nor downloads them.": "Covers and artwork always stay on this device. When this is on they are also uploaded to the cloud, so every device shows the same images; when off, this device neither uploads nor downloads them."
 }

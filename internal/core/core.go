@@ -128,7 +128,8 @@ func labelOr(s library.SaveSlot) string {
 const catalogPath = "library.json"
 
 // SyncLibrary merges the cloud catalog into the local library and uploads the
-// result, then syncs the cover and artwork images the games refer to. Calls
+// result, then syncs the cover and artwork images the games refer to (unless
+// Settings.CoversLocalOnly keeps them on this device). Calls
 // are serialized so a background publish and a manual sync can't overwrite
 // each other's upload.
 func (c *Core) SyncLibrary(ctx context.Context) error {
@@ -156,7 +157,7 @@ func (c *Core) syncLibrary(ctx context.Context, withImages bool) error {
 	if err := c.syncCatalog(ctx, cl); err != nil {
 		return err
 	}
-	if withImages {
+	if withImages && !s.CoversLocalOnly {
 		// Missing images only cost a blank tile: don't fail the library sync.
 		if err := c.syncCovers(ctx, cl); err != nil && ctx.Err() == nil {
 			log.Printf("cover sync: %v", err)

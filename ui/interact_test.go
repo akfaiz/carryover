@@ -2,6 +2,7 @@ package ui
 
 import (
 	"context"
+	"image/color"
 	"os"
 	"path/filepath"
 	"strings"
@@ -55,6 +56,7 @@ func newHarness(t *testing.T) *harness {
 	t.Setenv(appdir.EnvHome, t.TempDir())
 	c, err := core.New()
 	require.NoError(t, err)
+	autosaveDelay = 20 * time.Millisecond
 	h := &harness{t: t, c: c, queue: make(chan func(), 1024)}
 	activeQueue.Store(&h.queue)
 	h.u = newUI(c, test.NewApp(), services.NewBus())
@@ -146,8 +148,9 @@ func (h *harness) toasts() []string {
 type settingsForm struct {
 	name, retention, key *widget.Entry
 	backups, share       *widget.Check
+	covers               *widget.Check
 	theme                *widget.RadioGroup
-	save                 *widget.Button
+	keySave              *widget.Button
 }
 
 func findSettingsForm(t *testing.T, h *harness) settingsForm {
@@ -164,25 +167,30 @@ func findSettingsForm(t *testing.T, h *harness) settingsForm {
 		}
 	}
 	for _, c := range pageWidgets[*widget.Check](h) {
-		if c.Text == "Back up saves to the cloud before they're overwritten" {
+		switch c.Text {
+		case "Back up saves to the cloud before they're overwritten":
 			f.backups = c
-		} else {
+		case "Upload cover art and artwork to the cloud":
+			f.covers = c
+		case "Share the game library between devices through the cloud":
 			f.share = c
 		}
 	}
 	radios := pageWidgets[*widget.RadioGroup](h)
 	require.Len(t, radios, 1)
 	f.theme = radios[0]
-	f.save = buttonWith(t, pageWidgets[*widget.Button](h), "Save")
+	f.keySave = buttonWith(t, pageWidgets[*widget.Button](h), "Save")
 	require.NotNil(t, f.name)
 	require.NotNil(t, f.retention)
 	require.NotNil(t, f.key)
 	require.NotNil(t, f.backups)
 	require.NotNil(t, f.share)
+	require.NotNil(t, f.covers)
 	return f
 }
 
-func TestSettingsSavesEveryField(t *testing.T) {
+// Every setting saves as soon as it changes; there is no Save button for them.
+func TestSettingsSaveAsTheyChange(t *testing.T) {
 	h := newHarness(t)
 	h.open("/settings")
 	f := findSettingsForm(t, h)
@@ -192,23 +200,90 @@ func TestSettingsSavesEveryField(t *testing.T) {
 	assert.True(t, f.retention.Disabled())
 
 	test.Tap(f.backups)
-	assert.True(t, f.backups.Checked)
-	assert.False(t, f.retention.Disabled(), "turning backups on enables the count")
-	f.retention.SetText("7")
-	f.name.SetText("Steam Deck")
-	test.Tap(f.share) // library sharing starts on; turn it off
-	f.theme.SetSelected("Dark")
-	test.Type(f.key, " secret-key ")
-	test.Tap(f.save)
 	h.settle()
+	assert.False(t, f.retention.Disabled(), "turning backups on enables the count")
+	assert.Equal(t, defaultRetention, h.c.Settings.Get().BackupRetention, "saved at once")
+	assert.Contains(t, h.toasts(), "Settings saved")
 
+	f.retention.SetText("7")
+	h.settle()
+	assert.Equal(t, 7, h.c.Settings.Get().BackupRetention)
+
+	f.name.SetText("  Steam Deck ")
+	h.settle()
+	assert.Equal(t, "Steam Deck", h.c.Settings.Get().DeviceName, "trimmed")
+
+	test.Tap(f.share) // library sharing starts on; turn it off
+	h.settle()
+	assert.False(t, h.c.Settings.Get().SyncLibrary)
+	assert.True(t, f.covers.Disabled(), "cover upload is part of the library sync")
+
+	f.theme.SetSelected("Dark")
+	h.settle()
+	assert.Equal(t, themeDark, h.c.Settings.Get().Theme)
+
+	// Everything above stayed saved after the other changes.
 	got := h.c.Settings.Get()
 	assert.Equal(t, 7, got.BackupRetention)
 	assert.Equal(t, "Steam Deck", got.DeviceName)
-	assert.False(t, got.SyncLibrary)
-	assert.Equal(t, themeDark, got.Theme)
-	assert.Equal(t, "secret-key", got.SteamGridDBKey, "the key is trimmed")
-	assert.Contains(t, h.toasts(), "Settings saved")
+}
+
+func TestSettingsCoverUploadToggle(t *testing.T) {
+	h := newHarness(t)
+	h.open("/settings")
+	f := findSettingsForm(t, h)
+	assert.True(t, f.covers.Checked, "images sync by default")
+	assert.False(t, h.c.Settings.Get().CoversLocalOnly)
+
+	test.Tap(f.covers)
+	h.settle()
+	assert.True(t, h.c.Settings.Get().CoversLocalOnly, "off keeps the images on this device")
+
+	h.open("/settings")
+	f = findSettingsForm(t, h)
+	assert.False(t, f.covers.Checked, "the saved choice is shown again")
+	test.Tap(f.covers)
+	h.settle()
+	assert.False(t, h.c.Settings.Get().CoversLocalOnly)
+
+	// Sharing the library off disables the choice, on enables it again.
+	test.Tap(f.share)
+	assert.True(t, f.covers.Disabled())
+	test.Tap(f.share)
+	assert.False(t, f.covers.Disabled())
+	h.settle() // the saves these taps start finish before the data dir goes
+}
+
+// The API key is the one setting with its own Save button: typing it saves
+// nothing until the button is pressed.
+func TestSettingsKeyNeedsItsOwnSave(t *testing.T) {
+	h := newHarness(t)
+	h.open("/settings")
+	f := findSettingsForm(t, h)
+	assert.True(t, f.keySave.Disabled(), "nothing to save yet")
+
+	test.Type(f.key, " secret-key ")
+	h.settle()
+	assert.False(t, f.keySave.Disabled())
+	assert.Empty(t, h.c.Settings.Get().SteamGridDBKey, "typing alone doesn't save it")
+
+	// Another setting changing meanwhile doesn't carry the unsaved key along.
+	f.name.SetText("Deck")
+	h.settle()
+	assert.Equal(t, "Deck", h.c.Settings.Get().DeviceName)
+	assert.Empty(t, h.c.Settings.Get().SteamGridDBKey)
+
+	test.Tap(f.keySave)
+	h.settle()
+	assert.Equal(t, "secret-key", h.c.Settings.Get().SteamGridDBKey, "the key is trimmed")
+	assert.True(t, f.keySave.Disabled(), "saved: nothing left to save")
+
+	// Clearing it saves too.
+	f.key.SetText("")
+	assert.False(t, f.keySave.Disabled())
+	test.Tap(f.keySave)
+	h.settle()
+	assert.Empty(t, h.c.Settings.Get().SteamGridDBKey)
 }
 
 func TestSettingsTurningBackupsOffStoresZero(t *testing.T) {
@@ -222,12 +297,12 @@ func TestSettingsTurningBackupsOffStoresZero(t *testing.T) {
 	assert.Equal(t, "9", f.retention.Text)
 
 	test.Tap(f.backups)
-	assert.True(t, f.retention.Disabled())
-	test.Tap(f.save)
 	h.settle()
+	assert.True(t, f.retention.Disabled())
 	assert.Zero(t, h.c.Settings.Get().BackupRetention, "off is stored as 0")
 }
 
+// A bad count isn't saved, nothing else is saved with it, and the error shows.
 func TestSettingsRejectsBadRetention(t *testing.T) {
 	for _, bad := range []string{"0", "101", "-3", "many", ""} {
 		t.Run(bad, func(t *testing.T) {
@@ -235,15 +310,16 @@ func TestSettingsRejectsBadRetention(t *testing.T) {
 			h.open("/settings")
 			f := findSettingsForm(t, h)
 			test.Tap(f.backups)
+			h.settle()
+			require.Equal(t, defaultRetention, h.c.Settings.Get().BackupRetention)
+
 			f.retention.SetText(bad)
 			f.name.SetText("Changed")
-			test.Tap(f.save)
 			h.settle()
-
-			assert.NotEqual(t, "Changed", h.c.Settings.Get().DeviceName, "nothing is saved")
-			assert.Zero(t, h.c.Settings.Get().BackupRetention)
-			assert.NotContains(t, h.toasts(), "Settings saved")
-			assert.NotEmpty(t, h.toasts(), "the error is shown")
+			got := h.c.Settings.Get()
+			assert.NotEqual(t, "Changed", got.DeviceName, "nothing is saved")
+			assert.Equal(t, defaultRetention, got.BackupRetention, "the count keeps its last good value")
+			assert.Contains(t, h.toasts(), "backups to keep must be a number from 1 to 100")
 		})
 	}
 }
@@ -255,10 +331,9 @@ func TestSettingsThemeChoices(t *testing.T) {
 	assert.Equal(t, "System", f.theme.Selected, "the default follows the system")
 	for label, want := range map[string]string{"Light": themeLight, "Dark": themeDark, "System": themeSystem} {
 		f.theme.SetSelected(label)
-		test.Tap(f.save)
 		h.settle()
 		assert.Equal(t, want, h.c.Settings.Get().Theme, label)
-		// Saving re-renders nothing that loses the form: look it up again.
+		// A theme change builds the page again: look the form up again.
 		h.open("/settings")
 		f = findSettingsForm(t, h)
 		assert.Equal(t, label, f.theme.Selected, "the saved theme is shown again")
@@ -938,4 +1013,26 @@ func TestSidebarTrashCount(t *testing.T) {
 	tapButton(t, h, "Delete")
 	h.settle()
 	assert.Equal(t, "Trash", h.u.navBtns["/trash"].Text, "nothing left")
+}
+
+// A toast on screen while the theme changes is repainted with the new palette:
+// its text follows the theme, so an old background would make it unreadable.
+func TestToastFollowsThemeChange(t *testing.T) {
+	h := newHarness(t)
+	t.Cleanup(func() { setPalette(themeDark) })
+	h.u.applyTheme(themeDark)
+
+	h.u.toast("Settings saved", toastOK)
+	require.Len(t, h.u.toasts.bgs, 1)
+	var bg *toastBG
+	for _, b := range h.u.toasts.bgs {
+		bg = b
+	}
+	dark := bg.rect.FillColor
+	assert.Equal(t, colBg3, dark)
+
+	h.u.applyTheme(themeLight)
+	assert.NotEqual(t, dark, bg.rect.FillColor, "the background changed with the theme")
+	assert.Equal(t, colBg3, bg.rect.FillColor, "it uses the light palette now")
+	assert.Equal(t, colOK.R, bg.rect.StrokeColor.(color.NRGBA).R, "the accent follows the palette too")
 }

@@ -153,7 +153,7 @@ func (c *Core) DropImages(ctx context.Context, g library.Game) {
 	for _, n := range drop {
 		_ = os.Remove(filepath.Join(c.Dirs.CoversDir(), n))
 	}
-	if s := c.Settings.Get(); len(drop) == 0 || !s.SyncLibrary || s.CloudBase() == "" {
+	if s := c.Settings.Get(); len(drop) == 0 || !s.SyncLibrary || s.CoversLocalOnly || s.CloudBase() == "" {
 		return
 	}
 	cl, err := cloud.NewClient(c.Settings.Get().CloudBase())

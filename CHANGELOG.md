@@ -9,6 +9,9 @@ All notable changes to Carryover are listed here. The format follows
 
 ### Added
 
+- A setting to keep cover art and artwork off the cloud: "Upload cover art and artwork to the cloud" (Settings →
+  Sync, on by default). When it is off, this device neither uploads its images nor downloads other devices' ones;
+  they stay local. It is per device.
 - A Trash page. A deleted game or emulator waits there for 30 days with all its settings and can be restored (on
   every device); after that its settings are removed. "Delete permanently" removes them at once.
 - Deleting a game or an emulator can also delete its cloud saves and backups: tick "Also delete…" in the confirmation
@@ -43,6 +46,8 @@ All notable changes to Carryover are listed here. The format follows
 
 ### Changed
 
+- Settings save as soon as you change them (text fields a moment after you stop typing); the Save button is gone.
+  The SteamGridDB API key keeps its own Save button.
 - Once a deleted game or emulator leaves the trash, the library keeps only a small marker (name and id) instead of
   its settings and local paths, and the game's cover images are removed from this device and the cloud.
 - The menu entry is now `com.akfaiz.carryover.desktop`, named after the app ID. If you installed the tarball
