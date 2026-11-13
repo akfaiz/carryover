@@ -204,6 +204,15 @@ func newCheck(label string, on bool, changed func(bool)) *widget.Check {
 	return c
 }
 
+// setVisible shows or hides an object.
+func setVisible(o fyne.CanvasObject, on bool) {
+	if on {
+		o.Show()
+	} else {
+		o.Hide()
+	}
+}
+
 func hbox(objs ...fyne.CanvasObject) *fyne.Container { return container.NewHBox(objs...) }
 
 func vbox(objs ...fyne.CanvasObject) *fyne.Container { return container.NewVBox(objs...) }

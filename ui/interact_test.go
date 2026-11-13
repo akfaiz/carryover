@@ -1432,3 +1432,35 @@ func TestSyncAllInSidebarExceptOnTheLibrary(t *testing.T) {
 	h.open("/")
 	assert.False(t, sidebarSync())
 }
+
+// The language is chosen in Settings, saved at once, and applies after a restart.
+func TestSettingsLanguage(t *testing.T) {
+	h := newHarness(t)
+	h.open("/settings")
+	sels := pageWidgets[*widget.Select](h)
+	require.Len(t, sels, 1)
+	assert.Equal(t, []string{"System", "English", "Bahasa Indonesia"}, sels[0].Options)
+	assert.Equal(t, "System", sels[0].Selected, "follows the system by default")
+	for _, l := range pageWidgets[*widget.Label](h) {
+		if l.Text == "Restart Carryover to apply the language." {
+			assert.False(t, l.Visible(), "nothing to restart for yet")
+		}
+	}
+
+	sels[0].SetSelected("Bahasa Indonesia")
+	h.settle()
+	assert.Equal(t, "id", h.c.Settings.Get().Language)
+	var note *widget.Label
+	for _, l := range pageWidgets[*widget.Label](h) {
+		if l.Text == "Restart Carryover to apply the language." {
+			note = l
+		}
+	}
+	require.NotNil(t, note)
+	assert.True(t, note.Visible(), "tells the change applies after a restart")
+
+	sels[0].SetSelected("System")
+	h.settle()
+	assert.Equal(t, "", h.c.Settings.Get().Language)
+	assert.False(t, note.Visible())
+}

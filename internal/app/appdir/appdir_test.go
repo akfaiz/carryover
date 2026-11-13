@@ -45,6 +45,18 @@ func TestSettingsTheme(t *testing.T) {
 	}
 }
 
+func TestSettingsLanguage(t *testing.T) {
+	st, err := OpenSettings(filepath.Join(t.TempDir(), "settings.json"))
+	require.NoError(t, err)
+	require.Equal(t, "", st.Get().Language, "follows the system by default")
+	for in, want := range map[string]string{"": "", "id": "id", " ID ": "id", "pt-br": "pt-br", "x y": "", "id/../": "", "waytoolonglanguagecode": ""} {
+		s := st.Get()
+		s.Language = in
+		require.NoError(t, st.Update(s))
+		assert.Equal(t, want, st.Get().Language, "%q", in)
+	}
+}
+
 func TestResolveUsesEnvHomeAndCreatesFolders(t *testing.T) {
 	root := filepath.Join(t.TempDir(), "data")
 	t.Setenv(EnvHome, root)

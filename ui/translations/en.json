@@ -484,5 +484,7 @@
     "one": "Cloud backups are on: the last {{.Count}} backup is kept.",
     "other": "Cloud backups are on: the last {{.Count}} backups are kept."
   },
-  "Play": "Play"
+  "Play": "Play",
+  "Restart Carryover to apply the language.": "Restart Carryover to apply the language.",
+  "Language": "Language"
 }

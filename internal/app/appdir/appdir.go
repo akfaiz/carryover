@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 
 	"github.com/google/uuid"
@@ -62,6 +63,9 @@ type Settings struct {
 	BackupRetention int    `json:"backupRetention"` // 0 = no backups (default)
 	SyncLibrary     bool   `json:"syncLibrary"`     // mirror library catalog to the cloud
 	Theme           string `json:"theme,omitempty"` // "" (follow the system, default), "dark" or "light"
+	// Language is the interface language as a code such as "en" or "id"; ""
+	// (default) follows the system. Applied at startup.
+	Language string `json:"language,omitempty"`
 	// CoversLocalOnly keeps cover and artwork images on this device: they are
 	// neither uploaded to the cloud nor downloaded from it. The default (false)
 	// syncs them with the library, so a game looks the same on every device.
@@ -145,6 +149,7 @@ func (st *SettingsStore) Update(s Settings) error {
 	if s.Theme != "light" && s.Theme != "dark" {
 		s.Theme = "" // follow the system
 	}
+	s.Language = cleanLanguage(s.Language)
 	if s.BackupRetention < 0 {
 		s.BackupRetention = 0
 	}
@@ -200,4 +205,20 @@ func ReadJSON(path string, v any) (bool, error) {
 		return false, err
 	}
 	return true, json.Unmarshal(b, v)
+}
+
+// cleanLanguage keeps a plausible language code (lower-case letters and
+// hyphens) and turns anything else into "" (follow the system). Whether a
+// catalog exists for it is the UI's business.
+func cleanLanguage(code string) string {
+	code = strings.ToLower(strings.TrimSpace(code))
+	if code == "" || len(code) > 12 {
+		return ""
+	}
+	for _, r := range code {
+		if (r < 'a' || r > 'z') && r != '-' {
+			return ""
+		}
+	}
+	return code
 }
