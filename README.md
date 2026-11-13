@@ -28,31 +28,35 @@ Cloud storage: Google Drive, Dropbox, OneDrive, WebDAV (Nextcloud, ownCloud, NAS
   (`{appdata}/GameA` on Windows, `{proton:shortcut}/AppData/Roaming/GameA` on a Steam Deck).
 - **Emulators** — set up an emulator (Eden, Ryujinx, …) once per device, then let a game use several of them.
   Each emulator keeps its own saves in the cloud, so they never mix; the same emulator on another device
-  shares them.
+  shares them. Choosing a ROM suggests the game's name and save folders (from
+  [ludusavi-emulator-manifests](https://github.com/sharkusmanch/ludusavi-emulator-manifests)).
 - **Trash and cleanup** — a deleted game or emulator waits in the Trash for 30 days and can be restored with all
   its settings. Deleting can also remove its cloud saves, and the Trash page lists cloud saves that no game uses
   any more, to restore or delete.
 - **Play from the launcher or from Steam** — "Add to Steam" creates a non-Steam shortcut that runs
-  `carryover run <game>`, so saves sync around every session, even in Game Mode.
+  `carryover run <game>`, so saves sync around every session, even in Game Mode. A game with several emulators can
+  be one shortcut that asks which emulator to use. The prompts before a game starts (emulator, conflict, played on
+  another device) work with a controller, and the safe answer is focused first.
 - **Safe conflicts** — if saves changed on both sides, you choose which to keep. The side being overwritten is
-  backed up first (see [How it works](#how-it-works)).
+  backed up first (see [How it works](#how-it-works)). A save folder that went missing or was emptied is reported
+  as a conflict, never uploaded as "delete everything".
 - **Played without Carryover?** — when the launcher opens or regains focus, it checks for saves that changed
   since their last sync (for example, the game was started outside Carryover) and marks those games "not uploaded".
 - **Save locations suggested** — known save folders for ~21,000 games (from the Ludusavi manifest), translated
   for each device: Windows folders on a PC, the Proton prefix or native Linux folders on a Steam Deck. Folders
   that already hold saves are shown first. On Linux, the Wine prefixes of Heroic, Lutris and Bottles (native or
   Flatpak, including the SD card) are searched too.
-- **Title & cover from Steam** — "Find on Steam" fills in the official title and portrait cover; "Add from Steam"
-  imports games installed through Steam. With your own free [SteamGridDB](https://www.steamgriddb.com) API key
-  (Settings), "Find cover…" searches community covers for any game.
+- **Titles from Steam, covers from SteamGridDB** — "Find on Steam" fills in the official title; "Add from Steam"
+  imports games installed through Steam. Covers and artwork are an image file you choose or, with your own free
+  [SteamGridDB](https://www.steamgriddb.com) API key (Settings), community art found with "Find cover…".
 - **Shared library** — the game list, covers and artwork sync between devices; a game added on the PC shows up on
-  the Deck as "needs setup".
+  the Deck as "needs setup". Uploading covers and artwork can be turned off per device (Settings → Sync).
 
 ## Download
 
 Get the latest version from the [Releases page](https://github.com/akfaiz/carryover/releases).
 
-Every file is named `carryover-<version>-<os>-<arch>`, for example `carryover-0.1.0-windows-amd64.exe`.
+Every file is named `carryover-<version>-<os>-<arch>`, for example `carryover-0.2.0-windows-amd64.exe`.
 
 | Platform | File | How to run |
 |---|---|---|
@@ -77,10 +81,11 @@ Every file is named `carryover-<version>-<os>-<arch>`, for example `carryover-0.
 
 On each device:
 
-1. **Cloud storage** — add a remote with "＋ Add remote" (or import your existing rclone config), then pick it and
-   a folder under "Sync location". Every device must use the same remote and folder.
-2. **＋ Add game** — set the game's executable and its save folder on this device. Suggested save locations are
-   listed for known games.
+1. **Cloud storage** — add a remote with "＋ Add remote" (or import your existing rclone config). The first one
+   becomes the sync location; check its folder under "Sync location". Every device must use the same remote and
+   folder.
+2. **＋ Add game** — choose "From Steam", "PC game" or "Emulated game", then set how it starts and its save folder
+   on this device. Suggested save locations are listed for known games.
 3. **▶ Play**, or use "Add to Steam" and start the game from Steam. On the other device, the game shows up as
    "needs setup": set its save folder there, and the saves follow you.
 
@@ -162,6 +167,8 @@ carryover --version                          print the version
 - `--dry-run` shows what would happen without changing anything. `--all` with `--push` or `--pull` asks first;
   `--yes` (`-y`) skips the question.
 - Set `CARRYOVER_HOME` to use a different data directory (default: `Carryover` in the user config dir).
+- To report a problem, attach `carryover.log` (Settings → About → "Open logs folder"). `CARRYOVER_DEBUG=1` also logs
+  every cloud transfer.
 
 ## Compared with other tools
 

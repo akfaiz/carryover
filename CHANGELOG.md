@@ -7,120 +7,108 @@ All notable changes to Carryover are listed here. The format follows
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-11-14
+
 ### Added
 
-- A setting to keep cover art and artwork off the cloud: "Upload cover art and artwork to the cloud" (Settings →
-  Sync, on by default). When it is off, this device neither uploads its images nor downloads other devices' ones;
-  they stay local. It is per device.
-- A Trash page. A deleted game or emulator waits there for 30 days with all its settings and can be restored (on
-  every device); after that its settings are removed. "Delete permanently" removes them at once.
-- Deleting a game or an emulator can also delete its cloud saves and backups: tick "Also delete…" in the confirmation
-  (permanent, it skips the trash). Deleting an emulator that way also removes it from every game that uses it.
-  Without the tick, the saves stay in the cloud as before.
-- "Leftover cloud saves" on the Trash page lists cloud folders no game uses (a game deleted for good, or an emulator
-  removed from its game). Restore adds the game back with the save slots found in the cloud (you set where the saves
-  are on this device, then it syncs), or Delete frees the space.
 - Play a game through several emulators, for example one Switch game with Eden and Ryujinx. Set emulators up once
   per device on the new Emulators page; each game picks its emulators and sets a ROM and save locations for each.
-  Every emulator keeps its own cloud saves and backups, and the same emulator on another device shares them. Two
-  emulators that use the same save format can opt in to sharing one save (then they can't run at the same time).
-  Play asks which emulator to use in a dialog of square tiles (the one used last is highlighted; there is no
-  dropdown; a Steam shortcut shows the same dialog), and the game
-  page switches between the emulators and shows the saves and backups of the one selected. `carryover run` and
-  `carryover sync` take `--emulator <name>`. Update all your
-  devices before using this: an older version drops the emulator settings when it saves the library.
+  Every emulator keeps its own cloud saves and backups, shared with the same emulator on your other devices; two
+  emulators with the same save format can opt in to share one save (then they can't run at the same time). Play
+  asks which emulator to use (the one used last is highlighted), the game page shows the saves and backups of the
+  selected one, and `carryover run` and `carryover sync` take `--emulator <name>`.
 - Suggestions for emulated games. Choosing an emulator's executable proposes its name, type and usual arguments;
   choosing a ROM proposes the game's name and finds its save folders, using
   [ludusavi-emulator-manifests](https://github.com/sharkusmanch/ludusavi-emulator-manifests) (downloaded once per
   emulator type, then cached). For Eden, yuzu, Citron and Suyu these are the exact folders of this device's profile,
   so another device's Eden never reports an "orphaned profile". For Ryujinx, whose save folders are numbered, its own
   save index is read, so only the selected game is synced (start the game once in Ryujinx first).
-- A game with emulators can be added to Steam as one game. When Steam starts it, Carryover asks which emulator to use
-  (the one played last is highlighted) and starts it by itself after 5 seconds. A shortcut for a single emulator is
-  also possible.
-- A "System" theme, now the default, follows the system's light or dark setting (Windows, and Linux desktops
-  through the XDG desktop portal). When the system states no preference, Carryover starts light. A theme chosen
-  before stays as it is.
-- The AppImage and the tarball carry AppStream metadata, so software centers and AppImage tools show a
-  description. The AppImage also carries the scalable icon and meets the requirements of the AppImageHub catalog.
-- When a play session is killed before it can release its cloud lock (for example Steam's "Exit Game", or a
-  power loss), the next launcher start, `carryover run` or `carryover sync` releases that lock, so other devices stop warning that the
-  game is being played here.
-- A Language setting (Settings → Appearance) with English and Bahasa Indonesia; "System" follows the system
-  language as before. A change applies after a restart. To add a language, copy `ui/translations/en.json` and list
-  it in `languageOptions`.
-- The library can be filtered to the games that need attention (not set up here, a conflict or error, or saves
-  not uploaded yet) and sorted by name or last sync; both are remembered. Search, filters and sort share one row.
+- A game with emulators can be added to Steam as one shortcut: Carryover asks which emulator to use and starts the
+  highlighted one after 5 seconds (moving between the choices stops the countdown). A shortcut for a single emulator
+  is also possible.
+- The prompts that open before a game starts (which emulator, a save conflict, a game being played on another
+  device, a sync error) work with a controller or the keyboard, so Steam shortcuts work in the Steam Deck's Game Mode
+  without the touchscreen: the D-pad, left stick or arrow keys move, A or Enter presses, and B or Esc gives the safe
+  answer (cancel, skip, decide later). The focus starts on that safe button, so a stray press never overwrites saves.
+- A Trash page. A deleted game or emulator waits there for 30 days with all its settings and can be restored on
+  every device. After that, or at once with "Delete permanently", only its name and id are kept, and the game's
+  cover images are removed from this device and the cloud. Ticking "Also delete…" in the delete confirmation also
+  deletes the cloud saves and backups (permanent, it skips the trash; for an emulator, it also removes it from every
+  game). Without the tick, the saves stay in the cloud as before.
+- "Leftover cloud saves" on the Trash page lists cloud folders no game uses (a game deleted for good, or an emulator
+  removed from its game). Restore adds the game back with the save slots found in the cloud (you set where the saves
+  are on this device, then it syncs), or Delete frees the space.
 - "Add game" asks what kind of game it is (from Steam, a PC game or an emulated game) and opens the editor set up
-  for it.
+  for it. From the editor, a new emulator or the SteamGridDB key can be added in a dialog without losing what you
+  typed, and leaving with unsaved changes asks first.
+- The library can be filtered to the games that need attention (not set up here, a conflict or error, or saves
+  not uploaded yet) and sorted by name or last sync; both are remembered.
 - "Sync all" keeps running when you leave the library: its progress shows in the sidebar (and which game is being
   played), and games that could not be synced or have a conflict are listed in a dialog that links to each.
-- A game that Steam launches has a "Play in Steam" button instead of a disabled Play button.
 - Keyboard shortcuts: Ctrl+F searches the library, Ctrl+N adds a game, F5 syncs (all games on the library, or the
   open game) and Esc goes back.
-- A new emulator, or the SteamGridDB key, can be added from the game editor in a dialog, without losing what you
-  typed. The editor asks before you leave it with unsaved changes.
-- Backups of a game load by themselves, restoring a backup asks first, and busy actions show a progress bar in the
-  card they belong to.
-- The log explains more when you report a bug. A crash now writes its cause to `carryover.log`. Every sync records
-  what it decided and why, and every play session records its launch, exit code and play time. Errors you saw are
-  logged too, and each line names the process that wrote it. Settings → About has an "Open logs folder" button.
-  `CARRYOVER_DEBUG=1` adds every cloud transfer.
+- A game that Steam launches has a "Play in Steam" button instead of a disabled Play button.
+- A per-device setting to keep cover art and artwork off the cloud (Settings → Sync, "Upload cover art and artwork
+  to the cloud", on by default). When it is off, this device neither uploads its images nor downloads other devices'.
+- A "System" theme, now the default, follows the system's light or dark setting (Windows, and Linux desktops
+  through the XDG desktop portal; light when the system states no preference). A theme chosen before stays as it is.
+- A Language setting (Settings → Appearance) with English and Bahasa Indonesia; "System" follows the system
+  language as before. A change applies after a restart.
+- The log explains more when you report a bug: a crash writes its cause, every sync records what it decided and
+  why, every play session records its launch, exit code and play time, errors you saw are logged, and each line
+  names the process that wrote it. A large log is kept as `carryover.1.log` at the next start instead of being
+  emptied. Settings → About has an "Open logs folder" button, and `CARRYOVER_DEBUG=1` adds every cloud transfer.
 - On Windows, a startup error (for example, an unreadable settings file) is shown in a message box instead of
   Carryover silently not opening.
+- The AppImage and the tarball carry AppStream metadata, so software centers and AppImage tools show a
+  description. The AppImage also carries the scalable icon and meets the requirements of the AppImageHub catalog.
 
 ### Changed
-
-- A large log is kept as `carryover.1.log` at the next start, instead of being emptied, so the run you are reporting
-  is not lost.
 
 - The first cloud remote you add or import becomes the sync location by itself; the Cloud page lists remotes
   first on a fresh install and its button reads "Use this location".
 - After "Sync now" finds a conflict, the game page shows the two versions and the buttons to keep either one
   straight away; the play dialog and the game page share one conflict view.
 - The game editor keeps Save and Cancel in view under the form and tells you what is still missing; "How do you
-  play it?" shows its three choices as radio buttons, and a new game is one column.
-- Every deletion (game, emulator, backup, remote, trash item) uses the same confirmation dialog. Error messages
-  stay until you click them away, and the Settings page shows a quiet "Saved" note instead of a message for every
-  change.
-- Trash and Settings moved to the bottom of the sidebar. The Trash count only counts what can be restored; leftover
-  cloud saves are counted on the Trash page. After saving a game, Back no longer returns to the editor.
-- Settings save as soon as you change them (text fields a moment after you stop typing); the Save button is gone.
-  The SteamGridDB API key keeps its own Save button.
-- Once a deleted game or emulator leaves the trash, the library keeps only a small marker (name and id) instead of
-  its settings and local paths, and the game's cover images are removed from this device and the cloud.
-- The menu entry is now `com.akfaiz.carryover.desktop`, named after the app ID. If you installed the tarball
-  before, delete the old `~/.local/share/applications/carryover.desktop` (or the one under your install prefix)
-- The prompts that open before a game starts (which emulator to play with, a save conflict, a game being
-  played on another device, a sync error) can be used with a controller or the keyboard, so a Steam shortcut
-  works on the Steam Deck without the touchscreen: the D-pad, left stick or arrow keys move between the buttons,
-  A or Enter presses one, B or Esc gives the safe answer (cancel, skip, decide later). The focus starts on that safe
-  button, so a stray press never overwrites saves, and moving between the emulator choices stops the countdown.
-  after running the new `install.sh`, or the menu shows Carryover twice.
+  play it?" shows its three choices as radio buttons, and a new game is one column. After saving a game, Back no
+  longer returns to the editor.
+- Settings save as soon as you change them (text fields a moment after you stop typing) and show a quiet "Saved"
+  note; the Save button is gone, except the SteamGridDB API key's. Settings moved to the bottom of the sidebar, next
+  to Trash.
+- Every deletion (game, emulator, backup, remote, trash item) uses the same confirmation dialog, and restoring a
+  backup asks first. Error messages stay until you click them away. Backups of a game load by themselves, and busy
+  actions show a progress bar in the card they belong to.
+- The Linux menu entry is now `com.akfaiz.carryover.desktop`, named after the app ID (see "Upgrading from 0.1.0").
 
 ### Fixed
 
-- A save location with both an include and an exclude list ignored the excludes for files the include list also
-  matched: include `*` with exclude `*.log` still synced `debug.log`. Excludes now win. Games set up this way
-  start leaving those files out, and the next sync removes them from the cloud copy.
-- The first sync after start could race while rclone loaded its configuration. The configuration is now loaded
-  once when Carryover starts.
-- The filter row and progress bar on the library page could be drawn over the page header when the games loaded
-  after the window opened.
 - A save folder that went missing (an unmounted card, a changed path) or was emptied is no longer uploaded as "delete
   everything": the sync reports a conflict that says so, and keeping the cloud saves restores the folder. Before, it
   deleted the cloud saves and then the saves on your other devices.
-- A save folder that is a symbolic link or a Windows junction is scanned and synced; before, it looked empty.
 - A game being played can no longer be synced by "Sync all" or a manual sync (they skip it), which used to take over
   and then delete the play session's lock. Closing the launcher window while a game runs or a sync is in progress asks
   first, since the upload after the game would be skipped.
+- When a play session is killed before it can release its cloud lock (for example Steam's "Exit Game", or a power
+  loss), the next launcher start, `carryover run` or `carryover sync` releases it, so other devices stop warning that
+  the game is being played here.
 - Keeping this device's saves after a long conflict prompt no longer uploads over what another device pushed in the
   meantime; the sync stops and asks you to sync again.
-- Adding an exclude to a save location no longer deletes the newly excluded files from the cloud or from other devices,
-  and a device that only learns the new filter while launching a game plans again with it.
+- Save location filters: with both an include and an exclude list, the excludes were ignored for files the include
+  list also matched (include `*` with exclude `*.log` still synced `debug.log`); excludes now win. A newly excluded
+  file just stops being synced instead of being deleted from the cloud and your other devices, and a device that
+  only learns the new filter while launching a game plans again with it.
+- A save folder that is a symbolic link or a Windows junction is scanned and synced; before, it looked empty.
 - Adding a game to Steam again keeps the shortcut's app id (and so its Proton prefix) when the name or path changed.
+- The first sync after start could race while rclone loaded its configuration; it is now loaded once at start.
 - A remote folder or save location name that starts or ends with a dot keeps the dot. A device id shorter than 8
   characters in the library no longer crashes the game page. Cancelling a launch isn't recorded as a sync error.
+
+### Upgrading from 0.1.0
+
+- Update all your devices before setting up emulators: an older version drops the emulator settings when it saves
+  the library.
+- If you installed the Linux tarball before, delete the old `~/.local/share/applications/carryover.desktop` (or the
+  one under your install prefix) after running the new `install.sh`, or the menu shows Carryover twice.
 
 ## [0.1.0] - 2026-11-12
 
@@ -178,6 +166,7 @@ First public pre-release.
 - Downloads: a Windows exe, a Linux AppImage with in-place updates through Gear Lever or AppImageUpdate, and a
   Linux tarball with an `install.sh`, plus `SHA256SUMS.txt`.
 
-[Unreleased]: https://github.com/akfaiz/carryover/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/akfaiz/carryover/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/akfaiz/carryover/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/akfaiz/carryover/compare/v0.1.0-rc1...v0.1.0
 [0.1.0-rc1]: https://github.com/akfaiz/carryover/releases/tag/v0.1.0-rc1
