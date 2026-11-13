@@ -9,6 +9,14 @@ All notable changes to Carryover are listed here. The format follows
 
 ### Added
 
+- A Trash page. A deleted game or emulator waits there for 30 days with all its settings and can be restored (on
+  every device); after that its settings are removed. "Delete permanently" removes them at once.
+- Deleting a game or an emulator can also delete its cloud saves and backups: tick "Also delete…" in the confirmation
+  (permanent, it skips the trash). Deleting an emulator that way also removes it from every game that uses it.
+  Without the tick, the saves stay in the cloud as before.
+- "Leftover cloud saves" on the Trash page lists cloud folders no game uses (a game deleted for good, or an emulator
+  removed from its game). Restore adds the game back with the save slots found in the cloud (you set where the saves
+  are on this device, then it syncs), or Delete frees the space.
 - Play a game through several emulators, for example one Switch game with Eden and Ryujinx. Set emulators up once
   per device on the new Emulators page; each game picks its emulators and sets a ROM and save locations for each.
   Every emulator keeps its own cloud saves and backups, and the same emulator on another device shares them. Two
@@ -35,6 +43,8 @@ All notable changes to Carryover are listed here. The format follows
 
 ### Changed
 
+- Once a deleted game or emulator leaves the trash, the library keeps only a small marker (name and id) instead of
+  its settings and local paths, and the game's cover images are removed from this device and the cloud.
 - The menu entry is now `com.akfaiz.carryover.desktop`, named after the app ID. If you installed the tarball
   before, delete the old `~/.local/share/applications/carryover.desktop` (or the one under your install prefix)
   after running the new `install.sh`, or the menu shows Carryover twice.

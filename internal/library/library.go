@@ -99,11 +99,14 @@ type Emulator struct {
 	Name string `json:"name"`
 	// Preset is the kind of emulator (emumanifest.Preset.ID), which tells where
 	// its games' saves are; "" if not set.
-	Preset    string                    `json:"preset,omitempty"`
-	Devices   map[string]EmulatorDevice `json:"devices"`
-	Deleted   bool                      `json:"deleted,omitempty"`
-	CreatedAt time.Time                 `json:"createdAt"`
-	UpdatedAt time.Time                 `json:"updatedAt"`
+	Preset  string                    `json:"preset,omitempty"`
+	Devices map[string]EmulatorDevice `json:"devices"`
+	// Deleted marks a tombstone. Until it expires (see ExpireTrash) the rest of
+	// the record is kept, so the emulator can be restored.
+	Deleted   bool      `json:"deleted,omitempty"`
+	DeletedAt time.Time `json:"deletedAt,omitzero"`
+	CreatedAt time.Time `json:"createdAt"`
+	UpdatedAt time.Time `json:"updatedAt"`
 }
 
 // Device returns the emulator's setup on a device.
@@ -128,9 +131,12 @@ type Game struct {
 	Slots      []SaveSlot              `json:"slots"`
 	Emulators  []GameEmulator          `json:"emulators,omitempty"`
 	Devices    map[string]DeviceConfig `json:"devices"`
-	Deleted    bool                    `json:"deleted,omitempty"`
-	CreatedAt  time.Time               `json:"createdAt"`
-	UpdatedAt  time.Time               `json:"updatedAt"`
+	// Deleted marks a tombstone. Until it expires (see ExpireTrash) the rest of
+	// the record is kept, so the game can be restored.
+	Deleted   bool      `json:"deleted,omitempty"`
+	DeletedAt time.Time `json:"deletedAt,omitzero"`
+	CreatedAt time.Time `json:"createdAt"`
+	UpdatedAt time.Time `json:"updatedAt"`
 }
 
 // Emulator returns the game's entry for an emulator id.
@@ -363,7 +369,13 @@ func (s *Store) UpdateDevice(id, deviceID string, fn func(*DeviceConfig)) (Game,
 	return g, s.persist()
 }
 
-// Delete marks a game deleted (tombstone, so the deletion syncs to other devices).
+// TrashRetention is how long a deleted game or emulator can be restored. After
+// that its tombstone is reduced to what identifies it (see ExpireTrash).
+const TrashRetention = 30 * 24 * time.Hour
+
+// Delete moves a game to the trash: it is marked deleted (a tombstone, so the
+// deletion syncs to other devices) but keeps its settings, so Restore can bring
+// it back. Deleting a deleted game changes nothing.
 func (s *Store) Delete(id string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -371,10 +383,171 @@ func (s *Store) Delete(id string) error {
 	if !ok {
 		return ErrNotFound
 	}
-	g.Deleted = true
-	g.UpdatedAt = time.Now().UTC()
+	if g.Deleted {
+		return nil
+	}
+	now := time.Now().UTC()
+	g.Deleted, g.DeletedAt, g.UpdatedAt = true, now, now
 	s.games[id] = g
 	return s.persist()
+}
+
+// DeleteForever deletes a game for good: the tombstone keeps only what
+// identifies it, so it can't be restored (its cloud saves can still be found
+// as leftovers, see the services package).
+func (s *Store) DeleteForever(id string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	g, ok := s.games[id]
+	if !ok {
+		return ErrNotFound
+	}
+	s.games[id] = tombstoneGame(g, time.Now().UTC())
+	return s.persist()
+}
+
+// tombstoneGame reduces a game to the marker of a deletion that can't be undone.
+func tombstoneGame(g Game, now time.Time) Game {
+	deleted := g.DeletedTime()
+	if !g.Deleted {
+		deleted = now
+	}
+	return Game{ID: g.ID, Name: g.Name, Devices: map[string]DeviceConfig{}, Deleted: true, DeletedAt: deleted, CreatedAt: g.CreatedAt, UpdatedAt: now}
+}
+
+// tombstoneEmulator is tombstoneGame for an emulator.
+func tombstoneEmulator(e Emulator, now time.Time) Emulator {
+	deleted := e.DeletedTime()
+	if !e.Deleted {
+		deleted = now
+	}
+	return Emulator{ID: e.ID, Name: e.Name, Devices: map[string]EmulatorDevice{}, Deleted: true, DeletedAt: deleted, CreatedAt: e.CreatedAt, UpdatedAt: now}
+}
+
+// gone reports whether a tombstone no longer holds the game's settings.
+func gone(g Game) bool {
+	return g.Deleted && len(g.Devices) == 0 && len(g.Slots) == 0 && len(g.Emulators) == 0 && g.Cover == "" && len(g.Art) == 0
+}
+
+// emulatorGone is gone for an emulator.
+func emulatorGone(e Emulator) bool { return e.Deleted && len(e.Devices) == 0 }
+
+// ErrNotRestorable is returned for a deleted item whose settings are gone.
+var ErrNotRestorable = errors.New("its settings were removed, so it can't be restored")
+
+// GetAny returns a game by id, deleted or not.
+func (s *Store) GetAny(id string) (Game, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	g, ok := s.games[id]
+	if !ok {
+		return Game{}, ErrNotFound
+	}
+	return clone(g), nil
+}
+
+// DeletedTime is when the game was deleted. Tombstones written before
+// DeletedAt existed don't have it; they were stamped with the deletion time in
+// UpdatedAt.
+func (g Game) DeletedTime() time.Time {
+	if g.DeletedAt.IsZero() {
+		return g.UpdatedAt
+	}
+	return g.DeletedAt
+}
+
+// DeletedTime is Game.DeletedTime for an emulator.
+func (e Emulator) DeletedTime() time.Time {
+	if e.DeletedAt.IsZero() {
+		return e.UpdatedAt
+	}
+	return e.DeletedAt
+}
+
+// Restorable reports whether a deleted game still has its settings.
+func (g Game) Restorable() bool { return g.Deleted && !gone(g) }
+
+// Restorable reports whether a deleted emulator still has its settings.
+func (e Emulator) Restorable() bool { return e.Deleted && !emulatorGone(e) }
+
+// Restore takes a game out of the trash with its settings as they were; the
+// restore syncs to the other devices.
+func (s *Store) Restore(id string) (Game, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	g, ok := s.games[id]
+	if !ok {
+		return Game{}, ErrNotFound
+	}
+	if !g.Deleted {
+		return clone(g), nil
+	}
+	if gone(g) {
+		return Game{}, ErrNotRestorable
+	}
+	g.Deleted, g.DeletedAt, g.UpdatedAt = false, time.Time{}, time.Now().UTC()
+	s.games[id] = g
+	return clone(g), s.persist()
+}
+
+// Trash returns the deleted games that can still be restored, newest first.
+func (s *Store) Trash() []Game {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	var out []Game
+	for _, g := range s.games {
+		if g.Restorable() {
+			out = append(out, clone(g))
+		}
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i].DeletedTime().After(out[j].DeletedTime()) })
+	return out
+}
+
+// TrashedEmulators returns the deleted emulators that can still be restored,
+// newest first.
+func (s *Store) TrashedEmulators() []Emulator {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	var out []Emulator
+	for _, e := range s.emulators {
+		if e.Restorable() {
+			out = append(out, cloneEmulator(e))
+		}
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i].DeletedTime().After(out[j].DeletedTime()) })
+	return out
+}
+
+// ExpireTrash reduces the games and emulators deleted longer than
+// TrashRetention before now to their tombstone, and takes an expired emulator
+// out of the games that still list it. It returns the games as they were, so
+// the caller can remove what belonged to them (cover images).
+func (s *Store) ExpireTrash(now time.Time) ([]Game, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	var expired []Game
+	changed := false
+	for id, g := range s.games {
+		if g.Restorable() && now.Sub(g.DeletedTime()) > TrashRetention {
+			expired = append(expired, clone(g))
+			s.games[id] = tombstoneGame(g, now)
+			changed = true
+		}
+	}
+	for id, e := range s.emulators {
+		if e.Restorable() && now.Sub(e.DeletedTime()) > TrashRetention {
+			s.emulators[id] = tombstoneEmulator(e, now)
+			// It can't come back any more: the games drop it, so its saves
+			// show up as leftovers instead of hanging on an unusable profile.
+			s.detachEmulatorLocked(id, now)
+			changed = true
+		}
+	}
+	if !changed {
+		return nil, nil
+	}
+	return expired, s.persist()
 }
 
 // Catalog returns the full catalog including tombstones.
@@ -445,6 +618,10 @@ func MergeGame(a, b Game) Game {
 	if b.UpdatedAt.After(a.UpdatedAt) {
 		out = b
 	}
+	if gone(out) {
+		// Settings removed for good stay removed: don't merge the other side's back in.
+		return out
+	}
 	out.Devices = map[string]DeviceConfig{}
 	maps.Copy(out.Devices, a.Devices)
 	for k, v := range b.Devices {
@@ -475,6 +652,9 @@ func MergeEmulator(a, b Emulator) Emulator {
 	out := a
 	if b.UpdatedAt.After(a.UpdatedAt) {
 		out = b
+	}
+	if emulatorGone(out) {
+		return out
 	}
 	out.Devices = map[string]EmulatorDevice{}
 	maps.Copy(out.Devices, a.Devices)
@@ -580,8 +760,9 @@ func (s *Store) SaveEmulator(e Emulator, deviceID string) (Emulator, error) {
 	return cloneEmulator(e), s.persist()
 }
 
-// DeleteEmulator marks an emulator deleted (tombstone). Games keep their
-// profile and cloud saves; the profile just can't be launched.
+// DeleteEmulator moves an emulator to the trash (a tombstone that keeps its
+// settings, see Delete). Games keep their profile and cloud saves; the profile
+// just can't be launched.
 func (s *Store) DeleteEmulator(id string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -589,10 +770,109 @@ func (s *Store) DeleteEmulator(id string) error {
 	if !ok {
 		return ErrNotFound
 	}
-	e.Deleted = true
-	e.UpdatedAt = time.Now().UTC()
+	if e.Deleted {
+		return nil
+	}
+	now := time.Now().UTC()
+	e.Deleted, e.DeletedAt, e.UpdatedAt = true, now, now
 	s.emulators[id] = e
 	return s.persist()
+}
+
+// EmulatorAny returns an emulator by id, deleted or not.
+func (s *Store) EmulatorAny(id string) (Emulator, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	e, ok := s.emulators[id]
+	if !ok {
+		return Emulator{}, ErrNotFound
+	}
+	return cloneEmulator(e), nil
+}
+
+// RestoreEmulator takes an emulator out of the trash.
+func (s *Store) RestoreEmulator(id string) (Emulator, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	e, ok := s.emulators[id]
+	if !ok {
+		return Emulator{}, ErrNotFound
+	}
+	if !e.Deleted {
+		return cloneEmulator(e), nil
+	}
+	if emulatorGone(e) {
+		return Emulator{}, ErrNotRestorable
+	}
+	e.Deleted, e.DeletedAt, e.UpdatedAt = false, time.Time{}, time.Now().UTC()
+	s.emulators[id] = e
+	return cloneEmulator(e), s.persist()
+}
+
+// DeleteEmulatorEverywhere deletes an emulator like DeleteEmulator and also
+// takes it out of every game that uses it: the game's entry for it and, on
+// every device, its paths. An emulator that shared this one's cloud save keeps
+// its own slots and uses its own cloud folder from now on. It returns the ids
+// of the games that changed.
+func (s *Store) DeleteEmulatorEverywhere(id string) ([]string, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	e, ok := s.emulators[id]
+	if !ok {
+		return nil, ErrNotFound
+	}
+	now := time.Now().UTC()
+	changed := s.detachEmulatorLocked(id, now)
+	s.emulators[id] = tombstoneEmulator(e, now)
+	return changed, s.persist()
+}
+
+// detachEmulatorLocked takes an emulator out of every game that lists it, live
+// or in the trash (so a restored game doesn't point at it): the game's entry
+// and, on every device, its paths. An emulator that shared its cloud save keeps
+// its own slots and uses its own cloud folder from now on. A game in the trash
+// keeps its deletion time. It returns the ids of the games that changed,
+// sorted; s.mu must be held.
+func (s *Store) detachEmulatorLocked(id string, now time.Time) []string {
+	var changed []string
+	for gid, g := range s.games {
+		if gone(g) {
+			continue
+		}
+		if _, ok := g.Emulator(id); !ok {
+			continue
+		}
+		g = clone(g)
+		if g.Deleted {
+			g.DeletedAt = g.DeletedTime() // UpdatedAt changes below
+		}
+		g.Emulators = slices.DeleteFunc(g.Emulators, func(ge GameEmulator) bool { return ge.EmulatorID == id })
+		for i := range g.Emulators {
+			if g.Emulators[i].ShareWith == id {
+				g.Emulators[i].ShareWith = ""
+			}
+		}
+		for k, d := range g.Devices {
+			_, has := d.Emulators[id]
+			if !has && d.LastEmulator != id {
+				continue
+			}
+			delete(d.Emulators, id)
+			if len(d.Emulators) == 0 {
+				d.Emulators = nil
+			}
+			if d.LastEmulator == id {
+				d.LastEmulator = ""
+			}
+			d.UpdatedAt = now
+			g.Devices[k] = d
+		}
+		g.UpdatedAt = now
+		s.games[gid] = g
+		changed = append(changed, gid)
+	}
+	sort.Strings(changed)
+	return changed
 }
 
 // validateEmulators checks a game's emulator entries: no duplicates, an id

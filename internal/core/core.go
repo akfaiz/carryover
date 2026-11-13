@@ -144,6 +144,7 @@ func (c *Core) SyncCatalog(ctx context.Context) error {
 func (c *Core) syncLibrary(ctx context.Context, withImages bool) error {
 	c.libMu.Lock()
 	defer c.libMu.Unlock()
+	c.ExpireTrash(ctx)
 	s := c.Settings.Get()
 	if !s.SyncLibrary || s.CloudBase() == "" {
 		return nil

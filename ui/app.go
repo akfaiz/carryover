@@ -4,6 +4,7 @@ package ui
 import (
 	_ "embed"
 	"errors"
+	"fmt"
 	"log"
 	"os/exec"
 	"runtime"
@@ -68,6 +69,10 @@ type UI struct {
 	status   map[string]services.Status
 	progress map[string]syncer.Event
 	loaded   bool
+	// trashCount: deleted games and emulators in the trash; leftoverCount: cloud
+	// save folders no game uses. Both show next to Trash in the sidebar.
+	trashCount, leftoverCount int
+	leftoverLoaded            bool
 
 	route   string
 	history []string
@@ -251,7 +256,7 @@ func (u *UI) renderSidebar() {
 	brand := widget.NewLabelWithStyle("Carryover", fyne.TextAlignLeading, fyne.TextStyle{Bold: true})
 	brand.SizeName = theme.SizeNameSubHeadingText
 	objs := []fyne.CanvasObject{container.NewHBox(logo, brand), widget.NewSeparator()}
-	for _, n := range []struct{ path, label string }{{"/", lang.L("Library")}, {"/emulators", lang.L("Emulators")}, {"/cloud", lang.L("Cloud")}, {"/settings", lang.L("Settings")}} {
+	for _, n := range []struct{ path, label string }{{"/", lang.L("Library")}, {"/emulators", lang.L("Emulators")}, {"/cloud", lang.L("Cloud")}, {"/trash", u.trashLabel()}, {"/settings", lang.L("Settings")}} {
 		b := widget.NewButton(n.label, func() { u.navigate(n.path) })
 		b.Alignment = widget.ButtonAlignLeading
 		u.navBtns[n.path] = b
@@ -260,6 +265,7 @@ func (u *UI) renderSidebar() {
 	u.navBtns["/"].SetIcon(theme.GridIcon())
 	u.navBtns["/emulators"].SetIcon(theme.ComputerIcon())
 	u.navBtns["/cloud"].SetIcon(theme.StorageIcon())
+	u.navBtns["/trash"].SetIcon(theme.DeleteIcon())
 	u.navBtns["/settings"].SetIcon(theme.SettingsIcon())
 	objs = append(objs, layout.NewSpacer(), widget.NewSeparator())
 	dev := muted(u.settings.DeviceName)
@@ -342,6 +348,8 @@ func (u *UI) show(path string) {
 		u.page = newEmulatorsPage(u)
 	case arg(0) == "cloud":
 		u.page = newCloudPage(u)
+	case arg(0) == "trash":
+		u.page = newTrashPage(u)
 	case arg(0) == "settings":
 		u.page = newSettingsPage(u)
 	default:
@@ -357,14 +365,46 @@ func (u *UI) refresh() {
 	go func() {
 		games := u.lib.List()
 		st := u.sync.GetSettings()
+		trash := u.lib.TrashCount()
 		onUI(func() {
-			u.games, u.settings, u.loaded = games, st, true
+			u.games, u.settings, u.loaded, u.trashCount = games, st, true, trash
+			if !u.leftoverLoaded && st.Remote != "" {
+				u.leftoverLoaded = true
+				u.reloadLeftoverCount()
+			}
 			if u.sidebar != nil {
 				u.renderSidebar()
 			}
 			u.notify(changeLibrary)
 		})
 	}()
+}
+
+// trashLabel is the sidebar text of the Trash entry: it counts what is in the
+// trash and the cloud saves no game uses.
+func (u *UI) trashLabel() string {
+	if n := u.trashCount + u.leftoverCount; n > 0 {
+		return fmt.Sprintf("%s (%d)", lang.L("Trash"), n)
+	}
+	return lang.L("Trash")
+}
+
+// reloadLeftoverCount counts the leftover cloud folders again (a cloud call,
+// so it runs after deletions and at startup, not on every refresh).
+func (u *UI) reloadLeftoverCount() {
+	async(u.lib.LeftoverCount, func(n int, err error) {
+		if err != nil {
+			return
+		}
+		u.leftoverCount = n
+		u.refreshSidebar()
+	})
+}
+
+func (u *UI) refreshSidebar() {
+	if u.sidebar != nil {
+		u.renderSidebar()
+	}
 }
 
 func (u *UI) notify(what change) {

@@ -50,7 +50,10 @@ type emulatorsPage struct {
 	advItem   *accordionSection
 	saving    bool
 	confirmID string // emulator whose deletion awaits confirmation
-	errText   string
+	// deleteSaves: that deletion also removes the emulator from games and
+	// deletes its cloud saves.
+	deleteSaves bool
+	errText     string
 
 	scroll *container.Scroll
 }
@@ -122,20 +125,34 @@ func (p *emulatorsPage) row(ev services.EmulatorView) fyne.CanvasObject {
 	})
 	actions := hbox(edit)
 	if p.confirmID == ev.ID {
-		actions = hbox(widget.NewButton(lang.L("Cancel"), func() { p.confirmID = ""; p.render() }),
+		actions = hbox(widget.NewButton(lang.L("Cancel"), func() { p.confirmID, p.deleteSaves = "", false; p.render() }),
 			dangerButton(lang.L("Delete"), func() {
-				async0(func() error { return p.u.emus.Delete(ev.ID) }, func(err error) {
-					p.confirmID = ""
+				del := p.u.emus.Delete
+				if p.deleteSaves {
+					del = p.u.emus.DeleteWithSaves
+				}
+				async0(func() error { return del(ev.ID) }, func(err error) {
+					p.confirmID, p.deleteSaves = "", false
 					p.u.toastErr(err)
+					p.u.reloadLeftoverCount()
 					p.reload()
 				})
 			}))
 	} else {
-		actions.Add(dangerButton(lang.L("Delete…"), func() { p.confirmID = ev.ID; p.render() }))
+		actions.Add(dangerButton(lang.L("Delete…"), func() { p.confirmID, p.deleteSaves = ev.ID, false; p.render() }))
 	}
 	c := vbox(cardHead(ev.Name, state), hbox(games))
 	if p.confirmID == ev.ID {
-		c.Add(colored(lang.L("Delete this emulator for all devices? Games keep their saves in the cloud, but can't be launched with it any more."), widget.MediumImportance))
+		msg := lang.L("Move this emulator to the trash on all devices? You can restore it from the Trash page. Games keep their saves in the cloud, but can't be launched with it until then.")
+		if p.deleteSaves {
+			msg = lang.L("Delete this emulator permanently on all devices, remove it from every game and delete the cloud saves and backups made with it? It can't be restored.")
+		}
+		c.Add(colored(msg, widget.MediumImportance))
+		saves := rebuildingCheck(lang.L("Also remove it from games and delete its cloud saves"), p.deleteSaves, func(on bool) { p.deleteSaves = on; p.render() })
+		c.Add(saves)
+		if !p.deleteSaves {
+			c.Add(muted(lang.L("The cloud saves stay until you delete them. Once it is gone for good, they are listed under Trash → Leftover cloud saves.")))
+		}
 	}
 	c.Add(actions)
 	return card("", c)

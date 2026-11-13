@@ -28,6 +28,9 @@ Cloud storage: Google Drive, Dropbox, OneDrive, WebDAV (Nextcloud, ownCloud, NAS
 - **Emulators** — set up an emulator (Eden, Ryujinx, …) once per device, then let a game use several of them.
   Each emulator keeps its own saves in the cloud, so they never mix; the same emulator on another device
   shares them.
+- **Trash and cleanup** — a deleted game or emulator waits in the Trash for 30 days and can be restored with all
+  its settings. Deleting can also remove its cloud saves, and the Trash page lists cloud saves that no game uses
+  any more, to restore or delete.
 - **Play from the launcher or from Steam** — "Add to Steam" creates a non-Steam shortcut that runs
   `carryover run <game>`, so saves sync around every session, even in Game Mode.
 - **Safe conflicts** — if saves changed on both sides, you choose which to keep. The side being overwritten is
