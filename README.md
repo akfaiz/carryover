@@ -129,11 +129,9 @@ In Steam, the shortcut `carryover run <game>` does the same steps around the gam
 while it runs, but never the game itself.
 
 > [!NOTE]
-> **Steam's "Exit game" / "Stop" is fine.** Steam ends Carryover together with the game, but a small helper that
-> Carryover starts outside Steam finishes the session a few seconds later: it uploads the new saves and releases
-> the "being played" lock. On Linux the helper needs systemd (SteamOS has it); without it (e.g. Flatpak Steam),
-> quit from the game's own menu or sync the game before you play on another device: press "Sync now" in
-> Carryover, or start the game again on the same device.
+> **Steam's "Exit game" / "Stop" is fine.** Carryover still uploads your saves a few seconds later and lets you
+> know with a notification (in Steam Deck Game Mode, the next time you open Carryover). On Linux this needs systemd,
+> which SteamOS has; without it (e.g. Flatpak Steam), press "Sync now" before you play on another device.
 
 ## Steam Deck / Proton games
 
