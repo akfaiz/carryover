@@ -68,7 +68,7 @@ func Open(logsDir, header string) (*Log, error) {
 
 	log.SetFlags(log.LstdFlags | log.Lmicroseconds | log.Lmsgprefix)
 	log.SetPrefix(fmt.Sprintf("[%d] ", os.Getpid()))
-	log.SetOutput(io.MultiWriter(os.Stderr, f))
+	log.SetOutput(fileFirst{file: f, also: os.Stderr})
 	// Fatal panics and runtime errors (e.g. a concurrent map write) on any
 	// goroutine are written here, right after the last log lines.
 	_ = debug.SetCrashOutput(f, debug.CrashOptions{})
@@ -77,6 +77,22 @@ func Open(logsDir, header string) (*Log, error) {
 	fl.Printf("----- %s", header)
 	fl.Printf("%s", Environment())
 	return l, nil
+}
+
+// fileFirst writes log lines to the file, then to also (stderr) ignoring its
+// errors. Not io.MultiWriter: it stops at the first failing writer, and the
+// Windows GUI build started without a console (by Steam, from a shortcut) has
+// a stderr that fails every write, so nothing but the header and the exit
+// line would reach the file.
+type fileFirst struct {
+	file io.Writer
+	also io.Writer
+}
+
+func (w fileFirst) Write(p []byte) (int, error) {
+	n, err := w.file.Write(p)
+	_, _ = w.also.Write(p)
+	return n, err
 }
 
 // Close stops crash output to the file, closes it and restores the standard

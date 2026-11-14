@@ -35,6 +35,24 @@ func TestOpenWritesHeaderAndLogLines(t *testing.T) {
 	assert.Contains(t, got, "[", "lines carry the PID")
 }
 
+// A stderr that fails every write (the Windows GUI build started by Steam has
+// no console) must not keep log lines out of the file.
+func TestLogLinesReachFileWithBrokenStderr(t *testing.T) {
+	broken, err := os.CreateTemp(t.TempDir(), "stderr")
+	require.NoError(t, err)
+	require.NoError(t, broken.Close()) // writes now fail
+	prev := os.Stderr
+	os.Stderr = broken
+	t.Cleanup(func() { os.Stderr = prev })
+
+	dir := t.TempDir()
+	l, err := Open(dir, "Carryover test")
+	require.NoError(t, err)
+	log.Printf("play %s", "game")
+	l.Close()
+	assert.Contains(t, readLog(t, dir, FileName), "play game")
+}
+
 func TestCloseRestoresLoggerAndReleasesFile(t *testing.T) {
 	var buf bytes.Buffer
 	log.SetOutput(&buf)
