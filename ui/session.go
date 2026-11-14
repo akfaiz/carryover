@@ -111,22 +111,11 @@ func (u *UI) runWrapper(gameID string, opts core.RunOptions) int {
 	u.page = page
 	u.win.SetContent(container.NewStack(page.view(), u.toasts.Layer))
 
-	// Once the game has started, closing the window doesn't quit: the upload
-	// after playing and the release of the cloud lock happen in this process.
-	// Steam's "Stop" on Windows closes this window (WM_CLOSE) while the game
-	// runs; the session then finishes and quits by itself, like survivePolite
-	// does for SIGTERM on Linux. Before the game starts, closing quits.
-	var started atomic.Bool
-	u.win.SetCloseIntercept(func() {
-		if !started.Load() {
-			u.app.Quit()
-			return
-		}
-		log.Printf("run %s: window close requested during the session (Steam's Stop?): finishing the session first", gameID)
-	})
+	closer := &wrapperClose{gameID: gameID, quit: u.app.Quit}
+	u.win.SetCloseIntercept(closer.request)
 	u.sess.OnGameRunning = func(running bool) {
 		if running {
-			started.Store(true)
+			closer.started.Store(true)
 		}
 		kit.OnUI(func() {
 			if running {
@@ -161,4 +150,24 @@ func (u *UI) runWrapper(gameID string, opts core.RunOptions) int {
 	})
 	u.win.ShowAndRun()
 	return exitCode
+}
+
+// wrapperClose decides what closing the session window does. Once the game
+// has started, closing doesn't quit: the upload after playing and the release
+// of the cloud lock happen in this process. Steam's "Stop" on Windows closes
+// this window (WM_CLOSE) while the game runs; the session then finishes and
+// quits by itself, like survivePolite does for SIGTERM on Linux. Before the
+// game starts, closing quits.
+type wrapperClose struct {
+	gameID  string
+	quit    func()
+	started atomic.Bool
+}
+
+func (w *wrapperClose) request() {
+	if !w.started.Load() {
+		w.quit()
+		return
+	}
+	log.Printf("run %s: window close requested during the session (Steam's Stop?): finishing the session first", w.gameID)
 }

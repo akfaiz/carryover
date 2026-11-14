@@ -153,3 +153,14 @@ func TestSyncSkipsGameBeingPlayed(t *testing.T) {
 	require.Len(t, res, 1)
 	require.Equal(t, string(syncer.ActionPush), res[0].Action)
 }
+
+// TakeNotices hands the watcher's saved notices to the UI, once.
+func TestTakeNoticesService(t *testing.T) {
+	e := newSyncEnv(t)
+	require.Empty(t, e.svc.TakeNotices())
+	require.NoError(t, e.c.SaveNotice(core.Notice{Time: time.Now(), Key: e.id, Title: "Game A", Kind: core.NoticeConflict}))
+	got := e.svc.TakeNotices()
+	require.Len(t, got, 1)
+	require.Equal(t, core.NoticeConflict, got[0].Kind)
+	require.Empty(t, e.svc.TakeNotices(), "shown twice")
+}
