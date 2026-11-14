@@ -25,38 +25,26 @@ Cloud storage: Google Drive, Dropbox, OneDrive, WebDAV (Nextcloud, ownCloud, NAS
 ## Screenshots
 
 <p align="center">
-  <img src="docs/screenshot_gamedetail.png" alt="Game details: sync status, Play and Sync now, save folder, backups, Steam shortcut and the save path on another device" width="800">
+  <img src="docs/images/screenshot_gamedetail.png" alt="Game details: sync status, Play and Sync now, save folder, backups, Steam shortcut and the save path on another device" width="800">
 </p>
 
 ## Features
 
 - **Per-device save paths** — one game, one cloud copy; each device maps it to its own folder
   (`{appdata}/GameA` on Windows, `{proton:shortcut}/AppData/Roaming/GameA` on a Steam Deck).
-- **Emulators** — set up an emulator (Eden, Ryujinx, …) once per device, then let a game use several of them.
-  Each emulator keeps its own saves in the cloud, so they never mix; the same emulator on another device
-  shares them. Choosing a ROM suggests the game's name and save folders (from
-  [ludusavi-emulator-manifests](https://github.com/sharkusmanch/ludusavi-emulator-manifests)).
-- **Trash and cleanup** — a deleted game or emulator waits in the Trash for 30 days and can be restored with all
-  its settings. Deleting can also remove its cloud saves, and the Trash page lists cloud saves that no game uses
-  any more, to restore or delete.
-- **Play from the launcher or from Steam** — "Add to Steam" creates a non-Steam shortcut that runs
-  `carryover run <game>`, so saves sync around every session, even in Game Mode. A game with several emulators can
-  be one shortcut that asks which emulator to use. The prompts before a game starts (emulator, conflict, played on
-  another device) work with a controller, and the safe answer is focused first.
-- **Safe conflicts** — if saves changed on both sides, you choose which to keep. The side being overwritten is
-  backed up first (see [How it works](#how-it-works)). A save folder that went missing or was emptied is reported
-  as a conflict, never uploaded as "delete everything".
-- **Played without Carryover?** — when the launcher opens or regains focus, it checks for saves that changed
-  since their last sync (for example, the game was started outside Carryover) and marks those games "not uploaded".
-- **Save locations suggested** — known save folders for ~21,000 games (from the Ludusavi manifest), translated
-  for each device: Windows folders on a PC, the Proton prefix or native Linux folders on a Steam Deck. Folders
-  that already hold saves are shown first. On Linux, the Wine prefixes of Heroic, Lutris and Bottles (native or
-  Flatpak, including the SD card) are searched too.
-- **Titles from Steam, covers from SteamGridDB** — "Find on Steam" fills in the official title; "Add from Steam"
-  imports games installed through Steam. Covers and artwork are an image file you choose or, with your own free
-  [SteamGridDB](https://www.steamgriddb.com) API key (Settings), community art found with "Find cover…".
+- **Save locations suggested** — known save folders for ~21,000 games, translated for each device, including
+  Proton, Heroic, Lutris and Bottles prefixes on Linux.
+- **Play from the launcher or from Steam** — "Add to Steam" creates a shortcut that syncs around every session,
+  even in Game Mode, with prompts that work on a controller.
+- **Safe conflicts** — if saves changed on both sides, you choose which to keep, and the side being overwritten
+  is backed up first.
+- **Emulators** — set up an emulator (Eden, Ryujinx, …) once per device and let a game use several; each keeps
+  its own saves in the cloud. Choosing a ROM suggests the game's name and save folders.
+- **Played without Carryover?** — games whose saves changed outside Carryover are marked "not uploaded".
 - **Shared library** — the game list, covers and artwork sync between devices; a game added on the PC shows up on
-  the Deck as "needs setup". Uploading covers and artwork can be turned off per device (Settings → Sync).
+  the Deck as "needs setup". Titles come from Steam, covers from SteamGridDB (with your own free API key).
+- **Trash and cleanup** — deleted games and emulators can be restored for 30 days, and cloud saves no game uses
+  any more can be restored or deleted.
 
 ## Download
 
@@ -93,93 +81,53 @@ On each device:
 2. **＋ Add game** — choose "From Steam", "PC game" or "Emulated game", then set how it starts and its save folder
    on this device. Suggested save locations are listed for known games.
 3. **▶ Play**, or use "Add to Steam" and start the game from Steam. On the other device, the game shows up as
-   "needs setup": set its save folder there, and the saves follow you.
+   "needs setup": set its save folder there, and the saves follow you. For Proton and Heroic games, see
+   [Steam and Steam Deck](docs/steam-deck.md).
 
 ## How it works
 
-Each game has one copy of its saves in the cloud. Every device keeps a record of the cloud state it saw at its
-last successful sync, and compares three things: its local save files, the cloud copy and that record.
+```mermaid
+flowchart LR
+    play(["▶ Play"]) --> check{"Compare local saves,<br/>cloud and last sync"}
+    check -->|cloud newer| pull["Pull saves"]
+    check -->|local newer| push["Push saves"]
+    check -->|both changed| ask["You choose<br/>which to keep"]
+    check -->|no change| game
+    pull --> game["Game runs"]
+    push --> game
+    ask --> game
+    game --> quit(["Quit"]) --> after["Push new saves"]
+```
 
-1. **Before playing**, Carryover scans the local save folders and reads the cloud manifest (the file list with a
-   SHA-256 for each file). It also writes a lock in the cloud ("being played on `<device>`") so another device
-   knows the game is in use.
-2. **It decides what to do:**
-
-   | Local | Cloud | Result |
-   |---|---|---|
-   | unchanged | unchanged | nothing to do |
-   | unchanged | newer | **pull** the cloud saves |
-   | changed | unchanged | **push** the local saves |
-   | changed | changed (and different) | **conflict**, you choose which side to keep |
-
-   A device that has never synced the game pulls if it has no local saves, pushes if the cloud has none, and
-   reports a conflict if both have different saves.
-3. **Only the difference is transferred.** Files are compared by size and SHA-256, so unchanged files are not
-   uploaded or downloaded again, and files that were deleted on one side are removed on the other.
-4. **The side being overwritten is backed up first.**
-   - With **"Back up saves to the cloud before they're overwritten"** turned on in Settings (off by default,
-     because the upload slows syncs), it is zipped into the game's cloud backups. The last N are kept.
-   - With it off, a download that would replace this device's saves first zips them on the device
-     (the last 5 per game). Nothing is uploaded.
-   - "Back up now" on the game page makes a manual backup. Manual backups are pinned, and pinned backups are never
-     deleted automatically. You can pin any backup, and restore any of them from the game page.
-5. **After you quit the game**, the new local saves are pushed and the lock is released.
-
-In Steam, the shortcut `carryover run <game>` does the same steps around the game process. You can cancel a sync
-while it runs, but never the game itself.
+Each game has one copy of its saves in the cloud. Before you play, Carryover compares the local saves, the cloud
+copy and what it saw at the last sync, then pulls, pushes, or asks you when both sides changed. Only changed files
+are transferred, and a cloud lock shows when the game is being played on another device. After you quit, the new
+saves are pushed. See [How Carryover syncs saves](docs/how-it-works.md) for the details and the backup options.
 
 > [!NOTE]
 > **Steam's "Exit game" / "Stop" is fine.** Carryover still uploads your saves a few seconds later and lets you
 > know with a notification (in Steam Deck Game Mode, the next time you open Carryover). On Linux this needs systemd,
 > which SteamOS has; without it (e.g. Flatpak Steam), press "Sync now" before you play on another device.
 
-## Steam Deck / Proton games
-
-Pick **"Steam"** as the game's launch mode and, in "Add to Steam", set **Shortcut type** to
-**"Run the game exe, wrapped by Carryover"**. Steam gets the game `.exe` as target and
-`"<carryover>" run <id> -- %command%` as launch options; force a Proton version in the shortcut's
-Compatibility settings. For games you own on Steam, paste the launch options shown on the game page.
-
-Games installed by **Heroic** (GOG, Epic, Amazon, or added by hand) should keep Heroic's own Wine prefix: a
-Proton shortcut would give them a new, empty one. Pick **"Heroic Games Launcher"** as launch mode;
-choosing an executable inside a Heroic install folder selects it automatically. Carryover then launches the game
-with `heroic://launch` (as Heroic's own "Add to Steam" does) and waits for that executable to exit. The Steam
-shortcut runs Carryover, so don't force a Proton version on it. Pick the save folder from the Heroic prefix
-suggestions. On Windows the mode works the same way: Carryover runs `Heroic.exe --no-gui heroic://launch?…`,
-which Epic games need for their login.
-
-## Path variables
-
-Save paths can use variables, so one entry works on every device. The most common are `{home}`, `{documents}`,
-`{appdata}`, `{localappdata}`, `{savedgames}`, `{localappdatalow}` (Windows `AppData\LocalLow`), `{xdgdata}`, `{xdgconfig}` and `{steam}`, plus
-`{proton:<appid>}` (a Steam game's Proton prefix, `…/compatdata/<appid>/pfx/drive_c/users/steamuser`) and
-`{proton:shortcut}` (the prefix of this game's own non-Steam shortcut). `$ENV` and `%ENV%` work too.
-The `{ }` button next to a path field lists every variable with its value on the current device.
-
 ## Command line
 
 ```
-carryover                                    open the launcher
-carryover run <game> [--emulator <e>] [--headless] [--no-sync] [-- cmd]
-                                             pull → play → push (used by Steam shortcuts)
-carryover sync <game>|--all [--emulator <e>] [--push|--pull] [--dry-run] [--yes]
-                                             manual sync (exit code 3 = conflict)
-carryover list                               list games and their ids
-carryover --version                          print the version
+carryover                       open the launcher
+carryover run <game> [-- cmd]   pull → play → push (used by Steam shortcuts)
+carryover sync <game>|--all     manual sync (exit code 3 = conflict)
+carryover list                  list games and their ids
 ```
 
-- `<game>` is a game id or its exact name. With `-- cmd` (for example Steam's `-- %command%`), that command is
-  launched instead of the configured exe.
-- `--emulator` picks an emulator (id or name, or `native` for the game's own launch config). `run` without it
-  plays the one used last on this device; `sync` without it syncs every emulator set up on this device.
-- `--headless` never waits for input: conflicts are skipped, both sides stay untouched, and the game is flagged
-  in the launcher until you resolve it.
-- `--no-sync` launches the game without syncing before or after.
-- `--dry-run` shows what would happen without changing anything. `--all` with `--push` or `--pull` asks first;
-  `--yes` (`-y`) skips the question.
-- Set `CARRYOVER_HOME` to use a different data directory (default: `Carryover` in the user config dir).
-- To report a problem, attach `carryover.log` (Settings → About → "Open logs folder"). `CARRYOVER_DEBUG=1` also logs
-  every cloud transfer.
+All options are in [docs/cli.md](docs/cli.md).
+
+## Documentation
+
+- [How Carryover syncs saves](docs/how-it-works.md) — conflicts, backups, the cloud lock
+- [Steam and Steam Deck](docs/steam-deck.md) — Proton shortcuts, Heroic games, Game Mode
+- [Save paths](docs/save-paths.md) — every path variable (`{appdata}`, `{proton:shortcut}`, …)
+- [Command line](docs/cli.md) — commands, options and environment variables
+- [Troubleshooting](docs/troubleshooting.md) — logs, SmartScreen, missing uploads
+- [Compared with other tools](docs/comparison.md)
 
 ## Compared with other tools
 

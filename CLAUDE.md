@@ -2,7 +2,7 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-Carryover: Go desktop game launcher with a Fyne GUI (`ui/`) that syncs saves through rclone, embedded as a Go library. See README.md for features and the cloud layout, and CONTRIBUTING.md for build and packaging steps.
+Carryover: Go desktop game launcher with a Fyne GUI (`ui/`) that syncs saves through rclone, embedded as a Go library. See README.md and `docs/` for features and usage, and CONTRIBUTING.md for build and packaging steps and the cloud layout.
 
 ## Commands
 
