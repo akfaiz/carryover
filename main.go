@@ -487,14 +487,15 @@ const (
 	// watchPoll is how often the session watcher checks whether the session
 	// it watches is still running.
 	watchPoll = 2 * time.Second
-	// watchSettle is how long the watcher waits after the session's process
-	// is gone before uploading: the game may still be shutting down (Proton
-	// flushing files) after Steam killed the wrapper.
-	watchSettle = 5 * time.Second
 	// watchMax bounds a watcher whose session never seems to end (e.g. the
 	// wrapper's process id was reused by another process).
 	watchMax = 72 * time.Hour
 )
+
+// watchSettle is how long the watcher waits after the session's process is
+// gone before uploading: the game may still be shutting down (Proton flushing
+// files) after Steam killed the wrapper. A variable for tests.
+var watchSettle = 5 * time.Second
 
 // startDetached starts the session watcher (replaced in tests, whose binary
 // can't run it).

@@ -311,3 +311,38 @@ func TestTellUser(t *testing.T) {
 	tellUser(c, n)
 	require.Len(t, c.TakeNotices(), 1, "not kept in Game Mode")
 }
+
+// The session watcher of a killed session: it uploads the saves, releases the
+// session and notifies the user.
+func TestCmdFinishSessionKilled(t *testing.T) {
+	e := newCLIEnv(t)
+	home := os.Getenv(appdir.EnvHome)
+	_, code := capture(t, func() int { return cmdSync([]string{e.id}) })
+	require.Zero(t, code, "first sync")
+	require.NoError(t, os.WriteFile(filepath.Join(e.saves, "a.sav"), []byte("played"), 0o644))
+	// What a wrapper killed by Steam leaves: its session marker (the local
+	// lock of the dead process doesn't matter).
+	marker := filepath.Join(home, "state", e.id+".session")
+	require.NoError(t, os.WriteFile(marker, []byte(`{"game":"`+e.id+`"}`), 0o644))
+
+	prevSettle := watchSettle
+	watchSettle = 0
+	t.Cleanup(func() { watchSettle = prevSettle })
+	var sent []string
+	prevSend := notifySend
+	notifySend = func(_ notify.App, _, body string) error {
+		sent = append(sent, body)
+		return nil
+	}
+	t.Cleanup(func() { notifySend = prevSend })
+	t.Setenv("XDG_CURRENT_DESKTOP", "KDE")
+
+	_, code = capture(t, func() int { return cmdFinishSession([]string{"--home", home, e.id}) })
+	require.Zero(t, code)
+	got, err := os.ReadFile(filepath.Join(e.cloud, "games", e.id, "current", "saves", "a.sav"))
+	require.NoError(t, err)
+	require.Equal(t, "played", string(got), "saves not uploaded")
+	require.NoFileExists(t, marker, "session not finished")
+	require.Len(t, sent, 1, "user not notified")
+	require.True(t, strings.HasPrefix(sent[0], "Game A: "), sent[0])
+}

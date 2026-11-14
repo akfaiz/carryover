@@ -381,3 +381,102 @@ func TestFinishSessionFailed(t *testing.T) {
 	st, _ := c.States.Load(id)
 	require.Equal(t, notice.Err, st.LastError)
 }
+
+// A marker written by an older version is empty: the watcher releases the
+// lock as RecoverSessions does, without knowing what to upload.
+func TestFinishSessionOldMarker(t *testing.T) {
+	c, id, _, cloudDir := killedSession(t)
+	require.NoError(t, os.WriteFile(c.sessionMarkerPath(id), nil, 0o644))
+	finished, notice, err := c.FinishSession(context.Background(), id, 0)
+	require.NoError(t, err)
+	require.True(t, finished)
+	require.Nil(t, notice)
+	require.NoFileExists(t, filepath.Join(cloudDir, "games", id, "lock.json"), "cloud lock left behind")
+	got, _ := os.ReadFile(filepath.Join(cloudDir, "games", id, "current", "saves", "a.sav"))
+	require.Equal(t, "save", string(got), "uploaded without knowing the profile")
+}
+
+// Stopping the watcher while it waits for the game to shut down leaves the
+// session for the next recovery.
+func TestFinishSessionCancelled(t *testing.T) {
+	c, id, _, cloudDir := killedSession(t)
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	finished, notice, err := c.FinishSession(ctx, id, time.Hour)
+	require.ErrorIs(t, err, context.Canceled)
+	require.False(t, finished)
+	require.Nil(t, notice)
+	require.FileExists(t, c.sessionMarkerPath(id))
+	require.FileExists(t, filepath.Join(cloudDir, "games", id, "lock.json"))
+	_, err = syncer.AcquireLocalLock(c.Dirs.StateDir(), id)
+	require.NoError(t, err, "local lock still held after cancelling")
+}
+
+// Without a cloud remote there is nothing to finish.
+func TestFinishSessionWithoutCloud(t *testing.T) {
+	c, id, _, _ := killedSession(t)
+	st := c.Settings.Get()
+	st.Remote = ""
+	require.NoError(t, c.Settings.Update(st))
+	finished, notice, err := c.FinishSession(context.Background(), id, 0)
+	require.NoError(t, err)
+	require.False(t, finished)
+	require.Nil(t, notice)
+	require.FileExists(t, c.sessionMarkerPath(id), "marker of an unfinished session removed")
+}
+
+// An emulator profile: the cloud key names the session, the notice names the
+// emulator and carries the profile's sync key.
+func TestFinishSessionEmulator(t *testing.T) {
+	c, id, _, cloudDir := newPlayable(t)
+	eden, err := c.Library.SaveEmulator(library.Emulator{Name: "Eden"}, c.DeviceID())
+	require.NoError(t, err)
+	edenSaves := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(edenSaves, "e.sav"), []byte("eden"), 0o644))
+	g := mustFind(t, c, id)
+	g.Emulators = []library.GameEmulator{{EmulatorID: eden.ID, Slots: []library.SaveSlot{{Key: "saves"}}}}
+	d := g.Devices[c.DeviceID()]
+	d.Emulators = map[string]library.EmulatorConfig{eden.ID: {Paths: map[string]string{"saves": edenSaves}}}
+	g.Devices[c.DeviceID()] = d
+	g, err = c.Library.Save(g, c.DeviceID())
+	require.NoError(t, err)
+
+	eng, err := c.Engine()
+	require.NoError(t, err)
+	job, err := c.JobFor(g, eden.ID)
+	require.NoError(t, err)
+	_, _, err = eng.Sync(context.Background(), job, syncer.ResolveAuto)
+	require.NoError(t, err)
+	key := CloudKey(g, eden.ID)
+	require.NoError(t, eng.AcquireLock(context.Background(), key))
+	c.markSession(key, id, eden.ID)
+	require.NoError(t, os.WriteFile(filepath.Join(edenSaves, "e.sav"), []byte("played"), 0o644))
+
+	finished, notice, err := c.FinishSession(context.Background(), key, 0)
+	require.NoError(t, err)
+	require.True(t, finished)
+	require.NotNil(t, notice)
+	require.Equal(t, NoticeUploaded, notice.Kind)
+	require.Equal(t, "Game A (Eden)", notice.Title)
+	require.Equal(t, SyncKey(id, eden.ID), notice.Key)
+	got, err := os.ReadFile(filepath.Join(cloudDir, "games", key, "current", "saves", "e.sav"))
+	require.NoError(t, err)
+	require.Equal(t, "played", string(got))
+}
+
+// A notice still being written (.tmp) is left alone; an unreadable one is
+// dropped rather than shown or kept forever.
+func TestTakeNoticesSkipsPartialAndBroken(t *testing.T) {
+	c, id, _, _ := newPlayable(t)
+	require.NoError(t, c.SaveNotice(Notice{Time: time.Now(), Key: id, Title: "A", Kind: NoticeUploaded}))
+	partial := filepath.Join(c.noticesDir(), "00000000000000000001_x.json.tmp")
+	require.NoError(t, os.WriteFile(partial, []byte("{"), 0o644))
+	broken := filepath.Join(c.noticesDir(), "00000000000000000002_y.json")
+	require.NoError(t, os.WriteFile(broken, []byte("not json"), 0o644))
+
+	got := c.TakeNotices()
+	require.Len(t, got, 1)
+	require.Equal(t, "A", got[0].Title)
+	require.FileExists(t, partial, "a notice being written was taken")
+	require.NoFileExists(t, broken, "a broken notice stays forever")
+}
