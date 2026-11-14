@@ -88,7 +88,7 @@ func TestPurgeSavesRemovesCloudAndLocalRecords(t *testing.T) {
 	uploaded(t, c, id)
 	require.DirExists(t, cloudFolder(cloudDir, id))
 	require.NoError(t, c.States.Save(id, syncer.State{LastError: "old"}))
-	c.markSession(id)
+	c.markSession(id, id, "")
 	safety := syncer.SafetyGameDir(c.Dirs.SafetyDir(), id)
 	require.NoError(t, os.MkdirAll(safety, 0o755))
 	require.NoError(t, os.WriteFile(filepath.Join(safety, "copy.zip"), []byte("z"), 0o644))

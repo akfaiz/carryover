@@ -74,14 +74,14 @@ func TestArtFileOnlyReturnsStoredImages(t *testing.T) {
 // not fatal.
 func TestMarkSessionIsBestEffort(t *testing.T) {
 	c, id, _, _ := newPlayable(t)
-	c.markSession(id)
+	c.markSession(id, id, "")
 	assert.FileExists(t, c.sessionMarkerPath(id))
 	c.clearSession(id)
 	assert.NoFileExists(t, c.sessionMarkerPath(id))
 
 	// Make the marker's place a directory, so writing the file fails.
 	require.NoError(t, os.MkdirAll(c.sessionMarkerPath(id), 0o755))
-	assert.NotPanics(t, func() { c.markSession(id) })
+	assert.NotPanics(t, func() { c.markSession(id, id, "") })
 }
 
 // Forgetting a key that has nothing recorded is harmless, and repeated calls too.

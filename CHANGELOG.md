@@ -7,6 +7,16 @@ All notable changes to Carryover are listed here. The format follows
 
 ## [Unreleased]
 
+### Fixed
+
+- Saves are now uploaded after Steam's "Exit game" (Steam Deck) or "Stop" (Windows). Steam kills Carryover with
+  the game; a helper started outside Steam's process tree (through `systemd-run --user` on Linux, WMI on Windows)
+  now notices, waits a few seconds for the game to shut down, uploads the saves and releases the cloud lock. It
+  only uploads: if the cloud saves changed meanwhile, the conflict is flagged for you to resolve, and nothing is
+  downloaded. On Windows the session window also no longer quits when Steam closes it while the game runs.
+  ([#12](https://github.com/akfaiz/carryover/issues/12))
+- On Windows, Carryover started by Steam or from a shortcut wrote only the start and exit lines to its log file.
+
 ## [0.2.0] - 2026-11-14
 
 ### Added

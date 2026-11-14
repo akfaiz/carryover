@@ -184,8 +184,12 @@ func (c *Core) Play(ctx context.Context, gameID string, opt RunOptions, ui Sessi
 		}
 		// Mark the game as being played without delaying its start; the
 		// release afterwards waits for this write. The marker lets a later
-		// run release the lock if this process is killed (RecoverSessions).
-		c.markSession(ckey)
+		// run release the lock if this process is killed (RecoverSessions),
+		// and the session watcher upload the saves (FinishSession).
+		c.markSession(ckey, game.ID, emuID)
+		if c.WatchSession != nil {
+			go c.WatchSession(ckey)
+		}
 		go func() {
 			defer close(lockWritten)
 			_ = eng.AcquireLock(ctx, ckey)

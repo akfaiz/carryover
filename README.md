@@ -128,10 +128,12 @@ last successful sync, and compares three things: its local save files, the cloud
 In Steam, the shortcut `carryover run <game>` does the same steps around the game process. You can cancel a sync
 while it runs, but never the game itself.
 
-> [!IMPORTANT]
-> **Quit from the game's own menu, not with Steam's "Exit game".** Steam's Exit game ends Carryover together with
-> the game, so the new saves are not uploaded. If it happens, sync the game before you play on another device:
-> press "Sync now" in Carryover, or start the game again on the same device (the sync before playing uploads them).
+> [!NOTE]
+> **Steam's "Exit game" / "Stop" is fine.** Steam ends Carryover together with the game, but a small helper that
+> Carryover starts outside Steam finishes the session a few seconds later: it uploads the new saves and releases
+> the "being played" lock. On Linux the helper needs systemd (SteamOS has it); without it (e.g. Flatpak Steam),
+> quit from the game's own menu or sync the game before you play on another device: press "Sync now" in
+> Carryover, or start the game again on the same device.
 
 ## Steam Deck / Proton games
 

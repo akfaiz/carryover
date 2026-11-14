@@ -6,7 +6,10 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"slices"
+	"sync"
 	"testing"
+	"time"
 
 	"github.com/rclone/rclone/fs/config"
 	"github.com/stretchr/testify/assert"
@@ -16,6 +19,30 @@ import (
 	"github.com/akfaiz/carryover/internal/core"
 	"github.com/akfaiz/carryover/internal/library"
 )
+
+// The test binary can't be a session watcher: tests that play record the
+// request instead (see watcherCalls).
+func init() { startDetached = func(string, []string) error { return nil } }
+
+// watcherCalls records the session watchers requested until the test ends.
+func watcherCalls(t *testing.T) func() [][]string {
+	t.Helper()
+	var mu sync.Mutex
+	var calls [][]string
+	prev := startDetached
+	startDetached = func(_ string, args []string) error {
+		mu.Lock()
+		defer mu.Unlock()
+		calls = append(calls, slices.Clone(args))
+		return nil
+	}
+	t.Cleanup(func() { startDetached = prev })
+	return func() [][]string {
+		mu.Lock()
+		defer mu.Unlock()
+		return slices.Clone(calls)
+	}
+}
 
 // cliEnv is an isolated data dir with a local "cloud" remote and one game, for
 // running the command line modes against.
@@ -162,17 +189,32 @@ func TestCmdRunHeadless(t *testing.T) {
 		t.Skip("uses sh")
 	}
 	e := newCLIEnv(t)
+	watchers := watcherCalls(t)
 	_, code := capture(t, func() int {
 		return cmdRun([]string{"--headless", "--no-sync", e.id, "--", "sh", "-c", "exit 7"})
 	})
 	require.Equal(t, 7, code, "exit code of the game")
 	require.NoDirExists(t, filepath.Join(e.cloud, "games"), "--no-sync still touched the cloud")
+	require.Empty(t, watchers(), "session watcher started without syncing")
 
 	_, code = capture(t, func() int {
 		return cmdRun([]string{"--headless", e.id, "--", "sh", "-c", "exit 0"})
 	})
 	require.Zero(t, code, "synced headless run")
 	require.FileExists(t, filepath.Join(e.cloud, "games", e.id, "current", "saves", "a.sav"), "saves not uploaded by the run")
+	require.Eventually(t, func() bool { return len(watchers()) == 1 }, 5*time.Second, 10*time.Millisecond, "session watcher not started")
+	home := os.Getenv(appdir.EnvHome)
+	require.Equal(t, []string{finishSessionCmd, "--home", home, e.id}, watchers()[0])
+}
+
+// The session watcher of a session that ended normally has nothing to do.
+func TestCmdFinishSessionAfterNormalEnd(t *testing.T) {
+	e := newCLIEnv(t)
+	_, code := capture(t, func() int { return cmdFinishSession([]string{"--home", os.Getenv(appdir.EnvHome), e.id}) })
+	require.Zero(t, code)
+	require.NoDirExists(t, filepath.Join(e.cloud, "games"), "watcher touched the cloud")
+	_, code = capture(t, func() int { return cmdFinishSession(nil) })
+	require.Equal(t, 2, code, "usage error")
 }
 
 func TestCmdRunHeadlessUnknownGame(t *testing.T) {

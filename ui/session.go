@@ -4,6 +4,7 @@ import (
 	"image"
 	"image/color"
 	"log"
+	"sync/atomic"
 	"time"
 
 	"fyne.io/fyne/v2"
@@ -110,7 +111,23 @@ func (u *UI) runWrapper(gameID string, opts core.RunOptions) int {
 	u.page = page
 	u.win.SetContent(container.NewStack(page.view(), u.toasts.Layer))
 
+	// Once the game has started, closing the window doesn't quit: the upload
+	// after playing and the release of the cloud lock happen in this process.
+	// Steam's "Stop" on Windows closes this window (WM_CLOSE) while the game
+	// runs; the session then finishes and quits by itself, like survivePolite
+	// does for SIGTERM on Linux. Before the game starts, closing quits.
+	var started atomic.Bool
+	u.win.SetCloseIntercept(func() {
+		if !started.Load() {
+			u.app.Quit()
+			return
+		}
+		log.Printf("run %s: window close requested during the session (Steam's Stop?): finishing the session first", gameID)
+	})
 	u.sess.OnGameRunning = func(running bool) {
+		if running {
+			started.Store(true)
+		}
 		kit.OnUI(func() {
 			if running {
 				u.win.Hide()
