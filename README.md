@@ -128,6 +128,7 @@ All options are in [docs/cli.md](docs/cli.md).
 - [Command line](docs/cli.md) — commands, options and environment variables
 - [Troubleshooting](docs/troubleshooting.md) — logs, SmartScreen, missing uploads
 - [Compared with other tools](docs/comparison.md)
+- [Privacy policy](PRIVACY.md)
 
 ## Compared with other tools
 
