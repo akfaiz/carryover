@@ -22,7 +22,7 @@ Three excellent open-source tools cover nearby ground, and each takes a differen
 | History | Optional cloud backups, manual and pinned backups, a copy on the device before each download | A zip on the device before each download | Snapshot of every change, branches | Full + differential backups |
 | Concurrent play (two devices at once) | Cloud lock shows "being played on `<device>`" | No | No guard documented | No |
 | Transfer unit | Changed files (size + SHA-256) | The whole save folder as one zip | Changed blocks inside files | Whole backups |
-| Needs a background process | No, runs on demand | Yes, a service (installed with sudo on Linux) | Yes, a daemon | No |
+| Needs a background process | No, runs on demand (a helper lives only during a play session, to finish it if Steam kills the game) | Yes, a service (installed with sudo on Linux) | Yes, a daemon | No |
 | Command line | `run`, `sync` (`--push`/`--pull`/`--dry-run`), `list`; a conflict exits with code 3 and is resolved in the GUI | No CLI; a local HTTP API | Full CLI with `--json`: `sync`, `pair`, `conflicts`/`resolve`, snapshots, cloud | `backup`, `restore`, `wrap` |
 | Launching a game from the command line | `carryover run <game> [-- cmd]` pulls, starts the game, then pushes when it exits | No | `opensave launch <gameId>` only starts the game; the daemon syncs changes | `ludusavi wrap` around the game command |
 | Windows registry saves | No | No | Yes | Yes |

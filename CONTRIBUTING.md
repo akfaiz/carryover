@@ -117,7 +117,9 @@ above (`core` is the top):
   `ryujinx` (Ryujinx's save index), `yuzu` (yuzu-family profiles) and `pathvar` (path tokens)
 - `internal/stores/`: other launchers and stores on the device: `steam` (VDF files, shortcuts), `steamgrid`,
   `steamstore`, `heroic`, `wineprefix`
-- `internal/app/`: application plumbing: `appdir` (data dir, settings), `version`, `singleinstance`
+- `internal/app/`: application plumbing: `appdir` (data dir, settings), `applog` (log file), `version`,
+  `singleinstance`, `detach` (starts the session watcher outside Steam's process tree) and `notify` (desktop
+  notifications)
 - `internal/ui/kit`: reusable Fyne widgets, layouts, palette and theme, toaster and image cache. Pure Fyne: no
   `lang`, `services` or `core` imports and no user-visible text (callers pass labels in). It exports freely; being
   under `internal/` it is not public API
