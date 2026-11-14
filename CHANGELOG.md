@@ -7,6 +7,8 @@ All notable changes to Carryover are listed here. The format follows
 
 ## [Unreleased]
 
+## [0.2.1] - 2026-11-15
+
 ### Fixed
 
 - Saves are now uploaded after Steam's "Exit game" (Steam Deck) or "Stop" (Windows). Steam kills Carryover with
@@ -178,7 +180,8 @@ First public pre-release.
 - Downloads: a Windows exe, a Linux AppImage with in-place updates through Gear Lever or AppImageUpdate, and a
   Linux tarball with an `install.sh`, plus `SHA256SUMS.txt`.
 
-[Unreleased]: https://github.com/akfaiz/carryover/compare/v0.2.0...HEAD
+[Unreleased]: https://github.com/akfaiz/carryover/compare/v0.2.1...HEAD
+[0.2.1]: https://github.com/akfaiz/carryover/compare/v0.2.0...v0.2.1
 [0.2.0]: https://github.com/akfaiz/carryover/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/akfaiz/carryover/compare/v0.1.0-rc1...v0.1.0
 [0.1.0-rc1]: https://github.com/akfaiz/carryover/releases/tag/v0.1.0-rc1
