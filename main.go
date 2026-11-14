@@ -18,6 +18,7 @@ import (
 	"github.com/akfaiz/carryover/internal/app/appdir"
 	"github.com/akfaiz/carryover/internal/app/applog"
 	"github.com/akfaiz/carryover/internal/app/detach"
+	"github.com/akfaiz/carryover/internal/app/notify"
 	"github.com/akfaiz/carryover/internal/app/version"
 	"github.com/akfaiz/carryover/internal/cloudsync/syncer"
 	"github.com/akfaiz/carryover/internal/core"
@@ -545,7 +546,10 @@ func cmdFinishSession(args []string) int {
 	defer stop()
 	deadline := time.Now().Add(watchMax)
 	for {
-		finished, err := c.FinishSession(ctx, key, watchSettle)
+		finished, notice, err := c.FinishSession(ctx, key, watchSettle)
+		if notice != nil {
+			tellUser(c, *notice)
+		}
 		switch {
 		case errors.Is(err, syncer.ErrLocked): // still being played
 			if time.Now().After(deadline) {
@@ -568,5 +572,25 @@ func cmdFinishSession(args []string) int {
 			log.Printf("session watcher %s: finished the interrupted session", key)
 		}
 		return 0
+	}
+}
+
+// notifySend shows a desktop notification (replaced in tests).
+var notifySend = notify.Send
+
+// tellUser tells the user what the session watcher did: as a desktop
+// notification, and, where none can be seen, saved for Carryover to show the
+// next time it opens. Steam Deck Game Mode (gamescope) has no notification
+// service, and one that accepts the call there may still not show anything.
+func tellUser(c *core.Core, n core.Notice) {
+	title, body := ui.NoticeText(c, n)
+	err := notifySend(notify.App{ID: ui.AppID, Name: "Carryover"}, title, body)
+	if err != nil {
+		log.Printf("notification: %v", err)
+	}
+	if err != nil || os.Getenv("XDG_CURRENT_DESKTOP") == "gamescope" {
+		if err := c.SaveNotice(n); err != nil {
+			log.Printf("save notice: %v", err)
+		}
 	}
 }

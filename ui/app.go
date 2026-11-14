@@ -198,10 +198,14 @@ func Run(c *core.Core, wrapGameID string, opts core.RunOptions) int {
 		}
 		// Coming back to the launcher (e.g. after playing without it) looks
 		// for saves that changed since their last sync.
-		u.app.Lifecycle().SetOnEnteredForeground(func() { kit.OnUI(u.checkLocalChanges) })
+		u.app.Lifecycle().SetOnEnteredForeground(func() {
+			kit.OnUI(u.checkLocalChanges)
+			u.showNotices()
+		})
 		// Pick up games other devices added while this one was closed.
 		u.app.Lifecycle().SetOnStarted(func() {
 			kit.OnUI(u.checkLocalChanges)
+			u.showNotices()
 			// A session killed earlier (e.g. Steam's "Exit Game") may have left
 			// its cloud lock behind: release it so other devices stop warning.
 			go func() {
@@ -222,8 +226,7 @@ func Run(c *core.Core, wrapGameID string, opts core.RunOptions) int {
 }
 
 func start(c *core.Core) *UI {
-	startLanguage = c.Settings.Get().Language
-	initTranslations(startLanguage)
+	loadTranslations(c.Settings.Get().Language)
 	a := app.NewWithID(AppID)
 	kit.SystemDark.Store(kit.InitialSystemDark(a))
 	kit.SetPalette(kit.PaletteFor(c.Settings.Get().Theme))

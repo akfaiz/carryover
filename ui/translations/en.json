@@ -494,5 +494,8 @@
   "Keep open": "Keep open",
   "Close anyway": "Close anyway",
   "There are no saves on this device any more, but the cloud still has them. If the save folder is missing or its path changed, keep the cloud saves to restore them. Keeping this device deletes the cloud copy.": "There are no saves on this device any more, but the cloud still has them. If the save folder is missing or its path changed, keep the cloud saves to restore them. Keeping this device deletes the cloud copy.",
-  "D-pad or arrow keys to choose, A or Enter to confirm, B or Esc to go back.": "D-pad or arrow keys to choose, A or Enter to confirm, B or Esc to go back."
+  "D-pad or arrow keys to choose, A or Enter to confirm, B or Esc to go back.": "D-pad or arrow keys to choose, A or Enter to confirm, B or Esc to go back.",
+  "{{.Game}}: saves uploaded after Steam closed the game.": "{{.Game}}: saves uploaded after Steam closed the game.",
+  "{{.Game}}: saves changed here and on another device. Open Carryover to choose which to keep.": "{{.Game}}: saves changed here and on another device. Open Carryover to choose which to keep.",
+  "{{.Game}}: saves could not be uploaded after Steam closed the game: {{.Err}}": "{{.Game}}: saves could not be uploaded after Steam closed the game: {{.Err}}"
 }

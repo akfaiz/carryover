@@ -231,18 +231,23 @@ func killedSession(t *testing.T) (c *Core, id, saves, cloudDir string) {
 // The session watcher uploads what a killed session didn't, and releases its lock.
 func TestFinishSessionUploads(t *testing.T) {
 	c, id, _, cloudDir := killedSession(t)
-	finished, err := c.FinishSession(context.Background(), id, 0)
+	finished, notice, err := c.FinishSession(context.Background(), id, 0)
 	require.NoError(t, err)
 	require.True(t, finished)
+	require.NotNil(t, notice)
+	require.Equal(t, NoticeUploaded, notice.Kind)
+	require.Equal(t, "Game A", notice.Title)
+	require.Equal(t, id, notice.Key)
 	got, err := os.ReadFile(filepath.Join(cloudDir, "games", id, "current", "saves", "a.sav"))
 	require.NoError(t, err)
 	require.Equal(t, "played", string(got), "saves not uploaded")
 	require.NoFileExists(t, filepath.Join(cloudDir, "games", id, "lock.json"), "cloud lock left behind")
 	require.NoFileExists(t, c.sessionMarkerPath(id), "session marker left behind")
 
-	finished, err = c.FinishSession(context.Background(), id, 0)
+	finished, notice, err = c.FinishSession(context.Background(), id, 0)
 	require.NoError(t, err)
 	require.False(t, finished, "finished twice")
+	require.Nil(t, notice)
 }
 
 // While the session's process is alive, the watcher waits.
@@ -250,7 +255,7 @@ func TestFinishSessionWhileRunning(t *testing.T) {
 	c, id, _, cloudDir := killedSession(t)
 	lockPath := filepath.Join(c.Dirs.StateDir(), id+".lock")
 	require.NoError(t, os.WriteFile(lockPath, []byte(strconv.Itoa(os.Getppid())), 0o644))
-	_, err := c.FinishSession(context.Background(), id, 0)
+	_, _, err := c.FinishSession(context.Background(), id, 0)
 	require.ErrorIs(t, err, syncer.ErrLocked)
 	require.FileExists(t, filepath.Join(cloudDir, "games", id, "lock.json"), "lock of a running session released")
 	require.FileExists(t, c.sessionMarkerPath(id))
@@ -262,9 +267,10 @@ func TestFinishSessionAfterNormalEnd(t *testing.T) {
 	_, err := c.Play(context.Background(), id, RunOptions{}, &cancelUI{})
 	require.NoError(t, err)
 	require.NoError(t, os.WriteFile(filepath.Join(saves, "a.sav"), []byte("later"), 0o644))
-	finished, err := c.FinishSession(context.Background(), id, 0)
+	finished, notice, err := c.FinishSession(context.Background(), id, 0)
 	require.NoError(t, err)
 	require.False(t, finished)
+	require.Nil(t, notice)
 	got, _ := os.ReadFile(filepath.Join(cloudDir, "games", id, "current", "saves", "a.sav"))
 	require.Equal(t, "save", string(got), "uploaded without a killed session")
 }
@@ -286,9 +292,11 @@ func TestFinishSessionConflict(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, syncer.ActionPush, a)
 
-	finished, err := c.FinishSession(context.Background(), id, 0)
+	finished, notice, err := c.FinishSession(context.Background(), id, 0)
 	require.NoError(t, err)
 	require.True(t, finished)
+	require.NotNil(t, notice)
+	require.Equal(t, NoticeConflict, notice.Kind)
 	local, _ := os.ReadFile(filepath.Join(saves, "a.sav"))
 	require.Equal(t, "played", string(local), "local saves overwritten")
 	cloud, _ := os.ReadFile(filepath.Join(cloudDir, "games", id, "current", "saves", "a.sav"))
@@ -317,9 +325,10 @@ func TestFinishSessionNeverDownloads(t *testing.T) {
 	_, _, err = other.Sync(context.Background(), job, syncer.ResolveAuto)
 	require.NoError(t, err)
 
-	finished, err := c.FinishSession(context.Background(), id, 0)
+	finished, notice, err := c.FinishSession(context.Background(), id, 0)
 	require.NoError(t, err)
 	require.True(t, finished)
+	require.Nil(t, notice, "nothing uploaded, nothing to tell")
 	local, _ := os.ReadFile(filepath.Join(saves, "a.sav"))
 	require.Equal(t, "save", string(local), "watcher downloaded into the game folder")
 	cloud, _ := os.ReadFile(cur)
@@ -342,4 +351,33 @@ func TestPlayStartsSessionWatcher(t *testing.T) {
 	_, err = c.Play(context.Background(), id, RunOptions{NoSync: true}, &cancelUI{})
 	require.NoError(t, err)
 	require.Empty(t, got, "watcher started for a session without sync")
+}
+
+// Notices are kept until taken, oldest first, and taken once.
+func TestNotices(t *testing.T) {
+	c, id, _, _ := newPlayable(t)
+	require.Empty(t, c.TakeNotices())
+	t0 := time.Now()
+	require.NoError(t, c.SaveNotice(Notice{Time: t0.Add(time.Second), Key: id, Title: "B", Kind: NoticeConflict}))
+	require.NoError(t, c.SaveNotice(Notice{Time: t0, Key: id, Title: "A", Kind: NoticeUploaded}))
+	got := c.TakeNotices()
+	require.Len(t, got, 2)
+	require.Equal(t, "A", got[0].Title)
+	require.Equal(t, NoticeConflict, got[1].Kind)
+	require.Empty(t, c.TakeNotices(), "taken twice")
+}
+
+// A failed upload is reported to the user and recorded as the sync error.
+func TestFinishSessionFailed(t *testing.T) {
+	c, id, _, _ := killedSession(t)
+	_, err := c.Library.UpdateDevice(id, c.DeviceID(), func(d *library.DeviceConfig) { d.Paths = nil })
+	require.NoError(t, err)
+	finished, notice, err := c.FinishSession(context.Background(), id, 0)
+	require.NoError(t, err)
+	require.True(t, finished, "the lock must still be released")
+	require.NotNil(t, notice)
+	require.Equal(t, NoticeFailed, notice.Kind)
+	require.NotEmpty(t, notice.Err)
+	st, _ := c.States.Load(id)
+	require.Equal(t, notice.Err, st.LastError)
 }
