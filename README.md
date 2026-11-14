@@ -180,6 +180,7 @@ carryover --version                          print the version
 
 [Ludusavi](https://github.com/mtkennerly/ludusavi) backs up and restores saves on one machine.
 [OpenSave](https://github.com/Liquid-co/OpenSave) syncs every change peer-to-peer between paired devices.
+[EmuSync](https://github.com/emu-sync/EmuSync) syncs saves to your cloud storage from a background service on a timer.
 Carryover keeps one copy in your own cloud storage and syncs it around each play session. See
 [docs/comparison.md](docs/comparison.md) for a side-by-side comparison.
 
