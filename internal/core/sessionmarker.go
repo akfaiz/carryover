@@ -121,86 +121,94 @@ func (c *Core) RecoverSessions(ctx context.Context) (int, error) {
 // lock is held), and finished=false with no error when there is nothing to do
 // (the session ended normally and removed its marker). settle is waited after
 // taking over the session, so a game that is still shutting down can finish
-// writing its saves.
-func (c *Core) FinishSession(ctx context.Context, cloudKey string, settle time.Duration) (finished bool, err error) {
+// writing its saves. notice, if not nil, is what the user should be told: an
+// upload, a conflict or a failure (also when releasing the lock then fails).
+func (c *Core) FinishSession(ctx context.Context, cloudKey string, settle time.Duration) (finished bool, notice *Notice, err error) {
 	if _, ok := c.readSession(cloudKey); !ok || !c.CloudConfigured() {
-		return false, nil
+		return false, nil, nil
 	}
 	if _, ok := c.playing.Load(cloudKey); ok {
-		return false, syncer.ErrLocked
+		return false, nil, syncer.ErrLocked
 	}
 	lock, err := syncer.AcquireLocalLock(c.Dirs.StateDir(), cloudKey)
 	if err != nil {
-		return false, err
+		return false, nil, err
 	}
 	defer lock.Release()
 	// The wrapper removes the marker before it releases the local lock: look
 	// again now that the lock is ours.
 	if _, ok := c.readSession(cloudKey); !ok {
-		return false, nil
+		return false, nil, nil
 	}
 	if settle > 0 {
 		select {
 		case <-ctx.Done():
-			return false, ctx.Err()
+			return false, nil, ctx.Err()
 		case <-time.After(settle):
 		}
 	}
 	info, ok := c.readSession(cloudKey)
 	if !ok {
-		return false, nil // recovered by someone else meanwhile
+		return false, nil, nil // recovered by someone else meanwhile
 	}
 	eng, err := c.Engine()
 	if err != nil {
-		return false, err
+		return false, nil, err
 	}
 	log.Printf("session %s ended without finishing (killed): finishing it", cloudKey)
 	if info.Game != "" {
-		c.uploadAfterKill(ctx, eng, info)
+		notice = c.uploadAfterKill(ctx, eng, info)
 	}
 	if err := eng.ReleaseLock(ctx, cloudKey); err != nil {
-		return false, err
+		return false, notice, err
 	}
 	c.clearSession(cloudKey)
-	return true, nil
+	return true, notice, nil
 }
 
-// uploadAfterKill does the upload a killed session missed. Only an upload is
-// done: if the cloud changed meanwhile, that is a conflict for the user to
-// resolve (flagged as Play does without an answer), and never a download into
-// a game folder nobody is looking at.
-func (c *Core) uploadAfterKill(ctx context.Context, eng *syncer.Engine, info sessionInfo) {
+// uploadAfterKill does the upload a killed session missed, and returns what to
+// tell the user (nil: nothing happened worth telling). Only an upload is done:
+// if the cloud changed meanwhile, that is a conflict for the user to resolve
+// (flagged as Play does without an answer), and never a download into a game
+// folder nobody is looking at.
+func (c *Core) uploadAfterKill(ctx context.Context, eng *syncer.Engine, info sessionInfo) *Notice {
 	key := SyncKey(info.Game, info.Emulator)
 	g, err := c.Library.Get(info.Game)
 	if err != nil {
 		log.Printf("finish session %s: %v", key, err)
-		return
+		return nil // deleted meanwhile: nothing to upload
+	}
+	n := &Notice{Time: time.Now(), Key: key, Title: g.Name}
+	if info.Emulator != "" {
+		n.Title += " (" + c.ProfileName(info.Emulator) + ")"
 	}
 	job, err := c.JobFor(g, info.Emulator)
-	if err != nil {
-		log.Printf("finish session %s: %v", key, err)
-		return
-	}
-	plan, err := eng.Plan(ctx, job)
 	if err == nil {
-		switch plan.Action {
-		case syncer.ActionPush, syncer.ActionConflict:
-			var action syncer.Action
-			action, err = eng.Apply(ctx, plan, syncer.ResolveAuto)
-			if errors.Is(err, syncer.ErrConflict) {
-				// Flagged for the user (state.Conflict), not a sync error.
-				log.Printf("finish session %s: conflict, both sides changed; left for the user", key)
-				return
+		var plan *syncer.Plan
+		if plan, err = eng.Plan(ctx, job); err == nil {
+			switch plan.Action {
+			case syncer.ActionPush, syncer.ActionConflict:
+				var action syncer.Action
+				action, err = eng.Apply(ctx, plan, syncer.ResolveAuto)
+				if errors.Is(err, syncer.ErrConflict) {
+					// Flagged for the user (state.Conflict), not a sync error.
+					log.Printf("finish session %s: conflict, both sides changed; left for the user", key)
+					n.Kind = NoticeConflict
+					return n
+				}
+				if err == nil {
+					log.Printf("finish session %s: %s", key, action)
+					n.Kind = NoticeUploaded
+					return n
+				}
+			default:
+				log.Printf("finish session %s: nothing to upload (%s)", key, plan.Action)
+				return nil
 			}
-			if err == nil {
-				log.Printf("finish session %s: %s", key, action)
-			}
-		default:
-			log.Printf("finish session %s: nothing to upload (%s)", key, plan.Action)
 		}
 	}
-	if err != nil {
-		log.Printf("finish session %s: %v", key, err)
-		c.States.SetError(key, err.Error())
-	}
+	log.Printf("finish session %s: %v", key, err)
+	c.States.SetError(key, err.Error())
+	n.Kind, n.Err = NoticeFailed, err.Error()
+	return n
 }

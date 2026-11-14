@@ -494,5 +494,8 @@
   "Keep open": "Tetap buka",
   "Close anyway": "Tutup saja",
   "There are no saves on this device any more, but the cloud still has them. If the save folder is missing or its path changed, keep the cloud saves to restore them. Keeping this device deletes the cloud copy.": "Perangkat ini tidak punya save lagi, tetapi cloud masih menyimpannya. Jika folder save hilang atau path-nya berubah, pilih save cloud untuk memulihkannya. Memilih perangkat ini akan menghapus salinan di cloud.",
-  "D-pad or arrow keys to choose, A or Enter to confirm, B or Esc to go back.": "D-pad atau tombol panah untuk memilih, A atau Enter untuk memastikan, B atau Esc untuk kembali."
+  "D-pad or arrow keys to choose, A or Enter to confirm, B or Esc to go back.": "D-pad atau tombol panah untuk memilih, A atau Enter untuk memastikan, B atau Esc untuk kembali.",
+  "{{.Game}}: saves uploaded after Steam closed the game.": "{{.Game}}: save diunggah setelah Steam menutup game.",
+  "{{.Game}}: saves changed here and on another device. Open Carryover to choose which to keep.": "{{.Game}}: save berubah di sini dan di perangkat lain. Buka Carryover untuk memilih yang dipertahankan.",
+  "{{.Game}}: saves could not be uploaded after Steam closed the game: {{.Err}}": "{{.Game}}: save tidak dapat diunggah setelah Steam menutup game: {{.Err}}"
 }

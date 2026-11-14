@@ -1,12 +1,14 @@
 package main
 
 import (
+	"errors"
 	"io"
 	"log"
 	"os"
 	"path/filepath"
 	"runtime"
 	"slices"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -16,13 +18,17 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/akfaiz/carryover/internal/app/appdir"
+	"github.com/akfaiz/carryover/internal/app/notify"
 	"github.com/akfaiz/carryover/internal/core"
 	"github.com/akfaiz/carryover/internal/library"
 )
 
 // The test binary can't be a session watcher: tests that play record the
 // request instead (see watcherCalls).
-func init() { startDetached = func(string, []string) error { return nil } }
+func init() {
+	startDetached = func(string, []string) error { return nil }
+	notifySend = func(notify.App, string, string) error { return nil }
+}
 
 // watcherCalls records the session watchers requested until the test ends.
 func watcherCalls(t *testing.T) func() [][]string {
@@ -271,4 +277,37 @@ func TestReorderFlagsKeepsValues(t *testing.T) {
 	assert.Equal(t, []string{"--emulator", "x y", "--push", "game"},
 		reorderFlags([]string{"game", "--emulator", "x y", "--push"}, "emulator"))
 	assert.Equal(t, []string{"--emulator=x", "game"}, reorderFlags([]string{"game", "--emulator=x"}, "emulator"))
+}
+
+// The watcher's notice is shown as a notification; it is kept for Carryover
+// to show when no notification could be shown, or none is seen (Game Mode).
+func TestTellUser(t *testing.T) {
+	newCLIEnv(t)
+	c, err := core.New()
+	require.NoError(t, err)
+	n := core.Notice{Time: time.Now(), Key: "g", Title: "Zelda", Kind: core.NoticeUploaded}
+	var got []string
+	prev := notifySend
+	t.Cleanup(func() { notifySend = prev })
+	sendErr := error(nil)
+	notifySend = func(app notify.App, title, body string) error {
+		got = append(got, app.Name+"|"+title+"|"+body)
+		return sendErr
+	}
+
+	t.Setenv("XDG_CURRENT_DESKTOP", "KDE")
+	tellUser(c, n)
+	require.Len(t, got, 1)
+	// The text is in the system language here (no language set): check its parts.
+	require.True(t, strings.HasPrefix(got[0], "Carryover|Carryover|Zelda: "), got[0])
+	require.Empty(t, c.TakeNotices(), "kept although the notification was shown")
+
+	sendErr = errors.New("no notification service")
+	tellUser(c, n)
+	require.Len(t, c.TakeNotices(), 1, "not kept when the notification failed")
+
+	sendErr = nil
+	t.Setenv("XDG_CURRENT_DESKTOP", "gamescope")
+	tellUser(c, n)
+	require.Len(t, c.TakeNotices(), 1, "not kept in Game Mode")
 }

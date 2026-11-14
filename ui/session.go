@@ -141,6 +141,7 @@ func (u *UI) runWrapper(gameID string, opts core.RunOptions) int {
 	exitCode := 0
 	u.app.Lifecycle().SetOnStarted(func() {
 		kit.SetTopmost(u.win)
+		u.showNotices()
 		u.sess.Start()
 		go func() {
 			out := <-done

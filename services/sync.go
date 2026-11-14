@@ -305,6 +305,10 @@ func (s *SyncService) RestoreBackup(gameID, name string) error {
 	return cancelled(ctx, eng.RestoreBackup(ctx, job, name))
 }
 
+// TakeNotices returns, once, what session watchers did after Steam killed a
+// session while no desktop notification could be shown (see core.Notice).
+func (s *SyncService) TakeNotices() []core.Notice { return s.c.TakeNotices() }
+
 // RecoverSessions releases the cloud locks left by play sessions that were
 // killed before they could release them (see core.Core.RecoverSessions).
 func (s *SyncService) RecoverSessions() error {
