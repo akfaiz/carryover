@@ -35,6 +35,13 @@ type Core struct {
 	libMu sync.Mutex // serializes SyncLibrary (read, merge, write)
 
 	playing sync.Map // gameID -> struct{}: games Play is running in this process
+
+	// WatchSession, if set, is called (on its own goroutine) when a play
+	// session has written its session marker, with the session's cloud key.
+	// It starts a watcher outside the game's process tree that runs
+	// FinishSession once this process is gone, so a session killed with the
+	// game (Steam's "Exit game") still uploads its saves.
+	WatchSession func(cloudKey string)
 }
 
 // New opens Carryover's data directory.

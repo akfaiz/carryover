@@ -13,9 +13,11 @@ import (
 	"slices"
 	"strings"
 	"syscall"
+	"time"
 
 	"github.com/akfaiz/carryover/internal/app/appdir"
 	"github.com/akfaiz/carryover/internal/app/applog"
+	"github.com/akfaiz/carryover/internal/app/detach"
 	"github.com/akfaiz/carryover/internal/app/version"
 	"github.com/akfaiz/carryover/internal/cloudsync/syncer"
 	"github.com/akfaiz/carryover/internal/core"
@@ -56,6 +58,8 @@ func main() {
 		applog.Exit(cmdSync(args[1:]))
 	case "list":
 		applog.Exit(cmdList())
+	case finishSessionCmd: // internal: started by a play session, see watchSessions
+		applog.Exit(cmdFinishSession(args[1:]))
 	case "--version", "version":
 		fmt.Println("carryover " + version.Get().String())
 	case "-h", "--help", "help":
@@ -144,6 +148,7 @@ func cmdRun(args []string) int {
 	survivePolite()
 	if *headless {
 		c := openCore()
+		watchSessions(c)
 		recoverSessions(c)
 		log.Printf("run %s (headless)", gameID)
 		res, err := c.Play(context.Background(), gameID, opts, core.HeadlessUI{Logf: log.Printf})
@@ -459,6 +464,7 @@ func cmdList() int {
 
 func runGUI(wrapGameID string, opts core.RunOptions) int {
 	c := openCore()
+	watchSessions(c)
 	if wrapGameID != "" { // the launcher recovers on its own start
 		recoverSessions(c)
 	}
@@ -470,5 +476,97 @@ func runGUI(wrapGameID string, opts core.RunOptions) int {
 func recoverSessions(c *core.Core) {
 	if _, err := c.RecoverSessions(context.Background()); err != nil {
 		log.Printf("recover sessions: %v", err)
+	}
+}
+
+// finishSessionCmd is the internal command of the session watcher.
+const finishSessionCmd = "finish-session"
+
+const (
+	// watchPoll is how often the session watcher checks whether the session
+	// it watches is still running.
+	watchPoll = 2 * time.Second
+	// watchSettle is how long the watcher waits after the session's process
+	// is gone before uploading: the game may still be shutting down (Proton
+	// flushing files) after Steam killed the wrapper.
+	watchSettle = 5 * time.Second
+	// watchMax bounds a watcher whose session never seems to end (e.g. the
+	// wrapper's process id was reused by another process).
+	watchMax = 72 * time.Hour
+)
+
+// startDetached starts the session watcher (replaced in tests, whose binary
+// can't run it).
+var startDetached = detach.Start
+
+// watchSessions makes every play session of c start a session watcher: a
+// Carryover process outside the game's process tree that finishes the session
+// (uploads the saves, releases the cloud lock) if this process is killed with
+// the game, as Steam's "Exit game" does.
+func watchSessions(c *core.Core) {
+	// Not os.Executable(): in an AppImage that is a file in the AppImage's
+	// FUSE mount, which goes away when Steam kills this process, and the
+	// watcher then dies with SIGBUS on its next page of code. The AppImage
+	// file itself mounts its own copy.
+	exe, err := core.SelfExecutable()
+	if err != nil {
+		log.Printf("session watcher: %v", err)
+		return
+	}
+	// The watcher doesn't inherit this environment (systemd-run and WMI start
+	// it from the user's systemd instance or the WMI service): pass the data
+	// dir explicitly.
+	home := c.Dirs.Root
+	c.WatchSession = func(key string) {
+		if err := startDetached(exe, []string{finishSessionCmd, "--home", home, key}); err != nil {
+			log.Printf("session watcher %s: %v", key, err)
+		}
+	}
+}
+
+// cmdFinishSession is the session watcher: it waits until the play session of
+// the given cloud key is no longer running, then finishes it if its wrapper
+// was killed (see core.Core.FinishSession). A session that ended normally
+// needs nothing.
+func cmdFinishSession(args []string) int {
+	fset := flag.NewFlagSet(finishSessionCmd, flag.ContinueOnError)
+	home := fset.String("home", "", "data dir of the session")
+	if err := fset.Parse(reorderFlags(args, "home")); err != nil || fset.NArg() != 1 {
+		_, _ = os.Stderr.WriteString(usage)
+		return 2
+	}
+	if *home != "" {
+		_ = os.Setenv(appdir.EnvHome, *home)
+	}
+	key := fset.Arg(0)
+	c := openCore()
+	log.Printf("session watcher %s: waiting for the session to end (%s)", key, detach.Where())
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+	deadline := time.Now().Add(watchMax)
+	for {
+		finished, err := c.FinishSession(ctx, key, watchSettle)
+		switch {
+		case errors.Is(err, syncer.ErrLocked): // still being played
+			if time.Now().After(deadline) {
+				log.Printf("session watcher %s: gave up, the session is still running after %s", key, watchMax)
+				return 1
+			}
+			select {
+			case <-ctx.Done():
+				return 130
+			case <-time.After(watchPoll):
+			}
+			continue
+		case ctx.Err() != nil:
+			return 130
+		case err != nil:
+			log.Printf("session watcher %s: %v", key, err)
+			return 1
+		}
+		if finished {
+			log.Printf("session watcher %s: finished the interrupted session", key)
+		}
+		return 0
 	}
 }

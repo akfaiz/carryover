@@ -130,7 +130,7 @@ func TestRecoverSessions(t *testing.T) {
 	lockFile := filepath.Join(cloudDir, "games", id, "lock.json")
 	// The killed wrapper: lock written, marker left, no local lock held.
 	require.NoError(t, eng.AcquireLock(context.Background(), id))
-	c.markSession(id)
+	c.markSession(id, id, "")
 
 	// Another live process (the parent, here) holds the game's local lock:
 	// nothing is released.
@@ -158,7 +158,7 @@ func TestRecoverSessionsSkipsPlayingGame(t *testing.T) {
 	eng, err := c.Engine()
 	require.NoError(t, err)
 	require.NoError(t, eng.AcquireLock(context.Background(), id))
-	c.markSession(id)
+	c.markSession(id, id, "")
 	c.playing.Store(id, struct{}{})
 	n, err := c.RecoverSessions(context.Background())
 	require.NoError(t, err)
@@ -210,4 +210,136 @@ func TestPlayReplansWithFiltersFromCatalog(t *testing.T) {
 	got, err := os.ReadFile(filepath.Join(saves, "a.sav"))
 	require.NoError(t, err)
 	require.Equal(t, "changed on the deck", string(got))
+}
+
+// killedSession plays the game once, then leaves the state a session killed
+// with the game leaves: cloud lock taken, marker written, saves changed since
+// the last sync, no local lock.
+func killedSession(t *testing.T) (c *Core, id, saves, cloudDir string) {
+	t.Helper()
+	c, id, saves, cloudDir = newPlayable(t)
+	_, err := c.Play(context.Background(), id, RunOptions{}, &cancelUI{})
+	require.NoError(t, err)
+	eng, err := c.Engine()
+	require.NoError(t, err)
+	require.NoError(t, eng.AcquireLock(context.Background(), id))
+	c.markSession(id, id, "")
+	require.NoError(t, os.WriteFile(filepath.Join(saves, "a.sav"), []byte("played"), 0o644))
+	return c, id, saves, cloudDir
+}
+
+// The session watcher uploads what a killed session didn't, and releases its lock.
+func TestFinishSessionUploads(t *testing.T) {
+	c, id, _, cloudDir := killedSession(t)
+	finished, err := c.FinishSession(context.Background(), id, 0)
+	require.NoError(t, err)
+	require.True(t, finished)
+	got, err := os.ReadFile(filepath.Join(cloudDir, "games", id, "current", "saves", "a.sav"))
+	require.NoError(t, err)
+	require.Equal(t, "played", string(got), "saves not uploaded")
+	require.NoFileExists(t, filepath.Join(cloudDir, "games", id, "lock.json"), "cloud lock left behind")
+	require.NoFileExists(t, c.sessionMarkerPath(id), "session marker left behind")
+
+	finished, err = c.FinishSession(context.Background(), id, 0)
+	require.NoError(t, err)
+	require.False(t, finished, "finished twice")
+}
+
+// While the session's process is alive, the watcher waits.
+func TestFinishSessionWhileRunning(t *testing.T) {
+	c, id, _, cloudDir := killedSession(t)
+	lockPath := filepath.Join(c.Dirs.StateDir(), id+".lock")
+	require.NoError(t, os.WriteFile(lockPath, []byte(strconv.Itoa(os.Getppid())), 0o644))
+	_, err := c.FinishSession(context.Background(), id, 0)
+	require.ErrorIs(t, err, syncer.ErrLocked)
+	require.FileExists(t, filepath.Join(cloudDir, "games", id, "lock.json"), "lock of a running session released")
+	require.FileExists(t, c.sessionMarkerPath(id))
+}
+
+// A session that ended normally (no marker) needs nothing, even without a lock.
+func TestFinishSessionAfterNormalEnd(t *testing.T) {
+	c, id, saves, cloudDir := newPlayable(t)
+	_, err := c.Play(context.Background(), id, RunOptions{}, &cancelUI{})
+	require.NoError(t, err)
+	require.NoError(t, os.WriteFile(filepath.Join(saves, "a.sav"), []byte("later"), 0o644))
+	finished, err := c.FinishSession(context.Background(), id, 0)
+	require.NoError(t, err)
+	require.False(t, finished)
+	got, _ := os.ReadFile(filepath.Join(cloudDir, "games", id, "current", "saves", "a.sav"))
+	require.Equal(t, "save", string(got), "uploaded without a killed session")
+}
+
+// If another device changed the cloud saves meanwhile, the watcher doesn't
+// overwrite either side: the conflict is flagged for the user.
+func TestFinishSessionConflict(t *testing.T) {
+	c, id, saves, cloudDir := killedSession(t)
+	other, err := c.Engine()
+	require.NoError(t, err)
+	other.Device = syncer.Device{ID: "deck", Name: "deck"}
+	other.States = &syncer.StateStore{Dir: t.TempDir()}
+	otherSaves := t.TempDir()
+	job := syncer.Job{GameID: id, Slots: []syncer.Slot{{Key: "saves", LocalPath: otherSaves}}}
+	_, _, err = other.Sync(context.Background(), job, syncer.ResolveAuto)
+	require.NoError(t, err)
+	require.NoError(t, os.WriteFile(filepath.Join(otherSaves, "a.sav"), []byte("deck"), 0o644))
+	_, a, err := other.Sync(context.Background(), job, syncer.ResolveAuto)
+	require.NoError(t, err)
+	require.Equal(t, syncer.ActionPush, a)
+
+	finished, err := c.FinishSession(context.Background(), id, 0)
+	require.NoError(t, err)
+	require.True(t, finished)
+	local, _ := os.ReadFile(filepath.Join(saves, "a.sav"))
+	require.Equal(t, "played", string(local), "local saves overwritten")
+	cloud, _ := os.ReadFile(filepath.Join(cloudDir, "games", id, "current", "saves", "a.sav"))
+	require.Equal(t, "deck", string(cloud), "cloud saves overwritten")
+	st, err := c.States.Load(id)
+	require.NoError(t, err)
+	require.True(t, st.Conflict, "conflict not flagged")
+	require.Empty(t, st.LastError, "conflict recorded as a sync error")
+}
+
+// Only a download is pending (the cloud changed, the saves here didn't): the
+// watcher leaves the game folder alone; the next session pulls.
+func TestFinishSessionNeverDownloads(t *testing.T) {
+	c, id, saves, cloudDir := killedSession(t)
+	require.NoError(t, os.WriteFile(filepath.Join(saves, "a.sav"), []byte("save"), 0o644)) // unchanged after all
+	cur := filepath.Join(cloudDir, "games", id, "current", "saves", "a.sav")
+	other, err := c.Engine()
+	require.NoError(t, err)
+	other.Device = syncer.Device{ID: "deck", Name: "deck"}
+	other.States = &syncer.StateStore{Dir: t.TempDir()}
+	otherSaves := t.TempDir()
+	job := syncer.Job{GameID: id, Slots: []syncer.Slot{{Key: "saves", LocalPath: otherSaves}}}
+	_, _, err = other.Sync(context.Background(), job, syncer.ResolveAuto)
+	require.NoError(t, err)
+	require.NoError(t, os.WriteFile(filepath.Join(otherSaves, "a.sav"), []byte("deck"), 0o644))
+	_, _, err = other.Sync(context.Background(), job, syncer.ResolveAuto)
+	require.NoError(t, err)
+
+	finished, err := c.FinishSession(context.Background(), id, 0)
+	require.NoError(t, err)
+	require.True(t, finished)
+	local, _ := os.ReadFile(filepath.Join(saves, "a.sav"))
+	require.Equal(t, "save", string(local), "watcher downloaded into the game folder")
+	cloud, _ := os.ReadFile(cur)
+	require.Equal(t, "deck", string(cloud))
+}
+
+// Play asks for a session watcher once the session holds the cloud lock.
+func TestPlayStartsSessionWatcher(t *testing.T) {
+	c, id, _, _ := newPlayable(t)
+	got := make(chan string, 2)
+	c.WatchSession = func(key string) { got <- key }
+	_, err := c.Play(context.Background(), id, RunOptions{}, &cancelUI{})
+	require.NoError(t, err)
+	select {
+	case key := <-got:
+		require.Equal(t, id, key)
+	case <-time.After(5 * time.Second):
+		t.Fatal("session watcher not started")
+	}
+	_, err = c.Play(context.Background(), id, RunOptions{NoSync: true}, &cancelUI{})
+	require.NoError(t, err)
+	require.Empty(t, got, "watcher started for a session without sync")
 }
