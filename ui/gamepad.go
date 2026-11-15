@@ -85,7 +85,19 @@ func (u *UI) newNavigator() {
 			}
 		},
 	})
-	u.nav.SetActive(true)
+	u.readPad(true)
+}
+
+// padWanted reports whether Carryover reads the gamepad itself: in Game Mode
+// or when Steam started it, where Steam hands the controller over as a
+// gamepad. Started by hand on a desktop, Steam's Desktop Layout already turns
+// the controller into a mouse and keys (stick: mouse, D-pad: arrows, A:
+// Enter); reading it as well would do every press twice.
+func padWanted() bool { return gamemode.Active() || gamemode.SteamLaunched() }
+
+// readPad starts (where padWanted) or stops reading the gamepad.
+func (u *UI) readPad(on bool) {
+	u.nav.SetActive(on && padWanted())
 }
 
 // stepSection goes to the next (dir 1) or previous (-1) sidebar place.

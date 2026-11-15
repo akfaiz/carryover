@@ -204,12 +204,12 @@ func Run(c *core.Core, wrapGameID string, opts core.RunOptions) int {
 		// for saves that changed since their last sync.
 		u.app.Lifecycle().SetOnEnteredForeground(func() {
 			kit.OnUI(u.checkLocalChanges)
-			kit.OnUI(func() { u.nav.SetActive(true) })
+			kit.OnUI(func() { u.readPad(true) })
 			u.showNotices()
 		})
 		// A game started from here is played with the same controller: leave it
 		// alone while another window is in front.
-		u.app.Lifecycle().SetOnExitedForeground(func() { kit.OnUI(func() { u.nav.SetActive(false) }) })
+		u.app.Lifecycle().SetOnExitedForeground(func() { kit.OnUI(func() { u.readPad(false) }) })
 		// Pick up games other devices added while this one was closed.
 		u.app.Lifecycle().SetOnStarted(func() {
 			kit.OnUI(u.checkLocalChanges)
@@ -304,7 +304,7 @@ func (u *UI) buildLayout() {
 	side := container.NewStack(bg, container.NewPadded(kit.NewNavGroup(u.sidebar)))
 	u.padHints = u.padHintBar()
 	main := container.NewBorder(nil, u.padHints, container.NewHBox(kit.FixedWidth(200, side), sep), nil, u.content)
-	u.win.SetContent(container.NewStack(main, u.toasts.Layer))
+	u.win.SetContent(container.NewStack(main, u.toasts.Layer, u.nav.RingLayer()))
 	u.renderSidebar()
 }
 

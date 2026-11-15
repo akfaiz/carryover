@@ -46,16 +46,16 @@ type gameDetail struct {
 	scroll *container.Scroll
 	prog   *kit.ProgressBar // current progress widget, updated in place
 	progOf string           // "session" or "busy"
-	// primary is the main action (Play, Play in Steam, Set up), where a
-	// gamepad starts.
-	primary *widget.Button
+	// backBtn is where a gamepad starts: A there only goes back, so an A
+	// pressed once too often (the one that opened the game) never starts it.
+	backBtn *widget.Button
 }
 
 func (p *gameDetail) defaultFocus() fyne.Focusable {
-	if p.primary == nil {
+	if p.backBtn == nil {
 		return nil
 	}
-	return p.primary
+	return p.backBtn
 }
 
 func newGameDetail(u *UI, id string) *gameDetail {
@@ -307,10 +307,10 @@ func (p *gameDetail) render() {
 	canSync := slices.ContainsFunc(profs, func(pe profileEntry) bool { return pe.ready })
 
 	// Hero.
-	backBtn := widget.NewButtonWithIcon(lang.L("Back"), theme.NavigateBackIcon(), u.back)
-	backBtn.Importance = widget.LowImportance
+	p.backBtn = widget.NewButtonWithIcon(lang.L("Back"), theme.NavigateBackIcon(), u.back)
+	p.backBtn.Importance = widget.LowImportance
 	info := kit.VBox(
-		kit.HBox(backBtn),
+		kit.HBox(p.backBtn),
 		kit.WrapTitle(g.Name),
 		kit.HBox(statusBadge(g), kit.Small(lang.L("Last sync: {{.When}}", map[string]any{"When": timeAgo(g.Status.LastSyncAt)}))),
 	)
@@ -330,22 +330,18 @@ func (p *gameDetail) render() {
 		b := kit.Primary(lang.L("● Running"), nil)
 		b.Disable()
 		actions.Add(b)
-		p.primary = nil
 	case g.Ready && steamLaunched:
 		b := kit.Primary(lang.L("Play in Steam"), func() { openSteam(u, orig) })
 		kit.SetEnabled(b, services.SteamRunURL(orig) != "")
 		actions.Add(b)
-		p.primary = b
 	case g.Ready:
 		// A game that can be played in several ways asks which one first.
 		b := widget.NewButtonWithIcon(lang.L("Play"), theme.MediaPlayIcon(), func() { p.run("play", func() error { return u.sess.Play(p.id) }, nil) })
 		b.Importance = widget.HighImportance
 		kit.SetEnabled(b, !busy)
 		actions.Add(b)
-		p.primary = b
 	default:
-		p.primary = kit.Primary(lang.L("Set up for this device"), func() { u.navigate("/edit/" + p.id) })
-		actions.Add(p.primary)
+		actions.Add(kit.Primary(lang.L("Set up for this device"), func() { u.navigate("/edit/" + p.id) }))
 	}
 	syncLabel := lang.L("Sync now")
 	if p.busy == "sync" {

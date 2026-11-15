@@ -17,10 +17,12 @@ type Hider interface{ Hide() }
 // at most width wide and always inside the window. A gamepad's B (or Escape)
 // closes it.
 func ShowCustom(win fyne.Window, title string, body fyne.CanvasObject, width float32) Hider {
+	body, ring := ringedBody(win, body)
 	d := dialog.NewCustomWithoutButtons(title, body, win)
 	d.Resize(fyne.NewSize(min(width, win.Canvas().Size().Width-20), 0))
 	d.Show()
 	OnBack(win, d.Hide)
+	ring()
 	return d
 }
 
@@ -33,10 +35,12 @@ func DialogSize(w fyne.Window) fyne.Size {
 // ScrollDialog shows scrolling content in a large dialog without buttons of
 // its own; the content has its own.
 func ScrollDialog(win fyne.Window, title string, content fyne.CanvasObject) Hider {
+	content, ring := ringedBody(win, content)
 	d := dialog.NewCustomWithoutButtons(title, content, win)
 	d.Resize(DialogSize(win))
 	d.Show()
 	OnBack(win, d.Hide)
+	ring()
 	return d
 }
 

@@ -46,7 +46,8 @@ func TestGamepadSectionsAndBack(t *testing.T) {
 }
 
 // The library starts a gamepad on the first game; A opens it, and its page
-// starts on Play.
+// starts on Back, not Play: an A pressed once more must not start the game.
+// Play is just below.
 func TestGamepadStartsOnTheFirstGame(t *testing.T) {
 	h := newHarness(t)
 	h.addGame("Hades", t.TempDir())
@@ -70,6 +71,10 @@ func TestGamepadStartsOnTheFirstGame(t *testing.T) {
 	require.Equal(t, "/game/"+first.g.ID, h.u.route)
 	h.u.nav.FocusDefault()
 	b, ok := h.u.win.Canvas().Focused().(*widget.Button)
+	require.True(t, ok)
+	assert.Equal(t, "Back", b.Text)
+	h.u.nav.Apply(kit.PadDown)
+	b, ok = h.u.win.Canvas().Focused().(*widget.Button)
 	require.True(t, ok)
 	assert.Equal(t, "Play", b.Text)
 }
@@ -140,6 +145,21 @@ func TestGamepadViewSwitchesFullScreen(t *testing.T) {
 	h.u.toggleFullScreen()
 	h.u.applyFullScreen()
 	assert.False(t, h.u.win.FullScreen(), "until switched off")
+}
+
+// The gamepad is read where Steam hands it over as one; started by hand on a
+// desktop, Steam's Desktop Layout already makes it a mouse and keys.
+func TestPadWanted(t *testing.T) {
+	t.Setenv("SteamGameId", "")
+	t.Setenv("SteamClientLaunch", "")
+	t.Setenv("XDG_CURRENT_DESKTOP", "")
+	t.Setenv("GAMESCOPE_WAYLAND_DISPLAY", "")
+	assert.False(t, padWanted(), "started by hand")
+	t.Setenv("SteamGameId", "123")
+	assert.True(t, padWanted(), "started by Steam")
+	t.Setenv("SteamGameId", "")
+	t.Setenv("XDG_CURRENT_DESKTOP", "gamescope")
+	assert.True(t, padWanted(), "Game Mode")
 }
 
 // exitButton is the sidebar's Exit button, or nil.

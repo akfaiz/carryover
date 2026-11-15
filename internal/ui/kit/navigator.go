@@ -39,6 +39,11 @@ type Navigator struct {
 	last     navRect
 	lastRoot fyne.CanvasObject
 	polls    int
+	// The focus ring (focusring.go): the page's, each dialog's (by
+	// overlay) and the one last drawn in.
+	mainRing *focusRing
+	rings    map[fyne.CanvasObject]*focusRing
+	shown    *focusRing
 }
 
 // NavigatorOptions says what the gamepad does on the window's pages (not in a
@@ -94,7 +99,7 @@ func navigatorOf(o fyne.CanvasObject) *Navigator {
 // NewNavigator makes the gamepad navigation of win. It reads the gamepad once
 // SetActive(true) is called.
 func NewNavigator(win fyne.Window, opts NavigatorOptions) *Navigator {
-	n := &Navigator{win: win, opts: opts, scopes: map[fyne.CanvasObject]*navScope{}}
+	n := &Navigator{win: win, opts: opts, scopes: map[fyne.CanvasObject]*navScope{}, rings: map[fyne.CanvasObject]*focusRing{}}
 	if _, native := win.(driver.NativeWindow); native {
 		n.pad = glfwPad // not in Fyne's headless test driver
 	}
@@ -168,19 +173,28 @@ func (n *Navigator) poll(now time.Time) {
 		if n.opts.PadChanged != nil {
 			n.opts.PadChanged(ok)
 		}
+		n.updateRing()
 	}
 	if !ok {
 		n.idle = padIdlePolls
 		return
 	}
-	for _, a := range n.tracker.update(s, now) {
+	actions := n.tracker.update(s, now)
+	for _, a := range actions {
 		n.apply(a, true)
 	}
 	if s.Scroll != 0 {
 		n.scrollBy(s.Scroll * padScrollStep)
 	}
-	if n.polls++; n.polls%padKeepPolls == 0 {
+	n.polls++
+	tick := n.polls%padKeepPolls == 0
+	if tick {
 		n.keepFocus()
+	}
+	if len(actions) > 0 || s.Scroll != 0 || tick {
+		// After a press, and now and then: the page may have scrolled or
+		// redrawn, or a mouse moved the focus.
+		n.updateRing()
 	}
 }
 
@@ -260,6 +274,11 @@ func (n *Navigator) pruneScopes() {
 	for o := range n.scopes {
 		if !open[o] {
 			delete(n.scopes, o)
+		}
+	}
+	for o := range n.rings {
+		if !open[o] {
+			delete(n.rings, o)
 		}
 	}
 }
@@ -399,6 +418,7 @@ func (n *Navigator) focusStart(root fyne.CanvasObject, overlay bool, tree navTre
 func (n *Navigator) focusTarget(t navTarget) {
 	n.win.Canvas().Focus(t.obj)
 	n.last, n.lastRoot = scrollIntoView(t), n.rootNow()
+	n.updateRing()
 }
 
 func (n *Navigator) rootNow() fyne.CanvasObject {
