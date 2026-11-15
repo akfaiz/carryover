@@ -88,8 +88,7 @@ func (p *pathInput) browse() {
 		}
 		p.entry.SetText(p.u.lib.ContractPath(filepath.FromSlash(dir.Path())))
 	}, p.u.win)
-	d.Resize(kit.DialogSize(p.u.win))
-	d.Show()
+	kit.ShowFilePicker(p.u.win, d)
 }
 
 func (p *pathInput) updatePreview() {

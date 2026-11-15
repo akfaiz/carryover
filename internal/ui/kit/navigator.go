@@ -1,6 +1,7 @@
 package kit
 
 import (
+	"reflect"
 	"sync"
 	"time"
 
@@ -285,8 +286,13 @@ func (n *Navigator) apply(a PadAction, fromPad bool) {
 	switch a {
 	case PadUp, PadDown, PadLeft, PadRight:
 		if focused != nil && ownsKey(focused, a) {
+			// A list or grid moves its own highlight; at its edge, where it
+			// stays put, the D-pad leaves it for the control that way.
+			before, ok := highlightOf(focused)
 			focused.TypedKey(&fyne.KeyEvent{Name: keyOf(a)})
-			return
+			if after, _ := highlightOf(focused); !ok || after != before || isMenu(focused) {
+				return
+			}
 		}
 		n.move(root, overlay, focused, a)
 	case PadAccept:
@@ -518,16 +524,33 @@ func isMenu(f fyne.Focusable) bool {
 }
 
 // ownsKey reports whether the focused control uses the direction itself: an
-// open menu, and a list moving its highlight up and down. Anything else (a text
-// field too: a gamepad doesn't move a cursor) lets the focus move on.
+// open menu, a list moving its highlight up and down, a grid (the file
+// picker's) in every direction. Anything else (a text field too: a gamepad
+// doesn't move a cursor) lets the focus move on.
 func ownsKey(f fyne.Focusable, a PadAction) bool {
 	switch f.(type) {
-	case *widget.PopUpMenu:
+	case *widget.PopUpMenu, *widget.GridWrap:
 		return true
-	case *widget.List, *widget.Tree:
+	case *widget.List:
 		return a == PadUp || a == PadDown
 	}
 	return false
+}
+
+// highlightOf reads which item of a list or grid is highlighted, to tell
+// whether a key moved it. Fyne keeps it unexported; ok is false if it can't be
+// read (a menu, or a Fyne release that renamed it: TestHighlightOf fails then).
+func highlightOf(f fyne.Focusable) (id int64, ok bool) {
+	switch f.(type) {
+	case *widget.List, *widget.GridWrap:
+	default:
+		return 0, false
+	}
+	v := reflect.ValueOf(f).Elem().FieldByName("currentHighlight")
+	if !v.IsValid() || !v.CanInt() {
+		return 0, false
+	}
+	return v.Int(), true
 }
 
 func keyOf(a PadAction) fyne.KeyName {

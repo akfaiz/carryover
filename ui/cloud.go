@@ -187,8 +187,7 @@ func (p *cloudPage) pickConf() {
 	}, p.u.win)
 	d.SetTitleText(lang.L("Select rclone.conf"))
 	d.SetFilter(storage.NewExtensionFileFilter([]string{".conf"}))
-	d.Resize(kit.DialogSize(p.u.win))
-	d.Show()
+	kit.ShowFilePicker(p.u.win, d)
 }
 
 func (p *cloudPage) importConf(path string) {
