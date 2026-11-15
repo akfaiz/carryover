@@ -40,6 +40,35 @@ func ScrollDialog(win fyne.Window, title string, content fyne.CanvasObject) Hide
 	return d
 }
 
+// ShowFilePicker shows a Fyne file or folder dialog at the large dialog size.
+// A gamepad's B cancels it, and with a gamepad connected the focus starts in
+// the list of files: A opens a folder or picks a file, the D-pad leaves the
+// list at its edges for Open and Cancel.
+func ShowFilePicker(win fyne.Window, d *dialog.FileDialog) {
+	d.Resize(DialogSize(win))
+	d.Show()
+	OnBack(win, d.Dismiss) // Cancel: the caller hears "nothing chosen"
+	if top := win.Canvas().Overlays().Top(); top != nil {
+		FocusSafe(win, fileView(top))
+	}
+}
+
+// fileView is the biggest list or grid in a file dialog: its files (the
+// other list holds the places).
+func fileView(root fyne.CanvasObject) fyne.Focusable {
+	var best fyne.Focusable
+	var area float32
+	for _, t := range walkNav(root).targets {
+		switch t.obj.(type) {
+		case *widget.List, *widget.GridWrap:
+			if a := t.rect.W * t.rect.H; a > area {
+				best, area = t.obj, a
+			}
+		}
+	}
+	return best
+}
+
 // PickFile asks for a file, optionally limited to extensions such as ".png",
 // and passes its path to done. Cancelling does nothing.
 func PickFile(win fyne.Window, title string, exts []string, done func(path string)) {
@@ -55,8 +84,7 @@ func PickFile(win fyne.Window, title string, exts []string, done func(path strin
 	if len(exts) > 0 {
 		d.SetFilter(storage.NewExtensionFileFilter(exts))
 	}
-	d.Resize(DialogSize(win))
-	d.Show()
+	ShowFilePicker(win, d)
 }
 
 // ConfirmOptions configures ConfirmDanger. All texts come from the caller.
