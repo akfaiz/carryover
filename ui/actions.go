@@ -17,7 +17,7 @@ import (
 
 // addShortcuts sets the main window's keyboard shortcuts: Ctrl+F searches,
 // Ctrl+N adds a game, F5 syncs (the page's game, or everything on the
-// library) and Esc goes back.
+// library) and Esc goes back or closes the dialog.
 func (u *UI) addShortcuts() {
 	c := u.win.Canvas()
 	c.AddShortcut(&desktop.CustomShortcut{KeyName: fyne.KeyF, Modifier: fyne.KeyModifierShortcutDefault}, func(fyne.Shortcut) {
@@ -30,9 +30,13 @@ func (u *UI) addShortcuts() {
 			showAddGame(u)
 		}
 	})
+	// Keys reach this only while nothing is focused. The arrow keys and Enter
+	// then pick a control to start from, like a gamepad's D-pad (see
+	// newNavigator); Escape goes back or closes the dialog.
 	c.SetOnTypedKey(func(e *fyne.KeyEvent) {
 		if len(c.Overlays().List()) > 0 {
-			return // a dialog handles its own keys
+			u.nav.HandleKey(e)
+			return
 		}
 		switch e.Name {
 		case fyne.KeyEscape:
@@ -43,6 +47,8 @@ func (u *UI) addShortcuts() {
 			if s, ok := u.page.(syncable); ok {
 				s.syncNow()
 			}
+		default:
+			u.nav.HandleKey(e)
 		}
 	})
 }

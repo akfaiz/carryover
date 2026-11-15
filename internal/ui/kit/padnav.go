@@ -16,18 +16,39 @@ import (
 // and B to Escape, or hand to the app as a plain gamepad. A Nav makes a
 // dialog's buttons work with all of these: the arrow keys and the D-pad (or the
 // left stick) move between the buttons, Enter/Space/A press the focused one,
-// and Escape/B steps back.
+// and Escape/B steps back. In a window with a Navigator (navigator.go), the
+// Navigator reads the gamepad and the Nav only says what B does.
 
 // PadAction is what a key or gamepad press does in a dialog.
 type PadAction int
 
 const (
 	PadNone   PadAction = iota
-	PadPrev             // up, left: the previous button
-	PadNext             // down, right: the next button
+	PadPrev             // the previous button (arrow keys in a Nav)
+	PadNext             // the next button
 	PadAccept           // press the focused button
 	PadBack             // leave the dialog the safe way
+	PadUp               // the D-pad: the control above, below, ...
+	PadDown
+	PadLeft
+	PadRight
+	PadTabPrev // LB: the previous tab or section
+	PadTabNext // RB: the next tab or section
+	PadSearch  // X
+	PadSync    // Y
 )
+
+// linear turns a direction into the previous or next button, for a Nav
+// without a Navigator.
+func (a PadAction) linear() PadAction {
+	switch a {
+	case PadUp, PadLeft:
+		return PadPrev
+	case PadDown, PadRight:
+		return PadNext
+	}
+	return a
+}
 
 // actionForKey maps a key to its action (PadNone for any other key).
 func actionForKey(k fyne.KeyName) PadAction {
@@ -44,11 +65,34 @@ func actionForKey(k fyne.KeyName) PadAction {
 	return PadNone
 }
 
-// PadState is the part of a gamepad that dialogs use: the D-pad (or the left
-// stick), A to accept and B to go back.
+// directionForKey maps an arrow key to its direction, and Enter and Escape
+// to their actions, for a Navigator (PadNone for any other key).
+func directionForKey(k fyne.KeyName) PadAction {
+	switch k {
+	case fyne.KeyUp:
+		return PadUp
+	case fyne.KeyDown:
+		return PadDown
+	case fyne.KeyLeft:
+		return PadLeft
+	case fyne.KeyRight:
+		return PadRight
+	case fyne.KeyReturn, fyne.KeyEnter:
+		return PadAccept
+	case fyne.KeyEscape:
+		return PadBack
+	}
+	return PadNone
+}
+
+// PadState is the part of a gamepad the app uses: the D-pad (or the left
+// stick), A to accept, B to go back, X and Y, the shoulder buttons and the
+// right stick's vertical axis (-1 up to 1 down, 0 inside the dead zone).
 type PadState struct {
 	Up, Down, Left, Right bool
 	Accept, Back          bool
+	X, Y, LB, RB          bool
+	Scroll                float32
 }
 
 // PadSource reads the current gamepad state; ok is false without a gamepad.
@@ -91,7 +135,7 @@ func (b *padButton) held(now time.Time) {
 
 // padTracker turns gamepad states into actions.
 type padTracker struct {
-	up, down, left, right, accept, back padButton
+	up, down, left, right, accept, back, x, y, lb, rb padButton
 }
 
 // prime treats everything held in s as held before the dialog opened.
@@ -99,7 +143,10 @@ func (t *padTracker) prime(s PadState, now time.Time) {
 	for _, x := range []struct {
 		b    *padButton
 		held bool
-	}{{&t.up, s.Up}, {&t.down, s.Down}, {&t.left, s.Left}, {&t.right, s.Right}, {&t.accept, s.Accept}, {&t.back, s.Back}} {
+	}{
+		{&t.up, s.Up}, {&t.down, s.Down}, {&t.left, s.Left}, {&t.right, s.Right}, {&t.accept, s.Accept}, {&t.back, s.Back},
+		{&t.x, s.X}, {&t.y, s.Y}, {&t.lb, s.LB}, {&t.rb, s.RB},
+	} {
 		if x.held {
 			x.b.held(now)
 		}
@@ -114,12 +161,16 @@ func (t *padTracker) update(s PadState, now time.Time) []PadAction {
 			out = append(out, a)
 		}
 	}
-	add(t.up.fire(s.Up, true, now), PadPrev)
-	add(t.left.fire(s.Left, true, now), PadPrev)
-	add(t.down.fire(s.Down, true, now), PadNext)
-	add(t.right.fire(s.Right, true, now), PadNext)
+	add(t.up.fire(s.Up, true, now), PadUp)
+	add(t.left.fire(s.Left, true, now), PadLeft)
+	add(t.down.fire(s.Down, true, now), PadDown)
+	add(t.right.fire(s.Right, true, now), PadRight)
 	add(t.accept.fire(s.Accept, false, now), PadAccept)
 	add(t.back.fire(s.Back, false, now), PadBack)
+	add(t.lb.fire(s.LB, false, now), PadTabPrev)
+	add(t.rb.fire(s.RB, false, now), PadTabNext)
+	add(t.x.fire(s.X, false, now), PadSearch)
+	add(t.y.fire(s.Y, false, now), PadSync)
 	return out
 }
 
@@ -132,9 +183,10 @@ type Nav struct {
 	onInput func()
 	pad     PadSource
 
-	tracker  padTracker
-	prevKey  func(*fyne.KeyEvent)
-	stopPoll chan struct{}
+	tracker   padTracker
+	prevKey   func(*fyne.KeyEvent)
+	stopPoll  chan struct{}
+	navigator *Navigator // the window's, while started; it reads the gamepad then
 }
 
 // NewNav makes the navigation of a dialog in win. back runs for Escape and B:
@@ -153,7 +205,8 @@ func (n *Nav) OnInput(f func()) { n.onInput = f }
 
 // Apply does what a key or gamepad press means.
 func (n *Nav) Apply(a PadAction) {
-	if a == PadNone {
+	a = a.linear()
+	if a != PadPrev && a != PadNext && a != PadAccept && a != PadBack {
 		return
 	}
 	if n.onInput != nil {
@@ -188,13 +241,29 @@ func (n *Nav) Start(first fyne.Focusable) {
 	}
 	n.prevKey = c.OnTypedKey()
 	c.SetOnTypedKey(func(ev *fyne.KeyEvent) { n.Apply(actionForKey(ev.Name)) })
+	if nv := NavigatorFor(c); nv != nil {
+		// The window's Navigator reads the gamepad; it asks the Nav what B does.
+		n.navigator = nv
+		nv.setScope(c.Overlays().Top(), &navScope{back: n.back, onInput: n.input, nav: n})
+		return
+	}
 	if n.pad != nil {
 		n.startPad()
 	}
 }
 
+func (n *Nav) input() {
+	if n.onInput != nil {
+		n.onInput()
+	}
+}
+
 // Stop ends the listening and restores the window's own key handling.
 func (n *Nav) Stop() {
+	if n.navigator != nil {
+		n.navigator.dropScope(n)
+		n.navigator = nil
+	}
 	if n.stopPoll != nil {
 		close(n.stopPoll)
 		n.stopPoll = nil

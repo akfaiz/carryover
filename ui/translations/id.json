@@ -497,5 +497,8 @@
   "D-pad or arrow keys to choose, A or Enter to confirm, B or Esc to go back.": "D-pad atau tombol panah untuk memilih, A atau Enter untuk memastikan, B atau Esc untuk kembali.",
   "{{.Game}}: saves uploaded after Steam closed the game.": "{{.Game}}: save diunggah setelah Steam menutup game.",
   "{{.Game}}: saves changed here and on another device. Open Carryover to choose which to keep.": "{{.Game}}: save berubah di sini dan di perangkat lain. Buka Carryover untuk memilih yang dipertahankan.",
-  "{{.Game}}: saves could not be uploaded after Steam closed the game: {{.Err}}": "{{.Game}}: save tidak dapat diunggah setelah Steam menutup game: {{.Err}}"
+  "{{.Game}}: saves could not be uploaded after Steam closed the game: {{.Err}}": "{{.Game}}: save tidak dapat diunggah setelah Steam menutup game: {{.Err}}",
+  "Select": "Pilih",
+  "Section": "Bagian",
+  "Scroll": "Gulir"
 }

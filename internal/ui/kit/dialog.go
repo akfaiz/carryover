@@ -14,11 +14,13 @@ import (
 type Hider interface{ Hide() }
 
 // ShowCustom shows a dialog without buttons of its own (the body has them),
-// at most width wide and always inside the window.
+// at most width wide and always inside the window. A gamepad's B (or Escape)
+// closes it.
 func ShowCustom(win fyne.Window, title string, body fyne.CanvasObject, width float32) Hider {
 	d := dialog.NewCustomWithoutButtons(title, body, win)
 	d.Resize(fyne.NewSize(min(width, win.Canvas().Size().Width-20), 0))
 	d.Show()
+	OnBack(win, d.Hide)
 	return d
 }
 
@@ -34,6 +36,7 @@ func ScrollDialog(win fyne.Window, title string, content fyne.CanvasObject) Hide
 	d := dialog.NewCustomWithoutButtons(title, content, win)
 	d.Resize(DialogSize(win))
 	d.Show()
+	OnBack(win, d.Hide)
 	return d
 }
 
@@ -100,16 +103,19 @@ func ConfirmDanger(win fyne.Window, o ConfirmOptions) {
 	})
 	body.Add(HBox(layout.NewSpacer(), cancel, del))
 	d = ShowCustom(win, o.Title, body, 520)
+	FocusSafe(win, cancel)
 }
 
 // ConfirmDiscard asks whether to leave something with unsaved changes; leave
 // runs if the user agrees.
 func ConfirmDiscard(win fyne.Window, title, message, keepLabel, discardLabel string, leave func()) {
 	var d Hider
+	keep := widget.NewButton(keepLabel, func() { d.Hide() })
 	body := VBox(
 		Muted(message),
-		HBox(layout.NewSpacer(), widget.NewButton(keepLabel, func() { d.Hide() }),
+		HBox(layout.NewSpacer(), keep,
 			DangerButton(discardLabel, func() { d.Hide(); leave() })),
 	)
 	d = ShowCustom(win, title, body, 440)
+	FocusSafe(win, keep)
 }

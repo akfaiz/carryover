@@ -64,6 +64,14 @@ func (p *sessionPage) view() fyne.CanvasObject {
 	return container.NewStack(bg, container.NewBorder(nil, content, nil, nil))
 }
 
+// defaultFocus starts a gamepad on Cancel while there is one.
+func (p *sessionPage) defaultFocus() fyne.Focusable {
+	if p.cancel == nil || !p.cancel.Visible() {
+		return nil
+	}
+	return p.cancel
+}
+
 func (p *sessionPage) stateChanged(change) {
 	st, ok := p.u.status[p.w.GameID]
 	if !ok {
@@ -89,6 +97,7 @@ func (p *sessionPage) stateChanged(change) {
 			}
 			p.cancel.Enable()
 			p.cancel.Show()
+			p.u.focusForPad()
 		}
 	} else {
 		p.phase = ""
@@ -111,6 +120,11 @@ func (u *UI) runWrapper(gameID string, opts core.RunOptions) int {
 	u.page = page
 	u.win.SetContent(container.NewStack(page.view(), u.toasts.Layer))
 
+	// The prompts and Cancel work with the controller the shortcut was started
+	// with; while the game runs, the controller is the game's.
+	u.nav = kit.NewNavigator(u.win, kit.NavigatorOptions{DefaultFocus: page.defaultFocus})
+	u.nav.SetActive(true)
+
 	closer := &wrapperClose{gameID: gameID, quit: u.app.Quit}
 	u.win.SetCloseIntercept(closer.request)
 	u.sess.OnGameRunning = func(running bool) {
@@ -118,6 +132,7 @@ func (u *UI) runWrapper(gameID string, opts core.RunOptions) int {
 			closer.started.Store(true)
 		}
 		kit.OnUI(func() {
+			u.nav.SetActive(!running)
 			if running {
 				u.win.Hide()
 			} else {
@@ -125,7 +140,7 @@ func (u *UI) runWrapper(gameID string, opts core.RunOptions) int {
 			}
 		})
 	}
-	u.sess.OnPrompt = func() { kit.OnUI(func() { u.win.Show(); u.win.RequestFocus() }) }
+	u.sess.OnPrompt = func() { kit.OnUI(func() { u.win.Show(); u.win.RequestFocus(); u.nav.SetActive(true) }) }
 
 	exitCode := 0
 	u.app.Lifecycle().SetOnStarted(func() {

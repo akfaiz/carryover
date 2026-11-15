@@ -497,5 +497,8 @@
   "D-pad or arrow keys to choose, A or Enter to confirm, B or Esc to go back.": "D-pad or arrow keys to choose, A or Enter to confirm, B or Esc to go back.",
   "{{.Game}}: saves uploaded after Steam closed the game.": "{{.Game}}: saves uploaded after Steam closed the game.",
   "{{.Game}}: saves changed here and on another device. Open Carryover to choose which to keep.": "{{.Game}}: saves changed here and on another device. Open Carryover to choose which to keep.",
-  "{{.Game}}: saves could not be uploaded after Steam closed the game: {{.Err}}": "{{.Game}}: saves could not be uploaded after Steam closed the game: {{.Err}}"
+  "{{.Game}}: saves could not be uploaded after Steam closed the game: {{.Err}}": "{{.Game}}: saves could not be uploaded after Steam closed the game: {{.Err}}",
+  "Select": "Select",
+  "Section": "Section",
+  "Scroll": "Scroll"
 }

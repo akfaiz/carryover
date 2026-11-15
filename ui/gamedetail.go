@@ -46,6 +46,16 @@ type gameDetail struct {
 	scroll *container.Scroll
 	prog   *kit.ProgressBar // current progress widget, updated in place
 	progOf string           // "session" or "busy"
+	// primary is the main action (Play, Play in Steam, Set up), where a
+	// gamepad starts.
+	primary *widget.Button
+}
+
+func (p *gameDetail) defaultFocus() fyne.Focusable {
+	if p.primary == nil {
+		return nil
+	}
+	return p.primary
 }
 
 func newGameDetail(u *UI, id string) *gameDetail {
@@ -320,18 +330,22 @@ func (p *gameDetail) render() {
 		b := kit.Primary(lang.L("● Running"), nil)
 		b.Disable()
 		actions.Add(b)
+		p.primary = nil
 	case g.Ready && steamLaunched:
 		b := kit.Primary(lang.L("Play in Steam"), func() { openSteam(u, orig) })
 		kit.SetEnabled(b, services.SteamRunURL(orig) != "")
 		actions.Add(b)
+		p.primary = b
 	case g.Ready:
 		// A game that can be played in several ways asks which one first.
 		b := widget.NewButtonWithIcon(lang.L("Play"), theme.MediaPlayIcon(), func() { p.run("play", func() error { return u.sess.Play(p.id) }, nil) })
 		b.Importance = widget.HighImportance
 		kit.SetEnabled(b, !busy)
 		actions.Add(b)
+		p.primary = b
 	default:
-		actions.Add(kit.Primary(lang.L("Set up for this device"), func() { u.navigate("/edit/" + p.id) }))
+		p.primary = kit.Primary(lang.L("Set up for this device"), func() { u.navigate("/edit/" + p.id) })
+		actions.Add(p.primary)
 	}
 	syncLabel := lang.L("Sync now")
 	if p.busy == "sync" {

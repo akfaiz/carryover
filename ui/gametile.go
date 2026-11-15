@@ -27,6 +27,7 @@ type gameTile struct {
 	name     *widget.Label
 	status   *fyne.Container
 	play     *widget.Button
+	open     *kit.Tappable // cover, name and status: opens the game
 }
 
 func newGameTile(u *UI, g services.GameView) *gameTile {
@@ -34,8 +35,8 @@ func newGameTile(u *UI, g services.GameView) *gameTile {
 	t.name = widget.NewLabelWithStyle("", fyne.TextAlignLeading, fyne.TextStyle{Bold: true})
 	t.name.Truncation = fyne.TextTruncateEllipsis
 	t.play = widget.NewButton("", t.playTapped)
-	open := kit.NewTappable(kit.VBox(t.cover, t.name, t.status), func() { u.navigate("/game/" + t.g.ID) })
-	t.Init(t, kit.VBox(open, t.play))
+	t.open = kit.NewTappable(kit.VBox(t.cover, t.name, t.status), func() { u.navigate("/game/" + t.g.ID) })
+	t.Init(t, kit.VBox(t.open, t.play))
 	t.set(g)
 	return t
 }

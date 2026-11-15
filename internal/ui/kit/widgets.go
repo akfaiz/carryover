@@ -329,17 +329,21 @@ func (l *exactLayout) Layout(objs []fyne.CanvasObject, size fyne.Size) {
 func (l *exactLayout) MinSize([]fyne.CanvasObject) fyne.Size { return l.size }
 
 // Tappable makes any object clickable. It is highlighted while the mouse is
-// over it, so it reads as clickable like a button does.
+// over it, so it reads as clickable like a button does. It takes the focus
+// too (Tab, a gamepad's D-pad), shown as a ring, and Space or Enter press it.
 type Tappable struct {
 	widget.BaseWidget
 	content fyne.CanvasObject
 	onTap   func()
 	hover   *canvas.Rectangle
+	ring    *canvas.Rectangle
 }
 
 func NewTappable(content fyne.CanvasObject, onTap func()) *Tappable {
-	t := &Tappable{content: content, onTap: onTap, hover: canvas.NewRectangle(color.Transparent)}
+	t := &Tappable{content: content, onTap: onTap, hover: canvas.NewRectangle(color.Transparent), ring: canvas.NewRectangle(color.Transparent)}
 	t.hover.CornerRadius = 8
+	t.ring.CornerRadius = 8
+	t.ring.StrokeWidth = 2
 	t.ExtendBaseWidget(t)
 	return t
 }
@@ -367,8 +371,39 @@ func (t *Tappable) MouseOut() {
 	t.hover.Refresh()
 }
 
+// FocusGained implements fyne.Focusable.
+func (t *Tappable) FocusGained() {
+	t.ring.StrokeColor = ColAccent
+	t.ring.FillColor = ColHover
+	t.ring.Refresh()
+}
+
+// FocusLost implements fyne.Focusable.
+func (t *Tappable) FocusLost() {
+	t.ring.StrokeColor = color.Transparent
+	t.ring.FillColor = color.Transparent
+	t.ring.Refresh()
+}
+
+// TypedKey implements fyne.Focusable: Space and Enter press it; the arrow keys
+// and Escape move on, like a gamepad's D-pad and B, in a window with a
+// Navigator.
+func (t *Tappable) TypedKey(ev *fyne.KeyEvent) {
+	switch ev.Name {
+	case fyne.KeySpace, fyne.KeyReturn, fyne.KeyEnter:
+		t.Tapped(nil)
+	default:
+		if n := navigatorOf(t); n != nil {
+			n.HandleKey(ev)
+		}
+	}
+}
+
+// TypedRune implements fyne.Focusable.
+func (t *Tappable) TypedRune(rune) {}
+
 func (t *Tappable) CreateRenderer() fyne.WidgetRenderer {
-	return widget.NewSimpleRenderer(container.NewStack(t.hover, t.content))
+	return widget.NewSimpleRenderer(container.NewStack(t.hover, t.ring, t.content))
 }
 
 // columns lays out objects side by side when wide enough, stacked otherwise.
