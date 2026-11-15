@@ -36,6 +36,8 @@ Cloud storage: Google Drive, Dropbox, OneDrive, WebDAV (Nextcloud, ownCloud, NAS
   Proton, Heroic, Lutris and Bottles prefixes on Linux.
 - **Play from the launcher or from Steam** — "Add to Steam" creates a shortcut that syncs around every session,
   even in Game Mode, with prompts that work on a controller.
+- **Controller support** — added to Steam itself, the whole app works with a gamepad in Game Mode: the D-pad
+  moves between games and buttons, A presses, B goes back, and text fields open Steam's keyboard.
 - **Safe conflicts** — if saves changed on both sides, you choose which to keep, and the side being overwritten
   is backed up first.
 - **Emulators** — set up an emulator (Eden, Ryujinx, …) once per device and let a game use several; each keeps
