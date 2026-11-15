@@ -256,6 +256,7 @@ func (u *UI) buildMain() {
 	u.win.Resize(fyne.NewSize(1180, 760))
 	u.win.SetMaster()
 	u.win.SetCloseIntercept(u.confirmClose)
+	u.applyFullScreen()
 	u.newNavigator()
 	u.buildLayout()
 	u.addShortcuts()
@@ -343,6 +344,11 @@ func (u *UI) renderSidebar() {
 	// Secondary places, out of the way of the main ones.
 	nav("/trash", u.trashLabel(), theme.DeleteIcon())
 	nav("/settings", lang.L("Settings"), theme.SettingsIcon())
+	if u.showExit() {
+		exit := widget.NewButtonWithIcon(lang.L("Exit"), theme.LogoutIcon(), u.confirmClose)
+		exit.Alignment, exit.Importance = widget.ButtonAlignLeading, widget.LowImportance
+		objs = append(objs, exit)
+	}
 	u.activity = kit.VBox()
 	objs = append(objs, widget.NewSeparator(), u.activity)
 	u.renderActivity()

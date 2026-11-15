@@ -10,11 +10,13 @@ All notable changes to Carryover are listed here. The format follows
 ### Added
 
 - The whole app works with a gamepad, for Carryover added to Steam as a non-Steam game and used in Steam Deck Game
-  Mode. The D-pad or left stick moves to the control on screen in that direction (scrolling it into view), A
-  presses it, B closes the dialog or goes back, LB/RB switch sections (or a dialog's tabs), X searches, Y syncs and
-  the right stick scrolls. Text fields open Steam's on-screen keyboard in Game Mode, the file and folder pickers
-  can be used too, and a bar shows the buttons while a controller is connected. Dialogs start on the answer that
-  changes nothing.
+  Mode or Big Picture. The D-pad or left stick moves to the control on screen in that direction (scrolling it into
+  view), A presses it, B closes the dialog or goes back, LB/RB switch sections (or a dialog's tabs), X searches, Y
+  syncs and the right stick scrolls. On the Deck, text fields open Steam's on-screen keyboard; on Windows, Steam's
+  own Steam/Xbox button + X does. The file and folder pickers can be used too, and a bar shows the buttons while a
+  controller is connected. Dialogs start on the answer that changes nothing. Started from Big Picture, Carryover
+  opens full screen; the View button (or F11) switches it, and Carryover remembers the choice. Exit in the sidebar
+  quits where the window's close button can't be reached.
 - "Add Carryover to Steam" in Settings adds Carryover itself to Steam as a non-Steam game, with its own icon,
   cover, wide cover, background and logo, so it can be opened from Steam Deck Game Mode.
 

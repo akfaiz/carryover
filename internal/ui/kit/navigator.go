@@ -49,6 +49,7 @@ type NavigatorOptions struct {
 	Search       func()                 // X
 	Sync         func()                 // Y
 	TextField    func(f fyne.Focusable) // A on a text field: e.g. open an on-screen keyboard
+	View         func()                 // the View button, also in a dialog: e.g. full screen
 	DefaultFocus func() fyne.Focusable  // where a first press starts on a page
 	PadChanged   func(present bool)     // a gamepad was connected or disconnected
 }
@@ -327,6 +328,10 @@ func (n *Navigator) apply(a PadAction, fromPad bool) {
 	case PadSync:
 		if !overlay && n.opts.Sync != nil {
 			n.opts.Sync()
+		}
+	case PadView:
+		if n.opts.View != nil {
+			n.opts.View()
 		}
 	}
 }

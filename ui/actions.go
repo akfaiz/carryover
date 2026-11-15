@@ -17,7 +17,7 @@ import (
 
 // addShortcuts sets the main window's keyboard shortcuts: Ctrl+F searches,
 // Ctrl+N adds a game, F5 syncs (the page's game, or everything on the
-// library) and Esc goes back or closes the dialog.
+// library), F11 switches full screen and Esc goes back or closes the dialog.
 func (u *UI) addShortcuts() {
 	c := u.win.Canvas()
 	c.AddShortcut(&desktop.CustomShortcut{KeyName: fyne.KeyF, Modifier: fyne.KeyModifierShortcutDefault}, func(fyne.Shortcut) {
@@ -47,6 +47,8 @@ func (u *UI) addShortcuts() {
 			if s, ok := u.page.(syncable); ok {
 				s.syncNow()
 			}
+		case fyne.KeyF11:
+			u.toggleFullScreen()
 		default:
 			u.nav.HandleKey(e)
 		}
