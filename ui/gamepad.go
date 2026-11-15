@@ -2,8 +2,8 @@ package ui
 
 import (
 	"log"
-	"net/url"
 	"strings"
+	"sync/atomic"
 
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/container"
@@ -99,19 +99,29 @@ func (u *UI) stepSection(dir int) {
 }
 
 // openKeyboard opens Steam's on-screen keyboard in Game Mode, where there is
-// no other way to type. Elsewhere there is a keyboard (or Steam + X).
+// no other way to type. Elsewhere there is a keyboard (or Steam + X). The
+// request is handed to Steam in the background; the log says how that went
+// (the first time, or every time it fails).
 func (u *UI) openKeyboard() {
 	if !gamemode.Active() {
 		return
 	}
-	link, err := url.Parse(gamemode.KeyboardURL)
-	if err == nil {
-		err = u.app.OpenURL(link)
-	}
-	if err != nil {
-		log.Printf("open Steam keyboard: %v", err)
-	}
+	go func() {
+		via, err := openKeyboard()
+		switch {
+		case err != nil:
+			log.Printf("open Steam keyboard: %v", err)
+		case !keyboardLogged.Swap(true):
+			log.Printf("asked Steam for its on-screen keyboard (via %s)", via)
+		}
+	}()
 }
+
+// openKeyboard asks Steam for its keyboard; tests replace it.
+var openKeyboard = gamemode.OpenKeyboard
+
+// keyboardLogged is set once a successful request was logged.
+var keyboardLogged atomic.Bool
 
 // focusForPad puts the focus where a gamepad starts on the page just shown,
 // when a gamepad is connected.
