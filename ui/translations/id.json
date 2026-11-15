@@ -502,5 +502,8 @@
   "{{.Game}}: saves could not be uploaded after Steam closed the game: {{.Err}}": "{{.Game}}: save tidak dapat diunggah setelah Steam menutup game: {{.Err}}",
   "Select": "Pilih",
   "Section": "Bagian",
-  "Scroll": "Gulir"
+  "Scroll": "Gulir",
+  "Full screen": "Layar penuh",
+  "Press the Steam or Xbox button + X for Steam's keyboard.": "Tekan tombol Steam atau Xbox + X untuk keyboard Steam.",
+  "Exit": "Keluar"
 }

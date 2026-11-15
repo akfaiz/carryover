@@ -36,6 +36,7 @@ const (
 	PadTabNext // RB: the next tab or section
 	PadSearch  // X
 	PadSync    // Y
+	PadView    // View (Back, Select): full screen
 )
 
 // linear turns a direction into the previous or next button, for a Nav
@@ -92,6 +93,7 @@ type PadState struct {
 	Up, Down, Left, Right bool
 	Accept, Back          bool
 	X, Y, LB, RB          bool
+	View                  bool // the View button (Back, Select on older pads)
 	Scroll                float32
 }
 
@@ -135,7 +137,7 @@ func (b *padButton) held(now time.Time) {
 
 // padTracker turns gamepad states into actions.
 type padTracker struct {
-	up, down, left, right, accept, back, x, y, lb, rb padButton
+	up, down, left, right, accept, back, x, y, lb, rb, view padButton
 }
 
 // prime treats everything held in s as held before the dialog opened.
@@ -145,7 +147,7 @@ func (t *padTracker) prime(s PadState, now time.Time) {
 		held bool
 	}{
 		{&t.up, s.Up}, {&t.down, s.Down}, {&t.left, s.Left}, {&t.right, s.Right}, {&t.accept, s.Accept}, {&t.back, s.Back},
-		{&t.x, s.X}, {&t.y, s.Y}, {&t.lb, s.LB}, {&t.rb, s.RB},
+		{&t.x, s.X}, {&t.y, s.Y}, {&t.lb, s.LB}, {&t.rb, s.RB}, {&t.view, s.View},
 	} {
 		if x.held {
 			x.b.held(now)
@@ -171,6 +173,7 @@ func (t *padTracker) update(s PadState, now time.Time) []PadAction {
 	add(t.rb.fire(s.RB, false, now), PadTabNext)
 	add(t.x.fire(s.X, false, now), PadSearch)
 	add(t.y.fire(s.Y, false, now), PadSync)
+	add(t.view.fire(s.View, false, now), PadView)
 	return out
 }
 

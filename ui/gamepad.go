@@ -56,6 +56,7 @@ func (u *UI) newNavigator() {
 				s.syncNow()
 			}
 		},
+		View: u.toggleFullScreen,
 		TextField: func(f fyne.Focusable) {
 			u.win.Canvas().Focus(f)
 			u.openKeyboard()
@@ -98,12 +99,63 @@ func (u *UI) stepSection(dir int) {
 	u.navigate(sections[(cur+dir+len(sections))%len(sections)])
 }
 
-// openKeyboard opens Steam's on-screen keyboard in Game Mode, where there is
-// no other way to type. Elsewhere there is a keyboard (or Steam + X). The
-// request is handed to Steam in the background; the log says how that went
-// (the first time, or every time it fails).
+// Full screen is remembered apart for Carryover started by Steam (Big
+// Picture, a controller across the room) and started by hand (a window on
+// the desktop).
+const (
+	prefFullScreen      = "window.fullscreen"
+	prefFullScreenSteam = "window.fullscreen.steam"
+)
+
+func fullScreenPref() string {
+	if gamemode.SteamLaunched() {
+		return prefFullScreenSteam
+	}
+	return prefFullScreen
+}
+
+// applyFullScreen opens the main window full screen when that was last chosen
+// for how Carryover was started; from Big Picture it starts full screen until
+// the user says otherwise. Game Mode makes every window full screen itself.
+func (u *UI) applyFullScreen() {
+	if gamemode.Active() {
+		return
+	}
+	def := gamemode.SteamLaunched() && gamemode.BigPicture()
+	if u.app.Preferences().BoolWithFallback(fullScreenPref(), def) {
+		u.win.SetFullScreen(true)
+	}
+}
+
+// toggleFullScreen switches full screen (the View button, F11) and remembers
+// it.
+func (u *UI) toggleFullScreen() {
+	on := !u.win.FullScreen()
+	u.win.SetFullScreen(on)
+	u.app.Preferences().SetBool(fullScreenPref(), on)
+	u.refreshSidebar() // Exit comes and goes with the window's own close button
+}
+
+// showExit reports whether the sidebar offers Exit: where the window has no
+// close button to reach (Game Mode, full screen) or Steam started Carryover
+// (Big Picture, a controller across the room).
+func (u *UI) showExit() bool {
+	return gamemode.Active() || gamemode.SteamLaunched() || (u.win != nil && u.win.FullScreen())
+}
+
+// openKeyboard opens Steam's on-screen keyboard when Steam started Carryover
+// or in Game Mode (Big Picture on Windows, the Deck): a controller there has
+// no other way to type. Started by hand, there is a keyboard. The request is
+// handed to Steam in the background; the log says how that went (the first
+// time, or every time it fails).
 func (u *UI) openKeyboard() {
-	if !gamemode.Active() {
+	if !gamemode.KeyboardWanted() {
+		return
+	}
+	if !gamemode.CanRequestKeyboard {
+		// Windows: asking would open Big Picture's keyboard, which takes the
+		// controller; Steam's own chord opens the overlay's.
+		u.toast(lang.L("Press the Steam or Xbox button + X for Steam's keyboard."), kit.ToastInfo)
 		return
 	}
 	go func() {
@@ -146,6 +198,9 @@ func (u *UI) padHintBar() *fyne.Container {
 		hint("Y", lang.L("Sync")),
 		hint("R", lang.L("Scroll")),
 	)
+	if !gamemode.Active() { // Game Mode is always full screen
+		bar.Add(hint("View", lang.L("Full screen")))
+	}
 	c := container.NewPadded(bar)
 	if u.nav == nil || !u.nav.PadPresent() {
 		c.Hide()

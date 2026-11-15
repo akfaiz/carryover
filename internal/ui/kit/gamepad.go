@@ -39,6 +39,7 @@ func glfwPad() (PadState, bool) {
 			Back:   pressed(glfw.ButtonB),
 			X:      pressed(glfw.ButtonX),
 			Y:      pressed(glfw.ButtonY),
+			View:   pressed(glfw.ButtonBack),
 			LB:     pressed(glfw.ButtonLeftBumper),
 			RB:     pressed(glfw.ButtonRightBumper),
 			Scroll: scroll,

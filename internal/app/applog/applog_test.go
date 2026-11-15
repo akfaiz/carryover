@@ -130,3 +130,16 @@ func TestCrashIsWrittenToLog(t *testing.T) {
 	assert.Contains(t, got, "panic: boom from a goroutine")
 	assert.Contains(t, got, "goroutine ")
 }
+
+// The header names Steam's other variables but never shows their values,
+// which may hold user names or paths.
+func TestEnvironmentNamesSteamVariables(t *testing.T) {
+	t.Setenv("SteamGameId", "123")
+	t.Setenv("SteamAppUser", "someone")
+	t.Setenv("SteamTenfoot", "1")
+	got := Environment()
+	assert.Contains(t, got, "SteamGameId=123")
+	assert.Contains(t, got, "SteamTenfoot=1")
+	assert.Contains(t, got, "SteamAppUser")
+	assert.NotContains(t, got, "someone")
+}

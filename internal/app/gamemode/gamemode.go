@@ -1,10 +1,12 @@
 // Package gamemode tells whether Carryover runs in Steam Deck Game Mode
 // (Steam's gamescope session), where there is no mouse, no notification
-// service and no keyboard but Steam's on-screen one, and opens that keyboard.
+// service and no keyboard but Steam's on-screen one, or was started by Steam
+// at all, and opens Steam's on-screen keyboard.
 package gamemode
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -17,6 +19,21 @@ import (
 func Active() bool {
 	return os.Getenv("XDG_CURRENT_DESKTOP") == "gamescope" || os.Getenv("GAMESCOPE_WAYLAND_DISPLAY") != ""
 }
+
+// SteamLaunched reports whether Steam started this process, as a non-Steam
+// game (Big Picture on Windows, a shortcut on the Deck in either mode).
+func SteamLaunched() bool {
+	return os.Getenv("SteamGameId") != "" || os.Getenv("SteamClientLaunch") == "1"
+}
+
+// BigPicture reports whether Steam started this process from Big Picture
+// (SteamTenfoot=1). Valve doesn't document the variable, so it only picks a
+// default: the log header lists Steam's variables to check it.
+func BigPicture() bool { return os.Getenv("SteamTenfoot") == "1" }
+
+// KeyboardWanted reports whether Steam's on-screen keyboard is the way to type
+// with a controller here: in Game Mode, or when Steam started Carryover.
+func KeyboardWanted() bool { return Active() || SteamLaunched() }
 
 // KeyboardURL asks Steam to show its on-screen keyboard.
 const KeyboardURL = "steam://open/keyboard"
@@ -32,30 +49,25 @@ var run = func(ctx context.Context, env []string, name string, args ...string) (
 	return cmd.CombinedOutput()
 }
 
-// lookPath finds a command. Tests replace it.
-var lookPath = exec.LookPath
-
 // OpenKeyboard asks the running Steam to show its on-screen keyboard and
-// waits for the request to be handed over. It returns which command it used
-// and, on failure, an error with what that command printed.
-//
-// The URL goes to Steam's own launcher script (`steam <url>`, which passes it
-// to the running client) rather than through xdg-open, which needs a handler
-// for steam:// links. The command gets this process's environment without
-// what Steam sets for a game: its variables and the overlay it preloads.
+// waits for the request to be handed over (keyboardCommand says how, per OS).
+// It returns which command it used and, on failure, an error with what that
+// command printed. The command gets this process's environment without what
+// Steam sets for a game: its variables and the overlay it preloads.
 func OpenKeyboard() (via string, err error) {
-	name := "steam"
-	if _, err := lookPath(name); err != nil {
-		name = "xdg-open"
+	name, args := keyboardCommand()
+	if name == "" {
+		return "", errors.New("no way to ask Steam for its keyboard here")
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), keyboardTimeout)
 	defer cancel()
-	out, err := run(ctx, cleanEnv(os.Environ()), name, KeyboardURL)
+	out, err := run(ctx, cleanEnv(os.Environ()), name, args...)
 	if err != nil {
+		cmd := strings.Join(append([]string{name}, args...), " ")
 		if s := strings.TrimSpace(string(out)); s != "" {
-			return name, fmt.Errorf("%s %s: %w: %s", name, KeyboardURL, err, s)
+			return name, fmt.Errorf("%s: %w: %s", cmd, err, s)
 		}
-		return name, fmt.Errorf("%s %s: %w", name, KeyboardURL, err)
+		return name, fmt.Errorf("%s: %w", cmd, err)
 	}
 	return name, nil
 }

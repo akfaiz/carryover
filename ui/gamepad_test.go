@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"fyne.io/fyne/v2"
+	"fyne.io/fyne/v2/test"
 	"fyne.io/fyne/v2/widget"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -111,4 +112,73 @@ func TestArrowKeysPickAControl(t *testing.T) {
 	c.Unfocus()
 	c.OnTypedKey()(&fyne.KeyEvent{Name: fyne.KeyDown})
 	assert.IsType(t, &kit.Tappable{}, c.Focused())
+}
+
+// The View button switches full screen and remembers it, apart for Carryover
+// started by Steam and started by hand.
+func TestGamepadViewSwitchesFullScreen(t *testing.T) {
+	t.Setenv("SteamGameId", "")
+	t.Setenv("SteamClientLaunch", "")
+	t.Setenv("XDG_CURRENT_DESKTOP", "")
+	t.Setenv("GAMESCOPE_WAYLAND_DISPLAY", "")
+	h := newHarness(t)
+	prefs := h.u.app.Preferences()
+	require.False(t, h.u.win.FullScreen())
+	h.u.nav.Apply(kit.PadView)
+	assert.True(t, h.u.win.FullScreen())
+	assert.True(t, prefs.Bool(prefFullScreen))
+	assert.False(t, prefs.Bool(prefFullScreenSteam), "started by hand: Steam's choice stays")
+	h.u.nav.Apply(kit.PadView)
+	assert.False(t, h.u.win.FullScreen())
+	assert.False(t, prefs.Bool(prefFullScreen))
+
+	t.Setenv("SteamGameId", "123")
+	t.Setenv("SteamTenfoot", "1")
+	h.u.win.SetFullScreen(false)
+	h.u.applyFullScreen()
+	assert.True(t, h.u.win.FullScreen(), "from Big Picture it starts full screen")
+	h.u.toggleFullScreen()
+	h.u.applyFullScreen()
+	assert.False(t, h.u.win.FullScreen(), "until switched off")
+}
+
+// exitButton is the sidebar's Exit button, or nil.
+func exitButton(h *harness) *widget.Button {
+	for _, b := range widgetsOf[*widget.Button](h.u.sidebar) {
+		if b.Text == "Exit" {
+			return b
+		}
+	}
+	return nil
+}
+
+// Exit is in the sidebar where the window's close button can't be reached:
+// full screen, Game Mode, started by Steam. It closes like the window's close
+// button: asking first while a sync runs.
+func TestExitButton(t *testing.T) {
+	t.Setenv("SteamGameId", "")
+	t.Setenv("SteamClientLaunch", "")
+	t.Setenv("XDG_CURRENT_DESKTOP", "")
+	t.Setenv("GAMESCOPE_WAYLAND_DISPLAY", "")
+	h := newHarness(t)
+	h.settle()
+	assert.Nil(t, exitButton(h), "a desktop window has its own close button")
+
+	h.u.toggleFullScreen()
+	exit := exitButton(h)
+	require.NotNil(t, exit, "full screen")
+	assert.Contains(t, kit.Focusables(h.u.win.Content()), fyne.Focusable(exit), "the D-pad reaches it")
+
+	h.u.syncingAll = true
+	test.Tap(exit)
+	assert.Contains(t, overlayText(h), "A game is still running or a sync is in progress.", "asks while a sync runs")
+	h.u.nav.Apply(kit.PadBack)
+	assert.Empty(t, h.u.win.Canvas().Overlays().List(), "B keeps Carryover open")
+	h.u.syncingAll = false
+
+	h.u.toggleFullScreen()
+	assert.Nil(t, exitButton(h), "back in a window")
+	t.Setenv("SteamGameId", "123")
+	h.u.refreshSidebar()
+	assert.NotNil(t, exitButton(h), "started by Steam")
 }

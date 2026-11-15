@@ -18,6 +18,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"runtime/debug"
+	"slices"
 	"strings"
 	"sync"
 )
@@ -146,15 +147,19 @@ func rotate(path, oldPath string) {
 	_ = os.Truncate(path, 0)
 }
 
-// Environment describes the platform for the log header: OS, Go version and,
-// on Linux, hints of how the process was started (Steam, Game Mode). It holds
-// no paths or user names.
+// Environment describes the platform for the log header: OS, Go version and
+// hints of how the process was started (Steam, Big Picture, Game Mode). It
+// holds no paths or user names: of Steam's other variables only the names.
 func Environment() string {
 	parts := []string{runtime.GOOS + "/" + runtime.GOARCH, runtime.Version()}
-	for _, k := range []string{"SteamDeck", "SteamGameId", "XDG_CURRENT_DESKTOP", "XDG_SESSION_TYPE"} {
+	shown := []string{"SteamDeck", "SteamGameId", "SteamTenfoot", "SteamClientLaunch", "XDG_CURRENT_DESKTOP", "XDG_SESSION_TYPE"}
+	for _, k := range shown {
 		if v := os.Getenv(k); v != "" {
 			parts = append(parts, k+"="+v)
 		}
+	}
+	if names := steamNames(os.Environ(), shown); len(names) > 0 {
+		parts = append(parts, "steam vars: "+strings.Join(names, " "))
 	}
 	if os.Getenv("GAMESCOPE_WAYLAND_DISPLAY") != "" {
 		parts = append(parts, "gamescope")
@@ -163,6 +168,21 @@ func Environment() string {
 		parts = append(parts, "appimage")
 	}
 	return strings.Join(parts, ", ")
+}
+
+// steamNames lists the names of Steam's variables (SteamAppUser, SteamEnv,
+// ...) other than those shown with their values, sorted; values may hold
+// user names or paths.
+func steamNames(env, shown []string) []string {
+	var out []string
+	for _, kv := range env {
+		name, _, _ := strings.Cut(kv, "=")
+		if strings.HasPrefix(strings.ToLower(name), "steam") && !slices.Contains(shown, name) {
+			out = append(out, name)
+		}
+	}
+	slices.Sort(out)
+	return out
 }
 
 // WriteStartupError appends a startup failure to the log in logsDir, for when

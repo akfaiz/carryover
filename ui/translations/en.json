@@ -502,5 +502,8 @@
   "{{.Game}}: saves could not be uploaded after Steam closed the game: {{.Err}}": "{{.Game}}: saves could not be uploaded after Steam closed the game: {{.Err}}",
   "Select": "Select",
   "Section": "Section",
-  "Scroll": "Scroll"
+  "Scroll": "Scroll",
+  "Full screen": "Full screen",
+  "Press the Steam or Xbox button + X for Steam's keyboard.": "Press the Steam or Xbox button + X for Steam's keyboard.",
+  "Exit": "Exit"
 }

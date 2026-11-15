@@ -20,17 +20,20 @@ controller is connected.
 | Button | Does |
 |---|---|
 | D-pad or left stick | Moves to the button, game or field on screen in that direction |
-| A | Presses it; on a text field, opens Steam's on-screen keyboard |
+| A | Presses it; on a text field, opens Steam's on-screen keyboard (Deck; on Windows press the Steam or Xbox button + X) |
 | B | Closes the open dialog or menu, otherwise goes back a page |
 | LB / RB | Previous / next section (Library, Emulators, Cloud, Trash, Settings), or tab in a dialog |
 | X | Search the library |
 | Y | Sync (the game, or every game on the library) |
 | Right stick | Scrolls |
+| View | Full screen on or off (also F11), remembered for when Steam starts Carryover; not needed in Game Mode |
 
 The library starts on the first game and a game's page on Play. Dialogs start on the answer that changes nothing
 (Cancel, Keep editing), so a stray press is harmless. In the file and folder pickers A opens a folder or picks a
-file, and the D-pad leaves the list at its edge for Open and Cancel. Carryover stops reading the controller while
-another window is in front, such as a game you started from it.
+file, and the D-pad leaves the list at its edge for Open and Cancel. To quit, use **Exit** at the bottom of the
+sidebar (shown in Game Mode, full screen and when Steam started Carryover); it asks first while a game runs or a
+sync is in progress. Carryover stops reading the controller while another window is in front, such as a game you
+started from it.
 
 If Steam's controller layout for Carryover maps the D-pad to arrow keys instead of a gamepad, switch it back to a
 "Gamepad" layout: in Fyne, the toolkit Carryover uses, arrow keys move on only from game tiles and list rows, not
