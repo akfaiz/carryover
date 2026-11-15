@@ -118,11 +118,10 @@ func (u *UI) runWrapper(gameID string, opts core.RunOptions) int {
 
 	page := &sessionPage{u: u, w: u.sess.Wrapper()}
 	u.page = page
-	u.win.SetContent(container.NewStack(page.view(), u.toasts.Layer))
-
 	// The prompts and Cancel work with the controller the shortcut was started
 	// with; while the game runs, the controller is the game's.
 	u.nav = kit.NewNavigator(u.win, kit.NavigatorOptions{DefaultFocus: page.defaultFocus})
+	u.win.SetContent(container.NewStack(page.view(), u.toasts.Layer, u.nav.RingLayer()))
 	u.nav.SetActive(true)
 
 	closer := &wrapperClose{gameID: gameID, quit: u.app.Quit}

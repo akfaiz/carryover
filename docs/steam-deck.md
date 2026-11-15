@@ -15,7 +15,11 @@ Carryover itself can be a non-Steam game too: in Desktop Mode, press **Add Carry
 Steam, restart Steam, then open it from Game Mode and use it with the Deck's controls instead of the touch screen.
 The shortcut gets Carryover's icon and library artwork (cover, wide cover, background and logo); pressing the
 button again updates it, for example after moving the AppImage. A bar at the bottom lists the buttons while a
-controller is connected.
+controller is connected, and a ring marks where you are.
+
+Carryover reads the controller this way when Steam starts it (Game Mode, Big Picture, or its Steam shortcut in
+Desktop Mode). Started by hand on a desktop, it leaves the controller to Steam's Desktop Layout, which already
+works it as a mouse and keyboard; reading it as well would do every press twice.
 
 | Button | Does |
 |---|---|
@@ -28,7 +32,8 @@ controller is connected.
 | Right stick | Scrolls |
 | View | Full screen on or off (also F11), remembered for when Steam starts Carryover; not needed in Game Mode |
 
-The library starts on the first game and a game's page on Play. Dialogs start on the answer that changes nothing
+The library starts on the first game and a game's page on Back, so the A that opened a game can't start it by
+accident; Play is one press down. Dialogs start on the answer that changes nothing
 (Cancel, Keep editing), so a stray press is harmless. In the file and folder pickers A opens a folder or picks a
 file, and the D-pad leaves the list at its edge for Open and Cancel. To quit, use **Exit** at the bottom of the
 sidebar (shown in Game Mode, full screen and when Steam started Carryover); it asks first while a game runs or a

@@ -358,3 +358,46 @@ func TestNavigatorGroup(t *testing.T) {
 	nav.Apply(PadLeft)
 	assert.Contains(t, []fyne.Focusable{top, bottom}, w.Canvas().Focused(), "left comes back")
 }
+
+// With a gamepad, a ring shows the focused control: around a primary button
+// too, whose focused look is the same as its usual one. A dialog has its own.
+func TestFocusRing(t *testing.T) {
+	test.NewApp()
+	play := Primary("Play", nil)
+	edit := widget.NewButton("Edit", nil)
+	tile := NewTappable(widget.NewLabel("Game"), nil)
+	w := test.NewWindow(nil)
+	nav := NewNavigator(w, NavigatorOptions{})
+	w.SetContent(container.NewStack(container.NewVBox(play, edit, tile), nav.RingLayer()))
+	w.Resize(fyne.NewSize(400, 300))
+	ring := nav.mainRing.rect
+
+	nav.Focus(play)
+	assert.False(t, ring.Visible(), "no gamepad: Fyne's own look only")
+
+	nav.present = true
+	nav.Focus(play)
+	require.True(t, ring.Visible())
+	d := fyne.CurrentApp().Driver()
+	at := d.AbsolutePositionForObject(play).Subtract(d.AbsolutePositionForObject(nav.mainRing.layer))
+	assert.Equal(t, at.SubtractXY(ringGap, ringGap), ring.Position())
+	assert.Equal(t, play.Size().AddWidthHeight(2*ringGap, 2*ringGap), ring.Size())
+
+	first := ring.Position()
+	nav.Apply(PadDown)
+	require.Same(t, edit, w.Canvas().Focused())
+	assert.Greater(t, ring.Position().Y, first.Y, "the ring follows the focus")
+	nav.Apply(PadDown)
+	require.Same(t, tile, w.Canvas().Focused())
+	assert.False(t, ring.Visible(), "a Tappable draws its own")
+
+	ok := Primary("OK", nil)
+	ShowCustom(w, "Sure?", HBox(widget.NewButton("Cancel", nil), ok), 300)
+	nav.Focus(edit)
+	assert.False(t, ring.Visible(), "not on the page behind a dialog")
+	inDialog := nav.rings[w.Canvas().Overlays().Top()]
+	require.NotNil(t, inDialog)
+	nav.Focus(ok)
+	assert.True(t, inDialog.rect.Visible())
+	assert.False(t, ring.Visible())
+}
