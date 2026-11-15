@@ -378,11 +378,31 @@ func GridDir(root, userID string) string {
 // any earlier file of the same kind (whatever its extension). It returns the
 // destination path.
 func SetGridArt(root, userID string, appID uint32, kind, imagePath string) (string, error) {
+	dst, err := gridPath(root, userID, appID, kind, filepath.Ext(imagePath))
+	if err != nil {
+		return "", err
+	}
+	return dst, copyFile(imagePath, dst)
+}
+
+// SetGridArtData is SetGridArt for an image held in memory; ext is its file
+// extension (".png").
+func SetGridArtData(root, userID string, appID uint32, kind, ext string, data []byte) (string, error) {
+	dst, err := gridPath(root, userID, appID, kind, ext)
+	if err != nil {
+		return "", err
+	}
+	return dst, os.WriteFile(dst, data, 0o644)
+}
+
+// gridPath returns where the art of a kind goes, after removing the files of
+// that kind with other extensions.
+func gridPath(root, userID string, appID uint32, kind, ext string) (string, error) {
 	suffix, ok := gridSuffix[kind]
 	if !ok {
 		return "", fmt.Errorf("unknown grid art kind %q", kind)
 	}
-	ext := strings.ToLower(filepath.Ext(imagePath))
+	ext = strings.ToLower(ext)
 	if ext == "" {
 		ext = ".png"
 	}
@@ -396,8 +416,7 @@ func SetGridArt(root, userID string, appID uint32, kind, imagePath string) (stri
 			_ = os.Remove(filepath.Join(dir, base+e))
 		}
 	}
-	dst := filepath.Join(dir, base+ext)
-	return dst, copyFile(imagePath, dst)
+	return filepath.Join(dir, base+ext), nil
 }
 
 // SetGridImage copies an image as the portrait capsule art (<appid>p.ext) for a shortcut.

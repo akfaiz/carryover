@@ -15,6 +15,8 @@ All notable changes to Carryover are listed here. The format follows
   the right stick scrolls. Text fields open Steam's on-screen keyboard in Game Mode, the file and folder pickers
   can be used too, and a bar shows the buttons while a controller is connected. Dialogs start on the answer that
   changes nothing.
+- "Add Carryover to Steam" in Settings adds Carryover itself to Steam as a non-Steam game, with its own icon,
+  cover, wide cover, background and logo, so it can be opened from Steam Deck Game Mode.
 
 ## [0.2.1] - 2026-11-15
 

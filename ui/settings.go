@@ -234,6 +234,7 @@ func (p *settingsPage) form(st appdir.Settings) fyne.CanvasObject {
 			kit.Field(lang.L("SteamGridDB API key (optional)"), kit.RowFill(key, keySave, keyTest.Button)),
 			keyTest.Result,
 			kit.Muted(gridKeyHelp()))),
+		narrow(newSelfSteamCard(p.u)),
 		narrow(aboutCard(p.u)),
 	)
 }

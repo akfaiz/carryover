@@ -8,6 +8,8 @@
   "Add from Steam library": "Tambah dari pustaka Steam",
   "Add game": "Tambah game",
   "Add remote": "Tambah remote",
+  "Add Carryover to Steam": "Tambahkan Carryover ke Steam",
+  "Add Carryover to Steam as a non-Steam game to open it from Steam Deck Game Mode and use it with a controller. Its library artwork is set too.": "Tambahkan Carryover ke Steam sebagai game non-Steam agar bisa dibuka dari Game Mode Steam Deck dan dipakai dengan controller. Artwork pustakanya juga dipasang.",
   "Add to Steam": "Tambahkan ke Steam",
   "Add {{.Game}} to Steam as a non-Steam game. Steam launches it through Carryover, so saves sync automatically before and after every session — also in Steam Deck Game Mode.": "Tambahkan {{.Game}} ke Steam sebagai game non-Steam. Steam menjalankannya lewat Carryover, sehingga save disinkronkan otomatis sebelum dan sesudah setiap sesi — termasuk di Game Mode Steam Deck.",
   "Added to Steam": "Ditambahkan ke Steam",
