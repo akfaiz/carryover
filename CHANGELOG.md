@@ -7,6 +7,8 @@ All notable changes to Carryover are listed here. The format follows
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-11-15
+
 ### Added
 
 - A Windows installer (`carryover-<version>-windows-amd64-setup.exe`) next to the portable exe. It installs for the
@@ -216,7 +218,8 @@ First public pre-release.
 - Downloads: a Windows exe, a Linux AppImage with in-place updates through Gear Lever or AppImageUpdate, and a
   Linux tarball with an `install.sh`, plus `SHA256SUMS.txt`.
 
-[Unreleased]: https://github.com/akfaiz/carryover/compare/v0.2.1...HEAD
+[Unreleased]: https://github.com/akfaiz/carryover/compare/v0.3.0...HEAD
+[0.3.0]: https://github.com/akfaiz/carryover/compare/v0.2.1...v0.3.0
 [0.2.1]: https://github.com/akfaiz/carryover/compare/v0.2.0...v0.2.1
 [0.2.0]: https://github.com/akfaiz/carryover/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/akfaiz/carryover/compare/v0.1.0-rc1...v0.1.0
