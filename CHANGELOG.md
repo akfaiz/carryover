@@ -7,6 +7,15 @@ All notable changes to Carryover are listed here. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- The whole app works with a gamepad, for Carryover added to Steam as a non-Steam game and used in Steam Deck Game
+  Mode. The D-pad or left stick moves to the control on screen in that direction (scrolling it into view), A
+  presses it, B closes the dialog or goes back, LB/RB switch sections (or a dialog's tabs), X searches, Y syncs and
+  the right stick scrolls. Text fields open Steam's on-screen keyboard in Game Mode, the file and folder pickers
+  can be used too, and a bar shows the buttons while a controller is connected. Dialogs start on the answer that
+  changes nothing.
+
 ## [0.2.1] - 2026-11-15
 
 ### Fixed
