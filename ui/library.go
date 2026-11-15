@@ -111,6 +111,16 @@ func (p *libraryPage) relayout() {
 
 func (p *libraryPage) focusSearch() { p.u.win.Canvas().Focus(p.search) }
 
+// defaultFocus starts a gamepad on the first game.
+func (p *libraryPage) defaultFocus() fyne.Focusable {
+	if games := p.visible(); len(games) > 0 {
+		if t := p.tiles[games[0].ID]; t != nil {
+			return t.open
+		}
+	}
+	return nil
+}
+
 func (p *libraryPage) syncNow() {
 	if !p.u.syncingAll && p.u.settings.Remote != "" {
 		p.u.syncAll()

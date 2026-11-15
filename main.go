@@ -18,6 +18,7 @@ import (
 	"github.com/akfaiz/carryover/internal/app/appdir"
 	"github.com/akfaiz/carryover/internal/app/applog"
 	"github.com/akfaiz/carryover/internal/app/detach"
+	"github.com/akfaiz/carryover/internal/app/gamemode"
 	"github.com/akfaiz/carryover/internal/app/notify"
 	"github.com/akfaiz/carryover/internal/app/version"
 	"github.com/akfaiz/carryover/internal/cloudsync/syncer"
@@ -589,7 +590,7 @@ func tellUser(c *core.Core, n core.Notice) {
 	if err != nil {
 		log.Printf("notification: %v", err)
 	}
-	if err != nil || os.Getenv("XDG_CURRENT_DESKTOP") == "gamescope" {
+	if err != nil || gamemode.Active() {
 		if err := c.SaveNotice(n); err != nil {
 			log.Printf("save notice: %v", err)
 		}

@@ -104,6 +104,10 @@ type UI struct {
 	activity *fyne.Container
 	toasts   *kit.Toaster
 	prompts  *promptQueue
+	// nav drives the window with a gamepad; padHints says how, while one is
+	// connected.
+	nav      *kit.Navigator
+	padHints *fyne.Container
 
 	lastLocalCheck time.Time // last checkLocalChanges run
 	// refreshSeq numbers the refreshes: only the newest one's result is shown, so
@@ -200,8 +204,12 @@ func Run(c *core.Core, wrapGameID string, opts core.RunOptions) int {
 		// for saves that changed since their last sync.
 		u.app.Lifecycle().SetOnEnteredForeground(func() {
 			kit.OnUI(u.checkLocalChanges)
+			kit.OnUI(func() { u.nav.SetActive(true) })
 			u.showNotices()
 		})
+		// A game started from here is played with the same controller: leave it
+		// alone while another window is in front.
+		u.app.Lifecycle().SetOnExitedForeground(func() { kit.OnUI(func() { u.nav.SetActive(false) }) })
 		// Pick up games other devices added while this one was closed.
 		u.app.Lifecycle().SetOnStarted(func() {
 			kit.OnUI(u.checkLocalChanges)
@@ -248,6 +256,7 @@ func (u *UI) buildMain() {
 	u.win.Resize(fyne.NewSize(1180, 760))
 	u.win.SetMaster()
 	u.win.SetCloseIntercept(u.confirmClose)
+	u.newNavigator()
 	u.buildLayout()
 	u.addShortcuts()
 	u.show("/")
@@ -291,7 +300,8 @@ func (u *UI) buildLayout() {
 	sep := canvas.NewRectangle(kit.ColLine)
 	sep.SetMinSize(fyne.NewSize(1, 0))
 	side := container.NewStack(bg, container.NewPadded(u.sidebar))
-	main := container.NewBorder(nil, nil, container.NewHBox(kit.FixedWidth(200, side), sep), nil, u.content)
+	u.padHints = u.padHintBar()
+	main := container.NewBorder(nil, u.padHints, container.NewHBox(kit.FixedWidth(200, side), sep), nil, u.content)
 	u.win.SetContent(container.NewStack(main, u.toasts.Layer))
 	u.renderSidebar()
 }
@@ -353,16 +363,9 @@ func (u *UI) renderSidebar() {
 }
 
 func (u *UI) highlightNav() {
-	section, _, _ := strings.Cut(strings.TrimPrefix(u.route, "/"), "/")
+	section := sectionOf(u.route)
 	for p, b := range u.navBtns {
-		active := false
-		switch p {
-		case "/":
-			active = section == "" || section == "game" || section == "edit" || section == "new"
-		default:
-			active = "/"+section == p
-		}
-		if active {
+		if p == section {
 			b.Importance = widget.MediumImportance
 		} else {
 			b.Importance = widget.LowImportance
@@ -454,6 +457,7 @@ func (u *UI) show(path string) {
 	u.content.Refresh()
 	u.highlightNav()
 	u.renderActivity() // what it shows depends on the page
+	u.focusForPad()
 }
 
 // refresh reloads games and settings.

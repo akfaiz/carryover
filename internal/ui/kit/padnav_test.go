@@ -33,20 +33,25 @@ func TestPadTracker(t *testing.T) {
 	at := now.Add
 
 	assert.Empty(t, tr.update(PadState{}, at(0)))
-	assert.Equal(t, []PadAction{PadNext}, tr.update(PadState{Down: true}, at(0)), "the press")
+	assert.Equal(t, []PadAction{PadDown}, tr.update(PadState{Down: true}, at(0)), "the press")
 	assert.Empty(t, tr.update(PadState{Down: true}, at(100*time.Millisecond)), "held, before the repeat delay")
-	assert.Equal(t, []PadAction{PadNext}, tr.update(PadState{Down: true}, at(500*time.Millisecond)), "repeat")
+	assert.Equal(t, []PadAction{PadDown}, tr.update(PadState{Down: true}, at(500*time.Millisecond)), "repeat")
 	assert.Empty(t, tr.update(PadState{Down: true}, at(550*time.Millisecond)), "repeats are spaced")
-	assert.Equal(t, []PadAction{PadNext}, tr.update(PadState{Down: true}, at(650*time.Millisecond)))
+	assert.Equal(t, []PadAction{PadDown}, tr.update(PadState{Down: true}, at(650*time.Millisecond)))
 	assert.Empty(t, tr.update(PadState{}, at(700*time.Millisecond)), "released")
-	assert.Equal(t, []PadAction{PadPrev}, tr.update(PadState{Left: true}, at(710*time.Millisecond)), "left is previous")
+	assert.Equal(t, []PadAction{PadLeft}, tr.update(PadState{Left: true}, at(710*time.Millisecond)), "left")
+	assert.Equal(t, PadPrev, PadLeft.linear(), "left is the previous button in a Nav")
 	tr.update(PadState{}, at(720*time.Millisecond))
 
 	assert.Equal(t, []PadAction{PadAccept}, tr.update(PadState{Accept: true}, at(800*time.Millisecond)))
 	assert.Empty(t, tr.update(PadState{Accept: true}, at(5*time.Second)), "A doesn't repeat")
 	tr.update(PadState{}, at(6*time.Second))
 	assert.Equal(t, []PadAction{PadBack}, tr.update(PadState{Back: true}, at(7*time.Second)))
-	assert.Equal(t, []PadAction{PadPrev, PadAccept}, tr.update(PadState{Up: true, Accept: true}, at(8*time.Second)), "several at once")
+	assert.Equal(t, []PadAction{PadUp, PadAccept}, tr.update(PadState{Up: true, Accept: true}, at(8*time.Second)), "several at once")
+	tr.update(PadState{}, at(9*time.Second))
+	assert.Equal(t, []PadAction{PadTabPrev, PadTabNext, PadSearch, PadSync},
+		tr.update(PadState{LB: true, RB: true, X: true, Y: true}, at(10*time.Second)), "shoulders, X and Y")
+	assert.Empty(t, tr.update(PadState{LB: true, RB: true, X: true, Y: true}, at(15*time.Second)), "they don't repeat")
 }
 
 // A button still held from the press that opened the dialog (A starts the
