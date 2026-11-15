@@ -18,11 +18,11 @@ type remoteRow struct{ kit.Composite }
 func newRemoteRow(r cloud.Remote, active bool, onDelete func()) *remoteRow {
 	name := kit.HBox(widget.NewLabelWithStyle(r.Name, fyne.TextAlignLeading, fyne.TextStyle{Bold: true}))
 	if active {
-		name.Add(container.NewCenter(kit.Badge(lang.L("active"), kit.BadgeOK)))
+		name.Add(container.NewCenter(kit.Badge(lang.L("Active"), kit.BadgeOK)))
 	}
 	typ := kit.HBox(kit.Small(r.Type))
 	if !r.Supported {
-		typ.Add(container.NewCenter(kit.Badge(lang.L("unsupported"), kit.BadgeWarn)))
+		typ.Add(container.NewCenter(kit.Badge(lang.L("Unsupported"), kit.BadgeWarn)))
 	}
 	del := widget.NewButtonWithIcon(lang.L("Delete"), theme.DeleteIcon(), onDelete)
 	row := &remoteRow{}

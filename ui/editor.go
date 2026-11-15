@@ -559,7 +559,7 @@ func (e *editor) launchCard() fyne.CanvasObject {
 		launchTitle = lang.L("Launch without an emulator")
 	}
 	return kit.Card("", kit.CardHead(launchTitle, kit.Badge(e.u.settings.DeviceName, kit.BadgeNone)),
-		kit.Field(lang.L("Launch with"), kit.VBox(mode, hint)),
+		kit.Field(lang.L("Launch with"), kit.VBox(kit.Outlined(mode), hint)),
 		kit.Field(lang.L("Executable"), kit.RowFill(e.exeEntry, browse)),
 		argsField,
 		e.advItem)

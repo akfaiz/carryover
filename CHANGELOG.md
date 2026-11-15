@@ -20,6 +20,19 @@ All notable changes to Carryover are listed here. The format follows
 - "Add Carryover to Steam" in Settings adds Carryover itself to Steam as a non-Steam game, with its own icon,
   cover, wide cover, background and logo, so it can be opened from Steam Deck Game Mode.
 
+### Changed
+
+- A tidier library: the sort menu sits next to the search field, the games are spaced further apart, and long
+  names get a second line instead of being cut off. Play on each game is tinted rather than solid blue, so a
+  full library is no longer a wall of blue buttons.
+- A game's page fits more on screen: a smaller cover, Back on its own row, and the emulator switch above both
+  columns, so they start level. Save folders show on one line, shortened in the middle when they don't fit, in
+  plain text instead of three blue lines. The sync state of the chosen emulator is only repeated when it differs
+  from the game's, and other devices without save folders to list are named in one line instead of a card.
+- Every drop-down menu has a border like the text fields; badges start with a capital letter ("Synced"); times
+  read "5m ago" and "5h ago"; Remove in the Steam card is tinted red; "More" under an explanation sits below the
+  text; and page titles line up with the content under them.
+
 ## [0.2.1] - 2026-11-15
 
 ### Fixed

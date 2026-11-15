@@ -3,6 +3,7 @@ package kit
 import (
 	"image/color"
 	"net/url"
+	"strings"
 
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/canvas"
@@ -287,6 +288,158 @@ func SelectOf(c *Choice, v string, onChange func(string)) *widget.Select {
 		}
 	}
 	return s
+}
+
+// Outlined draws an input's border over o. A Select is filled with the input
+// background, which the theme makes the page colour, so without it a Select
+// is bare text next to a bordered Entry.
+func Outlined(o fyne.CanvasObject) fyne.CanvasObject {
+	border := canvas.NewRectangle(color.Transparent)
+	border.StrokeColor = ColLine
+	border.StrokeWidth = theme.Size(theme.SizeNameInputBorder)
+	border.CornerRadius = theme.Size(theme.SizeNameInputRadius)
+	return container.NewStack(o, border)
+}
+
+// Tonal draws the HighImportance (and DangerImportance) buttons in o tinted
+// with the accent (error) colour instead of filled with it: still clearly the
+// action, but quieter where many sit side by side (one per game) or next to
+// ordinary buttons.
+func Tonal(o fyne.CanvasObject) fyne.CanvasObject {
+	return container.NewThemeOverride(o, tonalTheme{})
+}
+
+type tonalTheme struct{ AppTheme }
+
+func (t tonalTheme) Color(n fyne.ThemeColorName, v fyne.ThemeVariant) color.Color {
+	tint := func(c color.NRGBA, a uint8) color.Color { return color.NRGBA{c.R, c.G, c.B, a} }
+	switch n {
+	case theme.ColorNamePrimary:
+		return tint(ColAccent, 0x30)
+	case theme.ColorNameError:
+		return tint(ColErr, 0x26)
+	case theme.ColorNameFocus:
+		// Blended over the tint: a stronger tint, not the solid accent, which
+		// would hide the accent-coloured label.
+		return tint(ColAccent, 0x40)
+	case theme.ColorNameForegroundOnPrimary:
+		return ColAccent
+	case theme.ColorNameForegroundOnError:
+		return ColErr
+	}
+	return t.AppTheme.Color(n, v)
+}
+
+// PathLabel shows a file path on one line in the monospace font. When it
+// doesn't fit, folders are left out of its middle
+// ("C:\Users\…\save\0100152000022000"), keeping the start and as much of the
+// end as fits: that is where paths differ.
+type PathLabel struct {
+	widget.BaseWidget
+	path  string
+	label *widget.Label
+}
+
+func NewPathLabel(path string) *PathLabel {
+	p := &PathLabel{path: path, label: widget.NewLabelWithStyle(path, fyne.TextAlignLeading, fyne.TextStyle{Monospace: true})}
+	p.label.Truncation = fyne.TextTruncateEllipsis // when not even the last folder fits
+	p.ExtendBaseWidget(p)
+	return p
+}
+
+// CreateRenderer implements fyne.Widget.
+func (p *PathLabel) CreateRenderer() fyne.WidgetRenderer { return &pathRenderer{p} }
+
+type pathRenderer struct{ p *PathLabel }
+
+func (r *pathRenderer) Layout(size fyne.Size) {
+	l := r.p.label
+	room := size.Width - 2*theme.InnerPadding()
+	text := ShortenPath(r.p.path, func(s string) bool {
+		return fyne.MeasureText(s, theme.TextSize(), l.TextStyle).Width <= room
+	})
+	if text != l.Text {
+		l.SetText(text)
+	}
+	l.Resize(size)
+}
+
+func (r *pathRenderer) MinSize() fyne.Size {
+	return fyne.NewSize(0, r.p.label.MinSize().Height) // shortens to any width
+}
+
+func (r *pathRenderer) Refresh()                     { r.p.label.Refresh() }
+func (r *pathRenderer) Objects() []fyne.CanvasObject { return []fyne.CanvasObject{r.p.label} }
+func (r *pathRenderer) Destroy()                     {}
+
+// ShortenPath returns path, or path with folders after its first part
+// replaced by "…", as few as needed for fits to accept it; the shortest form
+// ("C:\…\last") when nothing fits.
+func ShortenPath(path string, fits func(string) bool) string {
+	if fits(path) {
+		return path
+	}
+	sep := "/"
+	if strings.Count(path, `\`) > strings.Count(path, "/") {
+		sep = `\`
+	}
+	parts := strings.Split(path, sep)
+	if len(parts) < 3 {
+		return path
+	}
+	short := ""
+	for i := 2; i < len(parts); i++ {
+		short = parts[0] + sep + "…" + sep + strings.Join(parts[i:], sep)
+		if fits(short) {
+			break
+		}
+	}
+	return short
+}
+
+// TwoLines lets l wrap onto a second line, ending in "…" past that, and
+// always takes the height of two lines so whatever follows lines up.
+func TwoLines(l *widget.Label) fyne.CanvasObject {
+	probe := widget.NewLabelWithStyle("A\nA", l.Alignment, l.TextStyle)
+	probe.SizeName = l.SizeName
+	l.Wrapping = fyne.TextWrapWord
+	l.Truncation = fyne.TextTruncateEllipsis
+	return container.New(&minSizeLayout{size: fyne.NewSize(0, probe.MinSize().Height)}, l)
+}
+
+// GridWrap lays out cells of size in rows that wrap, gap apart. Fyne's own
+// GridWrap leaves only theme.Padding() (4px), too tight for cover art.
+func GridWrap(size fyne.Size, gap float32, objs ...fyne.CanvasObject) *fyne.Container {
+	return container.New(&gridWrapGap{cell: size, gap: gap, rows: 1}, objs...)
+}
+
+type gridWrapGap struct {
+	cell fyne.Size
+	gap  float32
+	rows int // from the last layout, for MinSize
+}
+
+func (g *gridWrapGap) Layout(objs []fyne.CanvasObject, size fyne.Size) {
+	cols := max(1, int((size.Width+g.gap)/(g.cell.Width+g.gap)))
+	g.rows = 0
+	i := 0
+	for _, o := range objs {
+		if !o.Visible() {
+			continue
+		}
+		col, row := i%cols, i/cols
+		if col == 0 {
+			g.rows++
+		}
+		o.Move(fyne.NewPos(float32(col)*(g.cell.Width+g.gap), float32(row)*(g.cell.Height+g.gap)))
+		o.Resize(g.cell)
+		i++
+	}
+}
+
+func (g *gridWrapGap) MinSize([]fyne.CanvasObject) fyne.Size {
+	rows := float32(max(g.rows, 1))
+	return fyne.NewSize(g.cell.Width, rows*g.cell.Height+(rows-1)*g.gap)
 }
 
 // FixedWidth constrains an object's minimum width.
@@ -587,7 +740,10 @@ func Chips(options []ChipOption, selected string, onSelect func(string)) *fyne.C
 		b := widget.NewButtonWithIcon(o.Label, o.Icon, func() { onSelect(o.Value) })
 		b.Importance = widget.LowImportance
 		if o.Value == selected {
+			// Tinted, not filled: the page's main action keeps the solid colour.
 			b.Importance = widget.HighImportance
+			row.Add(Tonal(b))
+			continue
 		}
 		row.Add(b)
 	}

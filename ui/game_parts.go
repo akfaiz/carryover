@@ -1,6 +1,9 @@
 package ui
 
 import (
+	"slices"
+	"strings"
+
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/container"
 	"fyne.io/fyne/v2/lang"
@@ -8,6 +11,7 @@ import (
 	"fyne.io/fyne/v2/widget"
 
 	"github.com/akfaiz/carryover/internal/cloudsync/syncer"
+	"github.com/akfaiz/carryover/internal/library"
 	"github.com/akfaiz/carryover/internal/ui/kit"
 	"github.com/akfaiz/carryover/services"
 )
@@ -21,9 +25,9 @@ func saveLocationRow(u *UI, label, resolved, pathErr string) fyne.CanvasObject {
 	case pathErr != "":
 		val = kit.Colored(pathErr, widget.DangerImportance)
 	case resolved != "":
-		l := kit.Mono(resolved)
-		l.Importance = widget.HighImportance
-		val = kit.NewTappable(container.NewBorder(nil, nil, widget.NewIcon(theme.FolderOpenIcon()), nil, l), func() { u.openFolder(resolved) })
+		// One line, shortened in the middle: the full path in the accent
+		// colour wrapped over three lines and outshouted the page.
+		val = kit.NewTappable(container.NewBorder(nil, nil, widget.NewIcon(theme.FolderOpenIcon()), nil, kit.NewPathLabel(resolved)), func() { u.openFolder(resolved) })
 	default:
 		val = kit.Colored(lang.L("not set on this device"), widget.WarningImportance)
 	}
@@ -65,8 +69,14 @@ func backupRow(b syncer.Backup, restoring, canRestore, canPin bool, onRestore, o
 	return kit.LabeledRow(140, widget.NewLabel(fmtDate(b.Time)), kit.Muted(desc), pin, del, restore)
 }
 
-// otherDevicesCard lists the save paths other devices use for the game.
+// otherDevicesCard lists the save paths other devices use for the game; nil
+// when they have none to show (see otherDevicesLine).
 func otherDevicesCard(g services.GameView) fyne.CanvasObject {
+	if !slices.ContainsFunc(g.OtherDevices, func(d services.DevicePaths) bool {
+		return slices.ContainsFunc(g.Slots, func(s library.SaveSlot) bool { return d.Paths[s.Key] != "" })
+	}) {
+		return nil
+	}
 	devs := kit.VBox()
 	for _, d := range g.OtherDevices {
 		devs.Add(widget.NewLabelWithStyle(d.DeviceName, fyne.TextAlignLeading, fyne.TextStyle{Bold: true}))
@@ -80,6 +90,17 @@ func otherDevicesCard(g services.GameView) fyne.CanvasObject {
 		}
 	}
 	return kit.Card(lang.L("Other devices"), devs)
+}
+
+// otherDevicesLine names the other devices that have the game, for the page
+// header when otherDevicesCard has no paths to list: a card holding only
+// names was mostly empty.
+func otherDevicesLine(g services.GameView) fyne.CanvasObject {
+	names := make([]string, 0, len(g.OtherDevices))
+	for _, d := range g.OtherDevices {
+		names = append(names, d.DeviceName)
+	}
+	return kit.Small(lang.L("Also on {{.Devices}}", map[string]any{"Devices": strings.Join(names, ", ")}))
 }
 
 // planText describes a sync plan action in words.
@@ -138,7 +159,7 @@ func saveSidesNav(nav *kit.Nav, local, remote syncer.Summary, hasRemote bool, on
 	side := func(key, label, keepLabel string, s syncer.Summary, has bool) fyne.CanvasObject {
 		head := kit.HBox(widget.NewLabelWithStyle(label, fyne.TextAlignLeading, fyne.TextStyle{Bold: true}))
 		if newer == key {
-			head.Add(container.NewCenter(kit.Badge(lang.L("newer"), kit.BadgeOK)))
+			head.Add(container.NewCenter(kit.Badge(lang.L("Newer"), kit.BadgeOK)))
 		}
 		objs := []fyne.CanvasObject{head}
 		if s.DeviceName != "" && key == "cloud" {

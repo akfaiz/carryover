@@ -102,10 +102,10 @@ func showSyncProblems(u *UI, total int, problems []services.SyncResult) {
 	var d dialogHider
 	rows := kit.VBox()
 	for _, r := range problems {
-		state := kit.Badge(lang.L("sync error"), kit.BadgeErr)
+		state := kit.Badge(lang.L("Sync error"), kit.BadgeErr)
 		detail := r.Error
 		if r.Action == "conflict" {
-			state = kit.Badge(lang.L("conflict"), kit.BadgeErr)
+			state = kit.Badge(lang.L("Conflict"), kit.BadgeErr)
 			detail = lang.L("Changed on this device and in the cloud. Open the game to choose which saves to keep.")
 		}
 		id := r.GameID

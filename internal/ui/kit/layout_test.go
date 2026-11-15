@@ -32,6 +32,30 @@ func TestStackSpacesObjectsByThePageGap(t *testing.T) {
 	assert.Equal(t, fyne.NewSize(0, 0), Stack().MinSize())
 }
 
+func TestGridWrapWrapsCellsGapApart(t *testing.T) {
+	test.NewApp()
+	a, b, hidden, c := box(1, 1), box(1, 1), box(1, 1), box(1, 1)
+	hidden.Hide()
+	g := GridWrap(fyne.NewSize(100, 50), 10, a, b, hidden, c)
+	assert.Equal(t, fyne.NewSize(100, 50), g.MinSize(), "one row before the first layout")
+	g.Resize(fyne.NewSize(230, 0)) // room for two columns: 100+10+100
+	assert.Equal(t, fyne.NewPos(0, 0), a.Position())
+	assert.Equal(t, fyne.NewPos(110, 0), b.Position())
+	assert.Equal(t, fyne.NewPos(0, 60), c.Position(), "hidden cells take no place")
+	assert.Equal(t, fyne.NewSize(100, 50), c.Size())
+	assert.Equal(t, fyne.NewSize(100, 110), g.MinSize(), "two rows, one gap")
+}
+
+func TestShortenPathDropsFoldersFromTheMiddle(t *testing.T) {
+	upTo := func(n int) func(string) bool { return func(s string) bool { return len([]rune(s)) <= n } }
+	p := `C:\Users\me\AppData\eden\save\0100152000022000`
+	assert.Equal(t, p, ShortenPath(p, upTo(100)), "fits as it is")
+	assert.Equal(t, `C:\…\eden\save\0100152000022000`, ShortenPath(p, upTo(31)), "keeps as much of the end as fits")
+	assert.Equal(t, `C:\…\0100152000022000`, ShortenPath(p, upTo(5)), "the shortest form when nothing fits")
+	assert.Equal(t, "/…/game/saves/slot1", ShortenPath("/home/deck/.local/share/game/saves/slot1", upTo(20)), "slashes too")
+	assert.Equal(t, "short", ShortenPath("short", upTo(1)), "nothing to drop")
+}
+
 func TestFixedWidthAndSizeAndMaxWidth(t *testing.T) {
 	test.NewApp()
 	assert.Equal(t, float32(300), FixedWidth(300, box(10, 10)).MinSize().Width)

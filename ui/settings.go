@@ -215,7 +215,7 @@ func (p *settingsPage) form(st appdir.Settings) fyne.CanvasObject {
 		kit.PageHead(nil, lang.L("Settings"), container.NewCenter(savedNote)),
 		narrow(kit.Card(lang.L("Appearance"),
 			kit.Field(lang.L("Theme"), themeSel),
-			kit.Field(lang.L("Language"), langSel),
+			kit.Field(lang.L("Language"), kit.Outlined(langSel)),
 			langNote)),
 		narrow(kit.Card(lang.L("This device"),
 			kit.Field(lang.L("Device name (shown on other devices and in backups)"), name),

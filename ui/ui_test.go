@@ -166,7 +166,7 @@ func TestCloudActiveBadgeFollowsSavedRemote(t *testing.T) {
 						name = l.Text
 					}
 				}
-				if name != "" && hasText(x, "active") {
+				if name != "" && hasText(x, "Active") {
 					found = name
 				}
 				for _, c := range x.Objects {

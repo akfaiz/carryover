@@ -94,7 +94,7 @@ func (p *cloudPage) render() {
 
 	location := kit.Card(lang.L("Sync location"),
 		kit.Muted(lang.L("All devices must use the same remote storage and folder. Saves go to <folder>/games/<game>/.")),
-		container.NewGridWithColumns(2, kit.Field(lang.L("Remote"), sel), kit.Field(lang.L("Folder"), root)),
+		container.NewGridWithColumns(2, kit.Field(lang.L("Remote"), kit.Outlined(sel)), kit.Field(lang.L("Folder"), root)),
 		kit.HBox(kit.Primary(lang.L("Use this location"), p.saveTarget), p.test.Button),
 		p.test.Result,
 	)
@@ -332,7 +332,7 @@ func (w *remoteWizard) optionInput(o cloud.ProviderOption) fyne.CanvasObject {
 		for _, ex := range o.Examples {
 			c.Add(ex.Value, ex.Value+" — "+ex.Help)
 		}
-		return kit.SelectOf(c, w.params[o.Name], set)
+		return kit.Outlined(kit.SelectOf(c, w.params[o.Name], set))
 	}
 	if o.IsPassword {
 		e := widget.NewPasswordEntry()
@@ -427,7 +427,7 @@ func (w *remoteWizard) renderQuestion(errText string) {
 		for _, ex := range q.Examples {
 			c.Add(ex.Value, ex.Value+" — "+ex.Help)
 		}
-		input = kit.SelectOf(c, answer, func(v string) { answer = v })
+		input = kit.Outlined(kit.SelectOf(c, answer, func(v string) { answer = v }))
 	case q.IsPassword:
 		e := widget.NewPasswordEntry()
 		e.SetText(answer)

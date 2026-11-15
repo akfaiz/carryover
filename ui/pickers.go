@@ -265,7 +265,7 @@ func showSteamImport(u *UI) {
 			}
 			var right fyne.CanvasObject
 			if g.GameID != "" {
-				right = container.NewCenter(kit.Badge(lang.L("in library"), kit.BadgeOK))
+				right = container.NewCenter(kit.Badge(lang.L("In library"), kit.BadgeOK))
 			}
 			lead := kit.CoverView(kit.CoverSource{Name: g.Name}, fyne.NewSize(36, 54))
 			list.Add(kit.MediaRow(lead, g.Name, right, func() {

@@ -60,12 +60,18 @@ func Debounce(d time.Duration, f func()) func() {
 // PageHead is a page title with an optional back button and actions.
 func PageHead(back func(), text string, actions ...fyne.CanvasObject) fyne.CanvasObject {
 	var objs []fyne.CanvasObject
+	var title fyne.CanvasObject = Title(text)
 	if back != nil {
 		b := widget.NewButtonWithIcon("", theme.NavigateBackIcon(), back)
 		b.Importance = widget.LowImportance
 		objs = append(objs, b)
+	} else {
+		// Pull the title's text out to the page margin, in line with the
+		// cards and fields below it, instead of a label's inner padding in.
+		in := -theme.InnerPadding()
+		title = container.New(layout.NewCustomPaddedLayout(0, 0, in, 0), title)
 	}
-	objs = append(objs, Title(text), layout.NewSpacer())
+	objs = append(objs, title, layout.NewSpacer())
 	objs = append(objs, actions...)
 	return container.NewHBox(objs...)
 }

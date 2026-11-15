@@ -81,7 +81,7 @@ func (s *selfSteamCard) content() fyne.CanvasObject {
 		for _, us := range s.info.Users {
 			users.Add(us.ID, us.Name)
 		}
-		c.Add(kit.Field(lang.L("Steam account"), kit.SelectOf(users, s.user, s.selectUser)))
+		c.Add(kit.Field(lang.L("Steam account"), kit.Outlined(kit.SelectOf(users, s.user, s.selectUser))))
 	}
 	if s.appID != "" {
 		c.Add(kit.HBox(widget.NewIcon(theme.NewSuccessThemedResource(theme.ConfirmIcon())),
