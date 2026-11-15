@@ -19,7 +19,7 @@ type artSpec struct {
 	label   string
 	hint    string
 	empty   string // shown when SteamGridDB has none
-	preview fyne.Size
+	preview fyne.Size // shown at this size, which keeps the kind's proportions
 	pick    fyne.Size // thumbnail size in the picker
 	contain bool      // show the whole image (logos and icons), not a cropped fill
 }
@@ -29,13 +29,13 @@ type artSpec struct {
 func artSpecs() []artSpec {
 	return []artSpec{
 		{steamgrid.KindWide, lang.L("Wide cover"), lang.L("Wide capsule, 460×215. Shown in Steam's recent games and some lists."),
-			lang.L("No wide covers for this game yet."), fyne.NewSize(184, 86), fyne.NewSize(184, 86), false},
+			lang.L("No wide covers for this game yet."), fyne.NewSize(230, 107), fyne.NewSize(184, 86), false},
 		{steamgrid.KindHero, lang.L("Background"), lang.L("Library background (hero), 1920×620. Shown at the top of the game's page in Steam."),
-			lang.L("No backgrounds for this game yet."), fyne.NewSize(248, 80), fyne.NewSize(248, 80), false},
+			lang.L("No backgrounds for this game yet."), fyne.NewSize(310, 100), fyne.NewSize(248, 80), false},
 		{steamgrid.KindLogo, lang.L("Logo"), lang.L("Transparent title logo drawn over the background."),
-			lang.L("No logos for this game yet."), fyne.NewSize(160, 80), fyne.NewSize(160, 90), true},
+			lang.L("No logos for this game yet."), fyne.NewSize(240, 90), fyne.NewSize(160, 90), true},
 		{steamgrid.KindIcon, lang.L("Icon"), lang.L("Small square icon for the game in Steam's library list."),
-			lang.L("No icons for this game yet."), fyne.NewSize(64, 64), fyne.NewSize(80, 80), true},
+			lang.L("No icons for this game yet."), fyne.NewSize(80, 80), fyne.NewSize(80, 80), true},
 	}
 }
 
@@ -120,7 +120,9 @@ func (e *editor) artworkCard() fyne.CanvasObject {
 		case a.path != "":
 			src.Path, src.Version = a.path, a.version
 		}
-		preview = kit.CoverView(src, spec.preview)
+		// At its own proportions, not stretched across the column: a 460×215
+		// cover shown 1100 px wide and 86 px high was a cropped strip.
+		preview = container.NewHBox(kit.FixedSize(spec.preview, kit.CoverView(src, spec.preview)))
 
 		btns := kit.HBox(widget.NewButton(lang.L("Choose file…"), func() {
 			e.pickFile(lang.L("Choose image"), []string{".png", ".jpg", ".jpeg", ".webp"}, func(p string) {

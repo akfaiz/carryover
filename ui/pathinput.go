@@ -19,20 +19,22 @@ import (
 // live preview of the expanded path.
 type pathInput struct {
 	kit.Composite
-	u       *UI
-	entry   *widget.Entry
-	preview *widget.Label
-	gameID  string
-	gen     int
+	u        *UI
+	entry    *widget.Entry
+	preview  *kit.PathLabel // the expanded path, on one line
+	previewE *widget.Label  // or why it can't be expanded
+	gameID   string
+	gen      int
 }
 
 func newPathInput(u *UI, gameID string, tokens []pathvar.Token, value, placeholder string, onChange func(string)) *pathInput {
-	p := &pathInput{u: u, gameID: gameID, entry: widget.NewEntry(), preview: kit.Mono("")}
+	p := &pathInput{u: u, gameID: gameID, entry: widget.NewEntry(), preview: kit.NewPathLabel("").Caption("→ "),
+		previewE: kit.Colored("", widget.DangerImportance)}
 	p.entry.TextStyle.Monospace = true
 	p.entry.SetPlaceHolder(placeholder)
 	p.entry.SetText(value)
-	p.preview.SizeName = theme.SizeNameCaptionText
 	p.preview.Hide()
+	p.previewE.Hide()
 	schedule := kit.Debounce(250*time.Millisecond, p.updatePreview)
 	p.entry.OnChanged = func(s string) {
 		if onChange != nil {
@@ -43,7 +45,9 @@ func newPathInput(u *UI, gameID string, tokens []pathvar.Token, value, placehold
 	var right []fyne.CanvasObject
 	if len(tokens) > 0 {
 		var tokBtn *widget.Button
-		tokBtn = widget.NewButton("{ }", func() {
+		// Named, not "{ }": the tokens are what it inserts, which the
+		// symbol alone didn't say.
+		tokBtn = widget.NewButtonWithIcon(lang.L("Tokens"), theme.MenuDropDownIcon(), func() {
 			items := make([]*fyne.MenuItem, 0, len(tokens))
 			for _, t := range tokens {
 				desc := t.Value
@@ -59,7 +63,7 @@ func newPathInput(u *UI, gameID string, tokens []pathvar.Token, value, placehold
 		right = append(right, tokBtn)
 	}
 	right = append(right, widget.NewButton(lang.L("Browse…"), p.browse))
-	p.Init(p, kit.VBox(kit.RowFill(p.entry, right...), p.preview))
+	p.Init(p, kit.VBox(kit.RowFill(p.entry, right...), p.preview, p.previewE))
 	p.updatePreview()
 	return p
 }
@@ -97,23 +101,22 @@ func (p *pathInput) updatePreview() {
 	gen := p.gen
 	if v == "" {
 		p.preview.Hide()
+		p.previewE.Hide()
 		return
 	}
 	kit.Async(func() (string, error) { return p.u.lib.PreviewPath(p.gameID, v) }, func(out string, err error) {
 		if gen != p.gen {
 			return
 		}
+		p.preview.Hide()
+		p.previewE.Hide()
 		switch {
 		case err != nil:
-			p.preview.Importance = widget.DangerImportance
-			p.preview.SetText(err.Error())
-			p.preview.Show()
+			p.previewE.SetText(err.Error())
+			p.previewE.Show()
 		case out != "" && out != v:
-			p.preview.Importance = widget.LowImportance
-			p.preview.SetText("→ " + out)
+			p.preview.SetPath(out)
 			p.preview.Show()
-		default:
-			p.preview.Hide()
 		}
 	})
 }

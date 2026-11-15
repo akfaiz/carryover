@@ -201,17 +201,17 @@ func (m *emuForm) useSuggestion(sg services.EmuSuggestion) bool {
 	return true
 }
 
-// emuSuggestUI is the "Suggest save locations" button of an emulator entry and
-// the suggestions it found.
-func (e *editor) emuSuggestUI(m *emuForm) fyne.CanvasObject {
+// emuSuggestUI is the "Suggest" button of an emulator's save locations and,
+// for under it, the suggestions it found (and why there are none).
+func (e *editor) emuSuggestUI(m *emuForm) (*widget.Button, fyne.CanvasObject) {
 	ev, _ := e.emuView(m.id)
-	label := lang.L("Suggest save locations")
+	label := lang.L("Suggest")
 	if m.suggesting {
 		label = lang.L("Looking…")
 	}
 	btn := widget.NewButtonWithIcon(label, theme.SearchIcon(), func() { e.suggestEmuSaves(m, false) })
 	kit.SetEnabled(btn, !m.suggesting && ev.Preset != "" && (strings.TrimSpace(e.name) != "" || strings.TrimSpace(m.rom) != ""))
-	c := kit.VBox(kit.HBox(btn))
+	c := kit.VBox()
 	if ev.Preset == "" {
 		c.Add(kit.Muted(lang.L("Choose this emulator's type on the Emulators page to get save location suggestions.")))
 	}
@@ -243,5 +243,5 @@ func (e *editor) emuSuggestUI(m *emuForm) fyne.CanvasObject {
 		list.Add(kit.HBox(kit.LowButton(lang.L("Close"), func() { m.sug = nil; e.render() })))
 		c.Add(kit.Card("", list))
 	}
-	return c
+	return btn, c
 }
