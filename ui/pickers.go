@@ -75,6 +75,7 @@ func showArtPicker(u *UI, o artPickerOpts) {
 	}
 	p.d.Resize(kit.DialogSize(u.win))
 	p.d.Show()
+	kit.OnBack(u.win, p.d.Hide)
 
 	switch {
 	case o.gameID > 0:
@@ -286,6 +287,7 @@ func showSteamImport(u *UI) {
 	d = dialog.NewCustom(lang.L("Add from Steam library"), lang.L("Close"), container.NewBorder(top, nil, nil, nil, container.NewVScroll(list)), u.win)
 	d.Resize(kit.DialogSize(u.win))
 	d.Show()
+	kit.OnBack(u.win, d.Hide)
 	kit.Async(func() ([]services.SteamLibraryGame, error) { return u.lib.SteamLibrary(), nil }, func(g []services.SteamLibraryGame, _ error) {
 		games = g
 		render()

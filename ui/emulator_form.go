@@ -254,14 +254,14 @@ func showEmulatorDialog(u *UI, onSaved func(services.EmulatorView)) {
 	kit.Async(func() ([]pathvar.Token, error) { return u.lib.Tokens(""), nil }, func(tokens []pathvar.Token, _ error) {
 		var d dialogHider
 		var f *emulatorForm
-		f = newEmulatorForm(u, services.EmulatorSetup{}, tokens,
-			func() {
-				if f.dirty() {
-					confirmDiscard(u, func() { d.Hide() })
-					return
-				}
-				d.Hide()
-			},
+		cancel := func() {
+			if f.dirty() {
+				confirmDiscard(u, func() { d.Hide() })
+				return
+			}
+			d.Hide()
+		}
+		f = newEmulatorForm(u, services.EmulatorSetup{}, tokens, cancel,
 			func(ev services.EmulatorView) {
 				d.Hide()
 				onSaved(ev)
@@ -273,5 +273,6 @@ func showEmulatorDialog(u *UI, onSaved func(services.EmulatorView)) {
 			scroll.Refresh()
 		}
 		d = kit.ScrollDialog(u.win, f.title(), scroll)
+		kit.OnBack(u.win, cancel) // B asks before dropping what was typed, like Cancel
 	})
 }

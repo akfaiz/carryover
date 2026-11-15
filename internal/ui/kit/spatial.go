@@ -7,6 +7,7 @@ import (
 
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/container"
+	"fyne.io/fyne/v2/widget"
 )
 
 // widgetRenderer is Fyne's own renderer cache lookup, which Fyne uses to walk
@@ -34,7 +35,8 @@ type scrollFrame struct {
 type navTarget struct {
 	obj     fyne.Focusable
 	rect    navRect
-	scrolls []scrollFrame // the scrolls it is in, outermost first
+	scrolls []scrollFrame     // the scrolls it is in, outermost first
+	group   fyne.CanvasObject // the innermost scroll or NavGroup it is in, or nil
 }
 
 // navTree is what a walk of a scope found: its focusable controls in tree
@@ -47,29 +49,33 @@ type navTree struct {
 // walkNav collects the visible, enabled focusable controls under root.
 func walkNav(root fyne.CanvasObject) navTree {
 	var t navTree
-	var walk func(o fyne.CanvasObject, offset fyne.Position, scrolls []scrollFrame)
-	walk = func(o fyne.CanvasObject, offset fyne.Position, scrolls []scrollFrame) {
+	var walk func(o fyne.CanvasObject, offset fyne.Position, scrolls []scrollFrame, group fyne.CanvasObject)
+	walk = func(o fyne.CanvasObject, offset fyne.Position, scrolls []scrollFrame, group fyne.CanvasObject) {
 		if o == nil || !o.Visible() {
 			return
 		}
 		pos := offset.Add(o.Position())
 		size := o.Size()
 		if f, ok := o.(fyne.Focusable); ok && size.Width > 0 && size.Height > 0 && enabled(o) {
-			t.targets = append(t.targets, navTarget{obj: f, rect: navRect{pos.X, pos.Y, size.Width, size.Height}, scrolls: scrolls})
+			t.targets = append(t.targets, navTarget{obj: f, rect: navRect{pos.X, pos.Y, size.Width, size.Height}, scrolls: scrolls, group: group})
 		}
-		if s, ok := o.(*container.Scroll); ok {
-			f := scrollFrame{s: s, pos: pos}
+		switch g := o.(type) {
+		case *container.Scroll:
+			f := scrollFrame{s: g, pos: pos}
 			t.scrolls = append(t.scrolls, f)
 			scrolls = append(slices.Clip(scrolls), f)
+			group = g
+		case *NavGroup:
+			group = g
 		}
 		for _, ch := range childrenOf(o) {
-			walk(ch, pos, scrolls)
+			walk(ch, pos, scrolls, group)
 		}
 	}
 	if root != nil {
 		// Children are placed relative to their parent; root's own position
 		// counts too (an overlay may sit anywhere on the canvas).
-		walk(root, fyne.Position{}, nil)
+		walk(root, fyne.Position{}, nil, nil)
 	}
 	return t
 }
@@ -106,6 +112,66 @@ func (t navTree) topLeft() int {
 	return best
 }
 
+// hidden reports whether the target is scrolled out of view.
+func (t navTarget) hidden() bool {
+	for _, f := range t.scrolls {
+		v := f.s.Size()
+		r := t.rect
+		if r.X+r.W <= f.pos.X || r.X >= f.pos.X+v.Width || r.Y+r.H <= f.pos.Y || r.Y >= f.pos.Y+v.Height {
+			return true
+		}
+	}
+	return false
+}
+
+// pick is where the focus goes from target cur in direction dir, or -1.
+// Within a group (a scrolling area, a NavGroup) the next control in it wins,
+// even scrolled out of view (it is scrolled to): a form's next field must not
+// lose to a button bar fixed under the area, nor the sidebar's next entry to a
+// page control beside it. Leaving the group, only what is on screen counts.
+func (t navTree) pick(cur int, dir PadAction) int {
+	from := t.targets[cur]
+	pass := func(ok func(navTarget) bool) int {
+		var idx []int
+		var rects []navRect
+		for i, x := range t.targets {
+			if i == cur || !ok(x) {
+				continue
+			}
+			idx = append(idx, i)
+			rects = append(rects, x.rect)
+		}
+		if j := pickInDirection(from.rect, dir, rects); j >= 0 {
+			return idx[j]
+		}
+		return -1
+	}
+	if g := from.group; g != nil {
+		if i := pass(func(x navTarget) bool { return x.group == g }); i >= 0 {
+			return i
+		}
+	}
+	return pass(func(x navTarget) bool { return !x.hidden() })
+}
+
+// NavGroup holds controls the gamepad's D-pad moves between before it leaves
+// them, such as a sidebar: up and down stay in the sidebar until its end,
+// rather than jumping to a closer control of the page beside it.
+type NavGroup struct {
+	widget.BaseWidget
+	content fyne.CanvasObject
+}
+
+// NewNavGroup groups the controls in content.
+func NewNavGroup(content fyne.CanvasObject) *NavGroup {
+	g := &NavGroup{content: content}
+	g.ExtendBaseWidget(g)
+	return g
+}
+
+// CreateRenderer implements fyne.Widget.
+func (g *NavGroup) CreateRenderer() fyne.WidgetRenderer { return widget.NewSimpleRenderer(g.content) }
+
 // FirstFocusable returns the enabled control nearest the top left of root, or
 // nil: where a gamepad starts in that part of the window.
 func FirstFocusable(root fyne.CanvasObject) fyne.Focusable {
@@ -114,6 +180,17 @@ func FirstFocusable(root fyne.CanvasObject) fyne.Focusable {
 		return t.targets[i].obj
 	}
 	return nil
+}
+
+// Focusables lists the visible, enabled controls under root that the focus
+// can move to, in Tab order.
+func Focusables(root fyne.CanvasObject) []fyne.Focusable {
+	t := walkNav(root)
+	out := make([]fyne.Focusable, len(t.targets))
+	for i, x := range t.targets {
+		out[i] = x.obj
+	}
+	return out
 }
 
 // pickInDirection returns the candidate the focus should move to from from in
