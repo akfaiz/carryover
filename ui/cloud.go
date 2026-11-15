@@ -235,6 +235,7 @@ func (w *remoteWizard) show() {
 	w.d.Resize(fyne.NewSize(min(640, w.p.u.win.Canvas().Size().Width-40), min(560, w.p.u.win.Canvas().Size().Height-40)))
 	w.pick()
 	w.d.Show()
+	kit.OnBack(w.p.u.win, w.close)
 }
 
 func (w *remoteWizard) set(objs ...fyne.CanvasObject) {

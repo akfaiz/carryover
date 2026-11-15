@@ -7,6 +7,7 @@ import (
 
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/container"
+	"fyne.io/fyne/v2/layout"
 	"fyne.io/fyne/v2/test"
 	"fyne.io/fyne/v2/widget"
 	"github.com/stretchr/testify/assert"
@@ -300,4 +301,60 @@ func TestNavigatorWithNav(t *testing.T) {
 
 	f.nav.Stop()
 	assert.Empty(t, nv.scopes)
+}
+
+// A presses form controls the way the space bar does: it ticks a check and
+// picks a radio item.
+func TestNavigatorFormControls(t *testing.T) {
+	test.NewApp()
+	check := widget.NewCheck("Sync on exit", nil)
+	radio := widget.NewRadioGroup([]string{"Light", "Dark"}, nil)
+	w := test.NewWindow(container.NewVBox(check, radio))
+	w.Resize(fyne.NewSize(300, 300))
+	nav := NewNavigator(w, NavigatorOptions{})
+	nav.Apply(PadDown)
+	nav.Apply(PadAccept)
+	assert.True(t, check.Checked)
+	nav.Apply(PadDown)
+	nav.Apply(PadDown)
+	nav.Apply(PadAccept)
+	assert.Equal(t, "Dark", radio.Selected)
+}
+
+// LB and RB switch the tabs of the dialog in front; the page's sections stay.
+func TestNavigatorSwitchesTabs(t *testing.T) {
+	f := newNavWindow(t)
+	tabs := container.NewAppTabs(
+		container.NewTabItem("Grids", widget.NewButton("a", nil)),
+		container.NewTabItem("Heroes", widget.NewButton("b", nil)),
+		container.NewTabItem("Logos", widget.NewButton("c", nil)),
+	)
+	d := ShowCustom(f.w, "Artwork", FixedSize(fyne.NewSize(300, 200), tabs), 400)
+	f.n.Apply(PadTabNext)
+	assert.Equal(t, 1, tabs.SelectedIndex())
+	f.n.Apply(PadTabPrev)
+	f.n.Apply(PadTabPrev)
+	assert.Equal(t, 2, tabs.SelectedIndex(), "goes round")
+	assert.Empty(t, f.section)
+	d.Hide()
+}
+
+// Up and down stay inside a NavGroup (the sidebar) until its end, even when a
+// control beside it is closer.
+func TestNavigatorGroup(t *testing.T) {
+	test.NewApp()
+	top, bottom := widget.NewButton("Library", nil), widget.NewButton("Trash", nil)
+	side := NewNavGroup(container.NewVBox(top, layout.NewSpacer(), bottom))
+	beside := widget.NewButton("Page", nil)
+	page := container.NewVBox(layout.NewSpacer(), beside, layout.NewSpacer())
+	w := test.NewWindow(container.NewBorder(nil, nil, FixedWidth(120, side), nil, FixedSize(fyne.NewSize(200, 400), page)))
+	w.Resize(fyne.NewSize(400, 400))
+	nav := NewNavigator(w, NavigatorOptions{})
+	nav.Focus(bottom)
+	nav.Apply(PadUp)
+	assert.Same(t, top, w.Canvas().Focused(), "stays in the sidebar")
+	nav.Apply(PadRight)
+	assert.Same(t, beside, w.Canvas().Focused(), "right leaves it")
+	nav.Apply(PadLeft)
+	assert.Contains(t, []fyne.Focusable{top, bottom}, w.Canvas().Focused(), "left comes back")
 }

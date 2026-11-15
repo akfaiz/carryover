@@ -337,11 +337,7 @@ func (n *Navigator) move(root fyne.CanvasObject, overlay bool, focused fyne.Focu
 		n.focusStart(root, overlay, tree)
 		return
 	}
-	rects := make([]navRect, len(tree.targets))
-	for i, t := range tree.targets {
-		rects[i] = t.rect
-	}
-	next := pickInDirection(rects[cur], a, rects)
+	next := tree.pick(cur, a)
 	if next < 0 && overlay {
 		// Nothing that way in a dialog: go round, in Tab order, like a Nav.
 		k := len(tree.targets)
@@ -364,6 +360,17 @@ func (n *Navigator) FocusDefault() {
 		return
 	}
 	n.focusStart(root, false, walkNav(root))
+}
+
+// Focus focuses obj and scrolls it into view, as a D-pad press onto it would.
+func (n *Navigator) Focus(obj fyne.Focusable) {
+	root, _, _ := n.root()
+	tree := walkNav(root)
+	if i := tree.index(obj); i >= 0 {
+		n.focusTarget(tree.targets[i])
+	} else if obj != nil {
+		n.win.Canvas().Focus(obj)
+	}
 }
 
 func (n *Navigator) focusStart(root fyne.CanvasObject, overlay bool, tree navTree) {

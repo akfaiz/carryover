@@ -299,7 +299,8 @@ func (u *UI) buildLayout() {
 	bg := canvas.NewRectangle(kit.ColBg2)
 	sep := canvas.NewRectangle(kit.ColLine)
 	sep.SetMinSize(fyne.NewSize(1, 0))
-	side := container.NewStack(bg, container.NewPadded(u.sidebar))
+	// One group for the gamepad: up and down stay in the sidebar.
+	side := container.NewStack(bg, container.NewPadded(kit.NewNavGroup(u.sidebar)))
 	u.padHints = u.padHintBar()
 	main := container.NewBorder(nil, u.padHints, container.NewHBox(kit.FixedWidth(200, side), sep), nil, u.content)
 	u.win.SetContent(container.NewStack(main, u.toasts.Layer))
