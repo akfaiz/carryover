@@ -5,8 +5,8 @@
 #   scripts/linux-docker.sh build          # build the image
 #   scripts/linux-docker.sh run [args]     # open the GUI (builds first if needed); args go to carryover
 #   scripts/linux-docker.sh shell          # bash inside the image
-#   scripts/linux-docker.sh export         # copy the Linux binary to bin/linux/carryover
-#   scripts/linux-docker.sh appimage       # build bin/carryover-linux-amd64.AppImage
+#   scripts/linux-docker.sh export         # copy the Linux binary to dist/linux/carryover
+#   scripts/linux-docker.sh appimage       # build dist/carryover-linux-amd64.AppImage
 #
 # GUI display:
 #   Linux: uses your X11/XWayland session (DISPLAY). Access is granted with `xhost` if it is installed.
@@ -54,15 +54,15 @@ case "$cmd" in
         ;;
     export)
         # Always amd64 (Steam Deck), even on Apple Silicon, so not the host-arch run image.
-        mkdir -p "$root/bin/linux"
-        docker build --platform linux/amd64 --target binary-out --output "type=local,dest=$root/bin/linux" "$root"
-        echo "wrote $root/bin/linux/carryover"
+        mkdir -p "$root/dist/linux"
+        docker build --platform linux/amd64 --target binary-out --output "type=local,dest=$root/dist/linux" "$root"
+        echo "wrote $root/dist/linux/carryover"
         ;;
     appimage)
         # Always amd64 (Steam Deck): appimagetool is x86-64 only, so an arm64 build on Apple Silicon fails.
-        docker build --platform linux/amd64 --target appimage-out --output "type=local,dest=$root/bin" "$root"
-        chmod +x "$root/bin/carryover-linux-amd64.AppImage"
-        echo "wrote $root/bin/carryover-linux-amd64.AppImage"
+        docker build --platform linux/amd64 --target appimage-out --output "type=local,dest=$root/dist" "$root"
+        chmod +x "$root/dist/carryover-linux-amd64.AppImage"
+        echo "wrote $root/dist/carryover-linux-amd64.AppImage"
         ;;
     *)
         echo "usage: $0 {build|run|shell|export|appimage}" >&2

@@ -9,6 +9,9 @@ All notable changes to Carryover are listed here. The format follows
 
 ### Added
 
+- A Windows installer (`carryover-<version>-windows-amd64-setup.exe`) next to the portable exe. It installs for the
+  current user without admin rights, adds a Start menu entry (and optionally a desktop shortcut) and an uninstaller,
+  and upgrades in place so Steam shortcuts keep working. Settings and saves are kept on uninstall.
 - The whole app works with a gamepad, for Carryover added to Steam as a non-Steam game and used in Steam Deck Game
   Mode or Big Picture (started by hand on a desktop, Steam's Desktop Layout keeps the controller). The D-pad or left stick moves to the control on screen in that direction (scrolling it into
   view) and rings it, A presses it, B closes the dialog or goes back, LB/RB switch sections (or a dialog's tabs), X searches, Y

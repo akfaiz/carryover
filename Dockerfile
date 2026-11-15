@@ -16,7 +16,7 @@ RUN --mount=type=cache,target=/go/pkg/mod --mount=type=cache,target=/root/.cache
     CGO_ENABLED=1 go build -trimpath -ldflags "-s -w" -o /out/carryover .
 
 # AppImage packaging (see packaging/appimage/build.sh). Built on demand:
-#   docker build --target appimage-out --output type=local,dest=bin .
+#   docker build --target appimage-out --output type=local,dest=dist .
 FROM build AS appimage
 ARG APPIMAGETOOL_VERSION=1.9.1
 RUN apt-get update \
@@ -42,7 +42,7 @@ FROM scratch AS appimage-out
 COPY --from=appimage /appimage/ /
 
 # The bare binary, for the release tarball:
-#   docker build --target binary-out --output type=local,dest=bin .
+#   docker build --target binary-out --output type=local,dest=dist/linux .
 FROM scratch AS binary-out
 COPY --from=build /out/carryover /carryover
 

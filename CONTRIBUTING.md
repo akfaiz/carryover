@@ -20,17 +20,21 @@ Bug reports, ideas and pull requests are welcome.
 ## Build and run
 
 ```
-CGO_ENABLED=1 go build -trimpath -ldflags "-s -w -H windowsgui" -o bin/carryover.exe .   # Windows
-CGO_ENABLED=1 go build -trimpath -ldflags "-s -w" -o bin/carryover .                      # Linux
+CGO_ENABLED=1 go build -trimpath -ldflags "-s -w -H windowsgui" -o dist/carryover.exe .  # Windows
+CGO_ENABLED=1 go build -trimpath -ldflags "-s -w" -o dist/carryover .                     # Linux
 CARRYOVER_HOME=/tmp/pr go run .                                                           # run against an isolated data dir
 ```
 
+- **Every build writes to `dist/`** (git-ignored): dev builds, the Windows release files, the Docker exports and the
+  AppImage. Only fyne-cross keeps its own `fyne-cross/` folder.
 - **Always set `CARRYOVER_HOME` when testing**, so you never touch your real settings, library or rclone config.
 - `-s -w` strips debug info (the Windows exe drops from about 84 MB to 46 MB). Leave it out to debug.
 - `-H windowsgui` hides the console window. The CLI subcommands re-attach it.
 - Local builds report "dev" plus the git commit as their version. Release builds take it from the git tag
   (see [Releases](#releases)).
 - To build the Windows exe with its icon: `go tool fyne package --os windows --release --name carryover`.
+- To build the Windows release files (portable exe and installer) like a release does:
+  `.\scripts\windows-package.ps1 [-Version 0.3.0]` (see [Release files](#release-files)).
 - Logs go to `<data>/logs/carryover.log` and to stderr (`internal/app/applog`). Every line carries the writer's PID,
   because the launcher, `carryover run` windows and the CLI share the file. A crash's stack is written there too. Over
   5 MB it is moved to `carryover.1.log` at the next start. `CARRYOVER_DEBUG=1` turns on rclone's INFO lines (every
@@ -66,8 +70,8 @@ setup). On Windows use `.\scripts\linux-docker.ps1`, on Linux or macOS `scripts/
 linux-docker build      # build the image (Dockerfile)
 linux-docker run        # open the GUI; `run list` runs a CLI subcommand instead
 linux-docker shell      # bash inside the image
-linux-docker export     # copy the binary to bin/linux/carryover
-linux-docker appimage   # build bin/carryover-linux-amd64.AppImage (no FUSE or appimagetool needed)
+linux-docker export     # copy the binary to dist/linux/carryover
+linux-docker appimage   # build dist/carryover-linux-amd64.AppImage (no FUSE or appimagetool needed)
 ```
 
 - The GUI opens on your desktop through WSLg on Windows (Docker Desktop with the WSL2 backend), your X11/XWayland
@@ -83,7 +87,7 @@ The AppImage bundles the binary, `.desktop` file and icon (a bare binary has no 
 on `PATH`:
 
 ```
-packaging/appimage/build.sh        # writes bin/carryover-linux-amd64.AppImage
+packaging/appimage/build.sh        # writes dist/carryover-linux-amd64.AppImage
 ```
 
 - Keep the AppImage in a fixed place (for example `~/Applications/`). The Steam shortcut points at its path;
@@ -191,8 +195,17 @@ Pre-releases don't count as "latest", so AppImage updates only work once there i
 
 Each file is named `carryover-<version>-<os>-<arch>.<ext>`, where `<version>` is the tag without its `v`:
 
-- `…-windows-amd64.exe`: packaged with `fyne package`. It is not code-signed, so SmartScreen warns on first run
-  ("More info → Run anyway").
+- `…-windows-amd64.exe` (portable) and `…-windows-amd64-setup.exe` (installer): both from
+  `scripts/windows-package.ps1`, which runs `fyne package` for the exe, turns `ui/assets/appicon.png` into an `.ico`
+  (`packaging/windows/mkico`) and builds the installer from `packaging/windows/carryover.nsi` with NSIS. The
+  installer is per-user (no admin) into `%LOCALAPPDATA%\Programs\Carryover`, so upgrades keep the exe's path and
+  Steam shortcuts working; it refuses to replace the exe while it's running and never touches `%APPDATA%\Carryover`.
+  Neither is code-signed, so SmartScreen warns on first run ("More info → Run anyway").
+
+  To build them locally, install NSIS (`winget install NSIS.NSIS`) and run `.\scripts\windows-package.ps1` from
+  PowerShell. It writes both to `dist\` (git-ignored); `-Version 0.3.0` sets the name and version (default:
+  `git describe`), and it restores `FyneApp.toml` afterwards. It doesn't stamp the program's version: run
+  `scripts/stamp-version.sh <tag>` first for that, and delete `internal/app/version/zz_release.go` afterwards.
 - `…-linux-amd64.AppImage` and its `.zsync` file: built with the Dockerfile, like `linux-docker appimage`. The
   final name is passed as the `APPIMAGE` build argument instead of renaming afterwards, because the `.zsync` file
   refers to the AppImage by name. The embedded update information finds it with the wildcard

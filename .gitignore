@@ -1,6 +1,9 @@
+# build output: every build writes to dist/ (see CONTRIBUTING.md)
+/dist/
+# the old output folder, and fyne-cross, which always writes its own
 bin
 fyne-cross
-# written by `fyne package` at the repo root
+# written by `fyne package` at the repo root (scripts/windows-package.ps1 moves it to dist/)
 /carryover.exe
 /carryover.tar.xz
 .docker-data
