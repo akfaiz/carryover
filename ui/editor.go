@@ -355,7 +355,14 @@ func (e *editor) render() {
 			left.Add(e.emulatorsCard())
 		}
 		right.Add(e.artworkCard())
-		body = kit.NewCols(440, nil, left, right)
+		// On a very wide window the page stops growing: fields 1100 px wide
+		// are hard to read. The form gets the larger share when the right
+		// column only holds the artwork; the save locations need room.
+		var ratios []float32
+		if e.kind == kindEmulator {
+			ratios = []float32{3, 2}
+		}
+		body = kit.MaxWidth(1400, kit.NewCols(440, ratios, left, right))
 	}
 	kit.ReplaceScroll(e.scroll, kit.Stack(kit.PageHead(u.back, head), body))
 	e.renderBar()
@@ -387,8 +394,13 @@ func (e *editor) renderBar() {
 	line := canvas.NewRectangle(kit.ColLine)
 	line.SetMinSize(fyne.NewSize(0, 1))
 	row := container.NewBorder(nil, nil, nil, kit.HBox(widget.NewButton(lang.L("Cancel"), e.u.back), save), note)
+	// As wide as the form above it, so Save stays under it on a wide window.
+	width := float32(780)
+	if e.id != "" {
+		width = 1400
+	}
 	e.bar.Objects = []fyne.CanvasObject{canvas.NewRectangle(kit.ColBg2),
-		container.NewBorder(line, nil, nil, nil, container.New(layout.NewCustomPaddedLayout(10, 10, 28, 28), row))}
+		container.NewBorder(line, nil, nil, nil, container.New(layout.NewCustomPaddedLayout(10, 10, 28, 28), kit.MaxWidth(width, row)))}
 	// The bar's height can change (a longer note wraps; it starts empty): lay
 	// the page out again so the bar gets the height it needs.
 	e.root.Refresh()

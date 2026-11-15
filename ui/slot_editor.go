@@ -27,7 +27,7 @@ func (s *slotForm) rememberOpen() {
 	}
 }
 
-// slotEditor edits one save location: label, key, this device's path and the
+// slotEditor edits one save location: label, this device's path and the
 // include/exclude filters. It writes straight into the slotForm.
 type slotEditor struct{ kit.Composite }
 
@@ -39,20 +39,17 @@ func newSlotEditor(u *UI, gameID string, tokens []pathvar.Token, s *slotForm, ot
 	label := widget.NewEntry()
 	label.SetPlaceHolder(lang.L("Label"))
 	label.SetText(s.label)
-	keyBadge := container.NewCenter(kit.Badge(s.key, kit.BadgeNone))
+	// The key (the location's cloud folder) follows a new location's label;
+	// it isn't shown: next to the label it only repeated it in grey.
 	label.OnChanged = func(v string) {
 		s.label = v
 		if s.isNew {
 			s.key = uniqueKey(kit.Slug(v), s)
-			keyBadge.Objects = []fyne.CanvasObject{kit.Badge(s.key, kit.BadgeNone)}
-			keyBadge.Refresh()
 		}
 	}
-	right := []fyne.CanvasObject{keyBadge}
+	var right []fyne.CanvasObject
 	if onRemove != nil {
-		rm := widget.NewButtonWithIcon("", theme.DeleteIcon(), onRemove)
-		rm.Importance = widget.DangerImportance
-		right = append(right, rm)
+		right = append(right, kit.Tonal(deleteIconButton(onRemove)))
 	}
 
 	c := kit.VBox(
@@ -82,4 +79,12 @@ func newSlotEditor(u *UI, gameID string, tokens []pathvar.Token, s *slotForm, ot
 	e := &slotEditor{}
 	e.Init(e, c)
 	return e
+}
+
+// deleteIconButton is a red trash button (tinted inside kit.Tonal) that
+// removes one entry of a list.
+func deleteIconButton(onTap func()) *widget.Button {
+	b := widget.NewButtonWithIcon("", theme.DeleteIcon(), onTap)
+	b.Importance = widget.DangerImportance
+	return b
 }

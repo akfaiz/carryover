@@ -29,6 +29,13 @@ All notable changes to Carryover are listed here. The format follows
   columns, so they start level. Save folders show on one line, shortened in the middle when they don't fit, in
   plain text instead of three blue lines. The sync state of the chosen emulator is only repeated when it differs
   from the game's, and other devices without save folders to list are named in one line instead of a card.
+- A clearer game editor: each emulator is set up in a panel of its own, with its save locations under a heading
+  with Suggest and Add. Steam artwork previews keep the image's proportions instead of showing a cropped strip,
+  and on a wide window the page stops growing, with Save under the form. Removing an emulator ("Remove") and a
+  save location (trash button) are tinted red rather than solid, the "{ }" button is now "Tokens", the grey key
+  next to each save location's name is gone, the expanded path under a field fits on one line, and "How do you
+  play it?" is a row of evenly spaced buttons. An emulator with no other emulator to share saves with no longer
+  leaves an empty line.
 - Every drop-down menu has a border like the text fields; badges start with a capital letter ("Synced"); times
   read "5m ago" and "5h ago"; Remove in the Steam card is tinted red; "More" under an explanation sits below the
   text; and page titles line up with the content under them.

@@ -110,11 +110,12 @@ func (e *editor) hasEmulator(id string) bool {
 	return slices.ContainsFunc(e.emus, func(m *emuForm) bool { return m.id == id })
 }
 
-// shareField is the opt-in "use another emulator's saves" choice.
+// shareField is the opt-in "use another emulator's saves" choice; nil when
+// there is nothing to choose.
 func (e *editor) shareField(m *emuForm) fyne.CanvasObject {
 	targets := e.shareTargets(m)
 	if len(targets) == 0 && m.share == "" {
-		return widget.NewLabel("")
+		return nil
 	}
 	own := lang.L("Its own saves (recommended)")
 	names, byName := []string{own}, map[string]*emuForm{}
@@ -176,16 +177,19 @@ func (e *editor) howCard() fyne.CanvasObject {
 	kinds.Add(string(kindDirect), lang.L("PC or Steam game"))
 	kinds.Add(string(kindEmulator), lang.L("Emulator"))
 	kinds.Add(string(kindBoth), lang.L("Both"))
-	// All three in view: the choice decides which cards follow.
-	sel := widget.NewRadioGroup(kinds.Labels, nil)
-	sel.Horizontal, sel.Required = true, true
-	sel.Selected = kinds.Label(string(e.kind))
-	sel.OnChanged = func(l string) {
-		if v := playKind(kinds.Value(l)); v != "" && v != e.kind {
-			e.kind = v
+	// All three in view: the choice decides which cards follow. Chips, like
+	// the app's other one-of-a-few choices; a horizontal radio group gave every
+	// option the widest one's width, so the gaps between them differed.
+	var opts []kit.ChipOption
+	for i, v := range kinds.Values {
+		opts = append(opts, kit.ChipOption{Value: v, Label: kinds.Labels[i]})
+	}
+	sel := kit.Chips(opts, string(e.kind), func(v string) {
+		if k := playKind(v); k != "" && k != e.kind {
+			e.kind = k
 			e.render()
 		}
-	}
+	})
 	c := kit.VBox(kit.CardHead(lang.L("How do you play it?")), sel)
 	switch e.kind {
 	case kindEmulator:
@@ -251,14 +255,27 @@ func (e *editor) emulatorsCard() fyne.CanvasObject {
 	default:
 		c.Add(kit.HBox(newEmu))
 	}
+	panels := kit.Stack() // spaced like cards
 	for i, m := range e.emus {
-		c.Add(widget.NewSeparator())
-		rm := widget.NewButtonWithIcon("", theme.DeleteIcon(), func() {
+		panels.Add(e.emulatorPanel(m, func() {
 			e.emus = slices.Delete(e.emus, i, i+1)
 			e.render()
-		})
-		rm.Importance = widget.DangerImportance
-		c.Add(kit.RowFill(widget.NewLabelWithStyle(m.name, fyne.TextAlignLeading, fyne.TextStyle{Bold: true}), rm))
+		}))
+	}
+	c.Add(panels)
+	return kit.Card("", c)
+}
+
+// emulatorPanel sets up one emulator of the game, in a panel of its own so
+// its fields and save locations read as belonging to it: the game file, the
+// cloud save it uses and its save locations.
+func (e *editor) emulatorPanel(m *emuForm, onRemove func()) fyne.CanvasObject {
+	c := kit.VBox()
+	// Removing the whole emulator says so in words, unlike a save location's
+	// trash button.
+	rm := removeButton(onRemove)
+	c.Add(kit.RowFill(kit.Heading(m.name), kit.Tonal(rm)))
+	{
 		rom := kit.MonoEntry("", m.rom, func(s string) { m.rom = s })
 		browse := widget.NewButton(lang.L("Browse…"), func() {
 			e.pickFile(lang.L("Choose the game file"), nil, func(p string) {
@@ -268,35 +285,49 @@ func (e *editor) emulatorsCard() fyne.CanvasObject {
 			})
 		})
 		c.Add(kit.Field(lang.L("Game file / ID passed to the emulator ({rom})"), kit.RowFill(rom, browse)))
-		c.Add(e.shareField(m))
-		if m.share != "" {
-			// The save locations are the other emulator's; only the paths here are this emulator's.
-			for _, s := range m.slots {
-				c.Add(kit.Field(lang.L("Path on this device: {{.Label}}", map[string]any{"Label": labelOf(s.label, s.key)}),
-					newPathInput(e.u, e.id, e.tokens, s.path, "{appdata}/Game/Saves", func(v string) { s.path = v })))
-			}
-			c.Add(e.emuSuggestUI(m)) // it fills in this emulator's own path for each of the other emulator's locations
-			continue
-		}
-		for j, s := range m.slots {
-			var onRemove func()
-			if len(m.slots) > 1 {
-				onRemove = func() {
-					m.slots = slices.Delete(m.slots, j, j+1)
-					e.render()
-				}
-			}
-			c.Add(newSlotEditor(e.u, e.id, e.tokens, s, nil, m.uniqueKey, onRemove, nil))
-		}
-		c.Add(e.emuSuggestUI(m))
-		c.Add(kit.HBox(widget.NewButtonWithIcon(lang.L("Add save location"), theme.ContentAddIcon(), func() {
+	}
+	if share := e.shareField(m); share != nil {
+		c.Add(share)
+	}
+
+	// Its save locations, under a heading with the buttons that fill them in.
+	suggest, found := e.emuSuggestUI(m)
+	actions := []fyne.CanvasObject{suggest}
+	if m.share == "" {
+		actions = append(actions, widget.NewButtonWithIcon(lang.L("Add"), theme.ContentAddIcon(), func() {
 			n := len(m.slots) + 1
 			for slices.ContainsFunc(m.slots, func(s *slotForm) bool { return s.key == fmt.Sprintf("saves-%d", n) }) {
 				n++
 			}
 			m.slots = append(m.slots, &slotForm{key: fmt.Sprintf("saves-%d", n), label: fmt.Sprintf("Saves %d", n), isNew: true})
 			e.render()
-		})))
+		}))
 	}
-	return kit.Card("", c)
+	c.Add(widget.NewSeparator())
+	c.Add(kit.RowFill(widget.NewLabelWithStyle(lang.L("Save locations"), fyne.TextAlignLeading, fyne.TextStyle{Bold: true}), actions...))
+	c.Add(found)
+	if m.share != "" {
+		// The save locations are the other emulator's; only the paths here are
+		// this emulator's ("Suggest" fills in its own path for each of them).
+		for _, s := range m.slots {
+			c.Add(kit.Field(lang.L("Path on this device: {{.Label}}", map[string]any{"Label": labelOf(s.label, s.key)}),
+				newPathInput(e.u, e.id, e.tokens, s.path, "{appdata}/Game/Saves", func(v string) { s.path = v })))
+		}
+		return kit.Panel(c)
+	}
+	// Each location a group of its own, a line between them.
+	for j, s := range m.slots {
+		if j > 0 {
+			c.Add(widget.NewSeparator())
+		}
+		var onRemove func()
+		if len(m.slots) > 1 {
+			onRemove = func() {
+				m.slots = slices.Delete(m.slots, j, j+1)
+				e.render()
+			}
+		}
+		c.Add(newSlotEditor(e.u, e.id, e.tokens, s, nil, m.uniqueKey, onRemove, nil))
+	}
+	return kit.Panel(c)
 }

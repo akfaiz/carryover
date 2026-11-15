@@ -66,6 +66,16 @@ func Card(title string, objs ...fyne.CanvasObject) fyne.CanvasObject {
 	return container.NewStack(bg, container.New(layout.NewCustomPaddedLayout(14, 14, 16, 16), container.NewVBox(items...)))
 }
 
+// Panel is a group inside a card (one emulator of a game, say): darker than
+// the card, so what belongs together reads as one block.
+func Panel(objs ...fyne.CanvasObject) fyne.CanvasObject {
+	bg := canvas.NewRectangle(ColBg)
+	bg.CornerRadius = 8
+	bg.StrokeColor = ColLine
+	bg.StrokeWidth = 1
+	return container.NewStack(bg, container.New(layout.NewCustomPaddedLayout(10, 12, 12, 12), container.NewVBox(objs...)))
+}
+
 // CardHead is a card heading with right-aligned actions.
 func CardHead(title string, actions ...fyne.CanvasObject) fyne.CanvasObject {
 	objs := append([]fyne.CanvasObject{Heading(title), layout.NewSpacer()}, actions...)
@@ -336,8 +346,8 @@ func (t tonalTheme) Color(n fyne.ThemeColorName, v fyne.ThemeVariant) color.Colo
 // end as fits: that is where paths differ.
 type PathLabel struct {
 	widget.BaseWidget
-	path  string
-	label *widget.Label
+	path, prefix string
+	label        *widget.Label
 }
 
 func NewPathLabel(path string) *PathLabel {
@@ -347,16 +357,35 @@ func NewPathLabel(path string) *PathLabel {
 	return p
 }
 
+// Caption makes it small and grey with prefix ("→ ") in front, for a line
+// under a field.
+func (p *PathLabel) Caption(prefix string) *PathLabel {
+	p.prefix = prefix
+	p.label.SizeName = theme.SizeNameCaptionText
+	p.label.Importance = widget.LowImportance
+	return p
+}
+
+// SetPath shows another path.
+func (p *PathLabel) SetPath(path string) {
+	p.path = path
+	p.Refresh()
+}
+
 // CreateRenderer implements fyne.Widget.
 func (p *PathLabel) CreateRenderer() fyne.WidgetRenderer { return &pathRenderer{p} }
 
 type pathRenderer struct{ p *PathLabel }
 
 func (r *pathRenderer) Layout(size fyne.Size) {
-	l := r.p.label
+	p, l := r.p, r.p.label
 	room := size.Width - 2*theme.InnerPadding()
-	text := ShortenPath(r.p.path, func(s string) bool {
-		return fyne.MeasureText(s, theme.TextSize(), l.TextStyle).Width <= room
+	textSize := theme.TextSize()
+	if l.SizeName != "" {
+		textSize = theme.Size(l.SizeName)
+	}
+	text := p.prefix + ShortenPath(p.path, func(s string) bool {
+		return fyne.MeasureText(p.prefix+s, textSize, l.TextStyle).Width <= room
 	})
 	if text != l.Text {
 		l.SetText(text)
@@ -368,7 +397,10 @@ func (r *pathRenderer) MinSize() fyne.Size {
 	return fyne.NewSize(0, r.p.label.MinSize().Height) // shortens to any width
 }
 
-func (r *pathRenderer) Refresh()                     { r.p.label.Refresh() }
+func (r *pathRenderer) Refresh() {
+	r.Layout(r.p.Size()) // the path may have changed
+	r.p.label.Refresh()
+}
 func (r *pathRenderer) Objects() []fyne.CanvasObject { return []fyne.CanvasObject{r.p.label} }
 func (r *pathRenderer) Destroy()                     {}
 
