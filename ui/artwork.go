@@ -18,7 +18,7 @@ type artSpec struct {
 	kind    steamgrid.Kind
 	label   string
 	hint    string
-	empty   string // shown when SteamGridDB has none
+	empty   string    // shown when SteamGridDB has none
 	preview fyne.Size // shown at this size, which keeps the kind's proportions
 	pick    fyne.Size // thumbnail size in the picker
 	contain bool      // show the whole image (logos and icons), not a cropped fill
