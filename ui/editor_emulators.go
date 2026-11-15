@@ -139,7 +139,7 @@ func (e *editor) shareField(m *emuForm) fyne.CanvasObject {
 			sel.Selected = lang.L("Share the saves of {{.Emulator}}", map[string]any{"Emulator": t.name})
 		}
 	}
-	box := kit.VBox(sel)
+	box := kit.VBox(kit.Outlined(sel))
 	if m.share != "" {
 		box.Add(kit.Colored(lang.L("Both emulators now read and write one cloud save. Only do this if they use the same save format, otherwise one can overwrite the other's saves. They can't be played at the same time."), widget.WarningImportance))
 	}
@@ -247,7 +247,7 @@ func (e *editor) emulatorsCard() fyne.CanvasObject {
 			}
 		})
 		sel.PlaceHolder = lang.L("Add an emulator…")
-		c.Add(kit.RowFill(sel, newEmu))
+		c.Add(kit.RowFill(kit.Outlined(sel), newEmu))
 	default:
 		c.Add(kit.HBox(newEmu))
 	}

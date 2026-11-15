@@ -186,7 +186,7 @@ func (f *emulatorForm) typeField() fyne.CanvasObject {
 		}
 		f.render()
 	})
-	return kit.Field(lang.L("Emulator type (suggests the arguments and save locations)"), kind)
+	return kit.Field(lang.L("Emulator type (suggests the arguments and save locations)"), kit.Outlined(kind))
 }
 
 // argsHints explains {rom} and offers the type's usual arguments.

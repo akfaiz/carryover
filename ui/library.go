@@ -73,8 +73,8 @@ func (p *libraryPage) view() fyne.CanvasObject {
 		p.syncBtn,
 		kit.Primary(lang.L("＋ Add game"), func() { showAddGame(p.u) }),
 	)
-	// Search first, over the games it filters, then the filters; sort out of
-	// the way on the right. All one height.
+	// Search first, over the games it filters, then sort, then the filters,
+	// all aligned left. All one height.
 	sorts := &kit.Choice{}
 	sorts.Add(sortName, lang.L("Sort by name"))
 	sorts.Add(sortRecent, lang.L("Sort by last sync"))
@@ -83,7 +83,10 @@ func (p *libraryPage) view() fyne.CanvasObject {
 		p.renderGrid()
 	})
 	p.filterHost = container.NewStack()
-	p.toolsRow = container.NewHBox(kit.FixedWidth(280, p.search), p.filterHost, layout.NewSpacer(), kit.FixedWidth(190, sortSel))
+	// The extra space below sets the tools apart from the grid; it goes with
+	// them, so an empty library has none.
+	p.toolsRow = container.New(layout.NewCustomPaddedLayout(0, 8, 0, 0),
+		container.NewHBox(kit.FixedWidth(280, p.search), kit.FixedWidth(190, kit.Outlined(sortSel)), p.filterHost))
 	p.chipsHost = container.NewStack()
 	p.gridHost = container.NewStack()
 	p.emptyHost = container.NewStack()
@@ -262,7 +265,8 @@ func (p *libraryPage) renderGrid() {
 	p.emptyHost.Refresh()
 
 	// Reuse the tiles: only games new to the page get one built.
-	grid := container.NewGridWrap(fyne.NewSize(170, 330))
+	var tiles []fyne.CanvasObject
+	cell := fyne.NewSize(170, 0)
 	for _, g := range games {
 		t := p.tiles[g.ID]
 		if t == nil {
@@ -271,8 +275,12 @@ func (p *libraryPage) renderGrid() {
 		} else {
 			t.set(g)
 		}
-		grid.Add(t)
+		// As tall as a tile needs (it depends on the theme's text size), so
+		// rows never overlap.
+		cell.Height = max(cell.Height, t.MinSize().Height)
+		tiles = append(tiles, t)
 	}
+	grid := kit.GridWrap(cell, 12, tiles...)
 	for id := range p.tiles {
 		if _, ok := u.game(id); !ok {
 			delete(p.tiles, id)

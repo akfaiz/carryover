@@ -1,6 +1,9 @@
 package kit
 
-import "fyne.io/fyne/v2"
+import (
+	"fyne.io/fyne/v2"
+	"fyne.io/fyne/v2/theme"
+)
 
 // Collapsible is a one-line explanation with a button that unfolds more text
 // below it. open remembers, by summary, which ones are unfolded, so pages that
@@ -21,9 +24,11 @@ func Collapsible(summary string, details []string, moreLabel, lessLabel string, 
 		open[summary] = on
 		if on {
 			toggle.SetText(lessLabel)
+			toggle.SetIcon(theme.MenuDropUpIcon())
 			body.Show()
 		} else {
 			toggle.SetText(moreLabel)
+			toggle.SetIcon(theme.MenuDropDownIcon())
 			body.Hide()
 		}
 	}
@@ -34,5 +39,7 @@ func Collapsible(summary string, details []string, moreLabel, lessLabel string, 
 		}
 	}
 	set(open[summary])
-	return VBox(RowFill(Muted(summary), toggle), body)
+	// The toggle under the text, where it reads as part of it, not a stray
+	// word at the far right.
+	return VBox(Muted(summary), body, HBox(toggle))
 }

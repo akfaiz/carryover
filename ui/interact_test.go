@@ -620,7 +620,7 @@ func TestPromptConflictChoices(t *testing.T) {
 	h.u.prompts.add(conflictPrompt("p1", true, true))
 	require.NotNil(t, h.u.prompts.current)
 	assert.ElementsMatch(t, []string{"Keep this device's saves", "Keep cloud saves", "Skip sync and play"}, buttonTexts(h))
-	assert.True(t, hasBadge(h, "newer"), "the newer side is marked")
+	assert.True(t, hasBadge(h, "Newer"), "the newer side is marked")
 
 	// Answering closes the dialog.
 	tapOverlayButton(t, h, "Keep cloud saves")

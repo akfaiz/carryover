@@ -55,10 +55,10 @@ func newSteamForm(o steamFormOpts) *steamForm {
 		c.Add(kit.HBox(widget.NewIcon(theme.NewSuccessThemedResource(theme.ConfirmIcon())),
 			widget.NewLabel(lang.L("In Steam on this device"))))
 		change := widget.NewButton(lang.L("Change…"), o.OnExpand)
-		rm := widget.NewButton(lang.L("Remove"), o.OnRemove)
+		rm := removeButton(o.OnRemove)
 		kit.SetEnabled(change, !o.Busy)
 		kit.SetEnabled(rm, !o.Busy)
-		c.Add(kit.HBox(change, rm))
+		c.Add(kit.HBox(change, kit.Tonal(rm)))
 		if len(o.Profiles) > 0 {
 			// The targets: the shortcut shown is the whole game's or one emulator's.
 			targets := &kit.Choice{}
@@ -66,7 +66,7 @@ func newSteamForm(o steamFormOpts) *steamForm {
 			for _, pv := range o.Profiles {
 				targets.Add(pv.EmulatorID, lang.L("Only {{.Emulator}}", map[string]any{"Emulator": pv.Name}))
 			}
-			c.Add(kit.Field(lang.L("Shortcut for"), kit.SelectOf(targets, o.Target, o.OnTarget)))
+			c.Add(kit.Field(lang.L("Shortcut for"), kit.Outlined(kit.SelectOf(targets, o.Target, o.OnTarget))))
 		}
 	default:
 		c.Add(kit.Muted(lang.L("Add {{.Game}} to Steam as a non-Steam game. Steam launches it through Carryover, so saves sync automatically before and after every session — also in Steam Deck Game Mode.",
@@ -76,7 +76,7 @@ func newSteamForm(o steamFormOpts) *steamForm {
 			for _, us := range o.Info.Users {
 				users.Add(us.ID, us.Name)
 			}
-			c.Add(kit.Field(lang.L("Steam account"), kit.SelectOf(users, o.User, o.OnUser)))
+			c.Add(kit.Field(lang.L("Steam account"), kit.Outlined(kit.SelectOf(users, o.User, o.OnUser))))
 		}
 		if len(o.Profiles) > 0 {
 			targets := &kit.Choice{}
@@ -84,7 +84,7 @@ func newSteamForm(o steamFormOpts) *steamForm {
 			for _, pv := range o.Profiles {
 				targets.Add(pv.EmulatorID, lang.L("Only {{.Emulator}}", map[string]any{"Emulator": pv.Name}))
 			}
-			c.Add(kit.Field(lang.L("Shortcut for"), kit.SelectOf(targets, o.Target, o.OnTarget)))
+			c.Add(kit.Field(lang.L("Shortcut for"), kit.Outlined(kit.SelectOf(targets, o.Target, o.OnTarget))))
 		}
 		if o.AsksAtLaunch {
 			c.Add(kit.Muted(lang.L("Steam shows one game. When it starts, Carryover asks which emulator to use and, after a few seconds, starts the one you played last.")))
@@ -97,7 +97,7 @@ func newSteamForm(o steamFormOpts) *steamForm {
 			modes := &kit.Choice{}
 			modes.Add("direct", lang.L("Run Carryover (it starts the game)"))
 			modes.Add("steamwrap", lang.L("Run the game exe, wrapped by Carryover (pick Proton in Steam)"))
-			c.Add(kit.Field(lang.L("Shortcut type"), kit.SelectOf(modes, o.Mode, o.OnMode)))
+			c.Add(kit.Field(lang.L("Shortcut type"), kit.Outlined(kit.SelectOf(modes, o.Mode, o.OnMode))))
 		}
 		if o.Mode == "steamwrap" && g.Device.LaunchMode != "heroic" {
 			t := lang.L("After adding, open the shortcut's Properties → Compatibility in Steam and force a Proton version. Its save prefix is available as {{.Token}}.",
@@ -116,9 +116,9 @@ func newSteamForm(o steamFormOpts) *steamForm {
 		kit.SetEnabled(add, !o.Busy && o.User != "")
 		row := kit.HBox(add)
 		if g.Device.SteamAppID != "" {
-			rm := widget.NewButton(lang.L("Remove"), o.OnRemove)
+			rm := removeButton(o.OnRemove)
 			kit.SetEnabled(rm, !o.Busy)
-			row.Add(rm)
+			row.Add(kit.Tonal(rm))
 		}
 		c.Add(row)
 		if o.Info.Running {
@@ -128,4 +128,12 @@ func newSteamForm(o steamFormOpts) *steamForm {
 	f := &steamForm{}
 	f.Init(f, c)
 	return f
+}
+
+// removeButton removes the Steam shortcut: tinted red (inside kit.Tonal), so
+// it doesn't read like the button next to it.
+func removeButton(onRemove func()) *widget.Button {
+	b := widget.NewButtonWithIcon(lang.L("Remove"), theme.DeleteIcon(), onRemove)
+	b.Importance = widget.DangerImportance
+	return b
 }

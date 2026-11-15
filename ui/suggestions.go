@@ -75,9 +75,9 @@ func suggestionRow(s services.SaveSuggestion, onUse, onAdd func(services.SaveSug
 	case s.Files > 0:
 		badges.Add(kit.Badge(lang.N("found · {{.Count}} file · {{.Size}} · {{.Age}}", s.Files, map[string]any{"Count": s.Files, "Size": kit.FormatBytes(s.Bytes), "Age": timeAgo(s.Newest)}), kit.BadgeOK))
 	case s.Exists:
-		badges.Add(kit.Badge(lang.L("folder exists, no saves"), kit.BadgeNone))
+		badges.Add(kit.Badge(lang.L("Folder exists, no saves"), kit.BadgeNone))
 	default:
-		badges.Add(kit.Badge(lang.L("not on this device"), kit.BadgeNone))
+		badges.Add(kit.Badge(lang.L("Not on this device"), kit.BadgeNone))
 	}
 	if l := kindLabel(s.Kind); l != "" {
 		if s.Prefix != "" {

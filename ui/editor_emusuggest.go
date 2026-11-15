@@ -230,7 +230,7 @@ func (e *editor) emuSuggestUI(m *emuForm) fyne.CanvasObject {
 		for _, sg := range res.Suggestions {
 			var found fyne.CanvasObject
 			if sg.Exists {
-				found = kit.Badge(lang.L("found on this device"), kit.BadgeOK)
+				found = kit.Badge(lang.L("Found on this device"), kit.BadgeOK)
 			}
 			list.Add(kit.DetailRow(sg.Game, sg.Path, found, func() {
 				m.sugErr = ""

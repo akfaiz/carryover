@@ -33,10 +33,12 @@ type gameTile struct {
 func newGameTile(u *UI, g services.GameView) *gameTile {
 	t := &gameTile{u: u, cover: container.NewStack(), status: kit.HBox()}
 	t.name = widget.NewLabelWithStyle("", fyne.TextAlignLeading, fyne.TextStyle{Bold: true})
-	t.name.Truncation = fyne.TextTruncateEllipsis
 	t.play = widget.NewButton("", t.playTapped)
-	t.open = kit.NewTappable(kit.VBox(t.cover, t.name, t.status), func() { u.navigate("/game/" + t.g.ID) })
-	t.Init(t, kit.VBox(t.open, t.play))
+	// Long names get a second line rather than a tooltip: there is no hover
+	// on a Steam Deck.
+	t.open = kit.NewTappable(kit.VBox(t.cover, kit.TwoLines(t.name), t.status), func() { u.navigate("/game/" + t.g.ID) })
+	// One Play per game: tinted, so a full grid isn't a wall of solid blue.
+	t.Init(t, kit.VBox(t.open, kit.Tonal(t.play)))
 	t.set(g)
 	return t
 }

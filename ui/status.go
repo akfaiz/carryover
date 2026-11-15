@@ -10,22 +10,25 @@ import (
 )
 
 // statusBadge is the sync state badge of a game.
-func statusBadge(g services.GameView) fyne.CanvasObject {
+func statusBadge(g services.GameView) fyne.CanvasObject { return kit.Badge(statusOf(g)) }
+
+// statusOf is the text and kind of statusBadge.
+func statusOf(g services.GameView) (string, int) {
 	switch {
 	case g.Status.Running:
-		return kit.Badge(lang.L("running"), kit.BadgeInfo)
+		return lang.L("Running"), kit.BadgeInfo
 	case !g.Ready:
-		return kit.Badge(lang.L("needs setup"), kit.BadgeWarn)
+		return lang.L("Needs setup"), kit.BadgeWarn
 	case g.Status.Conflict:
-		return kit.Badge(lang.L("conflict"), kit.BadgeErr)
+		return lang.L("Conflict"), kit.BadgeErr
 	case g.Status.LastError != "":
-		return kit.Badge(lang.L("sync error"), kit.BadgeErr)
+		return lang.L("Sync error"), kit.BadgeErr
 	case g.Status.LocalChanges:
-		return kit.Badge(lang.L("not uploaded"), kit.BadgeWarn)
+		return lang.L("Not uploaded"), kit.BadgeWarn
 	case g.Status.LastSyncAt != "":
-		return kit.Badge(lang.L("synced"), kit.BadgeOK)
+		return lang.L("Synced"), kit.BadgeOK
 	}
-	return kit.Badge(lang.L("not synced"), kit.BadgeNone)
+	return lang.L("Not synced"), kit.BadgeNone
 }
 
 // statusIcon is a small coloured icon for a game's sync state (nil when there

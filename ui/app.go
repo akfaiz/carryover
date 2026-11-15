@@ -355,10 +355,7 @@ func (u *UI) renderSidebar() {
 	dev := kit.Muted(u.settings.DeviceName)
 	objs = append(objs, dev)
 	if u.settings.Remote != "" {
-		r := kit.Mono(u.settings.Remote + ":" + u.settings.RemoteRoot)
-		r.SizeName = theme.SizeNameCaptionText
-		r.Importance = widget.LowImportance
-		objs = append(objs, r)
+		objs = append(objs, kit.Muted(u.settings.Remote+":"+u.settings.RemoteRoot))
 	} else if u.loaded {
 		b := widget.NewButtonWithIcon(lang.L("No cloud configured"), theme.WarningIcon(), func() { u.navigate("/cloud") })
 		b.Importance = widget.WarningImportance

@@ -25,9 +25,9 @@ func timeAgoT(t time.Time) string {
 	case s < 60:
 		return lang.L("just now")
 	case s < 3600:
-		return lang.L("{{.N}} min ago", map[string]any{"N": int(math.Round(s / 60))})
+		return lang.L("{{.N}}m ago", map[string]any{"N": int(math.Round(s / 60))})
 	case s < 86400:
-		return lang.L("{{.N}} h ago", map[string]any{"N": int(math.Round(s / 3600))})
+		return lang.L("{{.N}}h ago", map[string]any{"N": int(math.Round(s / 3600))})
 	}
 	return t.Local().Format("2006-01-02")
 }

@@ -310,10 +310,13 @@ func (p *gameDetail) render() {
 	p.backBtn = widget.NewButtonWithIcon(lang.L("Back"), theme.NavigateBackIcon(), u.back)
 	p.backBtn.Importance = widget.LowImportance
 	info := kit.VBox(
-		kit.HBox(p.backBtn),
 		kit.WrapTitle(g.Name),
 		kit.HBox(statusBadge(g), kit.Small(lang.L("Last sync: {{.When}}", map[string]any{"When": timeAgo(g.Status.LastSyncAt)}))),
 	)
+	devices := otherDevicesCard(g)
+	if devices == nil && len(g.OtherDevices) > 0 {
+		info.Add(otherDevicesLine(g))
+	}
 	if !g.Ready {
 		info.Add(kit.Colored(g.SetupHint, widget.WarningImportance))
 	}
@@ -383,24 +386,27 @@ func (p *gameDetail) render() {
 		info.Add(kit.FixedWidth(480, p.transferCard()))
 	}
 
-	cover := kit.CoverView(kit.CoverSource{Path: g.CoverPath, Version: g.CoverVersion, Name: g.Name}, fyne.NewSize(170, 255))
+	// A smaller cover than the library's leaves room for the saves on a Steam
+	// Deck's 800 px high screen.
+	cover := kit.CoverView(kit.CoverSource{Path: g.CoverPath, Version: g.CoverVersion, Name: g.Name}, fyne.NewSize(120, 180))
 	hero := container.NewBorder(nil, nil, container.NewVBox(cover), nil, container.NewPadded(info))
+	// Back on its own row at the top left, where other pages have it.
+	page := kit.Stack(kit.VBox(kit.HBox(p.backBtn), hero))
 
 	// The saves and backups of one profile; a game with emulators switches
-	// between them.
+	// between them above both columns, so the columns start level.
 	sel := p.selectedProfile(profs)
-	left := kit.Stack()
 	if len(profs) > 1 {
-		left.Add(p.profileSwitcher(profs, sel))
+		page.Add(p.profileSwitcher(profs, sel))
 	}
-	left.Add(p.savesCard(sel, busy, hasRemote, len(profs) > 1))
-	left.Add(p.backupsCard(sel, busy, hasRemote))
+	left := kit.Stack(p.savesCard(sel, busy, hasRemote, len(profs) > 1, g), p.backupsCard(sel, busy, hasRemote))
 	right := kit.Stack(p.steamCard(orig, busy))
-	if len(g.OtherDevices) > 0 {
-		right.Add(otherDevicesCard(g))
+	if devices != nil {
+		right.Add(devices)
 	}
+	page.Add(kit.NewCols(420, []float32{3, 2}, left, right))
 
-	kit.ReplaceScroll(p.scroll, kit.Stack(hero, kit.NewCols(420, []float32{3, 2}, left, right)))
+	kit.ReplaceScroll(p.scroll, page)
 }
 
 // profileSwitcher is a row of buttons, one per way to play the game, each
@@ -498,9 +504,9 @@ func labelOf(label, key string) string {
 }
 
 // savesCard shows the save locations of one profile and compares them with the
-// cloud. With several profiles it also says how this one is doing (the page
-// header shows the game as a whole).
-func (p *gameDetail) savesCard(pe profileEntry, busy, hasRemote, several bool) fyne.CanvasObject {
+// cloud. With several profiles it also says how this one is doing, unless
+// that reads exactly like the page header's line for the whole game.
+func (p *gameDetail) savesCard(pe profileEntry, busy, hasRemote, several bool, whole services.GameView) fyne.CanvasObject {
 	u := p.u
 	g := pe.view
 	st := p.state(pe.id)
@@ -516,7 +522,11 @@ func (p *gameDetail) savesCard(pe profileEntry, busy, hasRemote, several bool) f
 	}
 	c := kit.VBox(kit.CardHead(lang.L("Saves"), cmp))
 	if several {
-		c.Add(kit.HBox(statusBadge(g), kit.Small(lang.L("Last sync: {{.When}}", map[string]any{"When": timeAgo(g.Status.LastSyncAt)}))))
+		text, _ := statusOf(g)
+		wholeText, _ := statusOf(whole)
+		if text != wholeText || timeAgo(g.Status.LastSyncAt) != timeAgo(whole.Status.LastSyncAt) {
+			c.Add(kit.HBox(statusBadge(g), kit.Small(lang.L("Last sync: {{.When}}", map[string]any{"When": timeAgo(g.Status.LastSyncAt)}))))
+		}
 		if !g.Ready {
 			c.Add(kit.Colored(g.SetupHint, widget.WarningImportance))
 		}
