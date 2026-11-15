@@ -7,8 +7,8 @@
   .\scripts\linux-docker.ps1 run            # open the GUI (builds first if needed)
   .\scripts\linux-docker.ps1 run list       # run a CLI subcommand instead of the GUI
   .\scripts\linux-docker.ps1 shell          # bash inside the image
-  .\scripts\linux-docker.ps1 export         # copy the Linux binary to bin\linux\carryover
-  .\scripts\linux-docker.ps1 appimage       # build bin\carryover-linux-amd64.AppImage (for Steam Deck / Linux)
+  .\scripts\linux-docker.ps1 export         # copy the Linux binary to dist\linux\carryover
+  .\scripts\linux-docker.ps1 appimage       # build dist\carryover-linux-amd64.AppImage (for Steam Deck / Linux)
 
   Requires Docker Desktop (WSL2 backend) and Windows 11 or Windows 10 with WSLg.
   Data lives in .docker-data\ (git-ignored), never in your real Carryover config.
@@ -60,14 +60,14 @@ switch ($Command) {
         docker run @(Run-Args) --entrypoint bash $image
     }
     'appimage' {
-        # Needs no FUSE or Linux host: the Dockerfile packages it and Docker writes it to bin\.
-        docker build --target appimage-out --output "type=local,dest=$(Join-Path $root 'bin')" $root
+        # Needs no FUSE or Linux host: the Dockerfile packages it and Docker writes it to dist\.
+        docker build --target appimage-out --output "type=local,dest=$(Join-Path $root 'dist')" $root
         if ($LASTEXITCODE) { throw 'docker build failed' }
-        Write-Host "Wrote $(Join-Path $root 'bin\carryover-linux-amd64.AppImage')"
+        Write-Host "Wrote $(Join-Path $root 'dist\carryover-linux-amd64.AppImage')"
     }
     'export' {
         Ensure-Image
-        $out = Join-Path $root 'bin\linux'
+        $out = Join-Path $root 'dist\linux'
         New-Item -ItemType Directory -Force $out | Out-Null
         $id = docker create $image
         docker cp "${id}:/usr/local/bin/carryover" (Join-Path $out 'carryover')

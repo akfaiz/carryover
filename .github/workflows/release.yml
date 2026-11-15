@@ -25,23 +25,28 @@ jobs:
         with:
           go-version-file: go.mod
       - uses: msys2/setup-msys2@v2
+        id: msys2
         with:
           msystem: UCRT64
           install: mingw-w64-ucrt-x86_64-gcc
           path-type: inherit # keep setup-go's Go on PATH
+      - name: Install NSIS
+        shell: pwsh
+        run: |
+          if (-not (Get-Command makensis -ErrorAction SilentlyContinue) -and
+              -not (Test-Path "${env:ProgramFiles(x86)}\NSIS\makensis.exe")) {
+            choco install nsis -y --no-progress
+          }
       - name: Stamp version
         shell: bash
         run: scripts/stamp-version.sh "$GITHUB_REF_NAME" "$GITHUB_SHA"
+      # The portable exe and the installer, the same way as a local build.
+      # Release files are named carryover-<version>-<os>-<arch>.<ext>, version without the "v".
       - name: Package
-        shell: msys2 {0}
+        shell: pwsh
         run: |
-          version="${GITHUB_REF_NAME#v}"
-          version="${version%%-*}" # the exe's version info takes x.y.z only
-          go tool fyne package --os windows --release --name carryover \
-            --app-version "$version" --app-build "$GITHUB_RUN_NUMBER"
-          # Release files are named carryover-<version>-<os>-<arch>.<ext>, version without the "v".
-          mkdir -p dist
-          mv carryover.exe "dist/carryover-${GITHUB_REF_NAME#v}-windows-amd64.exe"
+          $env:PATH = "${{ steps.msys2.outputs.msys2-location }}\ucrt64\bin;$env:PATH"
+          ./scripts/windows-package.ps1 -Version ($env:GITHUB_REF_NAME -replace '^v', '') -Build $env:GITHUB_RUN_NUMBER
       - uses: actions/upload-artifact@v4
         with:
           name: windows
@@ -77,18 +82,17 @@ jobs:
           build-args: |
             UPDATE_INFO=${{ env.UPDATE_INFO }}
             APPIMAGE=${{ env.NAME }}.AppImage
-          outputs: type=local,dest=out
+          outputs: type=local,dest=dist
       - name: Build binary
         uses: docker/build-push-action@v6
         with:
           context: .
           target: binary-out
-          outputs: type=local,dest=out
+          outputs: type=local,dest=dist/linux
       - name: Package
         run: |
-          mkdir -p dist
-          mv "out/$NAME.AppImage" "out/$NAME.AppImage.zsync" dist/
-          packaging/linux/tarball.sh out/carryover "$NAME" dist
+          packaging/linux/tarball.sh dist/linux/carryover "$NAME" dist
+          rm -rf dist/linux # only the release files stay in dist/
       - uses: actions/upload-artifact@v4
         with:
           name: linux

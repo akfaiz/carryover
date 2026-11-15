@@ -53,24 +53,28 @@ Cloud storage: Google Drive, Dropbox, OneDrive, WebDAV (Nextcloud, ownCloud, NAS
 Get the latest version from the [Releases page](https://github.com/akfaiz/carryover/releases/latest).
 
 Every file is named `carryover-<version>-<os>-<arch>`, for example `carryover-0.2.1-windows-amd64.exe`.
+On Windows, pick the installer or the portable exe; both are the same program.
 
 | Platform | File | How to run |
 |---|---|---|
-| Windows | `carryover-<version>-windows-amd64.exe` | Rename it to `carryover.exe` and run it; there is no installer. |
+| Windows (installer) | `carryover-<version>-windows-amd64-setup.exe` | Run it. Installs for your user only (no admin needed) into `%LOCALAPPDATA%\Programs\Carryover`, with a Start menu entry and an uninstaller. |
+| Windows (portable) | `carryover-<version>-windows-amd64.exe` | Rename it to `carryover.exe` and run it from any folder. |
 | Steam Deck, Linux | `carryover-<version>-linux-amd64.AppImage` | Rename it to `carryover.AppImage`, make it executable (file Properties → Permissions, or `chmod +x`) and run it. |
 | Linux | `carryover-<version>-linux-amd64.tar.gz` | Extract it and run `./install.sh` (installs into `~/.local` and adds a menu entry), or `sudo ./install.sh /usr/local` for every user. |
 
 - **Keep the app in one place, under one name.** Steam shortcuts made with "Add to Steam" point at the file's path,
   which is why the exe and AppImage are renamed without the version. Put them in a folder you won't move them out
   of (for example `~/Applications` on the Deck). On the Deck, run it from Desktop Mode the first time.
-- **Windows warns on first run.** The exe isn't code-signed yet, so SmartScreen shows "Windows protected your PC";
-  choose **More info → Run anyway**.
+- **Windows warns on first run.** The installer and exe aren't code-signed yet, so SmartScreen shows "Windows
+  protected your PC"; choose **More info → Run anyway**.
 - **Check a download** against `SHA256SUMS.txt` from the same release: `sha256sum -c SHA256SUMS.txt --ignore-missing`
   on Linux, or compare the output of `Get-FileHash <file>` in PowerShell on Windows.
-- **Updating:** download the new version and rename it over the old file (`carryover.exe` or `carryover.AppImage`),
-  so Steam shortcuts keep working. The AppImage can also update itself through
-  [Gear Lever](https://flathub.org/apps/it.mijorus.gearlever) or AppImageUpdate (full releases only, not
-  pre-releases). For the tarball, run `install.sh` from the new version.
+- **Updating:** run the new installer over the old install, or download the new version and rename it over the old
+  file (`carryover.exe` or `carryover.AppImage`), so Steam shortcuts keep working. The AppImage can also update
+  itself through [Gear Lever](https://flathub.org/apps/it.mijorus.gearlever) or AppImageUpdate (full releases only,
+  not pre-releases). For the tarball, run `install.sh` from the new version.
+- **Uninstalling** (installer): Windows Settings → Apps. Your settings, library and cloud configuration in
+  `%APPDATA%\Carryover` are kept; both Windows versions use that folder, so you can switch between them.
 - `carryover --version`, or Settings → About, shows which version you have.
 
 ## Getting started
