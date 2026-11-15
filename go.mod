@@ -4,12 +4,14 @@ go 1.26.0
 
 require (
 	fyne.io/fyne/v2 v2.8.2
+	github.com/fyne-io/oksvg v0.2.1-0.20260918172519-a9af55fa95d9
 	github.com/go-gl/glfw/v3.4/glfw v0.1.0-pre.2
 	github.com/godbus/dbus/v5 v5.2.2
 	github.com/google/uuid v1.6.0
 	github.com/rclone/rclone v1.76.0
 	github.com/rymdport/portal v0.4.2
 	github.com/shirou/gopsutil/v4 v4.26.10
+	github.com/srwiley/rasterx v0.0.0-20220730225603-2ab79fcdd4ef
 	github.com/stretchr/testify v1.12.1
 	golang.org/x/image v0.48.0
 	golang.org/x/sys v0.50.0
@@ -46,7 +48,6 @@ require (
 	github.com/fyne-io/gl-js v0.2.1-0.20260315212741-029c47fd27e8 // indirect
 	github.com/fyne-io/glfw-js v0.4.0 // indirect
 	github.com/fyne-io/image v0.1.1 // indirect
-	github.com/fyne-io/oksvg v0.2.1-0.20260918172519-a9af55fa95d9 // indirect
 	github.com/geoffgarside/ber v1.2.0 // indirect
 	github.com/go-chi/chi/v5 v5.5.0 // indirect
 	github.com/go-darwin/apfs v0.0.0-20211011131704-f84b94dbf348 // indirect
@@ -104,7 +105,6 @@ require (
 	github.com/smarty/assertions v1.16.0 // indirect
 	github.com/spf13/pflag v1.0.10 // indirect
 	github.com/srwiley/oksvg v0.0.0-20221011165216-be6e8873101c // indirect
-	github.com/srwiley/rasterx v0.0.0-20220730225603-2ab79fcdd4ef // indirect
 	github.com/tklauser/go-sysconf v0.4.0 // indirect
 	github.com/tklauser/numcpus v0.12.0 // indirect
 	github.com/unknwon/goconfig v1.0.0 // indirect

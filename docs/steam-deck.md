@@ -11,9 +11,11 @@ adding shortcuts, restart Steam: it overwrites its shortcut list when it exits.
 
 ## Using Carryover with a controller
 
-Carryover itself can be a non-Steam game too: add the AppImage to Steam (in Desktop Mode, "Add a Non-Steam Game"),
-then open it from Game Mode and use it with the Deck's controls instead of the touch screen. A bar at the bottom
-lists the buttons while a controller is connected.
+Carryover itself can be a non-Steam game too: in Desktop Mode, press **Add Carryover to Steam** in Settings →
+Steam, restart Steam, then open it from Game Mode and use it with the Deck's controls instead of the touch screen.
+The shortcut gets Carryover's icon and library artwork (cover, wide cover, background and logo); pressing the
+button again updates it, for example after moving the AppImage. A bar at the bottom lists the buttons while a
+controller is connected.
 
 | Button | Does |
 |---|---|

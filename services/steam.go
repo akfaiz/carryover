@@ -79,6 +79,23 @@ func (s *SteamService) RemoveFromSteam(key, userID string) (int, error) {
 	return n, err
 }
 
+// AddSelf adds Carryover itself to Steam as a non-Steam game, with art (PNG
+// data by kind, see core.SelfArtKinds) as its library images.
+func (s *SteamService) AddSelf(userID string, art map[string][]byte) (core.AddToSteamResult, error) {
+	return s.c.AddSelfToSteam(userID, art)
+}
+
+// SelfAppID returns the app id of Carryover's own shortcut for a Steam user,
+// or "" if Carryover isn't in Steam.
+func (s *SteamService) SelfAppID(userID string) (string, error) {
+	return s.c.SelfSteamAppID(userID)
+}
+
+// RemoveSelf removes Carryover's own shortcut.
+func (s *SteamService) RemoveSelf(userID string) (int, error) {
+	return s.c.RemoveSelfFromSteam(userID)
+}
+
 // WrapLaunchOptions returns launch options for wrapping a real Steam game.
 func (s *SteamService) WrapLaunchOptions(gameID string) (string, error) {
 	return core.SteamWrapLaunchOptions(gameID)
