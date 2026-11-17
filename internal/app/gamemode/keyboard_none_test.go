@@ -1,4 +1,4 @@
-//go:build windows
+//go:build windows || darwin
 
 package gamemode
 
@@ -10,9 +10,8 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// On Windows the keyboard isn't requested: Steam would open Big Picture's,
-// which takes the controller.
-func TestNoKeyboardRequestOnWindows(t *testing.T) {
+// On Windows and macOS the keyboard isn't requested (see CanRequestKeyboard).
+func TestNoKeyboardRequest(t *testing.T) {
 	assert.False(t, CanRequestKeyboard)
 	ran := false
 	run = func(context.Context, []string, string, ...string) ([]byte, error) { ran = true; return nil, nil }

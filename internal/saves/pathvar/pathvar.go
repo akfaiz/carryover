@@ -134,7 +134,7 @@ func (c Context) resolve(name, arg string) (string, error) {
 // defaultRyujinxDir is Ryujinx's usual data folder on this OS.
 func defaultRyujinxDir() string {
 	t := baseTokens()
-	if runtime.GOOS == "windows" {
+	if runtime.GOOS == "windows" || runtime.GOOS == "darwin" {
 		return filepath.Join(t["appdata"], "Ryujinx")
 	}
 	return filepath.Join(t["xdgconfig"], "Ryujinx")
@@ -201,6 +201,10 @@ func (c Context) Tokens() []Token {
 	sort.Slice(out, func(i, j int) bool { return out[i].Token < out[j].Token })
 	if c.SteamRoot != "" {
 		out = append(out, Token{Token: "{steam}", Description: descriptions["steam"], Value: c.SteamRoot})
+	}
+	// macOS has no Proton; the tokens still expand there (Expand), for paths
+	// written on other devices.
+	if c.SteamRoot != "" && runtime.GOOS != "darwin" {
 		out = append(out, Token{
 			Token:       "{proton:<appid>}",
 			Description: "Proton prefix user folder (drive_c/users/steamuser) for a Steam app id",
@@ -232,7 +236,10 @@ func (c Context) Contract(p string) string {
 			continue
 		}
 		v = filepath.Clean(v)
-		if hasPathPrefix(p, v) && len(v) > len(bestVal) {
+		if !hasPathPrefix(p, v) {
+			continue
+		}
+		if len(v) > len(bestVal) || len(v) == len(bestVal) && preferToken(k, best) {
 			best, bestVal = k, v
 		}
 	}
@@ -244,6 +251,26 @@ func (c Context) Contract(p string) string {
 		return "{" + best + "}"
 	}
 	return "{" + best + "}/" + filepath.ToSlash(rest)
+}
+
+// preferToken breaks a tie between two tokens with the same folder (on Linux
+// {appdata} is {xdgconfig}; on macOS {appdata}, {localappdata} and {xdgdata}
+// are all Application Support): the one that names it on this OS wins, then
+// the first by name, so the result doesn't depend on map order.
+func preferToken(a, b string) bool {
+	rank := func(k string) int {
+		switch {
+		case runtime.GOOS == "darwin" && k == "appdata":
+			return 0
+		case runtime.GOOS != "darwin" && (k == "xdgconfig" || k == "xdgdata"):
+			return 0
+		}
+		return 1
+	}
+	if ra, rb := rank(a), rank(b); ra != rb {
+		return ra < rb
+	}
+	return a < b
 }
 
 func hasPathPrefix(p, prefix string) bool {

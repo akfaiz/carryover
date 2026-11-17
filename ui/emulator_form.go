@@ -11,6 +11,7 @@ import (
 	"fyne.io/fyne/v2/lang"
 	"fyne.io/fyne/v2/widget"
 
+	"github.com/akfaiz/carryover/internal/launcher"
 	"github.com/akfaiz/carryover/internal/saves/pathvar"
 	"github.com/akfaiz/carryover/internal/ui/kit"
 	"github.com/akfaiz/carryover/services"
@@ -87,12 +88,16 @@ func (f *emulatorForm) form() fyne.CanvasObject {
 	name.OnChanged = func(v string) { s.Name = v }
 
 	example := "/home/deck/Applications/eden.AppImage"
-	if runtime.GOOS == "windows" {
+	switch runtime.GOOS {
+	case "windows":
 		example = `C:\Emulators\Eden\eden.exe`
+	case "darwin":
+		example = "/Applications/Eden.app"
 	}
 	exe := kit.MonoEntry(example, s.Exe, func(v string) { s.Exe = v })
 	browse := widget.NewButton(lang.L("Browse…"), func() {
-		kit.PickFile(f.u.win, lang.L("Choose the emulator executable"), nil, func(path string) {
+		kit.PickProgram(f.u.win, lang.L("Choose the emulator executable"), func(path string) {
+			path = launcher.AppBundle(path) // a program picked inside a macOS .app
 			s.Exe = path
 			exe.SetText(path)
 			f.exePicked(path)

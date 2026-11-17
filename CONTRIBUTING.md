@@ -15,13 +15,14 @@ Bug reports, ideas and pull requests are welcome.
   - **Windows:** MSYS2 MinGW. Run `pacman -S mingw-w64-ucrt-x86_64-gcc` and add `C:\msys64\ucrt64\bin` to `PATH`.
   - **Linux:** a C compiler plus the GL/X11 development packages (see
     [Fyne's prerequisites](https://docs.fyne.io/started/)).
+  - **macOS:** the Xcode command line tools (`xcode-select --install`).
 - Optional: [Docker](https://docs.docker.com/get-docker/), to build and test the Linux version from any OS.
 
 ## Build and run
 
 ```
 CGO_ENABLED=1 go build -trimpath -ldflags "-s -w -H windowsgui" -o dist/carryover.exe .  # Windows
-CGO_ENABLED=1 go build -trimpath -ldflags "-s -w" -o dist/carryover .                     # Linux
+CGO_ENABLED=1 go build -trimpath -ldflags "-s -w" -o dist/carryover .                     # Linux, macOS
 CARRYOVER_HOME=/tmp/pr go run .                                                           # run against an isolated data dir
 ```
 
@@ -35,6 +36,8 @@ CARRYOVER_HOME=/tmp/pr go run .                                                 
 - To build the Windows exe with its icon: `go tool fyne package --os windows --release --name carryover`.
 - To build the Windows release files (portable exe and installer) like a release does:
   `.\scripts\windows-package.ps1 [-Version 0.3.0]` (see [Release files](#release-files)).
+- To build the macOS app (universal `Carryover.app`, zip and dmg) like a release does:
+  `scripts/macos-package.sh [0.3.0]` (see [Release files](#release-files)).
 - Logs go to `<data>/logs/carryover.log` and to stderr (`internal/app/applog`). Every line carries the writer's PID,
   because the launcher, `carryover run` windows and the CLI share the file. A crash's stack is written there too. Over
   5 MB it is moved to `carryover.1.log` at the next start. `CARRYOVER_DEBUG=1` turns on rclone's INFO lines (every
@@ -212,6 +215,13 @@ Each file is named `carryover-<version>-<os>-<arch>.<ext>`, where `<version>` is
   `carryover-*-linux-amd64.AppImage.zsync`.
 - `…-linux-amd64.tar.gz` (`packaging/linux/tarball.sh`): the binary, `.desktop` file, icon and AppStream metadata
   laid out like an install prefix, plus `install.sh`, which installs into `~/.local` (or a prefix given as argument).
+- `…-macos-universal.dmg`: holds `Carryover.app` and a link to Applications, built on a Mac by
+  `scripts/macos-package.sh`. It builds arm64 and amd64 binaries (`MACOSX_DEPLOYMENT_TARGET=12.0`, the oldest macOS
+  Go supports), joins them with `lipo`, wraps the result with `fyne package --os darwin --exe` and signs the bundle
+  ad hoc (`codesign -s -`; Apple Silicon only runs signed code). The program inside stays named `carryover`, which is
+  how Steam shortcuts to Carryover itself are recognised. It is not notarized, so Gatekeeper blocks the first start
+  until the user chooses "Open Anyway" in System Settings → Privacy & Security. Like the Windows script it takes the
+  version (default: `git describe`) and a build number, restores `FyneApp.toml` and doesn't stamp the version.
 
 ### Versions
 
@@ -223,5 +233,5 @@ tag's `x.y.z` plus the workflow run number. `Version` in `FyneApp.toml` is not u
 
 ### CI
 
-`.github/workflows/ci.yml` runs on every pull request and push to `main`: `golangci-lint` on Linux and
-`go test ./...` on Linux and Windows.
+`.github/workflows/ci.yml` runs on every pull request and push to `main`: `golangci-lint` on Linux and macOS, and
+`go test ./...` on Linux, Windows and macOS.

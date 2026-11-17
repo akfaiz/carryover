@@ -468,11 +468,13 @@ func entryByPlaceholder(t *testing.T, h *harness, placeholder string) *widget.En
 }
 
 // exeEntry finds the executable field. Its placeholder is an example path in
-// the running OS's style (C:\Games\A\Game.exe or /home/deck/Games/A/Game.exe).
+// the running OS's style (C:\Games\A\Game.exe, /home/deck/Games/A/Game.exe or
+// /Applications/GameA.app).
 func exeEntry(t *testing.T, h *harness) *widget.Entry {
 	t.Helper()
 	for _, e := range pageWidgets[*widget.Entry](h) {
-		if strings.HasSuffix(e.PlaceHolder, "A/Game.exe") || strings.HasSuffix(e.PlaceHolder, `A\Game.exe`) {
+		if strings.HasSuffix(e.PlaceHolder, "A/Game.exe") || strings.HasSuffix(e.PlaceHolder, `A\Game.exe`) ||
+			strings.HasSuffix(e.PlaceHolder, "GameA.app") {
 			return e
 		}
 	}
@@ -1390,7 +1392,7 @@ func TestEditorAddsANewEmulatorInADialog(t *testing.T) {
 		switch e.PlaceHolder {
 		case "Emulator name (e.g. Eden)":
 			e.SetText("Eden")
-		case `C:\Emulators\Eden\eden.exe`, "/home/deck/Applications/eden.AppImage":
+		case `C:\Emulators\Eden\eden.exe`, "/home/deck/Applications/eden.AppImage", "/Applications/Eden.app":
 			e.SetText("eden.exe")
 		}
 	}

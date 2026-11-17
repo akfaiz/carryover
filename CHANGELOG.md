@@ -7,6 +7,18 @@ All notable changes to Carryover are listed here. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- macOS support (12 Monterey or later, Apple Silicon and Intel). Releases include a universal `Carryover.app` as
+  `carryover-<version>-macos-universal.dmg`. The app isn't notarized, so the first start needs "Open
+  Anyway" in System Settings → Privacy & Security.
+- Games and emulators can be macOS `.app` bundles: Carryover starts the program inside, and picking that program in
+  the file picker stores the bundle.
+- On macOS, Carryover follows the system's dark mode, finishes the session when Steam's Stop ends a game (it waits
+  for the game to close, uploads and releases the cloud lock) and shows the "saves uploaded" notification then,
+  keeps the `carryover run` window on top, and suggests the macOS data folders of Switch emulators, Ryujinx, Cemu,
+  DuckStation, RPCS3 and shadPS4. Proton options and hints are hidden there.
+
 ## [0.3.0] - 2026-11-15
 
 ### Added

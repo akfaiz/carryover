@@ -75,6 +75,11 @@ func TestDefaultRoot(t *testing.T) {
 	assert.Empty(t, sw.DefaultRoot("linux", ""), "the folder is named after the emulator")
 	ry, _ := PresetByID("ryujinx")
 	assert.Equal(t, "{xdgconfig}/Ryujinx", ry.DefaultRoot("linux", "anything"))
+	// macOS keeps them in Application Support ({appdata}).
+	assert.Equal(t, "{appdata}/eden", sw.DefaultRoot("darwin", "Eden"))
+	assert.Equal(t, "{appdata}/Ryujinx", ry.DefaultRoot("darwin", "Ryujinx"))
+	xe, _ := PresetByID("xenia")
+	assert.Empty(t, xe.DefaultRoot("darwin", "Xenia"), "no macOS build")
 	dol, _ := PresetByID("dolphin")
 	assert.Empty(t, dol.DefaultRoot("windows", "Dolphin"))
 	_, ok := PresetByID("nope")

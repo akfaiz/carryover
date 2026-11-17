@@ -43,10 +43,11 @@ func Run(ctx context.Context, spec Spec, onStarted func(pid int)) (Result, error
 	if spec.Exe == "" {
 		return Result{}, errors.New("no executable configured for this device")
 	}
-	cmd := exec.Command(spec.Exe, spec.Args...)
+	exe := BundleExe(spec.Exe) // a macOS .app is a folder: start its program
+	cmd := exec.Command(exe, spec.Args...)
 	cmd.Dir = spec.WorkDir
-	if cmd.Dir == "" && filepath.IsAbs(spec.Exe) {
-		cmd.Dir = filepath.Dir(spec.Exe)
+	if cmd.Dir == "" && filepath.IsAbs(exe) {
+		cmd.Dir = filepath.Dir(exe)
 	}
 	cmd.Env = os.Environ()
 	for k, v := range spec.Env {
