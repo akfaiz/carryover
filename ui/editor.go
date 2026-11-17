@@ -16,6 +16,7 @@ import (
 	"fyne.io/fyne/v2/theme"
 	"fyne.io/fyne/v2/widget"
 
+	"github.com/akfaiz/carryover/internal/launcher"
 	"github.com/akfaiz/carryover/internal/library"
 	"github.com/akfaiz/carryover/internal/saves/pathvar"
 	"github.com/akfaiz/carryover/internal/stores/steamgrid"
@@ -512,8 +513,11 @@ func (e *editor) launchCard() fyne.CanvasObject {
 	args := kit.MonoEntry("-windowed", e.dev.Args, func(s string) { e.dev.Args = s })
 	argsField := kit.Field(lang.L("Arguments"), args)
 	exeExample := func(dir string) string {
-		if runtime.GOOS == "windows" {
+		switch runtime.GOOS {
+		case "windows":
 			return `C:\Games\` + dir + `A\Game.exe`
+		case "darwin":
+			return "/Applications/GameA.app"
 		}
 		return "/home/deck/Games/" + strings.ReplaceAll(dir, `\`, "/") + "A/Game.exe"
 	}
@@ -542,7 +546,8 @@ func (e *editor) launchCard() fyne.CanvasObject {
 		applyMode()
 	})
 	browse := widget.NewButton(lang.L("Browse…"), func() {
-		e.pickFile(lang.L("Choose game executable"), nil, func(p string) {
+		kit.PickProgram(e.u.win, lang.L("Choose game executable"), func(p string) {
+			p = launcher.AppBundle(p) // a program picked inside a macOS .app
 			e.dev.Exe = p
 			e.exeEntry.SetText(p)
 			e.detectHeroic(p)

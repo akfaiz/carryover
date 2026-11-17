@@ -4,7 +4,11 @@ import (
 	"image"
 	"image/color"
 	"log"
+	"os"
+	"os/signal"
+	"sync"
 	"sync/atomic"
+	"syscall"
 	"time"
 
 	"fyne.io/fyne/v2"
@@ -129,6 +133,7 @@ func (u *UI) runWrapper(gameID string, opts core.RunOptions) int {
 	u.sess.OnGameRunning = func(running bool) {
 		if running {
 			closer.started.Store(true)
+			closer.holdSignals()
 		}
 		kit.OnUI(func() {
 			u.nav.SetActive(!running)
@@ -169,13 +174,37 @@ func (u *UI) runWrapper(gameID string, opts core.RunOptions) int {
 // wrapperClose decides what closing the session window does. Once the game
 // has started, closing doesn't quit: the upload after playing and the release
 // of the cloud lock happen in this process. Steam's "Stop" on Windows closes
-// this window (WM_CLOSE) while the game runs; the session then finishes and
-// quits by itself, like survivePolite does for SIGTERM on Linux. Before the
-// game starts, closing quits.
+// this window (WM_CLOSE) while the game runs, and on macOS asks the app to
+// quit, which reaches here as a close request too; the session then finishes
+// and quits by itself (signals: holdSignals). Before the game starts, closing
+// quits.
 type wrapperClose struct {
 	gameID  string
 	quit    func()
 	started atomic.Bool
+	hold    sync.Once
+}
+
+// holdSignals keeps a SIGINT, SIGTERM or SIGHUP from quitting the wrapper once
+// the game runs. Fyne's driver catches SIGINT and SIGTERM and quits the app,
+// past the close intercept: on macOS, Steam's Stop asks the app to quit and
+// then signals it, so the wrapper quit before uploading. signal.Ignore undoes
+// every earlier Notify (Fyne's too, which is installed at the latest once the
+// app has started, long before the game does); the signals are then only
+// logged, and the session finishes when the game exits. If Steam kills the
+// wrapper instead, the session watcher finishes it.
+func (w *wrapperClose) holdSignals() {
+	w.hold.Do(func() {
+		sigs := []os.Signal{syscall.SIGINT, syscall.SIGTERM, syscall.SIGHUP}
+		signal.Ignore(sigs...)
+		ch := make(chan os.Signal, 4)
+		signal.Notify(ch, sigs...)
+		go func() {
+			for s := range ch {
+				log.Printf("run %s: received %v during the session (Steam's Stop?): finishing the session first", w.gameID, s)
+			}
+		}()
+	})
 }
 
 func (w *wrapperClose) request() {

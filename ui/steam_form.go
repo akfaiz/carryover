@@ -1,6 +1,8 @@
 package ui
 
 import (
+	"runtime"
+
 	"fyne.io/fyne/v2/lang"
 	"fyne.io/fyne/v2/theme"
 	"fyne.io/fyne/v2/widget"
@@ -96,10 +98,14 @@ func newSteamForm(o steamFormOpts) *steamForm {
 		} else {
 			modes := &kit.Choice{}
 			modes.Add("direct", lang.L("Run Carryover (it starts the game)"))
-			modes.Add("steamwrap", lang.L("Run the game exe, wrapped by Carryover (pick Proton in Steam)"))
+			if runtime.GOOS == "darwin" { // no Proton on macOS
+				modes.Add("steamwrap", lang.L("Run the game, wrapped by Carryover"))
+			} else {
+				modes.Add("steamwrap", lang.L("Run the game exe, wrapped by Carryover (pick Proton in Steam)"))
+			}
 			c.Add(kit.Field(lang.L("Shortcut type"), kit.Outlined(kit.SelectOf(modes, o.Mode, o.OnMode))))
 		}
-		if o.Mode == "steamwrap" && g.Device.LaunchMode != "heroic" {
+		if o.Mode == "steamwrap" && g.Device.LaunchMode != "heroic" && runtime.GOOS != "darwin" {
 			t := lang.L("After adding, open the shortcut's Properties → Compatibility in Steam and force a Proton version. Its save prefix is available as {{.Token}}.",
 				map[string]any{"Token": "{proton:shortcut}"})
 			if g.Device.SteamAppID != "" {

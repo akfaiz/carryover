@@ -6,8 +6,6 @@
 package detach
 
 import (
-	"os"
-	"os/exec"
 	"strings"
 )
 
@@ -17,19 +15,6 @@ import (
 // it, Steam's variables are left out (see withoutSteam).
 func Start(exe string, args []string) error {
 	return start(exe, args)
-}
-
-// plain starts the process directly, set up by configure, without waiting for it.
-func plain(exe string, args []string, configure func(*exec.Cmd)) error {
-	cmd := exec.Command(exe, args...)
-	cmd.Env = withoutSteam(os.Environ())
-	if configure != nil {
-		configure(cmd)
-	}
-	if err := cmd.Start(); err != nil {
-		return err
-	}
-	return cmd.Process.Release()
 }
 
 // withoutSteam drops the variables Steam sets for a game (SteamGameId,

@@ -1,4 +1,4 @@
-//go:build windows
+//go:build windows || darwin
 
 package kit
 
@@ -7,8 +7,8 @@ import (
 	"fyne.io/fyne/v2/theme"
 )
 
-// InitialSystemDark reports whether Windows is set to dark mode for apps
-// (Fyne reads it from the registry when the app starts).
+// InitialSystemDark reports whether Windows or macOS is set to dark mode for
+// apps (Fyne reads it from the system when the app starts).
 func InitialSystemDark(a fyne.App) bool {
 	return a.Settings().ThemeVariant() == theme.VariantDark
 }

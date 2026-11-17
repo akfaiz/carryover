@@ -26,7 +26,7 @@ Three excellent open-source tools cover nearby ground, and each takes a differen
 | Command line | `run`, `sync` (`--push`/`--pull`/`--dry-run`), `list`; a conflict exits with code 3 and is resolved in the GUI | No CLI; a local HTTP API | Full CLI with `--json`: `sync`, `pair`, `conflicts`/`resolve`, snapshots, cloud | `backup`, `restore`, `wrap` |
 | Launching a game from the command line | `carryover run <game> [-- cmd]` pulls, starts the game, then pushes when it exits | No | `opensave launch <gameId>` only starts the game; the daemon syncs changes | `ludusavi wrap` around the game command |
 | Windows registry saves | No | No | Yes | Yes |
-| macOS | No | No | Yes (2.4.0+) | Yes |
+| macOS | Yes (universal app) | No | Yes (2.4.0+) | Yes |
 | Syncs games launched outside it | Flags them as "not uploaded"; one click to sync | Yes, within the timer interval (2 minutes by default) for games with auto sync on | Yes (file watcher) | Only with a manual backup or a wrapper |
 
 ### How each tool syncs
@@ -48,6 +48,6 @@ Three excellent open-source tools cover nearby ground, and each takes a differen
 - **Ludusavi** does not sync. It makes full or differential backups and restores them on demand.
 
 Choose **Ludusavi** if you mainly want backups on one machine, **OpenSave** if you want every change synced
-automatically without a cloud account (or need registry saves, macOS, block-level transfer or a full scriptable CLI),
-**EmuSync** if you want saves pushed in the background without starting games through a launcher, and **Carryover** if you want one cloud copy that follows you between a PC and a Steam Deck with no extra setup and no
+automatically without a cloud account (or need registry saves, block-level transfer or a full scriptable CLI),
+**EmuSync** if you want saves pushed in the background without starting games through a launcher, and **Carryover** if you want one cloud copy that follows you between a PC, a Mac and a Steam Deck with no extra setup and no
 background service.

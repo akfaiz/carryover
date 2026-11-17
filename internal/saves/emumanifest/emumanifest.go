@@ -41,9 +41,9 @@ type Preset struct {
 	ID   string
 	Name string // shown to the user
 	File string // manifest file name
-	// Windows and Linux are default data folders (path tokens allowed); "{emu}"
-	// is the emulator's name in lower case. Empty: no known default.
-	Windows, Linux string
+	// Windows, Linux and Mac are default data folders (path tokens allowed);
+	// "{emu}" is the emulator's name in lower case. Empty: no known default.
+	Windows, Linux, Mac string
 	// PerGame is false when the manifest has no per-game entries (Ryujinx:
 	// one entry for all saves).
 	PerGame bool
@@ -83,21 +83,21 @@ func withArgs(p Preset) Preset {
 
 var presets = []Preset{
 	{ID: "switch", Name: "Switch: Eden, Citron, Suyu, yuzu", File: "switch.yaml", PerGame: true,
-		Windows: "{appdata}/{emu}", Linux: "{xdgdata}/{emu}", RootHint: "the emulator's user folder (contains nand/)"},
+		Windows: "{appdata}/{emu}", Linux: "{xdgdata}/{emu}", Mac: "{appdata}/{emu}", RootHint: "the emulator's user folder (contains nand/)"},
 	{ID: "ryujinx", Name: "Switch: Ryujinx", File: "ryujinx.yaml",
-		Windows: "{appdata}/Ryujinx", Linux: "{xdgconfig}/Ryujinx", RootHint: "Ryujinx's data folder (contains bis/)"},
+		Windows: "{appdata}/Ryujinx", Linux: "{xdgconfig}/Ryujinx", Mac: "{appdata}/Ryujinx", RootHint: "Ryujinx's data folder (contains bis/)"},
 	{ID: "dolphin", Name: "GameCube / Wii: Dolphin", File: "dolphin.yaml", PerGame: true,
 		RootHint: "Dolphin's user folder (GameCube memory card folders, not raw cards)"},
 	{ID: "azahar", Name: "3DS: Azahar / Citra", File: "azahar.yaml", PerGame: true, RootHint: "the emulator's user folder"},
 	{ID: "cemu", Name: "Wii U: Cemu", File: "cemu.yaml", PerGame: true,
-		Windows: "{appdata}/Cemu/mlc01", Linux: "{xdgdata}/Cemu/mlc01", RootHint: "Cemu's mlc01 folder"},
+		Windows: "{appdata}/Cemu/mlc01", Linux: "{xdgdata}/Cemu/mlc01", Mac: "{appdata}/Cemu/mlc01", RootHint: "Cemu's mlc01 folder"},
 	{ID: "pcsx2", Name: "PS2: PCSX2", File: "pcsx2.yaml", PerGame: true, RootHint: "PCSX2's memcards folder (folder memory cards only)"},
 	{ID: "duckstation", Name: "PS1: DuckStation", File: "duckstation.yaml", PerGame: true,
-		Windows: "{documents}/DuckStation", Linux: "{xdgdata}/duckstation", RootHint: "DuckStation's data folder (memcards/, savestates/)"},
+		Windows: "{documents}/DuckStation", Linux: "{xdgdata}/duckstation", Mac: "{appdata}/DuckStation", RootHint: "DuckStation's data folder (memcards/, savestates/)"},
 	{ID: "rpcs3", Name: "PS3: RPCS3", File: "rpcs3.yaml", PerGame: true,
-		Linux: "{xdgconfig}/rpcs3", RootHint: "RPCS3's config folder (contains dev_hdd0/)"},
+		Linux: "{xdgconfig}/rpcs3", Mac: "{appdata}/rpcs3", RootHint: "RPCS3's config folder (contains dev_hdd0/)"},
 	{ID: "shadps4", Name: "PS4: shadPS4", File: "shadps4.yaml", PerGame: true,
-		Windows: "{appdata}/shadPS4", Linux: "{xdgdata}/shadPS4", RootHint: "shadPS4's user folder"},
+		Windows: "{appdata}/shadPS4", Linux: "{xdgdata}/shadPS4", Mac: "{appdata}/shadPS4", RootHint: "shadPS4's user folder"},
 	{ID: "ppsspp", Name: "PSP: PPSSPP", File: "ppsspp.yaml", PerGame: true, RootHint: "PPSSPP's PSP folder"},
 	{ID: "vita3k", Name: "PS Vita: Vita3K", File: "vita3k.yaml", PerGame: true,
 		Windows: "{appdata}/Vita3K/Vita3K", Linux: "{xdgdata}/Vita3K/Vita3K", RootHint: "Vita3K's data folder (contains ux0/)"},
@@ -160,8 +160,11 @@ func Detect(path string) (name, preset string) {
 // ("" if there is no known default); the result may contain path tokens.
 func (p Preset) DefaultRoot(goos, name string) string {
 	tpl := p.Linux
-	if goos == "windows" {
+	switch goos {
+	case "windows":
 		tpl = p.Windows
+	case "darwin":
+		tpl = p.Mac
 	}
 	if tpl == "" || strings.Contains(tpl, "{emu}") && strings.TrimSpace(name) == "" {
 		return ""

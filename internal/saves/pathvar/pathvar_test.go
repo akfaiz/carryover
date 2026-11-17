@@ -3,6 +3,7 @@ package pathvar
 import (
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 
@@ -113,5 +114,25 @@ func TestTokens(t *testing.T) {
 		}
 	}
 	require.Equal(t, c.SteamRoot, steamTok.Value)
+	if runtime.GOOS == "darwin" {
+		require.Empty(t, shortcut.Token, "no Proton on macOS")
+		return
+	}
 	require.Contains(t, shortcut.Value, "42")
+}
+
+// When several tokens share a folder, the one that names it on this OS wins,
+// whatever the map order.
+func TestContractTie(t *testing.T) {
+	key := "xdgconfig" // {appdata} is the same folder on Linux
+	switch runtime.GOOS {
+	case "windows":
+		t.Skip("no shared folders on Windows")
+	case "darwin":
+		key = "appdata" // {localappdata} and {xdgdata} too
+	}
+	dir := filepath.Join(baseTokens()[key], "Game")
+	for range 20 {
+		require.Equal(t, "{"+key+"}/Game", (Context{}).Contract(dir))
+	}
 }

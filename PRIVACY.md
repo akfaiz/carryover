@@ -48,7 +48,7 @@ shared if you attach it to a bug report yourself. Check it before you post it pu
 ## Removing your data
 
 Delete Carryover's data folder on your device (`%APPDATA%\Carryover` on Windows, `~/.config/Carryover` on Linux,
-or the folder set in `CARRYOVER_HOME`) and its folder in your cloud storage (`Carryover` unless you chose another
+`~/Library/Application Support/Carryover` on macOS, or the folder set in `CARRYOVER_HOME`) and its folder in your cloud storage (`Carryover` unless you chose another
 under "Sync location").
 
 ## Changes and contact

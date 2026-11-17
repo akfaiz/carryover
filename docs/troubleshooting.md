@@ -23,6 +23,12 @@ Steam overwrites its shortcut list when it exits. Restart Steam after "Add to St
 On Linux the upload after Steam stops a game needs systemd, which SteamOS has. Without it (e.g. Flatpak Steam),
 press "Sync now" before you play on another device.
 
+## macOS says Carryover can't be opened
+
+The app isn't signed with an Apple Developer ID or notarized. Open it once, then go to System Settings → Privacy &
+Security and choose **Open Anyway** (or run `xattr -dr com.apple.quarantine /Applications/Carryover.app`). On macOS
+the "saves uploaded" notification comes from Script Editor, because an unsigned app can't send its own.
+
 ## A game shows "not uploaded"
 
 Its saves changed since the last sync, usually because the game was started outside Carryover. Press "Sync now".

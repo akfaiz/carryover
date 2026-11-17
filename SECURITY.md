@@ -14,5 +14,6 @@ You should get an answer within a week. Once a fix is released, the advisory is 
 unless you'd rather stay anonymous.
 
 Carryover keeps your rclone configuration, which holds the access tokens for your cloud storage, in its data folder
-(`%AppData%\Carryover` on Windows, `~/.config/Carryover` on Linux). Anything that could expose that file, or let
+(`%AppData%\Carryover` on Windows, `~/.config/Carryover` on Linux, `~/Library/Application Support/Carryover` on
+macOS). Anything that could expose that file, or let
 someone else's library or cloud data run code or write outside the save folders, counts as a vulnerability.

@@ -3,9 +3,10 @@
 # the old output folder, and fyne-cross, which always writes its own
 bin
 fyne-cross
-# written by `fyne package` at the repo root (scripts/windows-package.ps1 moves it to dist/)
+# written by `fyne package` at the repo root (scripts/windows-package.ps1 and macos-package.sh move them to dist/)
 /carryover.exe
 /carryover.tar.xz
+/Carryover.app
 .docker-data
 # written by scripts/stamp-version.sh for release builds
 /internal/app/version/zz_release.go
