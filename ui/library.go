@@ -18,6 +18,7 @@ import (
 // Library filters and sort orders (kept in the app's preferences).
 const (
 	filterAll       = "all"
+	filterReady     = "ready" // the games that can be played on this device
 	filterAttention = "attention"
 
 	sortName   = "name"
@@ -46,8 +47,8 @@ type libraryPage struct {
 	search  *widget.Entry
 	syncBtn *widget.Button
 	head    fyne.CanvasObject // header row, refreshed when syncBtn's label changes
-	// chipsHost holds toolsRow (filters, search and sort) once there are games;
-	// filterHost is the part of it with the filter buttons, the only part
+	// chipsHost holds toolsRow (search and sort, the filters under them) once
+	// there are games; filterHost is the row of filter buttons, the only part
 	// drawn again (the search field stays the same widget while typing).
 	chipsHost  *fyne.Container
 	toolsRow   fyne.CanvasObject
@@ -73,8 +74,8 @@ func (p *libraryPage) view() fyne.CanvasObject {
 		p.syncBtn,
 		kit.Primary(lang.L("＋ Add game"), func() { showAddGame(p.u) }),
 	)
-	// Search first, over the games it filters, then sort, then the filters,
-	// all aligned left. All one height.
+	// Search and sort on one row, the filters on their own row under it: three
+	// kinds of control in one row ran together.
 	sorts := &kit.Choice{}
 	sorts.Add(sortName, lang.L("Sort by name"))
 	sorts.Add(sortRecent, lang.L("Sort by last sync"))
@@ -83,10 +84,12 @@ func (p *libraryPage) view() fyne.CanvasObject {
 		p.renderGrid()
 	})
 	p.filterHost = container.NewStack()
+	p.filterHost.Hide()
 	// The extra space below sets the tools apart from the grid; it goes with
 	// them, so an empty library has none.
-	p.toolsRow = container.New(layout.NewCustomPaddedLayout(0, 8, 0, 0),
-		container.NewHBox(kit.FixedWidth(280, p.search), kit.FixedWidth(190, kit.Outlined(sortSel)), p.filterHost))
+	p.toolsRow = container.New(layout.NewCustomPaddedLayout(0, 8, 0, 0), kit.VBox(
+		container.NewHBox(kit.FixedWidth(360, p.search), kit.FixedWidth(190, kit.Outlined(sortSel))),
+		p.filterHost))
 	p.chipsHost = container.NewStack()
 	p.gridHost = container.NewStack()
 	p.emptyHost = container.NewStack()
@@ -186,10 +189,11 @@ func (p *libraryPage) stateChanged(what change) {
 func (p *libraryPage) visible() []services.GameView {
 	u := p.u
 	f := strings.ToLower(strings.TrimSpace(p.filter))
-	attention := u.libraryFilter() == filterAttention
+	filter := u.libraryFilter()
 	var out []services.GameView
 	for _, g := range u.games {
-		if !strings.Contains(strings.ToLower(g.Name), f) || (attention && !needsAttention(g)) {
+		if !strings.Contains(strings.ToLower(g.Name), f) ||
+			(filter == filterAttention && !needsAttention(g)) || (filter == filterReady && !g.Ready) {
 			continue
 		}
 		out = append(out, g)
@@ -215,23 +219,29 @@ func (p *libraryPage) renderChips() {
 		p.chipsHost.Refresh()
 		return
 	}
-	n := 0
+	n, ready := 0, 0
 	for _, g := range u.games {
 		if needsAttention(g) {
 			n++
 		}
+		if g.Ready {
+			ready++
+		}
 	}
-	// The filters only show when there is something to filter for (or the
-	// attention filter is on, so it can be turned off again).
+	// The filters only show when there is something to filter for (or one is
+	// on, so it can be turned off again).
 	p.filterHost.Objects = nil
-	if n > 0 || u.libraryFilter() == filterAttention {
+	p.filterHost.Hide() // no gap above the grid for an empty row
+	if n > 0 || ready < len(u.games) || u.libraryFilter() != filterAll {
 		p.filterHost.Objects = []fyne.CanvasObject{kit.Chips([]kit.ChipOption{
 			{Value: filterAll, Label: lang.L("All ({{.Count}})", map[string]any{"Count": len(u.games)})},
+			{Value: filterReady, Label: lang.L("Ready to play ({{.Count}})", map[string]any{"Count": ready}), Icon: theme.MediaPlayIcon()},
 			{Value: filterAttention, Label: lang.L("Needs attention ({{.Count}})", map[string]any{"Count": n}), Icon: theme.WarningIcon()},
 		}, u.libraryFilter(), func(v string) {
 			u.setLibraryFilter(v)
 			p.renderGrid()
 		})}
+		p.filterHost.Show()
 	}
 	p.filterHost.Refresh()
 	p.chipsHost.Objects = []fyne.CanvasObject{p.toolsRow}
@@ -257,6 +267,10 @@ func (p *libraryPage) renderGrid() {
 		p.emptyHost.Objects = []fyne.CanvasObject{kit.Card("",
 			kit.Muted(lang.L("No games match “{{.Query}}”.", map[string]any{"Query": strings.TrimSpace(p.filter)})),
 			kit.HBox(widget.NewButton(lang.L("Clear search"), func() { p.search.SetText("") })))}
+	case len(games) == 0 && u.loaded && u.libraryFilter() == filterReady:
+		p.emptyHost.Objects = []fyne.CanvasObject{kit.Card("",
+			kit.Muted(lang.L("No game can be played on this device yet. Set one up to play it here.")),
+			kit.HBox(widget.NewButton(lang.L("Show all games"), func() { u.setLibraryFilter(filterAll); p.renderGrid() })))}
 	case len(games) == 0 && u.loaded:
 		p.emptyHost.Objects = []fyne.CanvasObject{kit.Card("",
 			kit.Muted(lang.L("Nothing needs attention: every game is set up and synced.")),

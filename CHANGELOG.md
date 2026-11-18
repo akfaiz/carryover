@@ -21,6 +21,13 @@ All notable changes to Carryover are listed here. The format follows
 - "Remove from this device…" on the Emulators page clears an emulator's setup on this device only (for one you
   uninstalled here). Its saves are then no longer synced or counted here, so a game played with another emulator
   shows as synced. It stays set up on your other devices, and games keep it and their cloud saves.
+- A "Ready to play" filter in the library shows only the games set up to play on this device, next to "All" and
+  "Needs attention".
+
+### Changed
+
+- The library's filters have a row of their own under search and sort, and the filters not chosen are outlined,
+  so they read as choices instead of plain text.
 
 ### Fixed
 
@@ -30,6 +37,9 @@ All notable changes to Carryover are listed here. The format follows
   made (most games have none). It is still offered when the game already has a device save from another device.
 - Suggesting save locations by game name no longer also lists other titles whose name contains it (Unicorn
   Overlord brought its music album app), which kept the account save from being filled in.
+- Text fields, drop-downs and buttons in forms are all the same height. Fields in the code font (paths, folders,
+  arguments) were shorter, so the cloud page's Folder didn't line up with Remote. A save location's name field no
+  longer stops short of the path under it.
 
 ## [0.3.0] - 2026-11-15
 
