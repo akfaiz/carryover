@@ -46,7 +46,7 @@ func pageFor(u env.Env, path string) env.Page {
 	case arg(0) == "trash":
 		return trash.New(u)
 	case arg(0) == "settings":
-		return settings.New(u, settings.Options{SteamCard: newSelfSteamCard})
+		return settings.New(u, settings.Options{SteamArt: selfSteamArt})
 	}
 	return library.New(u)
 }

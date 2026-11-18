@@ -148,14 +148,14 @@ services.Bus -> store (shared state) -> ViewModel (page rules, no widgets) -> vi
 | `ui/i18n` | Translation catalogs (`translations/*.json`) and their loading. |
 | `ui/store` | The state every page shares (games, settings, session status, transfer progress, "Sync all"). The only listener of `services.Bus`; pages subscribe by topic. |
 | `ui/env` | What a page may use of the app: `env.Env` (window, services, store, navigation, toasts) and the page contracts (`Page`, `Stateful`, `Guarded`, `Searchable`, `Syncable`, `PadFocuser`, `Redrawable`). |
-| `ui/components` | Shared widgets and dialogs that know about the app (help text, confirm dialogs, path input, status badges). |
+| `ui/components` | Shared widgets and dialogs that know about the app (help text, confirm dialogs, path input, status badges, the add-game and Steam import dialogs, the SteamGridDB key dialog). `components/emulatorform` is the emulator form the Emulators page and the game editor share. |
 | `ui/prompts` | The session prompt dialogs (conflict, lock, error, which emulator). |
-| `ui/pages/<name>` | One page: `viewmodel.go` (state and rules; no `widget`, `container`, `canvas`, `dialog` or `app` imports; reads small interfaces, not `*services.X`) and `view.go` (builds the widgets once, redraws from the ViewModel). `pages/library` is the reference. |
+| `ui/pages/<name>` | One page: `viewmodel.go` (state and rules; no `widget`, `container`, `canvas`, `dialog`, `app` or `lang` imports; reads small interfaces, not `*services.X`) and `view.go` (builds the widgets once, redraws from the ViewModel). The pages are `library`, `trash`, `settings`, `emulators`, `cloud`, `session`, `editor` and `game`; `library` is the reference. The editor and the game page are bigger: their ViewModel is a struct their `Page` embeds, so the view reads its fields directly. |
 | `ui/shell` | The main window: sidebar, router, shortcuts, gamepad, toasts, notices and the session wrapper window. Implements `env.Env`. Knows no page: the root plugs them in through `shell.Config`. |
-| `ui` (root) | Composition root: `Run`, the route table (`routes.go`) and the pages not moved yet. |
-| `ui/internal/uitest` | Headless test harness shared by page tests. |
+| `ui` (root) | Composition root: `Run`, the route table (`routes.go`), the sync-problems dialog (it opens the library page's filter, so it sits above the pages) and the artwork the app embeds (icon, Steam art). |
+| `ui/internal/uitest` | Headless test harness and finders shared by the page tests. A page's view tests live in its package; the root `ui` package keeps only the tests that need several real pages at once. |
 
-Imports go one way: `kit`, `i18n` <- `store` <- `env` <- `components`, `prompts` <- `pages/*` <- `shell` <- `ui`. A page never imports `shell` or another page; it opens one with `env.Navigate("/game/<id>")`. Pages not moved yet still live in the root package and follow the same rules.
+Imports go one way: `kit`, `i18n` <- `store` <- `env` <- `components`, `prompts` <- `pages/*` <- `shell` <- `ui`. A page never imports `shell` or another page; it opens one with `env.Navigate("/game/<id>")`. The rules about what a ViewModel, a page, `kit`, `store` and `env` may import are enforced by `depguard` in `.golangci.yml`.
 
 When you add or change a page:
 

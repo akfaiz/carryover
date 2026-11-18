@@ -56,10 +56,13 @@ func (h *harness) finish() {
 }
 
 func TestParseRetention(t *testing.T) {
-	for in, want := range map[string]int{"1": 1, " 7 ": 7, "100": 100} {
-		n, err := ParseRetention(in)
-		require.NoError(t, err, in)
-		assert.Equal(t, want, n, in)
+	for _, tc := range []struct {
+		in   string
+		want int
+	}{{"1", 1}, {" 7 ", 7}, {"100", 100}} {
+		n, err := ParseRetention(tc.in)
+		require.NoError(t, err, tc.in)
+		assert.Equal(t, tc.want, n, tc.in)
 	}
 	for _, in := range []string{"", "0", "101", "-3", "five", "2.5"} {
 		_, err := ParseRetention(in)

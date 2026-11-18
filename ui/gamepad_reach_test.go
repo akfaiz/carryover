@@ -1,10 +1,8 @@
 package ui
 
 import (
-	"fmt"
 	"testing"
 
-	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/widget"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -15,44 +13,6 @@ import (
 	"github.com/akfaiz/carryover/ui/kit"
 	cloudpage "github.com/akfaiz/carryover/ui/pages/cloud"
 )
-
-// reachable walks the D-pad from start in every direction and returns every
-// control it gets to.
-func reachable(h *harness, start fyne.Focusable) map[fyne.Focusable]bool {
-	c := h.u.Window().Canvas()
-	seen := map[fyne.Focusable]bool{start: true}
-	queue := []fyne.Focusable{start}
-	for len(queue) > 0 {
-		from := queue[0]
-		queue = queue[1:]
-		for _, dir := range []kit.PadAction{kit.PadUp, kit.PadDown, kit.PadLeft, kit.PadRight} {
-			h.u.Navigator().Focus(from) // scrolled into view, as when the D-pad got there
-			h.u.Navigator().Apply(dir)
-			if to := c.Focused(); to != nil && !seen[to] {
-				seen[to] = true
-				queue = append(queue, to)
-			}
-		}
-	}
-	return seen
-}
-
-// describe names a control for a failure message.
-func describe(f fyne.Focusable) string {
-	switch w := f.(type) {
-	case *widget.Button:
-		return fmt.Sprintf("button %q", w.Text)
-	case *widget.Check:
-		return fmt.Sprintf("check %q", w.Text)
-	case *widget.Select:
-		return fmt.Sprintf("select %q", w.Selected)
-	case *widget.Entry:
-		return fmt.Sprintf("entry %q", w.PlaceHolder)
-	case *widget.Hyperlink:
-		return fmt.Sprintf("link %q", w.Text)
-	}
-	return fmt.Sprintf("%T", f)
-}
 
 // Every control on every page can be reached with the D-pad from where a
 // gamepad starts: nothing is stranded where only a mouse or touch gets to it.
@@ -90,7 +50,7 @@ func TestGamepadReachesEveryControl(t *testing.T) {
 // press starts, and B closes the dialog.
 func TestGamepadReachesDialogControls(t *testing.T) {
 	cases := map[string]func(h *harness){
-		"add game":        func(h *harness) { showAddGame(h.u) },
+		"add game":        func(h *harness) { components.ShowAddGame(h.u) },
 		"SteamGridDB key": func(h *harness) { components.ShowGridKeyDialog(h.u, nil) },
 		"add emulator":    func(h *harness) { emulatorform.ShowDialog(h.u, func(services.EmulatorView) {}) },
 		"add remote":      func(h *harness) { cloudpage.New(h.u).AddRemote() },

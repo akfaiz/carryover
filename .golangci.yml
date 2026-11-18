@@ -4,6 +4,7 @@ linters:
   default: standard # errcheck, govet, ineffassign, staticcheck, unused
   enable:
     - bodyclose
+    - depguard
     - errorlint
     - gocritic
     - misspell
@@ -12,6 +13,65 @@ linters:
     - unconvert
     - usestdlibvars
   settings:
+    depguard:
+      rules:
+        viewmodel:
+          list-mode: lax
+          files:
+            - "**/ui/pages/**/viewmodel.go"
+            - "**/ui/components/emulatorform/viewmodel.go"
+          deny:
+            - pkg: fyne.io/fyne/v2/widget
+              desc: a ViewModel holds no widget
+            - pkg: fyne.io/fyne/v2/container
+              desc: a ViewModel holds no widget
+            - pkg: fyne.io/fyne/v2/canvas
+              desc: a ViewModel holds no widget
+            - pkg: fyne.io/fyne/v2/dialog
+              desc: a ViewModel opens no dialog; the view does
+            - pkg: fyne.io/fyne/v2/app
+              desc: a ViewModel does not touch the app
+            - pkg: fyne.io/fyne/v2/lang
+              desc: a ViewModel holds no translated text; the view translates
+            - pkg: github.com/akfaiz/carryover/ui/shell
+              desc: pages do not know the shell
+        pages:
+          list-mode: lax
+          files:
+            - "**/ui/pages/**"
+            - "!$test"
+          deny:
+            - pkg: github.com/akfaiz/carryover/ui/shell
+              desc: a page reaches the window through env.Env, not the shell
+            - pkg: github.com/akfaiz/carryover/ui/pages
+              desc: pages do not import each other; use env.Navigate
+        kit:
+          list-mode: lax
+          files:
+            - "**/ui/kit/**"
+            - "!$test"
+          deny:
+            - pkg: fyne.io/fyne/v2/lang
+              desc: kit has no user-visible text; callers pass labels in
+            - pkg: github.com/akfaiz/carryover/services
+              desc: kit is pure Fyne
+            - pkg: github.com/akfaiz/carryover/internal/core
+              desc: kit is pure Fyne
+            - pkg: github.com/akfaiz/carryover/ui
+              desc: kit is the bottom layer
+        lower-layers:
+          list-mode: lax
+          files:
+            - "**/ui/store/**"
+            - "**/ui/env/**"
+            - "!$test"
+          deny:
+            - pkg: github.com/akfaiz/carryover/ui/pages
+              desc: store and env sit below the pages
+            - pkg: github.com/akfaiz/carryover/ui/shell
+              desc: store and env sit below the shell
+            - pkg: github.com/akfaiz/carryover/ui/components
+              desc: store and env sit below the components
     errcheck:
       exclude-functions:
         - (*os.File).Close
