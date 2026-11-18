@@ -257,8 +257,10 @@ func normalize(s string) string {
 	return strings.Join(strings.Fields(b.String()), " ")
 }
 
-// Find returns up to limit games whose name matches query, best first: equal
-// names, then names containing every word of the query (the shortest first).
+// Find returns up to limit games whose name matches query: the games of that
+// exact name if there are any (so "Unicorn Overlord" doesn't also bring its
+// soundtrack app), otherwise the names containing every word of the query, the
+// shortest first.
 func (m *Manifest) Find(query string, limit int) []Entry {
 	q := normalize(query)
 	if q == "" || limit <= 0 {
@@ -278,6 +280,13 @@ func (m *Manifest) Find(query string, limit int) []Entry {
 		}
 	}
 	sort.SliceStable(hits, func(a, b int) bool { return hits[a].score < hits[b].score })
+	if len(hits) > 0 && hits[0].score < 0 {
+		exact := 0
+		for exact < len(hits) && hits[exact].score < 0 {
+			exact++
+		}
+		hits = hits[:exact]
+	}
 	var out []Entry
 	for _, h := range hits {
 		if len(out) == limit {

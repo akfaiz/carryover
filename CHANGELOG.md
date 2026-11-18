@@ -26,6 +26,10 @@ All notable changes to Carryover are listed here. The format follows
 
 - Play no longer stops with "has several emulators; choose one" when only one of the game's emulators is set up on
   this device: it starts that one, also if the other was played last.
+- Suggested save locations for Eden and other yuzu-family emulators no longer offer a device save the game never
+  made (most games have none). It is still offered when the game already has a device save from another device.
+- Suggesting save locations by game name no longer also lists other titles whose name contains it (Unicorn
+  Overlord brought its music album app), which kept the account save from being filled in.
 
 ## [0.3.0] - 2026-11-15
 

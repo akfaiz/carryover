@@ -79,3 +79,15 @@ func TestSharedEmulatorOnlyFillsTheSharedSlots(t *testing.T) {
 		assert.Empty(t, o.slots[0].path)
 	}
 }
+
+func TestHideMissingDeviceSave(t *testing.T) {
+	m := &emuForm{slots: []*slotForm{{key: saveKindAccount, path: "/a"}}}
+	assert.True(t, hideSuggestion(m, sg(saveKindDevice, "/d", false)), "a device save the game never made is not offered")
+	assert.False(t, hideSuggestion(m, sg(saveKindDevice, "/d", true)))
+	assert.False(t, hideSuggestion(m, sg(saveKindAccount, "/a", false)), "an account save is offered before the first save")
+	assert.False(t, hideSuggestion(m, sg("", "/x", false)))
+
+	// Another device made the device slot: this device still needs its path.
+	m.slots = append(m.slots, &slotForm{key: saveKindDevice})
+	assert.False(t, hideSuggestion(m, sg(saveKindDevice, "/d", false)))
+}

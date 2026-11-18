@@ -109,11 +109,17 @@ func TestSuggestSavesForSwitchEmulator(t *testing.T) {
 	assert.False(t, dev.Exists, "this game has no device save here")
 	assert.Empty(t, res.Note)
 
-	// By name only: both the game and its demo match.
+	// By name only: the exact name leaves out the demo, which only contains it.
 	res, err = svc.SuggestSaves(em.ID, EmuSuggestInput{GameName: "super mario odyssey"})
 	require.NoError(t, err)
+	assert.Len(t, res.Suggestions, 2)
+	assert.Equal(t, "Super Mario Odyssey (account save)", res.Suggestions[0].Game)
+
+	// A partial name gets every game that contains it, the shortest first.
+	res, err = svc.SuggestSaves(em.ID, EmuSuggestInput{GameName: "mario odyssey"})
+	require.NoError(t, err)
 	assert.Len(t, res.Suggestions, 4)
-	assert.Equal(t, "Super Mario Odyssey (account save)", res.Suggestions[0].Game, "the exact name comes first")
+	assert.Equal(t, "Super Mario Odyssey (account save)", res.Suggestions[0].Game)
 
 	res, err = svc.SuggestSaves(em.ID, EmuSuggestInput{GameName: "unknown game"})
 	require.NoError(t, err)

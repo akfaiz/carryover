@@ -41,9 +41,13 @@ func TestFindByNameAndID(t *testing.T) {
 	assert.Equal(t, 3, m.Len())
 
 	got := m.Find("super mario odyssey", 5)
-	require.Len(t, got, 2)
-	assert.Equal(t, "Super Mario Odyssey", got[0].Title(), "an equal name comes before a longer one")
+	require.Len(t, got, 1, "an equal name leaves out the longer ones")
+	assert.Equal(t, "Super Mario Odyssey", got[0].Title())
 	assert.Equal(t, []string{"nand/user/save/0000000000000000/*/0100000000010000", "nand/user/save/cache/0100000000010000"}, got[0].Files)
+
+	got = m.Find("mario odyssey", 5)
+	require.Len(t, got, 2, "without an equal name, every name with all the words")
+	assert.Equal(t, "Super Mario Odyssey", got[0].Title(), "the shortest first")
 
 	got = m.Find("zelda breath wild [v0] (USA)", 5)
 	require.Len(t, got, 1, "words in any case, tags ignored")
