@@ -329,6 +329,9 @@
   "Edit emulator": "Ubah emulator",
   "Ready on this device": "Siap di perangkat ini",
   "Not set up on this device": "Belum diatur di perangkat ini",
+  "Remove from this device…": "Hapus dari perangkat ini…",
+  "Remove from this device": "Hapus dari perangkat ini",
+  "Clear where {{.Name}} is installed on this device? It stays set up on your other devices, and games keep it and their cloud saves. Set it up again with Edit.": "Hapus lokasi pemasangan {{.Name}} di perangkat ini? Pengaturannya tetap ada di perangkat lain, dan game tetap memakainya beserta simpanan cloud-nya. Atur lagi lewat Ubah.",
   "Used by {{.Count}} game": {
     "one": "Dipakai {{.Count}} game",
     "other": "Dipakai {{.Count}} game"

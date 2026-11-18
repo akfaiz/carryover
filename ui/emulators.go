@@ -97,7 +97,27 @@ func (p *emulatorsPage) row(ev services.EmulatorView) fyne.CanvasObject {
 		})
 	})
 	del := kit.DangerButton(lang.L("Delete…"), func() { p.askDelete(ev) })
-	return kit.Card("", kit.VBox(kit.CardHead(ev.Name, state), kit.HBox(games), kit.HBox(edit, del)))
+	actions := kit.HBox(edit)
+	if ev.SetUp {
+		actions.Add(kit.LowButton(lang.L("Remove from this device…"), func() { p.askUnset(ev) }))
+	}
+	actions.Add(del)
+	return kit.Card("", kit.VBox(kit.CardHead(ev.Name, state), kit.HBox(games), actions))
+}
+
+// askUnset clears this device's setup of an emulator, keeping it everywhere else.
+func (p *emulatorsPage) askUnset(ev services.EmulatorView) {
+	confirmDanger(p.u, confirmOpts{
+		title:   lang.L("Remove from this device"),
+		message: lang.L("Clear where {{.Name}} is installed on this device? It stays set up on your other devices, and games keep it and their cloud saves. Set it up again with Edit.", map[string]any{"Name": ev.Name}),
+		action:  lang.L("Remove"),
+		onConfirm: func(bool) {
+			kit.Async0(func() error { return p.u.emus.Unset(ev.ID) }, func(err error) {
+				p.u.toastErr(err)
+				p.reload()
+			})
+		},
+	})
 }
 
 // askDelete moves an emulator to the trash, or deletes it with its cloud saves.

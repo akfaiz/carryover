@@ -108,6 +108,36 @@ func TestResolveProfileAmbiguous(t *testing.T) {
 	require.ErrorContains(t, err, "several emulators")
 }
 
+// An emulator the game has but whose program isn't set on this device (removed
+// from it) is not a way to play: the other one is the default, also when the
+// removed one was played last.
+func TestResolveProfileSkipsEmulatorsNotSetUpHere(t *testing.T) {
+	c, id, _, _ := newPlayable(t)
+	g := mustFind(t, c, id)
+	g.Slots = nil // emulator-only game
+	_, err := c.Library.Save(g, c.DeviceID())
+	require.NoError(t, err)
+	root := t.TempDir()
+	eden := addEmulator(t, c, id, "Eden", filepath.Join(root, "eden"))
+	ryu := addEmulator(t, c, id, "Ryujinx", filepath.Join(root, "ryu"))
+
+	e, err := c.Library.Emulator(eden)
+	require.NoError(t, err)
+	e.Devices = map[string]library.EmulatorDevice{c.DeviceID(): {}}
+	_, err = c.Library.SaveEmulator(e, c.DeviceID())
+	require.NoError(t, err)
+	g = mustFind(t, c, id)
+	d := g.Devices[c.DeviceID()]
+	d.LastEmulator = eden
+	g.Devices[c.DeviceID()] = d
+	_, err = c.Library.Save(g, c.DeviceID())
+	require.NoError(t, err)
+
+	got, err := c.ResolveProfile(mustFind(t, c, id), "")
+	require.NoError(t, err)
+	assert.Equal(t, ryu, got)
+}
+
 // Two emulators sharing saves use one cloud folder and one cloud lock, but each
 // remembers what it last synced, so playing one after the other pulls instead of
 // overwriting.

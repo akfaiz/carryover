@@ -115,6 +115,28 @@ func (s *EmulatorService) Save(in EmulatorSetup) (EmulatorView, error) {
 	return s.view(saved, s.c.Library.List()), nil
 }
 
+// Unset removes this device's setup of an emulator (its program, arguments and
+// data folder), for an emulator no longer installed here. The emulator, its
+// setup on other devices, the games using it and their cloud saves stay. The
+// setup is cleared rather than dropped, so its newer time wins when the
+// catalog is merged with another device's copy.
+func (s *EmulatorService) Unset(id string) error {
+	e, err := s.c.Library.Emulator(id)
+	if err != nil {
+		return err
+	}
+	devID := s.c.DeviceID()
+	if _, err := s.c.Library.SaveEmulator(library.Emulator{
+		ID: e.ID, Name: e.Name, Preset: e.Preset,
+		Devices: map[string]library.EmulatorDevice{devID: {}},
+	}, devID); err != nil {
+		return err
+	}
+	s.bus.libraryChanged("")
+	s.publish()
+	return nil
+}
+
 // Delete moves an emulator to the trash on all devices. Games keep their
 // profile (it just can't be launched) and the cloud saves are kept; Restore
 // brings it back.

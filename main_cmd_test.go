@@ -241,7 +241,9 @@ func TestCmdSyncEmulatorProfiles(t *testing.T) {
 	e := newCLIEnv(t)
 	c, err := core.New()
 	require.NoError(t, err)
-	eden, err := c.Library.SaveEmulator(library.Emulator{Name: "Eden"}, c.DeviceID())
+	eden, err := c.Library.SaveEmulator(library.Emulator{
+		Name: "Eden", Devices: map[string]library.EmulatorDevice{c.DeviceID(): {Exe: "eden"}}, // installed here
+	}, c.DeviceID())
 	require.NoError(t, err)
 	edenSaves := filepath.Join(t.TempDir(), "eden")
 	require.NoError(t, os.MkdirAll(edenSaves, 0o755))
