@@ -201,6 +201,15 @@ func (m *emuForm) useSuggestion(sg services.EmuSuggestion) bool {
 	return true
 }
 
+// hideSuggestion reports whether a suggestion is left out of the list: a device
+// save that isn't on this device, unless the game already has a device save
+// slot (from another device, whose path this device then needs). yuzu-family
+// emulators always name the device save folder, but most games never make one,
+// so offering it would only add a location with nothing in it.
+func hideSuggestion(m *emuForm, sg services.EmuSuggestion) bool {
+	return sg.Kind == saveKindDevice && !sg.Exists && m.slotByKey(saveKindDevice) == nil
+}
+
 // emuSuggestUI is the "Suggest" button of an emulator's save locations and,
 // for under it, the suggestions it found (and why there are none).
 func (e *editor) emuSuggestUI(m *emuForm) (*widget.Button, fyne.CanvasObject) {
@@ -228,6 +237,9 @@ func (e *editor) emuSuggestUI(m *emuForm) (*widget.Button, fyne.CanvasObject) {
 			list.Add(kit.Colored(res.Note, widget.WarningImportance))
 		}
 		for _, sg := range res.Suggestions {
+			if hideSuggestion(m, sg) {
+				continue
+			}
 			var found fyne.CanvasObject
 			if sg.Exists {
 				found = kit.Badge(lang.L("Found on this device"), kit.BadgeOK)
