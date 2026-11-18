@@ -841,6 +841,39 @@ func TestLibraryNeedsAttentionFilter(t *testing.T) {
 	assert.Len(t, tileNames(h), 2)
 }
 
+// "Ready to play" shows only the games that can be played on this device.
+func TestLibraryReadyToPlayFilter(t *testing.T) {
+	h := newHarness(t)
+	h.addGame("Ready", t.TempDir())
+	_, err := h.u.lib.Save(services.GameInput{Name: "Not set up", Slots: []library.SaveSlot{{Key: "saves"}}})
+	require.NoError(t, err)
+	h.u.refresh()
+	h.open("/")
+
+	tapButton(t, h, "Ready to play (1)")
+	h.settle()
+	assert.Equal(t, []string{"Ready"}, tileNames(h))
+	assert.Equal(t, filterReady, h.u.libraryFilter())
+	tapButton(t, h, "All (2)")
+	h.settle()
+	assert.Len(t, tileNames(h), 2)
+}
+
+// With no game playable here, the filter says so and offers all games.
+func TestLibraryReadyToPlayFilterEmpty(t *testing.T) {
+	h := newHarness(t)
+	_, err := h.u.lib.Save(services.GameInput{Name: "Not set up", Slots: []library.SaveSlot{{Key: "saves"}}})
+	require.NoError(t, err)
+	h.u.refresh()
+	h.u.setLibraryFilter(filterReady)
+	h.open("/")
+	assert.Empty(t, tileNames(h))
+	assert.Contains(t, strings.Join(labelTexts(h), "\n"), "No game can be played on this device yet")
+	tapButton(t, h, "Show all games")
+	h.settle()
+	assert.Equal(t, []string{"Not set up"}, tileNames(h))
+}
+
 // With nothing needing attention the filters are hidden: there is nothing to
 // filter for.
 func TestLibraryHidesFiltersWhenNothingNeedsAttention(t *testing.T) {

@@ -464,6 +464,8 @@
   "Discard changes": "Discard changes",
   "Discard changes?": "Discard changes?",
   "All ({{.Count}})": "All ({{.Count}})",
+  "Ready to play ({{.Count}})": "Ready to play ({{.Count}})",
+  "No game can be played on this device yet. Set one up to play it here.": "No game can be played on this device yet. Set one up to play it here.",
   "Needs attention ({{.Count}})": "Needs attention ({{.Count}})",
   "Sort by name": "Sort by name",
   "Sort by last sync": "Sort by last sync",

@@ -283,7 +283,7 @@ func showSteamImport(u *UI) {
 
 	top := kit.VBox(
 		kit.Muted(lang.L("Games installed through Steam on this device. The title comes from Steam; you still set the save locations. Steam keeps launching the game — Carryover syncs around it through the launch options shown on the game page.")),
-		filter)
+		kit.FullHeight(filter))
 	d = dialog.NewCustom(lang.L("Add from Steam library"), lang.L("Close"), container.NewBorder(top, nil, nil, nil, container.NewVScroll(list)), u.win)
 	d.Resize(kit.DialogSize(u.win))
 	d.Show()

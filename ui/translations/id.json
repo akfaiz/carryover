@@ -464,6 +464,8 @@
   "Discard changes": "Buang perubahan",
   "Discard changes?": "Buang perubahan?",
   "All ({{.Count}})": "Semua ({{.Count}})",
+  "Ready to play ({{.Count}})": "Siap dimainkan ({{.Count}})",
+  "No game can be played on this device yet. Set one up to play it here.": "Belum ada game yang bisa dimainkan di perangkat ini. Atur salah satunya untuk memainkannya di sini.",
   "Needs attention ({{.Count}})": "Perlu perhatian ({{.Count}})",
   "Sort by name": "Urutkan menurut nama",
   "Sort by last sync": "Urutkan menurut sinkronisasi terakhir",

@@ -123,9 +123,43 @@ func fieldLabel(t string) *widget.Label {
 	return l
 }
 
-// Field is a caption above an input.
+// Field is a caption above an input. A one-line input gets InputHeight, so
+// entries, drop-downs and buttons line up: a monospace entry is otherwise
+// shorter than one in the regular font, and both are shorter than a button.
 func Field(label string, input fyne.CanvasObject) fyne.CanvasObject {
-	return container.NewVBox(fieldLabel(label), input)
+	return container.NewVBox(fieldLabel(label), FullHeight(input))
+}
+
+// InputHeight is the height of a one-line input or button: a line of text or
+// an inline icon, whichever is taller, and the inner padding above and below.
+func InputHeight() float32 {
+	line := fyne.MeasureText("Mg", theme.TextSize(), fyne.TextStyle{}).Height
+	return max(line, theme.IconInlineSize()) + 2*theme.InnerPadding()
+}
+
+// FullHeight makes o at least InputHeight tall (an input on its own in a
+// vertical box, which gives it no more than its own height).
+func FullHeight(o fyne.CanvasObject) fyne.CanvasObject {
+	return container.New(inputHeightLayout{}, o)
+}
+
+type inputHeightLayout struct{}
+
+func (inputHeightLayout) Layout(objs []fyne.CanvasObject, size fyne.Size) {
+	for _, o := range objs {
+		o.Move(fyne.NewPos(0, 0))
+		o.Resize(size)
+	}
+}
+
+func (inputHeightLayout) MinSize(objs []fyne.CanvasObject) fyne.Size {
+	var s fyne.Size
+	for _, o := range objs {
+		if o.Visible() {
+			s = s.Max(o.MinSize().Max(fyne.NewSize(0, InputHeight())))
+		}
+	}
+	return s
 }
 
 // Badge kinds.
@@ -208,6 +242,11 @@ func VBox(objs ...fyne.CanvasObject) *fyne.Container { return container.NewVBox(
 
 // RowFill puts main in the middle (stretched) and fixed objects at its right.
 func RowFill(main fyne.CanvasObject, right ...fyne.CanvasObject) fyne.CanvasObject {
+	if len(right) == 0 {
+		// No empty box on the right: the border layout would still leave a
+		// gap for it, making main narrower than the inputs under it.
+		return FullHeight(main)
+	}
 	return container.NewBorder(nil, nil, nil, HBox(right...), main)
 }
 
@@ -765,7 +804,8 @@ func BusyLine(text string) fyne.CanvasObject {
 }
 
 // Chips is a row of toggle buttons of which one is selected, such as the
-// filters above the library grid.
+// filters above the library grid. The others are outlined, so they read as
+// choices rather than as plain text.
 func Chips(options []ChipOption, selected string, onSelect func(string)) *fyne.Container {
 	row := HBox()
 	for _, o := range options {
@@ -777,7 +817,7 @@ func Chips(options []ChipOption, selected string, onSelect func(string)) *fyne.C
 			row.Add(Tonal(b))
 			continue
 		}
-		row.Add(b)
+		row.Add(Outlined(b))
 	}
 	return row
 }

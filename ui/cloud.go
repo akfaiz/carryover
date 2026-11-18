@@ -448,7 +448,7 @@ func (w *remoteWizard) renderQuestion(errText string) {
 		e.OnChanged = func(s string) { answer = s }
 		input = e
 	}
-	objs = append(objs, input)
+	objs = append(objs, kit.FullHeight(input))
 	errLabel()
 	objs = append(objs, kit.HBox(widget.NewButton(lang.L("Cancel"), w.close), kit.Primary(lang.L("Continue"), func() { w.reply(answer) })))
 	w.set(objs...)

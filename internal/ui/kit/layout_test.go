@@ -130,3 +130,37 @@ func TestPaddedPagesAndScrollKeepTheirPosition(t *testing.T) {
 	assert.Equal(t, float32(3000+56), s.Content.MinSize().Height)
 	require.NotNil(t, PagePadded(box(1, 1)))
 }
+
+// Inputs in fields are as tall as a button, whatever their font: a monospace
+// entry next to a drop-down was shorter.
+func TestFieldInputsShareOneHeight(t *testing.T) {
+	a := test.NewApp()
+	a.Settings().SetTheme(AppTheme{})
+	button := widget.NewButton("Browse…", nil).MinSize().Height
+	assert.Equal(t, button, InputHeight())
+
+	for _, in := range []fyne.CanvasObject{
+		MonoEntry("", "Carryover", nil), widget.NewEntry(), Outlined(widget.NewSelect([]string{"dropbox"}, nil)),
+	} {
+		f := Field("Label", in)
+		f.Resize(f.MinSize())
+		assert.Equal(t, button, in.Size().Height, "%T", in)
+	}
+
+	// Taller inputs keep their height; a hidden one takes no space.
+	multi := MonoMultiLine("", "", 3, nil)
+	assert.Greater(t, FullHeight(multi).MinSize().Height, InputHeight())
+	hidden := widget.NewEntry()
+	hidden.Hide()
+	assert.Equal(t, fyne.Size{}, FullHeight(hidden).MinSize())
+}
+
+// A row without objects at its right leaves no gap for them: its input is as
+// wide as the row.
+func TestRowFillWithoutRightIsFullWidth(t *testing.T) {
+	test.NewApp()
+	e := widget.NewEntry()
+	r := RowFill(e)
+	r.Resize(fyne.NewSize(300, 40))
+	assert.Equal(t, float32(300), e.Size().Width)
+}
