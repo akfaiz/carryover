@@ -18,6 +18,14 @@ All notable changes to Carryover are listed here. The format follows
   for the game to close, uploads and releases the cloud lock) and shows the "saves uploaded" notification then,
   keeps the `carryover run` window on top, and suggests the macOS data folders of Switch emulators, Ryujinx, Cemu,
   DuckStation, RPCS3 and shadPS4. Proton options and hints are hidden there.
+- "Remove from this device…" on the Emulators page clears an emulator's setup on this device only (for one you
+  uninstalled here). Its saves are then no longer synced or counted here, so a game played with another emulator
+  shows as synced. It stays set up on your other devices, and games keep it and their cloud saves.
+
+### Fixed
+
+- Play no longer stops with "has several emulators; choose one" when only one of the game's emulators is set up on
+  this device: it starts that one, also if the other was played last.
 
 ## [0.3.0] - 2026-11-15
 

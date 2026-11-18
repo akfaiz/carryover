@@ -329,6 +329,9 @@
   "Edit emulator": "Edit emulator",
   "Ready on this device": "Ready on this device",
   "Not set up on this device": "Not set up on this device",
+  "Remove from this device…": "Remove from this device…",
+  "Remove from this device": "Remove from this device",
+  "Clear where {{.Name}} is installed on this device? It stays set up on your other devices, and games keep it and their cloud saves. Set it up again with Edit.": "Clear where {{.Name}} is installed on this device? It stays set up on your other devices, and games keep it and their cloud saves. Set it up again with Edit.",
   "Used by {{.Count}} game": {
     "one": "Used by {{.Count}} game",
     "other": "Used by {{.Count}} games"

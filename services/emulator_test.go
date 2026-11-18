@@ -10,6 +10,7 @@ import (
 
 	"github.com/akfaiz/carryover/internal/cloudsync/syncer"
 	"github.com/akfaiz/carryover/internal/core"
+	"github.com/akfaiz/carryover/internal/library"
 )
 
 // An emulator profile is addressed by its sync key everywhere: it syncs,
@@ -199,4 +200,75 @@ func TestOverallStatusCombinesProfiles(t *testing.T) {
 	e.c.States.SetError(core.SyncKey(e.id, b.ID), "boom")
 	v, _ = lib.Get(e.id)
 	assert.Equal(t, "boom", v.Overall.LastError)
+}
+
+// An emulator removed from this device (its paths for the game kept) is not
+// counted: the game is synced when the emulators installed here are, and it is
+// neither synced nor played here.
+func TestOverallStatusSkipsEmulatorsRemovedHere(t *testing.T) {
+	e := newSyncEnv(t)
+	quiet(t, e)
+	bus := NewBus()
+	emus := NewEmulatorService(e.c, bus)
+	lib := NewLibraryService(e.c, bus, nil)
+	var evs []EmulatorView
+	var dirs []string
+	for _, name := range []string{"Eden", "Ryujinx"} {
+		ev, err := emus.Save(EmulatorSetup{Name: name, Exe: name})
+		require.NoError(t, err)
+		dir := filepath.Join(t.TempDir(), name)
+		require.NoError(t, os.MkdirAll(dir, 0o755))
+		require.NoError(t, os.WriteFile(filepath.Join(dir, "p.sav"), []byte(name), 0o644))
+		evs, dirs = append(evs, ev), append(dirs, dir)
+	}
+	v, err := lib.Get(e.id)
+	require.NoError(t, err)
+	_, err = lib.Save(GameInput{
+		ID: v.ID, Name: v.Name, Device: DeviceInput{Paths: map[string]string{}},
+		Emulators: []GameEmulatorInput{
+			{EmulatorID: evs[0].ID, Slots: v.Slots, Rom: "g.nsp", Paths: map[string]string{"saves": dirs[0]}},
+			{EmulatorID: evs[1].ID, Slots: v.Slots, Rom: "g.nsp", Paths: map[string]string{"saves": dirs[1]}},
+		},
+	})
+	require.NoError(t, err)
+	require.NoError(t, emus.Unset(evs[0].ID))
+	_, err = e.svc.Sync(core.SyncKey(e.id, evs[1].ID), "")
+	require.NoError(t, err)
+
+	v, err = lib.Get(e.id)
+	require.NoError(t, err)
+	assert.NotEmpty(t, v.Overall.LastSyncAt, "Ryujinx, the only emulator here, has synced")
+	g, err := e.c.Library.Get(e.id)
+	require.NoError(t, err)
+	assert.Equal(t, []string{evs[1].ID}, e.c.Profiles(g), "Eden isn't synced or played here")
+}
+
+// Removing an emulator from this device clears only this device's setup, and
+// the cleared setup wins over an older copy of the catalog from another device.
+func TestUnsetEmulatorOnThisDevice(t *testing.T) {
+	e := newSyncEnv(t)
+	quiet(t, e)
+	emus := NewEmulatorService(e.c, NewBus())
+	em, err := emus.Save(EmulatorSetup{Name: "Eden", Exe: "/Applications/Eden.app", Preset: "switch", DataDir: "{appdata}/eden"})
+	require.NoError(t, err)
+	before, err := e.c.Library.Emulator(em.ID)
+	require.NoError(t, err)
+
+	other := library.EmulatorDevice{Exe: "eden", UpdatedAt: before.UpdatedAt}
+	before.Devices["other-device"] = other
+	require.NoError(t, emus.Unset(em.ID))
+
+	v, err := emus.Get(em.ID)
+	require.NoError(t, err)
+	assert.False(t, v.SetUp)
+	assert.Empty(t, v.Device.DataDir)
+	assert.Equal(t, "switch", v.Preset, "the emulator itself is kept")
+
+	after, err := e.c.Library.Emulator(em.ID)
+	require.NoError(t, err)
+	merged := library.MergeEmulator(after, before)
+	assert.Empty(t, merged.Devices[e.c.DeviceID()].Exe, "an older copy doesn't bring the setup back")
+	assert.Equal(t, "eden", merged.Devices["other-device"].Exe)
+
+	require.Error(t, emus.Unset("missing"))
 }

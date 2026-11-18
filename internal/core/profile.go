@@ -64,7 +64,11 @@ func GameOf(key string) string {
 }
 
 // Profiles lists the profiles of a game that are set up on this device: the
-// native profile ("" ) when the game has save slots of its own, then each emulator.
+// native profile ("" ) when the game has save slots of its own, then each
+// emulator the game has paths for here and that is installed here (has a
+// program on this device). An emulator removed from this device is left out:
+// its saves aren't synced, played or counted here, though the game keeps its
+// paths for when it is set up again.
 func (c *Core) Profiles(g library.Game) []string {
 	var out []string
 	if len(g.Slots) > 0 {
@@ -72,7 +76,7 @@ func (c *Core) Profiles(g library.Game) []string {
 	}
 	d, _ := g.Device(c.DeviceID())
 	for _, ge := range g.Emulators {
-		if _, ok := d.Emulators[ge.EmulatorID]; ok {
+		if _, ok := d.Emulators[ge.EmulatorID]; ok && c.installed(ge.EmulatorID) {
 			out = append(out, ge.EmulatorID)
 		}
 	}
@@ -98,14 +102,14 @@ func (c *Core) ResolveProfile(g library.Game, want string) (string, error) {
 		return e.ID, nil
 	}
 	d, _ := g.Device(c.DeviceID())
-	if last := d.LastEmulator; last != "" {
+	if last := d.LastEmulator; last != "" && c.installed(last) {
 		if _, ok := g.Emulator(last); ok {
 			if _, set := d.Emulators[last]; set {
 				return last, nil
 			}
 		}
 	}
-	profiles := c.Profiles(g)
+	profiles := c.Profiles(g) // only emulators installed here: the others can't start it
 	switch {
 	case len(profiles) == 0:
 		return "", nil // native: Play/Job report what is missing
@@ -113,6 +117,16 @@ func (c *Core) ResolveProfile(g library.Game, want string) (string, error) {
 		return profiles[0], nil
 	}
 	return "", fmt.Errorf("%s has several emulators; choose one: %s", g.Name, strings.Join(c.profileNames(profiles), ", "))
+}
+
+// installed reports whether a profile can be started on this device: the
+// native one, or an emulator with a program set here.
+func (c *Core) installed(emulatorID string) bool {
+	if emulatorID == "" {
+		return true
+	}
+	e, err := c.Library.Emulator(emulatorID)
+	return err == nil && e.Devices[c.DeviceID()].Exe != ""
 }
 
 func (c *Core) profileNames(ids []string) []string {

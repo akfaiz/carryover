@@ -113,7 +113,8 @@ type ProfileView struct {
 	Key           string             `json:"key"`       // core.SyncKey: what sync, backup and status calls take
 	ShareWith     string             `json:"shareWith"` // emulator whose cloud save this one uses ("" = its own)
 	Slots         []library.SaveSlot `json:"slots"`
-	SetUp         bool               `json:"setUp"` // configured for this game on this device
+	SetUp         bool               `json:"setUp"`     // configured for this game on this device
+	Installed     bool               `json:"installed"` // the emulator has a program on this device
 	Rom           string             `json:"rom"`
 	Paths         map[string]string  `json:"paths"`
 	ResolvedPaths map[string]string  `json:"resolvedPaths"`
@@ -225,7 +226,9 @@ func overallStatus(g library.Game, v GameView) GameStatus {
 		all = append(all, v.Status)
 	}
 	for _, pv := range v.Emulators {
-		if pv.SetUp {
+		// An emulator removed from this device (no program here) is never
+		// synced here: counting it would keep the game "Not synced".
+		if pv.SetUp && pv.Installed {
 			all = append(all, pv.Status)
 		}
 	}
@@ -326,6 +329,8 @@ func (s *LibraryService) profiles(g library.Game, d library.DeviceConfig) []Prof
 			missing = append(missing, "emulator (deleted)")
 		} else if ed := emu.Devices[s.c.DeviceID()]; ed.Exe == "" {
 			missing = append(missing, "emulator executable on this device")
+		} else {
+			pv.Installed = true
 		}
 		pv.Ready = len(missing) == 0 && len(pv.PathErrors) == 0
 		if len(missing) > 0 {
