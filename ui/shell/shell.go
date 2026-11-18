@@ -1,16 +1,15 @@
-// Package ui is Carryover's desktop GUI, built with Fyne.
-package ui
+// Package shell is the main window of Carryover: the sidebar, the router that
+// opens pages, the keyboard and gamepad handling, the toasts and the session
+// prompts. It implements env.Env for the pages and knows no page itself: the
+// application hands it the pages through Config.
+package shell
 
 import (
-	_ "embed"
-	"errors"
 	"fmt"
 	"log"
-	"strings"
 	"time"
 
 	"fyne.io/fyne/v2"
-	"fyne.io/fyne/v2/app"
 	"fyne.io/fyne/v2/canvas"
 	"fyne.io/fyne/v2/container"
 	"fyne.io/fyne/v2/lang"
@@ -18,55 +17,32 @@ import (
 	"fyne.io/fyne/v2/theme"
 	"fyne.io/fyne/v2/widget"
 
-	"github.com/akfaiz/carryover/internal/app/appdir"
-	"github.com/akfaiz/carryover/internal/app/singleinstance"
-	"github.com/akfaiz/carryover/internal/cloudsync/syncer"
 	"github.com/akfaiz/carryover/internal/core"
-	"github.com/akfaiz/carryover/internal/ui/kit"
 	"github.com/akfaiz/carryover/services"
+	"github.com/akfaiz/carryover/ui/components"
+	"github.com/akfaiz/carryover/ui/env"
+	"github.com/akfaiz/carryover/ui/kit"
+	"github.com/akfaiz/carryover/ui/prompts"
+	"github.com/akfaiz/carryover/ui/store"
 )
 
-//go:embed assets/appicon.png
-var appIcon []byte
-
-// AppID identifies the app (Fyne preferences, single instance).
-const AppID = "com.akfaiz.carryover"
-
-// page is one screen of the main window.
-type page interface {
-	view() fyne.CanvasObject
+// Config is what the application plugs into the shell.
+type Config struct {
+	// Icon is the application icon (PNG), shown in the sidebar.
+	Icon []byte
+	// Page builds the page of a route ("/", "/game/<id>", ...).
+	Page func(e env.Env, route string) env.Page
+	// AddGame opens the "add a game" dialog (Ctrl+N).
+	AddGame func(e env.Env)
+	// SyncProblems lists the games a "Sync all" could not sync.
+	SyncProblems func(e env.Env, total int, problems []services.SyncResult)
 }
 
-// guarded pages hold a form: leaving them while dirty asks first.
-type guarded interface {
-	dirty() bool
-}
+// Shell is the running main window. All fields are used on the Fyne UI thread
+// only.
+type Shell struct {
+	cfg Config
 
-// searchable pages focus their search field on Ctrl+F.
-type searchable interface {
-	focusSearch()
-}
-
-// syncable pages start a sync on F5.
-type syncable interface {
-	syncNow()
-}
-
-// stateful pages are told when shared state changes.
-type stateful interface {
-	stateChanged(what change)
-}
-
-type change int
-
-const (
-	changeLibrary  change = iota // games or settings reloaded
-	changeStatus                 // play-session status
-	changeProgress               // sync transfer progress
-)
-
-// UI is the running GUI. All fields are used on the Fyne UI thread only.
-type UI struct {
 	app fyne.App
 	win fyne.Window
 	c   *core.Core
@@ -78,46 +54,28 @@ type UI struct {
 	emus  *services.EmulatorService
 	sess  *services.SessionService
 
-	games    []services.GameView
-	settings appdir.Settings
-	status   map[string]services.Status
-	progress map[string]syncer.Event
-	// syncAllProg is the latest "Sync all" progress. syncingAll is set while a
-	// "Sync all" runs (it outlives the page that started it), cancellingAll once
-	// it was asked to stop.
-	syncAllProg               services.SyncAllProgress
-	syncingAll, cancellingAll bool
-	loaded                    bool
-	// trashCount: deleted games and emulators in the trash, shown next to Trash
-	// in the sidebar.
-	trashCount int
+	// store is the state shared by every page (see package store).
+	store *store.Store
 	// helpOpen: the help texts unfolded this session, by summary.
 	helpOpen map[string]bool
 
 	route   string
 	history []string
-	page    page
+	page    env.Page
 	content *fyne.Container
 	sidebar *fyne.Container
 	navBtns map[string]*widget.Button
 	// activity is the sidebar line that shows a running "Sync all" or game.
 	activity *fyne.Container
 	toasts   *kit.Toaster
-	prompts  *promptQueue
+	prompts  *prompts.Queue
 	// nav drives the window with a gamepad; padHints says how, while one is
 	// connected.
 	nav      *kit.Navigator
 	padHints *fyne.Container
 
 	lastLocalCheck time.Time // last checkLocalChanges run
-	// refreshSeq numbers the refreshes: only the newest one's result is shown, so
-	// a slow older one can't replace fresher data.
-	refreshSeq int
 }
-
-// startLanguage is the language setting the translations were loaded with; a
-// different setting applies after a restart.
-var startLanguage string
 
 // localCheckInterval limits how often the saves are scanned for changes made
 // outside Carryover (each time the window regains focus).
@@ -125,7 +83,7 @@ const localCheckInterval = 30 * time.Second
 
 // checkLocalChanges flags games whose saves changed since their last sync,
 // e.g. played without Carryover. It scans in the background.
-func (u *UI) checkLocalChanges() {
+func (u *Shell) checkLocalChanges() {
 	if time.Since(u.lastLocalCheck) < localCheckInterval {
 		return
 	}
@@ -133,10 +91,11 @@ func (u *UI) checkLocalChanges() {
 	go u.lib.CheckLocalChanges()
 }
 
-func newUI(c *core.Core, a fyne.App, bus *services.Bus) *UI {
-	u := &UI{
+// New builds the shell around the services of c; bus carries their events.
+func New(c *core.Core, a fyne.App, bus *services.Bus, cfg Config) *Shell {
+	u := &Shell{
+		cfg: cfg,
 		app: a, c: c,
-		status: map[string]services.Status{}, progress: map[string]syncer.Event{},
 		navBtns: map[string]*widget.Button{},
 		toasts:  kit.NewToaster(),
 	}
@@ -146,112 +105,43 @@ func newUI(c *core.Core, a fyne.App, bus *services.Bus) *UI {
 	u.cloud = services.NewCloudService(c)
 	u.steam = services.NewSteamService(c, bus)
 	u.emus = services.NewEmulatorService(c, bus)
-	u.prompts = &promptQueue{u: u}
+	u.prompts = prompts.New(u)
 
-	bus.OnLibrary(func(string) { kit.OnUI(u.refresh) })
+	// A failed session is an event, not state: it toasts once, before the store
+	// (registered next) tells the pages about the new status.
 	bus.OnStatus(func(st services.Status) {
-		kit.OnUI(func() {
-			u.status[st.GameID] = st
-			if st.Key != "" {
-				u.status[st.Key] = st // the session of one emulator profile
-			}
-			if st.Phase == "error" {
-				u.toast(st.Message, kit.ToastErr)
-			}
-			u.renderActivity()
-			u.notify(changeStatus)
-		})
+		if st.Phase == "error" {
+			kit.OnUI(func() { u.toast(st.Message, kit.ToastErr) })
+		}
 	})
-	bus.OnSync(func(ev syncer.Event) {
-		kit.OnUI(func() {
-			u.progress[ev.GameID] = ev
-			u.notify(changeProgress)
-		})
-	})
-	bus.OnSyncAll(func(p services.SyncAllProgress) {
-		kit.OnUI(func() {
-			u.syncAllProg = p
-			u.renderActivity()
-			u.notify(changeProgress)
-		})
-	})
-	bus.OnPrompt(func(p services.Prompt) { kit.OnUI(func() { u.prompts.add(p) }) })
-	bus.OnPromptClosed(func(id string) { kit.OnUI(func() { u.prompts.remove(id) }) })
+	u.store = store.New(store.Loader{Games: u.lib.List, Settings: u.sync.GetSettings, TrashCount: u.lib.TrashCount})
+	u.store.Attach(bus)
+	u.store.Subscribe(u.onStore)
+	bus.OnPrompt(func(p services.Prompt) { kit.OnUI(func() { u.prompts.Add(p) }) })
+	bus.OnPromptClosed(func(id string) { kit.OnUI(func() { u.prompts.Remove(id) }) })
 	return u
 }
 
-// Run opens the GUI and blocks until it closes. With wrapGameID set it runs
-// the wrapper session window (carryover run <game>) and returns the game's
-// exit code.
-func Run(c *core.Core, wrapGameID string, opts core.RunOptions) int {
-	if wrapGameID == "" {
-		inst, err := singleinstance.Acquire(c.Dirs.StateDir())
-		if errors.Is(err, singleinstance.ErrRunning) {
-			return 0 // the running instance was asked to show itself
+// onStore keeps the window's own parts (sidebar, activity line) up to date and
+// hands the change on to the open page. Pages see "Sync all" as transfer
+// progress.
+func (u *Shell) onStore(t store.Topic) {
+	switch t {
+	case store.Library:
+		if u.sidebar != nil {
+			u.renderSidebar()
 		}
-		if err != nil {
-			log.Printf("single instance: %v", err)
-		}
-		if inst != nil {
-			defer inst.Close()
-		}
-		u := start(c)
-		u.buildMain()
-		if inst != nil {
-			inst.OnShow(func() { kit.OnUI(func() { u.win.Show(); u.win.RequestFocus() }) })
-		}
-		// Coming back to the launcher (e.g. after playing without it) looks
-		// for saves that changed since their last sync.
-		u.app.Lifecycle().SetOnEnteredForeground(func() {
-			kit.OnUI(u.checkLocalChanges)
-			kit.OnUI(func() { u.readPad(true) })
-			u.showNotices()
-		})
-		// A game started from here is played with the same controller: leave it
-		// alone while another window is in front.
-		u.app.Lifecycle().SetOnExitedForeground(func() { kit.OnUI(func() { u.readPad(false) }) })
-		// Pick up games other devices added while this one was closed.
-		u.app.Lifecycle().SetOnStarted(func() {
-			kit.OnUI(u.checkLocalChanges)
-			u.showNotices()
-			// A session killed earlier (e.g. Steam's "Exit Game") may have left
-			// its cloud lock behind: release it so other devices stop warning.
-			go func() {
-				if err := u.sync.RecoverSessions(); err != nil {
-					log.Printf("recover sessions: %v", err)
-				}
-			}()
-			kit.Async0(u.sync.SyncLibrary, func(err error) {
-				if err != nil {
-					u.toast(lang.L("Library sync: {{.Err}}", map[string]any{"Err": err}), kit.ToastErr)
-				}
-			})
-		})
-		u.win.ShowAndRun()
-		return 0
+	case store.Status, store.SyncAll:
+		u.renderActivity()
 	}
-	return start(c).runWrapper(wrapGameID, opts)
+	if t == store.SyncAll {
+		t = store.Progress
+	}
+	u.notify(t)
 }
 
-func start(c *core.Core) *UI {
-	loadTranslations(c.Settings.Get().Language)
-	a := app.NewWithID(AppID)
-	kit.SystemDark.Store(kit.InitialSystemDark(a))
-	kit.SetPalette(kit.PaletteFor(c.Settings.Get().Theme))
-	a.Settings().SetTheme(kit.AppTheme{})
-	a.SetIcon(fyne.NewStaticResource("appicon.png", appIcon))
-	u := newUI(c, a, services.NewBus())
-	kit.WatchSystemTheme(a, func(dark bool) {
-		if kit.SystemDark.Swap(dark) == dark {
-			return
-		}
-		kit.OnUI(func() { u.applyTheme(c.Settings.Get().Theme) })
-	})
-	return u
-}
-
-// buildMain creates the launcher window.
-func (u *UI) buildMain() {
+// BuildMain creates the launcher window.
+func (u *Shell) BuildMain() {
 	u.win = u.app.NewWindow("Carryover")
 	u.win.Resize(fyne.NewSize(1180, 760))
 	u.win.SetMaster()
@@ -261,12 +151,12 @@ func (u *UI) buildMain() {
 	u.buildLayout()
 	u.addShortcuts()
 	u.show("/")
-	u.refresh()
+	u.store.Refresh()
 	go func() {
 		p := u.sess.Prompts()
 		kit.OnUI(func() {
 			for _, x := range p {
-				u.prompts.add(x)
+				u.prompts.Add(x)
 			}
 		})
 	}()
@@ -274,14 +164,14 @@ func (u *UI) buildMain() {
 
 // busy reports whether a play session or a sync is running, i.e. whether
 // quitting now would cut off an upload.
-func (u *UI) busy() bool {
-	return u.syncingAll || u.sess.Active() || u.sync.Active()
+func (u *Shell) busy() bool {
+	return u.store.SyncAll.Running || u.sess.Active() || u.sync.Active()
 }
 
 // confirmClose closes the main window, after asking when a game is being
 // played or a sync runs: the post-play upload and the release of the cloud lock
 // happen in this process, so closing it would skip both.
-func (u *UI) confirmClose() {
+func (u *Shell) confirmClose() {
 	if !u.busy() {
 		u.win.Close()
 		return
@@ -293,7 +183,7 @@ func (u *UI) confirmClose() {
 
 // buildLayout creates the window content (sidebar + page area); the palette
 // colours are read here, so it is rebuilt when the theme changes.
-func (u *UI) buildLayout() {
+func (u *Shell) buildLayout() {
 	u.content = container.NewStack()
 	u.sidebar = container.NewVBox()
 	u.navBtns = map[string]*widget.Button{}
@@ -309,7 +199,7 @@ func (u *UI) buildLayout() {
 }
 
 // applyTheme switches to the palette for a stored theme setting and rebuilds the UI.
-func (u *UI) applyTheme(setting string) {
+func (u *Shell) applyTheme(setting string) {
 	name := kit.PaletteFor(setting)
 	if (name == kit.ThemeLight) == kit.LightOn {
 		return
@@ -324,8 +214,8 @@ func (u *UI) applyTheme(setting string) {
 	u.show(u.route)
 }
 
-func (u *UI) renderSidebar() {
-	logo := canvas.NewImageFromResource(fyne.NewStaticResource("appicon.png", appIcon))
+func (u *Shell) renderSidebar() {
+	logo := canvas.NewImageFromResource(fyne.NewStaticResource("appicon.png", u.cfg.Icon))
 	logo.FillMode = canvas.ImageFillContain
 	logo.SetMinSize(fyne.NewSize(30, 30))
 	brand := widget.NewLabelWithStyle("Carryover", fyne.TextAlignLeading, fyne.TextStyle{Bold: true})
@@ -352,11 +242,11 @@ func (u *UI) renderSidebar() {
 	u.activity = kit.VBox()
 	objs = append(objs, widget.NewSeparator(), u.activity)
 	u.renderActivity()
-	dev := kit.Muted(u.settings.DeviceName)
+	dev := kit.Muted(u.store.Settings.DeviceName)
 	objs = append(objs, dev)
-	if u.settings.Remote != "" {
-		objs = append(objs, kit.Muted(u.settings.Remote+":"+u.settings.RemoteRoot))
-	} else if u.loaded {
+	if u.store.Settings.Remote != "" {
+		objs = append(objs, kit.Muted(u.store.Settings.Remote+":"+u.store.Settings.RemoteRoot))
+	} else if u.store.Loaded {
 		b := widget.NewButtonWithIcon(lang.L("No cloud configured"), theme.WarningIcon(), func() { u.navigate("/cloud") })
 		b.Importance = widget.WarningImportance
 		objs = append(objs, b)
@@ -366,7 +256,7 @@ func (u *UI) renderSidebar() {
 	u.highlightNav()
 }
 
-func (u *UI) highlightNav() {
+func (u *Shell) highlightNav() {
 	section := sectionOf(u.route)
 	for p, b := range u.navBtns {
 		if p == section {
@@ -380,7 +270,7 @@ func (u *UI) highlightNav() {
 
 // navigate goes to a route, adding it to the history. Leaving a form with
 // unsaved changes asks first.
-func (u *UI) navigate(path string) {
+func (u *Shell) navigate(path string) {
 	u.leave(func() {
 		if u.route != "" && u.route != path {
 			u.history = append(u.history, u.route)
@@ -395,7 +285,7 @@ func (u *UI) navigate(path string) {
 // replace goes to a route in place of the current one, so Back skips it: the
 // editor once it saved, a page whose game is gone. Going back to the page the
 // current one was opened from also takes it off the history.
-func (u *UI) replace(path string) {
+func (u *Shell) replace(path string) {
 	if n := len(u.history); n > 0 && u.history[n-1] == path {
 		u.history = u.history[:n-1]
 	}
@@ -403,7 +293,7 @@ func (u *UI) replace(path string) {
 }
 
 // back returns to the previous route (Library if none).
-func (u *UI) back() {
+func (u *Shell) back() {
 	u.leave(func() {
 		if n := len(u.history); n > 0 {
 			p := u.history[n-1]
@@ -416,80 +306,29 @@ func (u *UI) back() {
 }
 
 // leave runs next, after asking when the current page has unsaved changes.
-func (u *UI) leave(next func()) {
-	if g, ok := u.page.(guarded); ok && g.dirty() {
-		confirmDiscard(u, next)
+func (u *Shell) leave(next func()) {
+	if g, ok := u.page.(env.Guarded); ok && g.Dirty() {
+		components.ConfirmDiscard(u, next)
 		return
 	}
 	next()
 }
 
-func (u *UI) show(path string) {
+func (u *Shell) show(path string) {
 	u.route = path
-	parts := strings.Split(strings.Trim(path, "/"), "/")
-	arg := func(i int) string {
-		if i < len(parts) {
-			return parts[i]
-		}
-		return ""
-	}
-	switch {
-	case arg(0) == "game" && arg(1) != "":
-		u.page = newGameDetail(u, arg(1))
-	case arg(0) == "edit" && arg(1) != "":
-		u.page = newEditor(u, arg(1), "")
-	case arg(0) == "new" && arg(1) == "steam" && arg(2) != "":
-		u.page = newEditor(u, "", arg(2))
-	case arg(0) == "new" && arg(1) == "emulator":
-		e := newEditor(u, "", "")
-		e.kind = kindEmulator
-		u.page = e
-	case arg(0) == "new":
-		u.page = newEditor(u, "", "")
-	case arg(0) == "emulators":
-		u.page = newEmulatorsPage(u)
-	case arg(0) == "cloud":
-		u.page = newCloudPage(u)
-	case arg(0) == "trash":
-		u.page = newTrashPage(u)
-	case arg(0) == "settings":
-		u.page = newSettingsPage(u)
-	default:
-		u.page = newLibraryPage(u)
-	}
-	u.content.Objects = []fyne.CanvasObject{u.page.view()}
+	u.page = u.cfg.Page(u, path)
+	u.content.Objects = []fyne.CanvasObject{u.page.View()}
 	u.content.Refresh()
 	u.highlightNav()
 	u.renderActivity() // what it shows depends on the page
 	u.focusForPad()
 }
 
-// refresh reloads games and settings.
-func (u *UI) refresh() {
-	u.refreshSeq++
-	seq := u.refreshSeq
-	go func() {
-		games := u.lib.List()
-		st := u.sync.GetSettings()
-		trash := u.lib.TrashCount()
-		kit.OnUI(func() {
-			if seq != u.refreshSeq {
-				return // a newer refresh is on its way; this result may be older
-			}
-			u.games, u.settings, u.loaded, u.trashCount = games, st, true, trash
-			if u.sidebar != nil {
-				u.renderSidebar()
-			}
-			u.notify(changeLibrary)
-		})
-	}()
-}
-
 // trashLabel is the sidebar text of the Trash entry: it counts the games and
 // emulators that can be restored. (Leftover cloud saves are counted on the
 // page itself: they are not something deleted from here.)
-func (u *UI) trashLabel() string {
-	if n := u.trashCount; n > 0 {
+func (u *Shell) trashLabel() string {
+	if n := u.store.TrashCount; n > 0 {
 		return fmt.Sprintf("%s (%d)", lang.L("Trash"), n)
 	}
 	return lang.L("Trash")
@@ -498,23 +337,23 @@ func (u *UI) trashLabel() string {
 // renderActivity shows what runs in the background at the bottom of the
 // sidebar, whatever page is open: a "Sync all" and the games being played.
 // Each entry opens the page it belongs to.
-func (u *UI) renderActivity() {
+func (u *Shell) renderActivity() {
 	if u.activity == nil {
 		return
 	}
 	var objs []fyne.CanvasObject
 	// The library shows "Sync all" progress itself; elsewhere it shows here.
-	if u.syncingAll && u.route != "/" {
+	if u.store.SyncAll.Running && u.route != "/" {
 		text := lang.L("Syncing…")
-		if p := u.syncAllProg; p.Total > 0 {
+		if p := u.store.SyncAll.Progress; p.Total > 0 {
 			text = lang.L("Syncing {{.Done}} of {{.Total}}", map[string]any{"Done": p.Done, "Total": p.Total})
 		}
 		b := widget.NewButtonWithIcon(text, theme.ViewRefreshIcon(), func() { u.navigate("/") })
 		b.Alignment, b.Importance = widget.ButtonAlignLeading, widget.LowImportance
 		objs = append(objs, b)
 	}
-	for _, g := range u.games {
-		if st, ok := u.status[g.ID]; ok && st.Running {
+	for _, g := range u.store.Games {
+		if st, ok := u.store.Status[g.ID]; ok && st.Running {
 			id := g.ID
 			b := widget.NewButtonWithIcon(lang.L("Playing {{.Game}}", map[string]any{"Game": g.Name}), theme.MediaPlayIcon(),
 				func() { u.navigate("/game/" + id) })
@@ -530,33 +369,19 @@ func (u *UI) renderActivity() {
 	}
 }
 
-func (u *UI) refreshSidebar() {
+func (u *Shell) refreshSidebar() {
 	if u.sidebar != nil {
 		u.renderSidebar()
 	}
 }
 
-func (u *UI) notify(what change) {
-	if s, ok := u.page.(stateful); ok {
-		s.stateChanged(what)
+func (u *Shell) notify(what store.Topic) {
+	if s, ok := u.page.(env.Stateful); ok {
+		s.StateChanged(what)
 	}
 }
 
-func (u *UI) game(id string) (services.GameView, bool) {
-	for _, g := range u.games {
-		if g.ID == id {
-			return g, true
-		}
-	}
-	return services.GameView{}, false
-}
-
-// copyField is a read-only text with a Copy button that tells it copied.
-func (u *UI) copyField(text string) fyne.CanvasObject {
-	return kit.NewCopyField(lang.L("Copy"), text, u.app.Clipboard(), func() { u.toast(lang.L("Copied"), kit.ToastOK) })
-}
-
-func (u *UI) toast(text string, kind kit.ToastKind) {
+func (u *Shell) toast(text string, kind kit.ToastKind) {
 	if kind == kit.ToastErr {
 		// The log is what a bug report carries: record every error the user saw.
 		log.Printf("ui error: %s", text)
@@ -564,14 +389,14 @@ func (u *UI) toast(text string, kind kit.ToastKind) {
 	u.toasts.Show(text, kind)
 }
 
-func (u *UI) toastErr(err error) {
+func (u *Shell) toastErr(err error) {
 	if err != nil {
 		u.toast(err.Error(), kit.ToastErr)
 	}
 }
 
 // openFolder opens a folder in the system file manager.
-func (u *UI) openFolder(p string) {
+func (u *Shell) openFolder(p string) {
 	if err := u.lib.CheckFolder(p); err != nil {
 		u.toastErr(err)
 		return

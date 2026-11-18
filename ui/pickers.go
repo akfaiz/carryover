@@ -13,15 +13,16 @@ import (
 	"fyne.io/fyne/v2/widget"
 
 	"github.com/akfaiz/carryover/internal/stores/steamgrid"
-	"github.com/akfaiz/carryover/internal/ui/kit"
 	"github.com/akfaiz/carryover/services"
+	"github.com/akfaiz/carryover/ui/env"
+	"github.com/akfaiz/carryover/ui/kit"
 )
 
 // artPicker is the "Find artwork on SteamGridDB" dialog. The user picks the
 // game once, then flips between tabs (cover, wide cover, background, logo,
 // icon) and picks an image in each, so a game isn't searched for per image type.
 type artPicker struct {
-	u          *UI
+	u          env.Env
 	steamAppID string
 	start      steamgrid.Kind
 	onPick     func(steamgrid.Kind, steamgrid.Grid)
@@ -57,7 +58,7 @@ type artPickerOpts struct {
 
 // showArtPicker lets the user pick SteamGridDB artwork; every pick is reported
 // through onPick while the dialog stays open, onClosed runs when it closes.
-func showArtPicker(u *UI, o artPickerOpts) {
+func showArtPicker(u env.Env, o artPickerOpts) {
 	p := &artPicker{u: u, steamAppID: o.steamAppID, start: o.kind, onPick: o.onPick, onGame: o.onGame,
 		picked: map[steamgrid.Kind]int{}}
 	p.query = widget.NewEntry()
@@ -69,13 +70,13 @@ func showArtPicker(u *UI, o artPickerOpts) {
 	p.errLabel.Hide()
 
 	top := kit.VBox(kit.RowFill(p.query, widget.NewButton(lang.L("Search"), p.search)), p.errLabel)
-	p.d = dialog.NewCustom(lang.L("Find artwork on SteamGridDB"), lang.L("Done"), container.NewBorder(top, nil, nil, nil, p.body), u.win)
+	p.d = dialog.NewCustom(lang.L("Find artwork on SteamGridDB"), lang.L("Done"), container.NewBorder(top, nil, nil, nil, p.body), u.Window())
 	if o.onClosed != nil {
 		p.d.SetOnClosed(o.onClosed)
 	}
-	p.d.Resize(kit.DialogSize(u.win))
+	p.d.Resize(kit.DialogSize(u.Window()))
 	p.d.Show()
-	kit.OnBack(u.win, p.d.Hide)
+	kit.OnBack(u.Window(), p.d.Hide)
 
 	switch {
 	case o.gameID > 0:
@@ -110,7 +111,7 @@ func (p *artPicker) search() {
 	p.showErr(nil)
 	p.setBody(kit.Muted(lang.L("Searching…")))
 	term := p.query.Text
-	kit.Async(func() ([]steamgrid.Game, error) { return p.u.lib.SearchGridGames(term) }, func(list []steamgrid.Game, err error) {
+	kit.Async(func() ([]steamgrid.Game, error) { return p.u.Lib().SearchGridGames(term) }, func(list []steamgrid.Game, err error) {
 		p.showErr(err)
 		if list == nil {
 			list = []steamgrid.Game{}
@@ -181,7 +182,7 @@ func (p *artPicker) ensure(kind steamgrid.Kind) {
 	if id == 0 {
 		appID = p.steamAppID
 	}
-	kit.Async(func() ([]steamgrid.Grid, error) { return p.u.lib.GridArt(string(kind), id, appID) }, func(grids []steamgrid.Grid, err error) {
+	kit.Async(func() ([]steamgrid.Grid, error) { return p.u.Lib().GridArt(string(kind), id, appID) }, func(grids []steamgrid.Grid, err error) {
 		if gen != p.gen {
 			return
 		}
@@ -246,7 +247,7 @@ func showGames(body *fyne.Container, list []steamgrid.Game, onPick func(steamgri
 
 // showSteamImport lists games installed through Steam; picking one opens the
 // editor pre-filled (or the existing game).
-func showSteamImport(u *UI) {
+func showSteamImport(u env.Env) {
 	filter := widget.NewEntry()
 	filter.SetPlaceHolder(lang.L("Filter…"))
 	list := container.NewVBox(kit.Muted(lang.L("Reading Steam library…")))
@@ -271,9 +272,9 @@ func showSteamImport(u *UI) {
 			list.Add(kit.MediaRow(lead, g.Name, right, func() {
 				d.Hide()
 				if g.GameID != "" {
-					u.navigate("/game/" + g.GameID)
+					u.Navigate("/game/" + g.GameID)
 				} else {
-					u.navigate("/new/steam/" + g.AppID)
+					u.Navigate("/new/steam/" + g.AppID)
 				}
 			}))
 		}
@@ -284,11 +285,11 @@ func showSteamImport(u *UI) {
 	top := kit.VBox(
 		kit.Muted(lang.L("Games installed through Steam on this device. The title comes from Steam; you still set the save locations. Steam keeps launching the game — Carryover syncs around it through the launch options shown on the game page.")),
 		kit.FullHeight(filter))
-	d = dialog.NewCustom(lang.L("Add from Steam library"), lang.L("Close"), container.NewBorder(top, nil, nil, nil, container.NewVScroll(list)), u.win)
-	d.Resize(kit.DialogSize(u.win))
+	d = dialog.NewCustom(lang.L("Add from Steam library"), lang.L("Close"), container.NewBorder(top, nil, nil, nil, container.NewVScroll(list)), u.Window())
+	d.Resize(kit.DialogSize(u.Window()))
 	d.Show()
-	kit.OnBack(u.win, d.Hide)
-	kit.Async(func() ([]services.SteamLibraryGame, error) { return u.lib.SteamLibrary(), nil }, func(g []services.SteamLibraryGame, _ error) {
+	kit.OnBack(u.Window(), d.Hide)
+	kit.Async(func() ([]services.SteamLibraryGame, error) { return u.Lib().SteamLibrary(), nil }, func(g []services.SteamLibraryGame, _ error) {
 		games = g
 		render()
 	})

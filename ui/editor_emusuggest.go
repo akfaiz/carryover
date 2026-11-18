@@ -9,8 +9,8 @@ import (
 	"fyne.io/fyne/v2/theme"
 	"fyne.io/fyne/v2/widget"
 
-	"github.com/akfaiz/carryover/internal/ui/kit"
 	"github.com/akfaiz/carryover/services"
+	"github.com/akfaiz/carryover/ui/kit"
 )
 
 // emuView returns the emulator's definition from the list the editor loaded.
@@ -47,7 +47,7 @@ func (e *editor) romPicked(m *emuForm) {
 		finish()
 		return
 	}
-	kit.Async(func() (string, error) { return e.u.emus.GuessRomName(m.id, m.rom), nil }, func(name string, _ error) {
+	kit.Async(func() (string, error) { return e.u.Emus().GuessRomName(m.id, m.rom), nil }, func(name string, _ error) {
 		if name != "" && strings.TrimSpace(e.name) == "" {
 			e.name = name
 			if e.nameEntry != nil {
@@ -72,7 +72,7 @@ func (e *editor) suggestEmuSaves(m *emuForm, autofill bool) {
 	m.suggesting, m.sugErr = true, ""
 	e.render()
 	in := services.EmuSuggestInput{GameName: e.name, Rom: m.rom}
-	kit.Async(func() (services.EmuSuggestResult, error) { return e.u.emus.SuggestSaves(m.id, in) }, func(res services.EmuSuggestResult, err error) {
+	kit.Async(func() (services.EmuSuggestResult, error) { return e.u.Emus().SuggestSaves(m.id, in) }, func(res services.EmuSuggestResult, err error) {
 		m.suggesting = false
 		switch {
 		case err != nil && !autofill:

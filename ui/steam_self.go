@@ -10,8 +10,9 @@ import (
 	"fyne.io/fyne/v2/widget"
 
 	"github.com/akfaiz/carryover/internal/core"
-	"github.com/akfaiz/carryover/internal/ui/kit"
 	"github.com/akfaiz/carryover/services"
+	"github.com/akfaiz/carryover/ui/env"
+	"github.com/akfaiz/carryover/ui/kit"
 )
 
 // steamArt is Carryover's own Steam library art, drawn by
@@ -34,7 +35,7 @@ func selfSteamArt() map[string][]byte {
 // selfSteamCard adds Carryover itself to Steam, so it can be opened from Steam
 // Deck Game Mode and used with a controller.
 type selfSteamCard struct {
-	u     *UI
+	u     env.Env
 	box   *fyne.Container
 	info  *services.SteamInfo // nil while Steam is being detected
 	user  string
@@ -42,7 +43,7 @@ type selfSteamCard struct {
 	busy  bool
 }
 
-func newSelfSteamCard(u *UI) fyne.CanvasObject {
+func newSelfSteamCard(u env.Env) fyne.CanvasObject {
 	s := &selfSteamCard{u: u, box: container.NewStack()}
 	s.render()
 	type state struct {
@@ -50,10 +51,10 @@ func newSelfSteamCard(u *UI) fyne.CanvasObject {
 		user, appID string
 	}
 	kit.Async(func() (state, error) {
-		st := state{info: u.steam.Info()}
+		st := state{info: u.Steam().Info()}
 		if len(st.info.Users) > 0 {
 			st.user = st.info.Users[0].ID
-			st.appID, _ = u.steam.SelfAppID(st.user)
+			st.appID, _ = u.Steam().SelfAppID(st.user)
 		}
 		return st, nil
 	}, func(st state, _ error) {
@@ -114,7 +115,7 @@ func (s *selfSteamCard) selectUser(id string) {
 		return
 	}
 	s.user, s.appID = id, ""
-	kit.Async(func() (string, error) { return s.u.steam.SelfAppID(id) }, func(appID string, _ error) {
+	kit.Async(func() (string, error) { return s.u.Steam().SelfAppID(id) }, func(appID string, _ error) {
 		if s.user == id {
 			s.appID = appID
 			s.render()
@@ -127,17 +128,17 @@ func (s *selfSteamCard) add() {
 	s.busy = true
 	s.render()
 	kit.Async(func() (core.AddToSteamResult, error) {
-		return s.u.steam.AddSelf(user, selfSteamArt())
+		return s.u.Steam().AddSelf(user, selfSteamArt())
 	}, func(res core.AddToSteamResult, err error) {
 		s.busy = false
 		if err != nil {
-			s.u.toastErr(err)
+			s.u.ToastErr(err)
 		} else {
 			s.appID = res.AppID
 			if res.SteamRunning {
-				s.u.toast(lang.L("Added to Steam. Restart Steam to see it."), kit.ToastOK)
+				s.u.Toast(lang.L("Added to Steam. Restart Steam to see it."), kit.ToastOK)
 			} else {
-				s.u.toast(lang.L("Added to Steam"), kit.ToastOK)
+				s.u.Toast(lang.L("Added to Steam"), kit.ToastOK)
 			}
 		}
 		s.render()
@@ -148,17 +149,17 @@ func (s *selfSteamCard) remove() {
 	user := s.user
 	s.busy = true
 	s.render()
-	kit.Async(func() (int, error) { return s.u.steam.RemoveSelf(user) }, func(n int, err error) {
+	kit.Async(func() (int, error) { return s.u.Steam().RemoveSelf(user) }, func(n int, err error) {
 		s.busy = false
 		switch {
 		case err != nil:
-			s.u.toastErr(err)
+			s.u.ToastErr(err)
 		case n > 0:
 			s.appID = ""
-			s.u.toast(lang.L("Removed from Steam"), kit.ToastOK)
+			s.u.Toast(lang.L("Removed from Steam"), kit.ToastOK)
 		default:
 			s.appID = ""
-			s.u.toast(lang.L("No shortcut found"), kit.ToastOK)
+			s.u.Toast(lang.L("No shortcut found"), kit.ToastOK)
 		}
 		s.render()
 	})

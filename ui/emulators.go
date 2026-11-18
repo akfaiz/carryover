@@ -8,14 +8,17 @@ import (
 	"fyne.io/fyne/v2/widget"
 
 	"github.com/akfaiz/carryover/internal/saves/pathvar"
-	"github.com/akfaiz/carryover/internal/ui/kit"
 	"github.com/akfaiz/carryover/services"
+	"github.com/akfaiz/carryover/ui/components"
+	"github.com/akfaiz/carryover/ui/env"
+	"github.com/akfaiz/carryover/ui/kit"
+	"github.com/akfaiz/carryover/ui/store"
 )
 
 // emulatorsPage lists the emulators and edits them: where each is installed on
 // this device and how it is started. A game then picks its emulators.
 type emulatorsPage struct {
-	u *UI
+	u env.Env
 
 	list    []services.EmulatorView
 	tokens  []pathvar.Token
@@ -25,9 +28,9 @@ type emulatorsPage struct {
 	scroll *container.Scroll
 }
 
-func newEmulatorsPage(u *UI) *emulatorsPage { return &emulatorsPage{u: u} }
+func newEmulatorsPage(u env.Env) *emulatorsPage { return &emulatorsPage{u: u} }
 
-func (p *emulatorsPage) view() fyne.CanvasObject {
+func (p *emulatorsPage) View() fyne.CanvasObject {
 	p.scroll = kit.ScrollPage(kit.Muted(lang.L("Loading…")))
 	p.reload()
 	return p.scroll
@@ -38,20 +41,20 @@ func (p *emulatorsPage) reload() {
 		list   []services.EmulatorView
 		tokens []pathvar.Token
 	}
-	kit.Async(func() (loaded, error) { return loaded{p.u.emus.List(), p.u.lib.Tokens("")}, nil }, func(l loaded, _ error) {
+	kit.Async(func() (loaded, error) { return loaded{p.u.Emus().List(), p.u.Lib().Tokens("")}, nil }, func(l loaded, _ error) {
 		p.list, p.tokens, p.loaded = l.list, l.tokens, true
 		p.render()
 	})
 }
 
-func (p *emulatorsPage) stateChanged(what change) {
-	if what == changeLibrary && p.editing == nil {
+func (p *emulatorsPage) StateChanged(what store.Topic) {
+	if what == store.Library && p.editing == nil {
 		p.reload()
 	}
 }
 
 // dirty: an emulator form with unsaved changes is open.
-func (p *emulatorsPage) dirty() bool { return p.editing != nil && p.editing.dirty() }
+func (p *emulatorsPage) Dirty() bool { return p.editing != nil && p.editing.dirty() }
 
 func (p *emulatorsPage) render() {
 	if !p.loaded {
@@ -77,8 +80,8 @@ func (p *emulatorsPage) render() {
 // closeForm goes back to the list, asking first if the form has changes.
 func (p *emulatorsPage) closeForm() {
 	toList := func() { p.editing = nil; p.render() }
-	if p.dirty() {
-		confirmDiscard(p.u, toList)
+	if p.Dirty() {
+		components.ConfirmDiscard(p.u, toList)
 		return
 	}
 	toList()
@@ -107,13 +110,13 @@ func (p *emulatorsPage) row(ev services.EmulatorView) fyne.CanvasObject {
 
 // askUnset clears this device's setup of an emulator, keeping it everywhere else.
 func (p *emulatorsPage) askUnset(ev services.EmulatorView) {
-	confirmDanger(p.u, confirmOpts{
-		title:   lang.L("Remove from this device"),
-		message: lang.L("Clear where {{.Name}} is installed on this device? It stays set up on your other devices, and games keep it and their cloud saves. Set it up again with Edit.", map[string]any{"Name": ev.Name}),
-		action:  lang.L("Remove"),
-		onConfirm: func(bool) {
-			kit.Async0(func() error { return p.u.emus.Unset(ev.ID) }, func(err error) {
-				p.u.toastErr(err)
+	components.ConfirmDanger(p.u, components.ConfirmOpts{
+		Title:   lang.L("Remove from this device"),
+		Message: lang.L("Clear where {{.Name}} is installed on this device? It stays set up on your other devices, and games keep it and their cloud saves. Set it up again with Edit.", map[string]any{"Name": ev.Name}),
+		Action:  lang.L("Remove"),
+		OnConfirm: func(bool) {
+			kit.Async0(func() error { return p.u.Emus().Unset(ev.ID) }, func(err error) {
+				p.u.ToastErr(err)
 				p.reload()
 			})
 		},
@@ -122,19 +125,19 @@ func (p *emulatorsPage) askUnset(ev services.EmulatorView) {
 
 // askDelete moves an emulator to the trash, or deletes it with its cloud saves.
 func (p *emulatorsPage) askDelete(ev services.EmulatorView) {
-	confirmDanger(p.u, confirmOpts{
-		title:    lang.L("Delete emulator"),
-		message:  lang.L("Move this emulator to the trash on all devices? You can restore it from the Trash page. Games keep their saves in the cloud, but can't be launched with it until then."),
-		check:    lang.L("Also remove it from games and delete its cloud saves"),
-		checked:  lang.L("Delete this emulator permanently on all devices, remove it from every game and delete the cloud saves and backups made with it? It can't be restored."),
-		keptHint: lang.L("The cloud saves stay until you delete them. Once it is gone for good, they are listed under Trash → Leftover cloud saves."),
-		onConfirm: func(saves bool) {
-			del := p.u.emus.Delete
+	components.ConfirmDanger(p.u, components.ConfirmOpts{
+		Title:    lang.L("Delete emulator"),
+		Message:  lang.L("Move this emulator to the trash on all devices? You can restore it from the Trash page. Games keep their saves in the cloud, but can't be launched with it until then."),
+		Check:    lang.L("Also remove it from games and delete its cloud saves"),
+		Checked:  lang.L("Delete this emulator permanently on all devices, remove it from every game and delete the cloud saves and backups made with it? It can't be restored."),
+		KeptHint: lang.L("The cloud saves stay until you delete them. Once it is gone for good, they are listed under Trash → Leftover cloud saves."),
+		OnConfirm: func(saves bool) {
+			del := p.u.Emus().Delete
 			if saves {
-				del = p.u.emus.DeleteWithSaves
+				del = p.u.Emus().DeleteWithSaves
 			}
 			kit.Async0(func() error { return del(ev.ID) }, func(err error) {
-				p.u.toastErr(err)
+				p.u.ToastErr(err)
 				p.reload()
 			})
 		},
@@ -149,3 +152,6 @@ func (p *emulatorsPage) edit(s services.EmulatorSetup) {
 	p.editing.relayout = p.render // the page is built again around the form
 	p.render()
 }
+
+// Redraw draws the page again from its state (env.Redrawable).
+func (p *emulatorsPage) Redraw() { p.render() }

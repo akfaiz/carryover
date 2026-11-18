@@ -44,8 +44,8 @@ func TestSettingsAddsCarryoverToSteam(t *testing.T) {
 	assert.Contains(t, h.toasts()[0], "Added to Steam") // with "restart Steam" while it runs
 
 	// The button now updates the shortcut, and Remove is reachable with the D-pad.
-	h.u.nav.FocusDefault()
-	got := reachable(h, h.u.win.Canvas().Focused())
+	h.u.Navigator().FocusDefault()
+	got := reachable(h, h.u.Window().Canvas().Focused())
 	for _, text := range []string{"Update Steam shortcut", "Remove"} {
 		b := buttonWith(t, pageWidgets[*widget.Button](h), text)
 		assert.True(t, got[b], "%s not reachable with the D-pad", text)

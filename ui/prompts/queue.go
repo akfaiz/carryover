@@ -1,4 +1,4 @@
-package ui
+package prompts
 
 import (
 	"fyne.io/fyne/v2"
@@ -6,20 +6,35 @@ import (
 	"fyne.io/fyne/v2/lang"
 	"fyne.io/fyne/v2/widget"
 
-	"github.com/akfaiz/carryover/internal/ui/kit"
 	"github.com/akfaiz/carryover/services"
+	"github.com/akfaiz/carryover/ui/components"
+	"github.com/akfaiz/carryover/ui/env"
+	"github.com/akfaiz/carryover/ui/kit"
 )
 
-// promptQueue shows session prompts one at a time as modal dialogs.
-type promptQueue struct {
-	u       *UI
+// Queue shows session prompts one at a time as modal dialogs.
+type Queue struct {
+	// Wrapper is set in the session wrapper window (opened by a Steam shortcut),
+	// where prompts also say how to answer with a controller.
+	Wrapper bool
+
+	e       env.Env
 	queue   []services.Prompt
 	current *dialog.CustomDialog
 	nav     *kit.Nav // keyboard and gamepad control of the current prompt
 }
 
-// closeCurrent takes the current prompt's dialog down.
-func (q *promptQueue) closeCurrent() {
+// New returns an empty queue that shows its dialogs on the environment's window.
+func New(e env.Env) *Queue { return &Queue{e: e} }
+
+// Pending lists the prompts waiting, the one on screen first.
+func (q *Queue) Pending() []services.Prompt { return q.queue }
+
+// Current is the dialog on screen, nil when there is none.
+func (q *Queue) Current() *dialog.CustomDialog { return q.current }
+
+// CloseCurrent takes the current prompt's dialog down.
+func (q *Queue) CloseCurrent() {
 	if q.nav != nil {
 		q.nav.Stop()
 		q.nav = nil
@@ -30,7 +45,8 @@ func (q *promptQueue) closeCurrent() {
 	}
 }
 
-func (q *promptQueue) add(p services.Prompt) {
+// Add queues a prompt and shows it when no other is on screen.
+func (q *Queue) Add(p services.Prompt) {
 	for _, x := range q.queue {
 		if x.ID == p.ID {
 			return
@@ -42,31 +58,31 @@ func (q *promptQueue) add(p services.Prompt) {
 	}
 }
 
-// remove drops a prompt that was withdrawn (its sync was cancelled).
-func (q *promptQueue) remove(id string) {
+// Remove drops a prompt that was withdrawn (its sync was cancelled).
+func (q *Queue) Remove(id string) {
 	for i, p := range q.queue {
 		if p.ID != id {
 			continue
 		}
 		q.queue = append(q.queue[:i], q.queue[i+1:]...)
 		if i == 0 && q.current != nil {
-			q.closeCurrent()
+			q.CloseCurrent()
 			q.next()
 		}
 		return
 	}
 }
 
-func (q *promptQueue) next() {
-	if len(q.queue) == 0 || q.u.win == nil {
+func (q *Queue) next() {
+	if len(q.queue) == 0 || q.e.Window() == nil {
 		q.current = nil
 		return
 	}
 	p := q.queue[0]
 	answer := func(a string) {
 		q.queue = q.queue[1:]
-		q.closeCurrent()
-		go q.u.sess.Respond(p.ID, a)
+		q.CloseCurrent()
+		go q.e.Sess().Respond(p.ID, a)
 		q.next()
 	}
 	// Every prompt works with the keyboard and a gamepad (a Steam shortcut on a
@@ -75,7 +91,7 @@ func (q *promptQueue) next() {
 	// focus starts on that safe button, so a stray press doesn't overwrite saves.
 	var back string
 	var first fyne.Focusable
-	nav := kit.NewNav(q.u.win, func() { answer(back) })
+	nav := kit.NewNav(q.e.Window(), func() { answer(back) })
 	button := func(label string, imp widget.Importance, a string) *kit.NavButton {
 		return nav.Button(label, imp, func() { answer(a) })
 	}
@@ -92,7 +108,7 @@ func (q *promptQueue) next() {
 		first, back = skipBtn, "skip"
 		body = kit.VBox(
 			kit.Muted(conflictIntro(p.Conflict)),
-			saveSidesNav(nav, p.Conflict.Local, p.Conflict.Remote, true, answer),
+			components.SaveSidesNav(nav, p.Conflict.Local, p.Conflict.Remote, true, answer),
 			kit.HBox(skipBtn),
 		)
 	case p.Kind == "emulator":
@@ -105,7 +121,7 @@ func (q *promptQueue) next() {
 		first, back = cancel, "no"
 		body = kit.VBox(
 			kit.Colored(lang.L("{{.Device}} started playing at {{.Time}}. If you play here too, you may get a save conflict when both devices upload.",
-				map[string]any{"Device": p.Lock.DeviceName, "Time": fmtDate(p.Lock.Since)}), widget.MediumImportance),
+				map[string]any{"Device": p.Lock.DeviceName, "Time": components.FmtDate(p.Lock.Since)}), widget.MediumImportance),
 			kit.HBox(cancel, button(lang.L("Play anyway"), widget.HighImportance, "yes")),
 		)
 	default:
@@ -127,12 +143,12 @@ func (q *promptQueue) next() {
 				kit.HBox(ok))
 		}
 	}
-	if _, wrapper := q.u.page.(*sessionPage); wrapper {
+	if q.Wrapper {
 		// Opened by a Steam shortcut: likely driven with a controller.
 		body = kit.VBox(body, kit.Muted(lang.L("D-pad or arrow keys to choose, A or Enter to confirm, B or Esc to go back.")))
 	}
-	size := q.u.win.Canvas().Size()
-	q.current = dialog.NewCustomWithoutButtons(title, body, q.u.win)
+	size := q.e.Window().Canvas().Size()
+	q.current = dialog.NewCustomWithoutButtons(title, body, q.e.Window())
 	q.current.Resize(fyne.NewSize(min(560, size.Width-20), 0))
 	q.current.Show()
 	q.nav = nav

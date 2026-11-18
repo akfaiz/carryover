@@ -11,8 +11,11 @@ import (
 	"fyne.io/fyne/v2/theme"
 	"fyne.io/fyne/v2/widget"
 
-	"github.com/akfaiz/carryover/internal/ui/kit"
 	"github.com/akfaiz/carryover/services"
+	"github.com/akfaiz/carryover/ui/components"
+	"github.com/akfaiz/carryover/ui/env"
+	"github.com/akfaiz/carryover/ui/kit"
+	"github.com/akfaiz/carryover/ui/store"
 )
 
 // Library filters and sort orders (kept in the app's preferences).
@@ -29,18 +32,18 @@ const (
 )
 
 // libraryFilter is the library's filter, as last chosen.
-func (u *UI) libraryFilter() string {
-	return u.app.Preferences().StringWithFallback(prefLibraryFilter, filterAll)
+func libraryFilter(u env.Env) string {
+	return u.App().Preferences().StringWithFallback(prefLibraryFilter, filterAll)
 }
 
-func (u *UI) setLibraryFilter(f string) { u.app.Preferences().SetString(prefLibraryFilter, f) }
+func setLibraryFilter(u env.Env, f string) { u.App().Preferences().SetString(prefLibraryFilter, f) }
 
-func (u *UI) librarySort() string {
-	return u.app.Preferences().StringWithFallback(prefLibrarySort, sortName)
+func librarySort(u env.Env) string {
+	return u.App().Preferences().StringWithFallback(prefLibrarySort, sortName)
 }
 
 type libraryPage struct {
-	u       *UI
+	u       env.Env
 	filter  string // search text
 	scroll  *container.Scroll
 	body    *fyne.Container // the page's rows, laid out again when one changes height
@@ -61,15 +64,15 @@ type libraryPage struct {
 	tiles      map[string]*gameTile // by game id, kept across renders
 }
 
-func newLibraryPage(u *UI) *libraryPage {
+func newLibraryPage(u env.Env) *libraryPage {
 	return &libraryPage{u: u, tiles: map[string]*gameTile{}}
 }
 
-func (p *libraryPage) view() fyne.CanvasObject {
+func (p *libraryPage) View() fyne.CanvasObject {
 	p.search = widget.NewEntry()
 	p.search.SetPlaceHolder(lang.L("Search…"))
 	p.search.OnChanged = func(s string) { p.filter = s; p.renderGrid() }
-	p.syncBtn = widget.NewButtonWithIcon(lang.L("Sync all"), theme.ViewRefreshIcon(), p.u.syncAll)
+	p.syncBtn = widget.NewButtonWithIcon(lang.L("Sync all"), theme.ViewRefreshIcon(), p.u.SyncAll)
 	p.head = kit.PageHead(nil, lang.L("Library"),
 		p.syncBtn,
 		kit.Primary(lang.L("＋ Add game"), func() { showAddGame(p.u) }),
@@ -79,8 +82,8 @@ func (p *libraryPage) view() fyne.CanvasObject {
 	sorts := &kit.Choice{}
 	sorts.Add(sortName, lang.L("Sort by name"))
 	sorts.Add(sortRecent, lang.L("Sort by last sync"))
-	sortSel := kit.SelectOf(sorts, p.u.librarySort(), func(v string) {
-		p.u.app.Preferences().SetString(prefLibrarySort, v)
+	sortSel := kit.SelectOf(sorts, librarySort(p.u), func(v string) {
+		p.u.App().Preferences().SetString(prefLibrarySort, v)
 		p.renderGrid()
 	})
 	p.filterHost = container.NewStack()
@@ -115,10 +118,10 @@ func (p *libraryPage) relayout() {
 	p.scroll.Refresh()
 }
 
-func (p *libraryPage) focusSearch() { p.u.win.Canvas().Focus(p.search) }
+func (p *libraryPage) FocusSearch() { p.u.Window().Canvas().Focus(p.search) }
 
 // defaultFocus starts a gamepad on the first game.
-func (p *libraryPage) defaultFocus() fyne.Focusable {
+func (p *libraryPage) DefaultFocus() fyne.Focusable {
 	if games := p.visible(); len(games) > 0 {
 		if t := p.tiles[games[0].ID]; t != nil {
 			return t.open
@@ -127,9 +130,9 @@ func (p *libraryPage) defaultFocus() fyne.Focusable {
 	return nil
 }
 
-func (p *libraryPage) syncNow() {
-	if !p.u.syncingAll && p.u.settings.Remote != "" {
-		p.u.syncAll()
+func (p *libraryPage) SyncNow() {
+	if !p.u.Store().SyncAll.Running && p.u.Store().Settings.Remote != "" {
+		p.u.SyncAll()
 	}
 }
 
@@ -138,24 +141,24 @@ func (p *libraryPage) syncNow() {
 func (p *libraryPage) updateProgress() {
 	u := p.u
 	switch {
-	case u.cancellingAll:
+	case u.Store().SyncAll.Cancelling:
 		p.syncBtn.SetText(lang.L("Cancelling…"))
 		p.syncBtn.SetIcon(theme.CancelIcon())
 		p.syncBtn.Disable()
-	case u.syncingAll:
+	case u.Store().SyncAll.Running:
 		p.syncBtn.SetText(lang.L("Cancel sync"))
 		p.syncBtn.SetIcon(theme.CancelIcon())
 		p.syncBtn.Enable()
 	default:
 		p.syncBtn.SetText(lang.L("Sync all"))
 		p.syncBtn.SetIcon(theme.ViewRefreshIcon())
-		kit.SetEnabled(p.syncBtn, u.settings.Remote != "")
+		kit.SetEnabled(p.syncBtn, u.Store().Settings.Remote != "")
 	}
 	if p.head != nil {
 		p.head.Refresh() // the button's label width changed
 	}
-	pr := u.syncAllProg
-	if !u.syncingAll || pr.Total == 0 {
+	pr := u.Store().SyncAll.Progress
+	if !u.Store().SyncAll.Running || pr.Total == 0 {
 		if p.barHost.Visible() {
 			p.barHost.Hide()
 			p.relayout()
@@ -175,8 +178,8 @@ func (p *libraryPage) updateProgress() {
 	}
 }
 
-func (p *libraryPage) stateChanged(what change) {
-	if what == changeProgress {
+func (p *libraryPage) StateChanged(what store.Topic) {
+	if what == store.Progress {
 		p.updateProgress()
 		return
 	}
@@ -189,16 +192,16 @@ func (p *libraryPage) stateChanged(what change) {
 func (p *libraryPage) visible() []services.GameView {
 	u := p.u
 	f := strings.ToLower(strings.TrimSpace(p.filter))
-	filter := u.libraryFilter()
+	filter := libraryFilter(u)
 	var out []services.GameView
-	for _, g := range u.games {
+	for _, g := range u.Store().Games {
 		if !strings.Contains(strings.ToLower(g.Name), f) ||
-			(filter == filterAttention && !needsAttention(g)) || (filter == filterReady && !g.Ready) {
+			(filter == filterAttention && !components.NeedsAttention(g)) || (filter == filterReady && !g.Ready) {
 			continue
 		}
 		out = append(out, g)
 	}
-	if u.librarySort() == sortRecent {
+	if librarySort(u) == sortRecent {
 		// Most recently synced first (the times are RFC 3339, so they sort as
 		// text); never synced last.
 		slices.SortStableFunc(out, func(a, b services.GameView) int {
@@ -214,14 +217,14 @@ func (p *libraryPage) visible() []services.GameView {
 
 func (p *libraryPage) renderChips() {
 	u := p.u
-	if len(u.games) == 0 {
+	if len(u.Store().Games) == 0 {
 		p.chipsHost.Objects = nil
 		p.chipsHost.Refresh()
 		return
 	}
 	n, ready := 0, 0
-	for _, g := range u.games {
-		if needsAttention(g) {
+	for _, g := range u.Store().Games {
+		if components.NeedsAttention(g) {
 			n++
 		}
 		if g.Ready {
@@ -232,13 +235,13 @@ func (p *libraryPage) renderChips() {
 	// on, so it can be turned off again).
 	p.filterHost.Objects = nil
 	p.filterHost.Hide() // no gap above the grid for an empty row
-	if n > 0 || ready < len(u.games) || u.libraryFilter() != filterAll {
+	if n > 0 || ready < len(u.Store().Games) || libraryFilter(u) != filterAll {
 		p.filterHost.Objects = []fyne.CanvasObject{kit.Chips([]kit.ChipOption{
-			{Value: filterAll, Label: lang.L("All ({{.Count}})", map[string]any{"Count": len(u.games)})},
+			{Value: filterAll, Label: lang.L("All ({{.Count}})", map[string]any{"Count": len(u.Store().Games)})},
 			{Value: filterReady, Label: lang.L("Ready to play ({{.Count}})", map[string]any{"Count": ready}), Icon: theme.MediaPlayIcon()},
 			{Value: filterAttention, Label: lang.L("Needs attention ({{.Count}})", map[string]any{"Count": n}), Icon: theme.WarningIcon()},
-		}, u.libraryFilter(), func(v string) {
-			u.setLibraryFilter(v)
+		}, libraryFilter(u), func(v string) {
+			setLibraryFilter(u, v)
 			p.renderGrid()
 		})}
 		p.filterHost.Show()
@@ -255,10 +258,10 @@ func (p *libraryPage) renderGrid() {
 
 	p.emptyHost.Objects = nil
 	switch {
-	case u.loaded && len(u.games) == 0:
+	case u.Store().Loaded && len(u.Store().Games) == 0:
 		actions := kit.HBox(kit.Primary(lang.L("＋ Add your first game"), func() { showAddGame(u) }))
-		if u.settings.Remote == "" {
-			actions.Add(widget.NewButtonWithIcon(lang.L("Set up cloud storage"), theme.StorageIcon(), func() { u.navigate("/cloud") }))
+		if u.Store().Settings.Remote == "" {
+			actions.Add(widget.NewButtonWithIcon(lang.L("Set up cloud storage"), theme.StorageIcon(), func() { u.Navigate("/cloud") }))
 		}
 		p.emptyHost.Objects = []fyne.CanvasObject{kit.Card(lang.L("No games yet"),
 			kit.Muted(lang.L("Add a game, tell Carryover where its saves live on this device, and it will keep them in sync through your cloud storage every time you play — from here or from Steam.")),
@@ -267,14 +270,14 @@ func (p *libraryPage) renderGrid() {
 		p.emptyHost.Objects = []fyne.CanvasObject{kit.Card("",
 			kit.Muted(lang.L("No games match “{{.Query}}”.", map[string]any{"Query": strings.TrimSpace(p.filter)})),
 			kit.HBox(widget.NewButton(lang.L("Clear search"), func() { p.search.SetText("") })))}
-	case len(games) == 0 && u.loaded && u.libraryFilter() == filterReady:
+	case len(games) == 0 && u.Store().Loaded && libraryFilter(u) == filterReady:
 		p.emptyHost.Objects = []fyne.CanvasObject{kit.Card("",
 			kit.Muted(lang.L("No game can be played on this device yet. Set one up to play it here.")),
-			kit.HBox(widget.NewButton(lang.L("Show all games"), func() { u.setLibraryFilter(filterAll); p.renderGrid() })))}
-	case len(games) == 0 && u.loaded:
+			kit.HBox(widget.NewButton(lang.L("Show all games"), func() { setLibraryFilter(u, filterAll); p.renderGrid() })))}
+	case len(games) == 0 && u.Store().Loaded:
 		p.emptyHost.Objects = []fyne.CanvasObject{kit.Card("",
 			kit.Muted(lang.L("Nothing needs attention: every game is set up and synced.")),
-			kit.HBox(widget.NewButton(lang.L("Show all games"), func() { u.setLibraryFilter(filterAll); p.renderGrid() })))}
+			kit.HBox(widget.NewButton(lang.L("Show all games"), func() { setLibraryFilter(u, filterAll); p.renderGrid() })))}
 	}
 	p.emptyHost.Refresh()
 
@@ -296,7 +299,7 @@ func (p *libraryPage) renderGrid() {
 	}
 	grid := kit.GridWrap(cell, 12, tiles...)
 	for id := range p.tiles {
-		if _, ok := u.game(id); !ok {
+		if _, ok := u.Store().Game(id); !ok {
 			delete(p.tiles, id)
 		}
 	}

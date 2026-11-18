@@ -9,14 +9,17 @@ import (
 	"fyne.io/fyne/v2/theme"
 	"fyne.io/fyne/v2/widget"
 
-	"github.com/akfaiz/carryover/internal/ui/kit"
 	"github.com/akfaiz/carryover/services"
+	"github.com/akfaiz/carryover/ui/components"
+	"github.com/akfaiz/carryover/ui/env"
+	"github.com/akfaiz/carryover/ui/kit"
+	"github.com/akfaiz/carryover/ui/store"
 )
 
 // trashPage lists what was deleted: games and emulators that can still be
 // restored, and cloud save folders no game uses any more.
 type trashPage struct {
-	u *UI
+	u env.Env
 
 	games  []services.TrashGame
 	emus   []services.TrashEmulator
@@ -33,17 +36,17 @@ type trashPage struct {
 	scroll *container.Scroll
 }
 
-func newTrashPage(u *UI) *trashPage { return &trashPage{u: u} }
+func newTrashPage(u env.Env) *trashPage { return &trashPage{u: u} }
 
-func (p *trashPage) view() fyne.CanvasObject {
+func (p *trashPage) View() fyne.CanvasObject {
 	p.scroll = kit.ScrollPage(kit.Muted(lang.L("Loading…")))
 	p.reload()
 	p.loadLeftovers()
 	return p.scroll
 }
 
-func (p *trashPage) stateChanged(what change) {
-	if what == changeLibrary && !p.busy {
+func (p *trashPage) StateChanged(what store.Topic) {
+	if what == store.Library && !p.busy {
 		p.reload()
 		if !p.leftLoaded {
 			p.loadLeftovers() // the cloud may have been set up since the page opened
@@ -56,20 +59,20 @@ func (p *trashPage) reload() {
 		games []services.TrashGame
 		emus  []services.TrashEmulator
 	}
-	kit.Async(func() (loaded, error) { return loaded{p.u.lib.Trash(), p.u.emus.Trash()}, nil }, func(l loaded, _ error) {
+	kit.Async(func() (loaded, error) { return loaded{p.u.Lib().Trash(), p.u.Emus().Trash()}, nil }, func(l loaded, _ error) {
 		p.games, p.emus, p.loaded = l.games, l.emus, true
-		p.u.trashCount = len(l.games) + len(l.emus)
-		p.u.refreshSidebar()
+		p.u.Store().SetTrashCount(len(l.games) + len(l.emus))
+		p.u.RefreshSidebar()
 		p.render()
 	})
 }
 
 func (p *trashPage) loadLeftovers() {
-	if p.u.settings.Remote == "" || p.leftLoading {
+	if p.u.Store().Settings.Remote == "" || p.leftLoading {
 		return
 	}
 	p.leftLoading = true
-	kit.Async(p.u.lib.Leftovers, func(l []services.LeftoverView, err error) {
+	kit.Async(p.u.Lib().Leftovers, func(l []services.LeftoverView, err error) {
 		p.left, p.leftLoaded, p.leftLoading, p.leftErr = l, true, false, ""
 		if err != nil {
 			p.leftErr = err.Error()
@@ -83,7 +86,7 @@ func (p *trashPage) run(work func() error, done func()) {
 	p.busy = true
 	kit.Async0(work, func(err error) {
 		p.busy = false
-		p.u.toastErr(err)
+		p.u.ToastErr(err)
 		if err == nil && done != nil {
 			done()
 		}
@@ -104,14 +107,14 @@ func (p *trashPage) render() {
 	for _, g := range p.games {
 		games.Add(p.row(g.Name, g.DeletedAt, g.ExpiresAt,
 			func() {
-				p.run(func() error { return p.u.lib.Restore(g.ID) }, func() { p.u.toast(lang.L("Restored"), kit.ToastOK) })
+				p.run(func() error { return p.u.Lib().Restore(g.ID) }, func() { p.u.Toast(lang.L("Restored"), kit.ToastOK) })
 			},
 			lang.L("Also delete its cloud saves and backups"),
 			func(saves bool) error {
 				if saves {
-					return p.u.lib.DeleteWithSaves(g.ID)
+					return p.u.Lib().DeleteWithSaves(g.ID)
 				}
-				return p.u.lib.DeleteForever(g.ID)
+				return p.u.Lib().DeleteForever(g.ID)
 			}))
 	}
 	body.Add(p.section(lang.L("Games"), lang.L("No deleted games."), games, len(p.games)))
@@ -120,14 +123,14 @@ func (p *trashPage) render() {
 	for _, e := range p.emus {
 		emus.Add(p.row(e.Name, e.DeletedAt, e.ExpiresAt,
 			func() {
-				p.run(func() error { return p.u.emus.Restore(e.ID) }, func() { p.u.toast(lang.L("Restored"), kit.ToastOK) })
+				p.run(func() error { return p.u.Emus().Restore(e.ID) }, func() { p.u.Toast(lang.L("Restored"), kit.ToastOK) })
 			},
 			lang.L("Also delete the cloud saves made with it"),
 			func(saves bool) error {
 				if saves {
-					return p.u.emus.DeleteWithSaves(e.ID)
+					return p.u.Emus().DeleteWithSaves(e.ID)
 				}
-				return p.u.emus.DeleteForever(e.ID)
+				return p.u.Emus().DeleteForever(e.ID)
 			}))
 	}
 	body.Add(p.section(lang.L("Emulators"), lang.L("No deleted emulators."), emus, len(p.emus)))
@@ -146,16 +149,16 @@ func (p *trashPage) section(title, empty string, rows *fyne.Container, n int) fy
 // row is a restorable item: Restore, and Delete permanently with an optional
 // deletion of its cloud saves.
 func (p *trashPage) row(name string, deleted, expires time.Time, restore func(), checkLabel string, del func(saves bool) error) fyne.CanvasObject {
-	sub := kit.Small(lang.L("Deleted {{.When}} · settings kept until {{.Until}}", map[string]any{"When": fmtDate(deleted), "Until": fmtDate(expires)}))
+	sub := kit.Small(lang.L("Deleted {{.When}} · settings kept until {{.Until}}", map[string]any{"When": components.FmtDate(deleted), "Until": components.FmtDate(expires)}))
 	restoreBtn := widget.NewButtonWithIcon(lang.L("Restore"), theme.HistoryIcon(), restore)
 	deleteBtn := kit.DangerButton(lang.L("Delete permanently…"), func() {
-		confirmDanger(p.u, confirmOpts{
-			title:    lang.L("Delete permanently"),
-			message:  lang.L("Delete {{.Name}} permanently? It can't be restored any more. Its cloud saves and backups are kept.", map[string]any{"Name": name}),
-			check:    checkLabel,
-			checked:  lang.L("Delete {{.Name}} permanently together with its cloud saves and backups? This cannot be undone.", map[string]any{"Name": name}),
-			keptHint: lang.L("The cloud saves stay and are listed under Leftover cloud saves below until you delete them."),
-			onConfirm: func(saves bool) {
+		components.ConfirmDanger(p.u, components.ConfirmOpts{
+			Title:    lang.L("Delete permanently"),
+			Message:  lang.L("Delete {{.Name}} permanently? It can't be restored any more. Its cloud saves and backups are kept.", map[string]any{"Name": name}),
+			Check:    checkLabel,
+			Checked:  lang.L("Delete {{.Name}} permanently together with its cloud saves and backups? This cannot be undone.", map[string]any{"Name": name}),
+			KeptHint: lang.L("The cloud saves stay and are listed under Leftover cloud saves below until you delete them."),
+			OnConfirm: func(saves bool) {
 				p.run(func() error { return del(saves) }, nil)
 			},
 		})
@@ -170,7 +173,7 @@ func (p *trashPage) leftovers() fyne.CanvasObject {
 	title := lang.L("Leftover cloud saves")
 	intro := kit.Muted(lang.L("Saves and backups in your cloud that no game in the library uses, for example after a game was deleted for good or an emulator was removed from it. Restore one to add it back to the library, or delete it to free the space."))
 	switch {
-	case p.u.settings.Remote == "":
+	case p.u.Store().Settings.Remote == "":
 		return kit.Card(title, intro, kit.Muted(lang.L("Set up cloud storage to look for them.")))
 	case !p.leftLoaded:
 		return kit.Card(title, intro, kit.Muted(lang.L("Looking in the cloud…")))
@@ -199,25 +202,25 @@ func (p *trashPage) leftoverRow(l services.LeftoverView) fyne.CanvasObject {
 		name += " · " + emu
 	}
 	sub := kit.Small(lang.L("{{.Count}} files, {{.Size}} · last synced {{.When}} · {{.Backups}} backups",
-		map[string]any{"Count": l.Files, "Size": kit.FormatBytes(l.Bytes), "When": fmtDate(l.Time), "Backups": l.Backups}))
+		map[string]any{"Count": l.Files, "Size": kit.FormatBytes(l.Bytes), "When": components.FmtDate(l.Time), "Backups": l.Backups}))
 	restoreBtn := widget.NewButtonWithIcon(lang.L("Restore"), theme.HistoryIcon(), func() {
 		p.busy = true
-		kit.Async(func() (string, error) { return p.u.lib.RestoreLeftover(l.Key) }, func(id string, err error) {
+		kit.Async(func() (string, error) { return p.u.Lib().RestoreLeftover(l.Key) }, func(id string, err error) {
 			p.busy = false
 			if err != nil {
-				p.u.toastErr(err)
+				p.u.ToastErr(err)
 				return
 			}
-			p.u.toast(lang.L("Restored. Set where its saves are on this device, then sync."), kit.ToastOK)
-			p.u.navigate("/edit/" + id)
+			p.u.Toast(lang.L("Restored. Set where its saves are on this device, then sync."), kit.ToastOK)
+			p.u.Navigate("/edit/" + id)
 		})
 	})
 	deleteBtn := kit.DangerButton(lang.L("Delete…"), func() {
-		confirmDanger(p.u, confirmOpts{
-			title:   lang.L("Delete cloud saves"),
-			message: lang.L("Permanently delete the cloud saves and backups of {{.Name}}? This cannot be undone.", map[string]any{"Name": name}),
-			onConfirm: func(bool) {
-				p.run(func() error { return p.u.lib.DeleteLeftover(l.Key) }, nil)
+		components.ConfirmDanger(p.u, components.ConfirmOpts{
+			Title:   lang.L("Delete cloud saves"),
+			Message: lang.L("Permanently delete the cloud saves and backups of {{.Name}}? This cannot be undone.", map[string]any{"Name": name}),
+			OnConfirm: func(bool) {
+				p.run(func() error { return p.u.Lib().DeleteLeftover(l.Key) }, nil)
 			},
 		})
 	})
@@ -225,3 +228,6 @@ func (p *trashPage) leftoverRow(l services.LeftoverView) fyne.CanvasObject {
 	kit.SetEnabled(deleteBtn, !p.busy)
 	return kit.VBox(kit.CardHead(name, restoreBtn, deleteBtn), sub)
 }
+
+// Redraw draws the page again from its state (env.Redrawable).
+func (p *trashPage) Redraw() { p.render() }

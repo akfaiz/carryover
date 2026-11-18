@@ -19,7 +19,7 @@ func TestSteamShortcutTargetsListEveryEmulator(t *testing.T) {
 	g := h.addGame("Game A", t.TempDir())
 	var ids []string
 	for _, name := range []string{"Eden", "Ryujinx"} {
-		ev, err := h.u.emus.Save(services.EmulatorSetup{Name: name, Exe: name})
+		ev, err := h.u.Emus().Save(services.EmulatorSetup{Name: name, Exe: name})
 		require.NoError(t, err)
 		ids = append(ids, ev.ID)
 	}
@@ -27,16 +27,16 @@ func TestSteamShortcutTargetsListEveryEmulator(t *testing.T) {
 	for _, id := range ids {
 		in = append(in, services.GameEmulatorInput{EmulatorID: id, Slots: g.Slots, Rom: "g.nsp", Paths: map[string]string{"saves": filepath.Join(t.TempDir(), id)}})
 	}
-	_, err := h.u.lib.Save(services.GameInput{
+	_, err := h.u.Lib().Save(services.GameInput{
 		ID: g.ID, Name: g.Name, Slots: g.Slots, Device: services.DeviceInput{Paths: g.Device.Paths, Exe: g.Device.Exe}, Emulators: in,
 	})
 	require.NoError(t, err)
-	h.u.refresh()
+	h.u.Store().Refresh()
 	h.settle()
 
 	h.open("/game/" + g.ID)
 	var shortcut *widget.Select
-	for _, s := range widgetsOf[*widget.Select](h.u.page.view()) {
+	for _, s := range widgetsOf[*widget.Select](h.u.Page().View()) {
 		for _, o := range s.Options {
 			if o == "Only Eden" {
 				shortcut = s

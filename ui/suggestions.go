@@ -8,8 +8,9 @@ import (
 	"fyne.io/fyne/v2/lang"
 	"fyne.io/fyne/v2/widget"
 
-	"github.com/akfaiz/carryover/internal/ui/kit"
 	"github.com/akfaiz/carryover/services"
+	"github.com/akfaiz/carryover/ui/components"
+	"github.com/akfaiz/carryover/ui/kit"
 )
 
 // kindLabel names a kind of save-location suggestion.
@@ -73,7 +74,7 @@ func suggestionRow(s services.SaveSuggestion, onUse, onAdd func(services.SaveSug
 	badges := kit.HBox()
 	switch {
 	case s.Files > 0:
-		badges.Add(kit.Badge(lang.N("found · {{.Count}} file · {{.Size}} · {{.Age}}", s.Files, map[string]any{"Count": s.Files, "Size": kit.FormatBytes(s.Bytes), "Age": timeAgo(s.Newest)}), kit.BadgeOK))
+		badges.Add(kit.Badge(lang.N("found · {{.Count}} file · {{.Size}} · {{.Age}}", s.Files, map[string]any{"Count": s.Files, "Size": kit.FormatBytes(s.Bytes), "Age": components.TimeAgo(s.Newest)}), kit.BadgeOK))
 	case s.Exists:
 		badges.Add(kit.Badge(lang.L("Folder exists, no saves"), kit.BadgeNone))
 	default:

@@ -6,7 +6,6 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-	"sync/atomic"
 	"testing"
 	"time"
 
@@ -18,112 +17,46 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/akfaiz/carryover/internal/app/appdir"
 	"github.com/akfaiz/carryover/internal/cloudsync/cloud"
 	"github.com/akfaiz/carryover/internal/cloudsync/syncer"
 	"github.com/akfaiz/carryover/internal/core"
 	"github.com/akfaiz/carryover/internal/library"
-	"github.com/akfaiz/carryover/internal/ui/kit"
 	"github.com/akfaiz/carryover/services"
+	"github.com/akfaiz/carryover/ui/internal/uitest"
+	"github.com/akfaiz/carryover/ui/kit"
+	"github.com/akfaiz/carryover/ui/shell"
+	"github.com/akfaiz/carryover/ui/store"
 )
 
-// activeQueue is where UI work queued from other goroutines goes: the running
-// test's queue. kit.OnUI is assigned once, here, and never again: toasts leave
-// timers behind that read it after their test ended, so reassigning it per test
-// would race with them. Late work lands in an old queue that nobody drains.
-var activeQueue atomic.Pointer[chan func()]
-
-func init() {
-	kit.OnUI = func(f func()) {
-		if q := activeQueue.Load(); q != nil {
-			*q <- f
-			return
-		}
-		fyne.Do(f)
-	}
-}
-
-// harness is a UI on Fyne's headless test driver in an isolated data dir.
-// UI work queued from other goroutines runs in settle(), on the test's own
-// goroutine, like the real app's single UI thread.
+// harness is the root package's view of the shared uitest harness: the whole
+// application (every page) in a shell, in an isolated data dir.
 type harness struct {
-	t     *testing.T
-	c     *core.Core
-	u     *UI
-	queue chan func()
+	*uitest.Harness
+	t *testing.T
+	c *core.Core
+	u *shell.Shell
 }
 
 func newHarness(t *testing.T) *harness {
 	t.Helper()
-	t.Setenv(appdir.EnvHome, t.TempDir())
-	c, err := core.New()
-	require.NoError(t, err)
 	autosaveDelay = 20 * time.Millisecond
-	h := &harness{t: t, c: c, queue: make(chan func(), 1024)}
-	activeQueue.Store(&h.queue)
-	h.u = newUI(c, test.NewApp(), services.NewBus())
-	h.u.buildMain()
-	h.u.win.Resize(fyne.NewSize(1000, 700))
-	return h
+	uh := uitest.New(t, appConfig())
+	return &harness{Harness: uh, t: t, c: uh.Core, u: uh.Shell}
 }
 
 // settle runs queued UI work until things go quiet.
-func (h *harness) settle() {
-	h.t.Helper()
-	for idle := time.After(300 * time.Millisecond); ; {
-		select {
-		case f := <-h.queue:
-			f()
-			idle = time.After(300 * time.Millisecond)
-			continue
-		case <-idle:
-		}
-		break
-	}
-}
+func (h *harness) settle() { h.t.Helper(); h.Settle() }
 
-func (h *harness) open(route string) {
-	h.t.Helper()
-	h.u.navigate(route)
-	h.settle()
-}
+func (h *harness) open(route string) { h.t.Helper(); h.Open(route) }
 
 // widgetsOf returns every widget of type T under root, in tree order.
-func widgetsOf[T fyne.CanvasObject](root fyne.CanvasObject) []T {
-	var out []T
-	var walk func(o fyne.CanvasObject)
-	walk = func(o fyne.CanvasObject) {
-		if x, ok := o.(T); ok {
-			out = append(out, x)
-		}
-		switch x := o.(type) {
-		case *fyne.Container:
-			for _, c := range x.Objects {
-				walk(c)
-			}
-		case fyne.Widget:
-			for _, c := range test.WidgetRenderer(x).Objects() {
-				walk(c)
-			}
-		}
-	}
-	walk(root)
-	return out
-}
+func widgetsOf[T fyne.CanvasObject](root fyne.CanvasObject) []T { return uitest.WidgetsOf[T](root) }
 
-// page returns the widgets of type T on the current page.
-func pageWidgets[T fyne.CanvasObject](h *harness) []T {
-	return widgetsOf[T](h.u.win.Canvas().Content())
-}
+// pageWidgets returns the widgets of type T in the window.
+func pageWidgets[T fyne.CanvasObject](h *harness) []T { return uitest.PageWidgets[T](h.Harness) }
 
 // overlayWidgets returns the widgets of type T in open dialogs and popups.
-func overlayWidgets[T fyne.CanvasObject](h *harness) []T {
-	var out []T
-	for _, o := range h.u.win.Canvas().Overlays().List() {
-		out = append(out, widgetsOf[T](o)...)
-	}
-	return out
-}
+func overlayWidgets[T fyne.CanvasObject](h *harness) []T { return uitest.OverlayWidgets[T](h.Harness) }
 
 func buttonWith(t *testing.T, buttons []*widget.Button, text string) *widget.Button {
 	t.Helper()
@@ -136,13 +69,7 @@ func buttonWith(t *testing.T, buttons []*widget.Button, text string) *widget.But
 	return nil
 }
 
-func (h *harness) toasts() []string {
-	var out []string
-	for _, l := range widgetsOf[*widget.Label](h.u.toasts.Box) {
-		out = append(out, l.Text)
-	}
-	return out
-}
+func (h *harness) toasts() []string { return h.Toasts() }
 
 // ---- Settings page ----
 
@@ -402,7 +329,7 @@ func TestCloudDeleteRemoteAsksFirst(t *testing.T) {
 	h := newHarness(t)
 	addSFTPRemotes(t, "one", "two")
 	h.open("/cloud")
-	require.Len(t, h.u.cloud.Remotes(), 2)
+	require.Len(t, h.u.Cloud().Remotes(), 2)
 
 	// Each row has a Delete button; the first one is "one".
 	deletes := 0
@@ -422,14 +349,14 @@ func TestCloudDeleteRemoteAsksFirst(t *testing.T) {
 	h.settle()
 	tapOverlayButton(t, h, "Cancel")
 	h.settle()
-	assert.Len(t, h.u.cloud.Remotes(), 2, "cancelled")
+	assert.Len(t, h.u.Cloud().Remotes(), 2, "cancelled")
 
 	// Confirming deletes it and the list updates.
 	test.Tap(first)
 	h.settle()
 	tapOverlayButton(t, h, "Delete")
 	h.settle()
-	remotes := h.u.cloud.Remotes()
+	remotes := h.u.Cloud().Remotes()
 	require.Len(t, remotes, 1)
 	assert.Equal(t, "two", remotes[0].Name)
 }
@@ -539,7 +466,7 @@ func TestEditorCreatesGame(t *testing.T) {
 	assert.Equal(t, map[string]string{"A": "1", "B": " two"}, dev.Env, "lines without = are ignored; the key is trimmed, the value kept")
 
 	assert.Contains(t, h.toasts(), "Saved")
-	assert.Contains(t, h.u.route, g.ID, "the game's page opens after saving")
+	assert.Contains(t, h.u.Route(), g.ID, "the game's page opens after saving")
 }
 
 func TestEditorSecondSaveLocation(t *testing.T) {
@@ -619,25 +546,25 @@ func conflictPrompt(id string, beforePlay bool, localNewer bool) services.Prompt
 
 func TestPromptConflictChoices(t *testing.T) {
 	h := newHarness(t)
-	h.u.prompts.add(conflictPrompt("p1", true, true))
-	require.NotNil(t, h.u.prompts.current)
+	h.u.Prompts().Add(conflictPrompt("p1", true, true))
+	require.NotNil(t, h.u.Prompts().Current())
 	assert.ElementsMatch(t, []string{"Keep this device's saves", "Keep cloud saves", "Skip sync and play"}, buttonTexts(h))
 	assert.True(t, hasBadge(h, "Newer"), "the newer side is marked")
 
 	// Answering closes the dialog.
 	tapOverlayButton(t, h, "Keep cloud saves")
-	assert.Nil(t, h.u.prompts.current)
-	assert.Empty(t, h.u.prompts.queue)
-	assert.Empty(t, h.u.win.Canvas().Overlays().List())
+	assert.Nil(t, h.u.Prompts().Current())
+	assert.Empty(t, h.u.Prompts().Pending())
+	assert.Empty(t, h.u.Window().Canvas().Overlays().List())
 }
 
 func TestPromptConflictAfterPlayOffersDecideLater(t *testing.T) {
 	h := newHarness(t)
-	h.u.prompts.add(conflictPrompt("p1", false, false))
+	h.u.Prompts().Add(conflictPrompt("p1", false, false))
 	assert.Contains(t, buttonTexts(h), "Decide later")
 	assert.NotContains(t, buttonTexts(h), "Skip sync and play")
 	tapOverlayButton(t, h, "Decide later")
-	assert.Nil(t, h.u.prompts.current)
+	assert.Nil(t, h.u.Prompts().Current())
 }
 
 func TestPromptKinds(t *testing.T) {
@@ -653,10 +580,10 @@ func TestPromptKinds(t *testing.T) {
 	for _, tt := range cases {
 		t.Run(tt.name, func(t *testing.T) {
 			h := newHarness(t)
-			h.u.prompts.add(tt.prompt)
+			h.u.Prompts().Add(tt.prompt)
 			assert.ElementsMatch(t, tt.buttons, buttonTexts(h))
 			tapOverlayButton(t, h, tt.buttons[len(tt.buttons)-1])
-			assert.Nil(t, h.u.prompts.current, "answering closes it")
+			assert.Nil(t, h.u.Prompts().Current(), "answering closes it")
 		})
 	}
 }
@@ -666,46 +593,46 @@ func TestPromptQueue(t *testing.T) {
 	h := newHarness(t)
 	first := services.Prompt{ID: "a", Kind: "syncError", GameName: "A", Error: "one"}
 	second := services.Prompt{ID: "b", Kind: "syncError", GameName: "B", Error: "two"}
-	h.u.prompts.add(first)
-	h.u.prompts.add(second)
-	h.u.prompts.add(first) // already queued
-	require.Len(t, h.u.prompts.queue, 2)
-	assert.Equal(t, "a", h.u.prompts.queue[0].ID)
+	h.u.Prompts().Add(first)
+	h.u.Prompts().Add(second)
+	h.u.Prompts().Add(first) // already queued
+	require.Len(t, h.u.Prompts().Pending(), 2)
+	assert.Equal(t, "a", h.u.Prompts().Pending()[0].ID)
 
 	tapOverlayButton(t, h, "OK")
-	require.NotNil(t, h.u.prompts.current, "the next prompt appears")
-	require.Len(t, h.u.prompts.queue, 1)
-	assert.Equal(t, "b", h.u.prompts.queue[0].ID)
+	require.NotNil(t, h.u.Prompts().Current(), "the next prompt appears")
+	require.Len(t, h.u.Prompts().Pending(), 1)
+	assert.Equal(t, "b", h.u.Prompts().Pending()[0].ID)
 
 	tapOverlayButton(t, h, "OK")
-	assert.Nil(t, h.u.prompts.current)
-	assert.Empty(t, h.u.prompts.queue)
+	assert.Nil(t, h.u.Prompts().Current())
+	assert.Empty(t, h.u.Prompts().Pending())
 }
 
 // A prompt withdrawn because its sync was cancelled disappears, whether it is
 // the one on screen or still waiting.
 func TestPromptRemove(t *testing.T) {
 	h := newHarness(t)
-	h.u.prompts.add(services.Prompt{ID: "a", Kind: "syncError", GameName: "A", Error: "one"})
-	h.u.prompts.add(services.Prompt{ID: "b", Kind: "syncError", GameName: "B", Error: "two"})
-	h.u.prompts.add(services.Prompt{ID: "c", Kind: "syncError", GameName: "C", Error: "three"})
+	h.u.Prompts().Add(services.Prompt{ID: "a", Kind: "syncError", GameName: "A", Error: "one"})
+	h.u.Prompts().Add(services.Prompt{ID: "b", Kind: "syncError", GameName: "B", Error: "two"})
+	h.u.Prompts().Add(services.Prompt{ID: "c", Kind: "syncError", GameName: "C", Error: "three"})
 
-	h.u.prompts.remove("c") // waiting
-	require.Len(t, h.u.prompts.queue, 2)
-	h.u.prompts.remove("a") // on screen: the next one takes over
-	require.Len(t, h.u.prompts.queue, 1)
-	assert.Equal(t, "b", h.u.prompts.queue[0].ID)
-	require.NotNil(t, h.u.prompts.current)
-	h.u.prompts.remove("nope") // unknown: ignored
-	require.Len(t, h.u.prompts.queue, 1)
-	h.u.prompts.remove("b")
-	assert.Nil(t, h.u.prompts.current)
-	assert.Empty(t, h.u.win.Canvas().Overlays().List())
+	h.u.Prompts().Remove("c") // waiting
+	require.Len(t, h.u.Prompts().Pending(), 2)
+	h.u.Prompts().Remove("a") // on screen: the next one takes over
+	require.Len(t, h.u.Prompts().Pending(), 1)
+	assert.Equal(t, "b", h.u.Prompts().Pending()[0].ID)
+	require.NotNil(t, h.u.Prompts().Current())
+	h.u.Prompts().Remove("nope") // unknown: ignored
+	require.Len(t, h.u.Prompts().Pending(), 1)
+	h.u.Prompts().Remove("b")
+	assert.Nil(t, h.u.Prompts().Current())
+	assert.Empty(t, h.u.Window().Canvas().Overlays().List())
 }
 
 // hasBadge reports whether a badge with this text is shown in the open dialog.
 func hasBadge(h *harness, text string) bool {
-	for _, o := range h.u.win.Canvas().Overlays().List() {
+	for _, o := range h.u.Window().Canvas().Overlays().List() {
 		if hasText(o, text) {
 			return true
 		}
@@ -717,7 +644,7 @@ func hasBadge(h *harness, text string) bool {
 
 func (h *harness) addGame(name string, saves string) services.GameView {
 	h.t.Helper()
-	g, err := h.u.lib.Save(services.GameInput{
+	g, err := h.u.Lib().Save(services.GameInput{
 		Name:  name,
 		Slots: []library.SaveSlot{{Key: "saves", Label: "Saves"}},
 		Device: services.DeviceInput{
@@ -725,7 +652,7 @@ func (h *harness) addGame(name string, saves string) services.GameView {
 		},
 	})
 	require.NoError(h.t, err)
-	h.u.refresh()
+	h.u.Store().Refresh()
 	return g
 }
 
@@ -738,7 +665,7 @@ func (h *harness) useLocalCloud() string {
 	st := h.c.Settings.Get()
 	st.Remote, st.RemoteRoot = "cloud", filepath.ToSlash(dir)
 	require.NoError(h.t, h.c.Settings.Update(st))
-	h.u.refresh()
+	h.u.Store().Refresh()
 	return dir
 }
 
@@ -795,13 +722,13 @@ func TestLibraryEmptyStateOffersAddGame(t *testing.T) {
 	h.open("/")
 	tapButton(t, h, "＋ Add your first game")
 	tapChoice(t, h, "PC game")
-	assert.Equal(t, "/new", h.u.route)
+	assert.Equal(t, "/new", h.u.Route())
 
 	h.open("/")
 	tapButton(t, h, "＋ Add your first game")
 	tapChoice(t, h, "Emulated game")
-	require.Equal(t, "/new/emulator", h.u.route)
-	assert.Equal(t, kindEmulator, h.u.page.(*editor).kind, "the editor starts on the emulator cards")
+	require.Equal(t, "/new/emulator", h.u.Route())
+	assert.Equal(t, kindEmulator, h.u.Page().(*editor).kind, "the editor starts on the emulator cards")
 }
 
 // An empty search says so and offers to clear it.
@@ -822,16 +749,16 @@ func TestLibrarySearchWithoutMatches(t *testing.T) {
 func TestLibraryNeedsAttentionFilter(t *testing.T) {
 	h := newHarness(t)
 	h.addGame("Ready", t.TempDir())
-	_, err := h.u.lib.Save(services.GameInput{Name: "Not set up", Slots: []library.SaveSlot{{Key: "saves"}}})
+	_, err := h.u.Lib().Save(services.GameInput{Name: "Not set up", Slots: []library.SaveSlot{{Key: "saves"}}})
 	require.NoError(t, err)
-	h.u.refresh()
+	h.u.Store().Refresh()
 	h.open("/")
 	assert.Len(t, tileNames(h), 2)
 
 	tapButton(t, h, "Needs attention (1)")
 	h.settle()
 	assert.Equal(t, []string{"Not set up"}, tileNames(h))
-	assert.Equal(t, filterAttention, h.u.libraryFilter())
+	assert.Equal(t, filterAttention, libraryFilter(h.u))
 
 	h.open("/settings")
 	h.open("/")
@@ -845,15 +772,15 @@ func TestLibraryNeedsAttentionFilter(t *testing.T) {
 func TestLibraryReadyToPlayFilter(t *testing.T) {
 	h := newHarness(t)
 	h.addGame("Ready", t.TempDir())
-	_, err := h.u.lib.Save(services.GameInput{Name: "Not set up", Slots: []library.SaveSlot{{Key: "saves"}}})
+	_, err := h.u.Lib().Save(services.GameInput{Name: "Not set up", Slots: []library.SaveSlot{{Key: "saves"}}})
 	require.NoError(t, err)
-	h.u.refresh()
+	h.u.Store().Refresh()
 	h.open("/")
 
 	tapButton(t, h, "Ready to play (1)")
 	h.settle()
 	assert.Equal(t, []string{"Ready"}, tileNames(h))
-	assert.Equal(t, filterReady, h.u.libraryFilter())
+	assert.Equal(t, filterReady, libraryFilter(h.u))
 	tapButton(t, h, "All (2)")
 	h.settle()
 	assert.Len(t, tileNames(h), 2)
@@ -862,10 +789,10 @@ func TestLibraryReadyToPlayFilter(t *testing.T) {
 // With no game playable here, the filter says so and offers all games.
 func TestLibraryReadyToPlayFilterEmpty(t *testing.T) {
 	h := newHarness(t)
-	_, err := h.u.lib.Save(services.GameInput{Name: "Not set up", Slots: []library.SaveSlot{{Key: "saves"}}})
+	_, err := h.u.Lib().Save(services.GameInput{Name: "Not set up", Slots: []library.SaveSlot{{Key: "saves"}}})
 	require.NoError(t, err)
-	h.u.refresh()
-	h.u.setLibraryFilter(filterReady)
+	h.u.Store().Refresh()
+	setLibraryFilter(h.u, filterReady)
 	h.open("/")
 	assert.Empty(t, tileNames(h))
 	assert.Contains(t, strings.Join(labelTexts(h), "\n"), "No game can be played on this device yet")
@@ -887,7 +814,7 @@ func TestLibraryHidesFiltersWhenNothingNeedsAttention(t *testing.T) {
 	assert.NotEmpty(t, pageWidgets[*widget.Select](h), "sorting is still there")
 
 	// Turned on while a game needed attention, it stays so it can be turned off.
-	h.u.setLibraryFilter(filterAttention)
+	setLibraryFilter(h.u, filterAttention)
 	h.open("/settings")
 	h.open("/")
 	tapButton(t, h, "All (1)")
@@ -902,7 +829,7 @@ func TestLibraryKeepsTiles(t *testing.T) {
 	h.open("/")
 	before := pageWidgets[*gameTile](h)
 	require.Len(t, before, 1)
-	h.u.notify(changeStatus)
+	h.u.Notify(store.Status)
 	entryByPlaceholder(t, h, "Search…").SetText("game")
 	h.settle()
 	after := pageWidgets[*gameTile](h)
@@ -918,19 +845,19 @@ func TestLibraryTileOpensGame(t *testing.T) {
 	require.NotEmpty(t, tiles)
 	test.Tap(tiles[0])
 	h.settle()
-	assert.Equal(t, "/game/"+g.ID, h.u.route)
+	assert.Equal(t, "/game/"+g.ID, h.u.Route())
 }
 
 // A game without a path on this device shows "Set up", which opens the editor.
 func TestLibraryTileSetUpOpensEditor(t *testing.T) {
 	h := newHarness(t)
-	g, err := h.u.lib.Save(services.GameInput{Name: "Game A", Slots: []library.SaveSlot{{Key: "saves"}}})
+	g, err := h.u.Lib().Save(services.GameInput{Name: "Game A", Slots: []library.SaveSlot{{Key: "saves"}}})
 	require.NoError(t, err)
-	h.u.refresh()
+	h.u.Store().Refresh()
 	h.open("/")
 	tapButton(t, h, "Set up")
 	h.settle()
-	assert.Equal(t, "/edit/"+g.ID, h.u.route)
+	assert.Equal(t, "/edit/"+g.ID, h.u.Route())
 }
 
 func TestGamePageNavigation(t *testing.T) {
@@ -941,14 +868,14 @@ func TestGamePageNavigation(t *testing.T) {
 
 	tapButton(t, h, "Edit")
 	h.settle()
-	assert.Equal(t, "/edit/"+g.ID, h.u.route)
+	assert.Equal(t, "/edit/"+g.ID, h.u.Route())
 	tapButton(t, h, "Cancel") // nothing changed: leaves without asking
 	h.settle()
-	assert.Equal(t, "/game/"+g.ID, h.u.route)
+	assert.Equal(t, "/game/"+g.ID, h.u.Route())
 
 	tapButton(t, h, "Back")
 	h.settle()
-	assert.Equal(t, "/", h.u.route)
+	assert.Equal(t, "/", h.u.Route())
 }
 
 // After saving, Back from the game's page skips the editor.
@@ -962,10 +889,10 @@ func TestEditorSaveReplacesItself(t *testing.T) {
 	entryByPlaceholder(t, h, "Game name").SetText("Game B")
 	tapButton(t, h, "Save")
 	h.settle()
-	require.Equal(t, "/game/"+g.ID, h.u.route)
+	require.Equal(t, "/game/"+g.ID, h.u.Route())
 	tapButton(t, h, "Back")
 	h.settle()
-	assert.Equal(t, "/", h.u.route)
+	assert.Equal(t, "/", h.u.Route())
 }
 
 // Leaving the editor with unsaved changes asks first.
@@ -976,27 +903,27 @@ func TestEditorAsksBeforeDiscarding(t *testing.T) {
 	entryByPlaceholder(t, h, "Game name").SetText("Game A")
 	h.settle()
 
-	h.u.navigate("/settings")
+	h.u.Navigate("/settings")
 	h.settle()
-	assert.Equal(t, "/new", h.u.route, "still on the editor")
+	assert.Equal(t, "/new", h.u.Route(), "still on the editor")
 	tapOverlayButton(t, h, "Keep editing")
 	h.settle()
 	assert.Equal(t, "Game A", entryByPlaceholder(t, h, "Game name").Text)
 
-	h.u.navigate("/settings")
+	h.u.Navigate("/settings")
 	h.settle()
 	tapOverlayButton(t, h, "Discard changes")
 	h.settle()
-	assert.Equal(t, "/settings", h.u.route)
+	assert.Equal(t, "/settings", h.u.Route())
 	assert.Empty(t, h.c.Library.List())
 }
 
 // askDelete opens the game page's delete dialog (from its "⋯" menu).
 func askDelete(t *testing.T, h *harness) {
 	t.Helper()
-	gp, ok := h.u.page.(*gameDetail)
+	gp, ok := h.u.Page().(*gameDetail)
 	require.True(t, ok, "on a game page")
-	g, _ := h.u.game(gp.id)
+	g, _ := h.u.Store().Game(gp.id)
 	var item *fyne.MenuItem
 	for _, it := range gp.moreMenu(g, false).Items {
 		if it.Label == "Delete from library…" {
@@ -1018,13 +945,13 @@ func TestGamePageDeleteAsksFirst(t *testing.T) {
 	tapOverlayButton(t, h, "Cancel") // the confirmation can be backed out of
 	h.settle()
 	require.Len(t, h.c.Library.List(), 1)
-	assert.Equal(t, "/game/"+g.ID, h.u.route)
+	assert.Equal(t, "/game/"+g.ID, h.u.Route())
 
 	askDelete(t, h)
 	tapOverlayButton(t, h, "Delete")
 	h.settle()
 	assert.Empty(t, h.c.Library.List())
-	assert.Equal(t, "/", h.u.route, "back to the library")
+	assert.Equal(t, "/", h.u.Route(), "back to the library")
 }
 
 // With a cloud remote, the game page syncs on demand and takes manual backups.
@@ -1046,7 +973,7 @@ func TestGamePageSyncAndBackup(t *testing.T) {
 	h.open("/game/" + g.ID)
 	test.Tap(buttonWith(t, pageWidgets[*widget.Button](h), "Back up now"))
 	h.settle()
-	backups, err := h.u.sync.Backups(g.ID)
+	backups, err := h.u.Sync().Backups(g.ID)
 	require.NoError(t, err)
 	require.Len(t, backups, 1)
 	assert.Equal(t, "manual", backups[0].Kind)
@@ -1076,7 +1003,7 @@ func TestTrashPageRestoresAGame(t *testing.T) {
 func TestTrashPageDeleteForever(t *testing.T) {
 	h := newHarness(t)
 	g := h.addGame("Game A", t.TempDir())
-	require.NoError(t, h.u.lib.Delete(g.ID))
+	require.NoError(t, h.u.Lib().Delete(g.ID))
 
 	h.open("/trash")
 	tapButton(t, h, "Delete permanently…")
@@ -1101,16 +1028,16 @@ func TestTrashPageLeftoverSaves(t *testing.T) {
 	saves := t.TempDir()
 	require.NoError(t, os.WriteFile(filepath.Join(saves, "a.sav"), []byte("save"), 0o644))
 	g := h.addGame("Game A", saves)
-	_, err := h.u.sync.SyncAll()
+	_, err := h.u.Sync().SyncAll()
 	require.NoError(t, err)
-	require.NoError(t, h.u.lib.DeleteForever(g.ID)) // keeps the cloud saves
+	require.NoError(t, h.u.Lib().DeleteForever(g.ID)) // keeps the cloud saves
 
 	h.open("/trash")
 	h.settle()
 	tapButton(t, h, "Restore")
 	h.settle()
-	assert.Equal(t, "/edit/"+g.ID, h.u.route, "the editor opens to set the save location")
-	v, err := h.u.lib.Get(g.ID)
+	assert.Equal(t, "/edit/"+g.ID, h.u.Route(), "the editor opens to set the save location")
+	v, err := h.u.Lib().Get(g.ID)
 	require.NoError(t, err)
 	assert.Equal(t, "Game A", v.Name)
 }
@@ -1123,13 +1050,13 @@ func TestDeleteConfirmationCheckbox(t *testing.T) {
 	saves := t.TempDir()
 	require.NoError(t, os.WriteFile(filepath.Join(saves, "a.sav"), []byte("save"), 0o644))
 	g := h.addGame("Game A", saves)
-	_, err := h.u.sync.SyncAll()
+	_, err := h.u.Sync().SyncAll()
 	require.NoError(t, err)
 	folder := filepath.Join(cloud, "games", g.ID)
 	require.DirExists(t, folder)
 
 	// Trash page.
-	require.NoError(t, h.u.lib.Delete(g.ID))
+	require.NoError(t, h.u.Lib().Delete(g.ID))
 	h.open("/trash")
 	tapButton(t, h, "Delete permanently…")
 	h.settle()
@@ -1194,25 +1121,25 @@ func TestSidebarTrashCount(t *testing.T) {
 	saves := t.TempDir()
 	require.NoError(t, os.WriteFile(filepath.Join(saves, "a.sav"), []byte("save"), 0o644))
 	g := h.addGame("Game A", saves)
-	_, err := h.u.sync.SyncAll()
+	_, err := h.u.Sync().SyncAll()
 	require.NoError(t, err)
 	h.settle()
-	assert.Equal(t, "Trash", h.u.navBtns["/trash"].Text)
+	assert.Equal(t, "Trash", h.u.NavButtons()["/trash"].Text)
 
 	h.open("/game/" + g.ID)
 	askDelete(t, h)
 	tapOverlayButton(t, h, "Delete") // to the trash, saves kept
 	h.settle()
-	h.u.refresh()
+	h.u.Store().Refresh()
 	h.settle()
-	assert.Equal(t, "Trash (1)", h.u.navBtns["/trash"].Text, "one game in the trash")
+	assert.Equal(t, "Trash (1)", h.u.NavButtons()["/trash"].Text, "one game in the trash")
 
 	h.open("/trash")
 	tapButton(t, h, "Delete permanently…")
 	h.settle()
 	tapOverlayButton(t, h, "Delete") // gone for good, saves kept
 	h.settle()
-	assert.Equal(t, "Trash", h.u.navBtns["/trash"].Text, "nothing left to restore")
+	assert.Equal(t, "Trash", h.u.NavButtons()["/trash"].Text, "nothing left to restore")
 	assert.Contains(t, strings.Join(labelTexts(h), "\n"), "Leftover cloud saves (1)", "its cloud saves are a leftover now")
 
 	tapButton(t, h, "Delete…")
@@ -1227,18 +1154,18 @@ func TestSidebarTrashCount(t *testing.T) {
 func TestToastFollowsThemeChange(t *testing.T) {
 	h := newHarness(t)
 	t.Cleanup(func() { kit.SetPalette(kit.ThemeDark) })
-	h.u.applyTheme(kit.ThemeDark)
+	h.u.ApplyTheme(kit.ThemeDark)
 
-	h.u.toast("Settings saved", kit.ToastOK)
-	require.Len(t, h.u.toasts.BGs, 1)
+	h.u.Toast("Settings saved", kit.ToastOK)
+	require.Len(t, h.u.Toasts().BGs, 1)
 	var bg *kit.ToastBG
-	for _, b := range h.u.toasts.BGs {
+	for _, b := range h.u.Toasts().BGs {
 		bg = b
 	}
 	dark := bg.Rect.FillColor
 	assert.Equal(t, kit.ColBg3, dark)
 
-	h.u.applyTheme(kit.ThemeLight)
+	h.u.ApplyTheme(kit.ThemeLight)
 	assert.NotEqual(t, dark, bg.Rect.FillColor, "the background changed with the theme")
 	assert.Equal(t, kit.ColBg3, bg.Rect.FillColor, "it uses the light palette now")
 	assert.Equal(t, kit.ColOK.R, bg.Rect.StrokeColor.(color.NRGBA).R, "the accent follows the palette too")
@@ -1249,12 +1176,12 @@ func TestToastFollowsThemeChange(t *testing.T) {
 // addEmulatorGame adds a game with its own saves and two emulators.
 func (h *harness) addEmulatorGame() (services.GameView, services.EmulatorView, services.EmulatorView) {
 	h.t.Helper()
-	eden, err := h.u.emus.Save(services.EmulatorSetup{Name: "Eden", Exe: "eden"})
+	eden, err := h.u.Emus().Save(services.EmulatorSetup{Name: "Eden", Exe: "eden"})
 	require.NoError(h.t, err)
-	ryu, err := h.u.emus.Save(services.EmulatorSetup{Name: "Ryujinx", Exe: "ryujinx"})
+	ryu, err := h.u.Emus().Save(services.EmulatorSetup{Name: "Ryujinx", Exe: "ryujinx"})
 	require.NoError(h.t, err)
 	slots := []library.SaveSlot{{Key: "saves", Label: "Saves"}}
-	g, err := h.u.lib.Save(services.GameInput{
+	g, err := h.u.Lib().Save(services.GameInput{
 		Name: "Mario Kart", Slots: slots,
 		Device: services.DeviceInput{Paths: map[string]string{"saves": h.t.TempDir()}, Exe: "/x/game.exe", LaunchMode: library.LaunchDirect},
 		Emulators: []services.GameEmulatorInput{
@@ -1263,7 +1190,7 @@ func (h *harness) addEmulatorGame() (services.GameView, services.EmulatorView, s
 		},
 	})
 	require.NoError(h.t, err)
-	h.u.refresh()
+	h.u.Store().Refresh()
 	h.settle()
 	return g, eden, ryu
 }
@@ -1285,7 +1212,7 @@ func TestGamePageSwitchesBetweenEmulators(t *testing.T) {
 	assert.Equal(t, 1, buttons["Compare with cloud"], "one profile's cards at a time")
 	assert.Equal(t, 1, buttons["Back up now"])
 
-	gp := h.u.page.(*gameDetail)
+	gp := h.u.Page().(*gameDetail)
 	assert.Empty(t, gp.selectedProfile(gp.profiles(mustGame(t, h, g.ID))).id, "starts on the first")
 	tapButton(t, h, "Eden")
 	h.settle()
@@ -1295,7 +1222,7 @@ func TestGamePageSwitchesBetweenEmulators(t *testing.T) {
 
 func mustGame(t *testing.T, h *harness, id string) services.GameView {
 	t.Helper()
-	g, ok := h.u.game(id)
+	g, ok := h.u.Store().Game(id)
 	require.True(t, ok)
 	return g
 }
@@ -1320,14 +1247,14 @@ func TestGamePageConflictShowsTheChoice(t *testing.T) {
 	file := filepath.Join(saves, "a.sav")
 	require.NoError(t, os.WriteFile(file, []byte("one"), 0o644))
 	g := h.addGame("Game A", saves)
-	_, err := h.u.sync.Sync(g.ID, "")
+	_, err := h.u.Sync().Sync(g.ID, "")
 	require.NoError(t, err)
 
 	// Another device uploads a change, and this one changes too.
 	st, err := h.c.States.Load(g.ID)
 	require.NoError(t, err)
 	require.NoError(t, os.WriteFile(file, []byte("two-local"), 0o644))
-	_, err = h.u.sync.Sync(g.ID, "local") // the cloud now has "two-local"
+	_, err = h.u.Sync().Sync(g.ID, "local") // the cloud now has "two-local"
 	require.NoError(t, err)
 	require.NoError(t, h.c.States.Save(g.ID, st)) // forget that sync: both sides look changed
 	require.NoError(t, os.WriteFile(file, []byte("three"), 0o644))
@@ -1392,9 +1319,9 @@ func TestSyncAllOutlivesTheLibraryPage(t *testing.T) {
 	g := h.addGame("Game A", saves)
 	h.open("/")
 	tapButton(t, h, "Sync all")
-	h.u.navigate("/settings")
+	h.u.Navigate("/settings")
 	h.settle()
-	assert.False(t, h.u.syncingAll, "finished")
+	assert.False(t, h.u.Store().SyncAll.Running, "finished")
 	assert.FileExists(t, filepath.Join(cloudDir, "games", g.ID, "current", "saves", "a.sav"))
 	assert.Contains(t, h.toasts(), "Synced 1 game")
 }
@@ -1406,7 +1333,7 @@ func TestCloudFirstRemoteBecomesTheLocation(t *testing.T) {
 	require.NoError(t, os.WriteFile(conf, []byte("[mine]\ntype = sftp\nhost = mine.invalid\n"), 0o644))
 	t.Cleanup(func() { config.DeleteRemote("mine") })
 	h.open("/cloud")
-	h.u.page.(*cloudPage).importConf(conf)
+	h.u.Page().(*cloudPage).importConf(conf)
 	h.settle()
 	got := h.c.Settings.Get()
 	assert.Equal(t, "mine", got.Remote)
@@ -1431,13 +1358,13 @@ func TestEditorAddsANewEmulatorInADialog(t *testing.T) {
 	}
 	tapOverlayButton(t, h, "Save")
 	h.settle()
-	assert.Empty(t, h.u.win.Canvas().Overlays().List(), "the dialog closed")
-	assert.Equal(t, "/new/emulator", h.u.route, "still in the editor")
-	e := h.u.page.(*editor)
+	assert.Empty(t, h.u.Window().Canvas().Overlays().List(), "the dialog closed")
+	assert.Equal(t, "/new/emulator", h.u.Route(), "still in the editor")
+	e := h.u.Page().(*editor)
 	assert.Equal(t, "Zelda", e.name)
 	require.Len(t, e.emus, 1)
 	assert.Equal(t, "Eden", e.emus[0].name)
-	require.Len(t, h.u.emus.List(), 1)
+	require.Len(t, h.u.Emus().List(), 1)
 }
 
 // The filter row gets its height when the games load after the page was first
@@ -1446,7 +1373,7 @@ func TestEditorAddsANewEmulatorInADialog(t *testing.T) {
 func TestLibraryRowsGetTheirHeightWhenGamesLoad(t *testing.T) {
 	h := newHarness(t)
 	h.open("/")
-	p := h.u.page.(*libraryPage)
+	p := h.u.Page().(*libraryPage)
 	require.Zero(t, p.chipsHost.MinSize().Height, "no games yet: no row")
 
 	h.addGame("Game A", t.TempDir())
@@ -1461,10 +1388,10 @@ func TestLibraryRowsGetTheirHeightWhenGamesLoad(t *testing.T) {
 // which shows its own progress bar.
 func TestSyncAllInSidebarExceptOnTheLibrary(t *testing.T) {
 	h := newHarness(t)
-	h.u.syncingAll = true
-	h.u.syncAllProg = services.SyncAllProgress{Done: 1, Total: 3}
+	h.u.Store().SyncAll.Running = true
+	h.u.Store().SyncAll.Progress = services.SyncAllProgress{Done: 1, Total: 3}
 	sidebarSync := func() bool {
-		for _, b := range widgetsOf[*widget.Button](h.u.activity) {
+		for _, b := range widgetsOf[*widget.Button](h.u.Activity()) {
 			if b.Text == "Syncing 1 of 3" {
 				return true
 			}

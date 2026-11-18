@@ -1,4 +1,4 @@
-package ui
+package prompts
 
 import (
 	"time"
@@ -11,8 +11,8 @@ import (
 	"fyne.io/fyne/v2/widget"
 
 	"github.com/akfaiz/carryover/internal/core"
-	"github.com/akfaiz/carryover/internal/ui/kit"
 	"github.com/akfaiz/carryover/services"
+	"github.com/akfaiz/carryover/ui/kit"
 )
 
 // emulatorChoice is the body of the "which emulator?" prompt, used by the
@@ -25,7 +25,7 @@ import (
 // The tiles and buttons belong to nav (keyboard and gamepad control); the
 // focusable of the default tile is returned, to start with. Any press of nav
 // stops the countdown: whoever is moving between the choices is choosing.
-func (q *promptQueue) emulatorChoice(p services.Prompt, answer func(string), nav *kit.Nav) (fyne.CanvasObject, fyne.Focusable) {
+func (q *Queue) emulatorChoice(p services.Prompt, answer func(string), nav *kit.Nav) (fyne.CanvasObject, fyne.Focusable) {
 	stop := make(chan struct{})
 	finish := func(a string) {
 		select {

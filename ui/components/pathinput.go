@@ -1,4 +1,4 @@
-package ui
+package components
 
 import (
 	"path/filepath"
@@ -12,14 +12,15 @@ import (
 	"fyne.io/fyne/v2/widget"
 
 	"github.com/akfaiz/carryover/internal/saves/pathvar"
-	"github.com/akfaiz/carryover/internal/ui/kit"
+	"github.com/akfaiz/carryover/ui/env"
+	"github.com/akfaiz/carryover/ui/kit"
 )
 
-// pathInput is a path entry with token insertion, a folder browser and a
+// PathInput is a path entry with token insertion, a folder browser and a
 // live preview of the expanded path.
-type pathInput struct {
+type PathInput struct {
 	kit.Composite
-	u        *UI
+	u        env.Env
 	entry    *widget.Entry
 	preview  *kit.PathLabel // the expanded path, on one line
 	previewE *widget.Label  // or why it can't be expanded
@@ -27,8 +28,8 @@ type pathInput struct {
 	gen      int
 }
 
-func newPathInput(u *UI, gameID string, tokens []pathvar.Token, value, placeholder string, onChange func(string)) *pathInput {
-	p := &pathInput{u: u, gameID: gameID, entry: widget.NewEntry(), preview: kit.NewPathLabel("").Caption("→ "),
+func NewPathInput(u env.Env, gameID string, tokens []pathvar.Token, value, placeholder string, onChange func(string)) *PathInput {
+	p := &PathInput{u: u, gameID: gameID, entry: widget.NewEntry(), preview: kit.NewPathLabel("").Caption("→ "),
 		previewE: kit.Colored("", widget.DangerImportance)}
 	p.entry.TextStyle.Monospace = true
 	p.entry.SetPlaceHolder(placeholder)
@@ -68,7 +69,7 @@ func newPathInput(u *UI, gameID string, tokens []pathvar.Token, value, placehold
 	return p
 }
 
-func (p *pathInput) insert(tok string) {
+func (p *PathInput) insert(tok string) {
 	tok = strings.Replace(tok, "<appid>", "", 1)
 	runes := []rune(p.entry.Text)
 	col := min(max(p.entry.CursorColumn, 0), len(runes))
@@ -85,17 +86,17 @@ func (p *pathInput) insert(tok string) {
 	}
 }
 
-func (p *pathInput) browse() {
+func (p *PathInput) browse() {
 	d := dialog.NewFolderOpen(func(dir fyne.ListableURI, err error) {
 		if err != nil || dir == nil {
 			return
 		}
-		p.entry.SetText(p.u.lib.ContractPath(filepath.FromSlash(dir.Path())))
-	}, p.u.win)
-	kit.ShowFilePicker(p.u.win, d)
+		p.entry.SetText(p.u.Lib().ContractPath(filepath.FromSlash(dir.Path())))
+	}, p.u.Window())
+	kit.ShowFilePicker(p.u.Window(), d)
 }
 
-func (p *pathInput) updatePreview() {
+func (p *PathInput) updatePreview() {
 	v := p.entry.Text
 	p.gen++
 	gen := p.gen
@@ -104,7 +105,7 @@ func (p *pathInput) updatePreview() {
 		p.previewE.Hide()
 		return
 	}
-	kit.Async(func() (string, error) { return p.u.lib.PreviewPath(p.gameID, v) }, func(out string, err error) {
+	kit.Async(func() (string, error) { return p.u.Lib().PreviewPath(p.gameID, v) }, func(out string, err error) {
 		if gen != p.gen {
 			return
 		}

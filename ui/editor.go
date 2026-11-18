@@ -21,12 +21,14 @@ import (
 	"github.com/akfaiz/carryover/internal/saves/pathvar"
 	"github.com/akfaiz/carryover/internal/stores/steamgrid"
 	"github.com/akfaiz/carryover/internal/stores/steamstore"
-	"github.com/akfaiz/carryover/internal/ui/kit"
 	"github.com/akfaiz/carryover/services"
+	"github.com/akfaiz/carryover/ui/components"
+	"github.com/akfaiz/carryover/ui/env"
+	"github.com/akfaiz/carryover/ui/kit"
 )
 
 type editor struct {
-	u          *UI
+	u          env.Env
 	id         string
 	steamAppID string // pre-fill from the installed Steam library
 
@@ -108,16 +110,16 @@ func (e *editor) snapshot() string {
 }
 
 // dirty reports changes that leaving the page would lose.
-func (e *editor) dirty() bool {
+func (e *editor) Dirty() bool {
 	return !e.loading && !e.saved && !e.saving && e.snapshot() != e.orig
 }
 
-func newEditor(u *UI, id, steamAppID string) *editor {
+func newEditor(u env.Env, id, steamAppID string) *editor {
 	return &editor{u: u, id: id, steamAppID: steamAppID, loading: true, kind: kindDirect,
 		dev: services.DeviceInput{Paths: map[string]string{}, Env: map[string]string{}, LaunchMode: library.LaunchDirect}}
 }
 
-func (e *editor) view() fyne.CanvasObject {
+func (e *editor) View() fyne.CanvasObject {
 	e.scroll = kit.ScrollPage(kit.Muted(lang.L("Loading…")))
 	e.bar = container.NewStack()
 	u := e.u
@@ -128,9 +130,9 @@ func (e *editor) view() fyne.CanvasObject {
 		emus   []services.EmulatorView
 	}
 	kit.Async(func() (loaded, error) {
-		l := loaded{tokens: u.lib.Tokens(e.id), hasKey: u.lib.HasSteamGridKey(), emus: u.emus.List()}
+		l := loaded{tokens: u.Lib().Tokens(e.id), hasKey: u.Lib().HasSteamGridKey(), emus: u.Emus().List()}
 		if e.id != "" {
-			g, err := u.lib.Get(e.id)
+			g, err := u.Lib().Get(e.id)
 			if err != nil {
 				return l, err
 			}
@@ -195,7 +197,7 @@ func (e *editor) view() fyne.CanvasObject {
 }
 
 func (e *editor) prefillFromSteam(appID string) {
-	kit.Async(func() ([]services.SteamLibraryGame, error) { return e.u.lib.SteamLibrary(), nil }, func(lib []services.SteamLibraryGame, _ error) {
+	kit.Async(func() ([]services.SteamLibraryGame, error) { return e.u.Lib().SteamLibrary(), nil }, func(lib []services.SteamLibraryGame, _ error) {
 		for _, a := range lib {
 			if a.AppID == appID {
 				e.name, e.storeAppID = a.Name, a.AppID
@@ -220,10 +222,10 @@ func (e *editor) suggestSaves(autofill bool) {
 	e.suggesting = true
 	e.render()
 	in := services.SuggestInput{GameID: e.id, Name: e.name, StoreAppID: e.storeAppID, Exe: e.dev.Exe, LaunchMode: e.dev.LaunchMode}
-	kit.Async(func() (services.SuggestResult, error) { return e.u.lib.SuggestSaves(in) }, func(res services.SuggestResult, err error) {
+	kit.Async(func() (services.SuggestResult, error) { return e.u.Lib().SuggestSaves(in) }, func(res services.SuggestResult, err error) {
 		e.suggesting = false
 		if err != nil {
-			e.u.toast(lang.L("Save suggestions: {{.Err}}", map[string]any{"Err": err}), kit.ToastErr)
+			e.u.Toast(lang.L("Save suggestions: {{.Err}}", map[string]any{"Err": err}), kit.ToastErr)
 			e.render()
 			return
 		}
@@ -236,7 +238,7 @@ func (e *editor) suggestSaves(autofill bool) {
 		}
 		if autofill && len(found) == 1 && len(e.slots) > 0 && e.slots[0].path == "" {
 			e.useSuggestion(found[0], e.slots[0])
-			e.u.toast(lang.L("Found {{.Game}} saves on this device", map[string]any{"Game": res.Matched}), kit.ToastOK)
+			e.u.Toast(lang.L("Found {{.Game}} saves on this device", map[string]any{"Game": res.Matched}), kit.ToastOK)
 		}
 		e.render()
 	})
@@ -295,10 +297,10 @@ func (e *editor) searchSteam() {
 	}
 	e.searching = true
 	e.render()
-	kit.Async(func() ([]steamstore.Match, error) { return e.u.lib.SearchSteam(term) }, func(res []steamstore.Match, err error) {
+	kit.Async(func() ([]steamstore.Match, error) { return e.u.Lib().SearchSteam(term) }, func(res []steamstore.Match, err error) {
 		e.searching = false
 		if err != nil {
-			e.u.toast(lang.L("Steam search failed: {{.Err}}", map[string]any{"Err": err}), kit.ToastErr)
+			e.u.Toast(lang.L("Steam search failed: {{.Err}}", map[string]any{"Err": err}), kit.ToastErr)
 			e.showResults = false
 		} else {
 			e.steamResults, e.showResults = res, true
@@ -308,7 +310,7 @@ func (e *editor) searchSteam() {
 }
 
 func (e *editor) pickFile(title string, exts []string, done func(string)) {
-	kit.PickFile(e.u.win, title, exts, done)
+	kit.PickFile(e.u.Window(), title, exts, done)
 }
 
 func (e *editor) render() {
@@ -365,7 +367,7 @@ func (e *editor) render() {
 		}
 		body = kit.MaxWidth(1400, kit.NewCols(440, ratios, left, right))
 	}
-	kit.ReplaceScroll(e.scroll, kit.Stack(kit.PageHead(u.back, head), body))
+	kit.ReplaceScroll(e.scroll, kit.Stack(kit.PageHead(u.Back, head), body))
 	e.renderBar()
 }
 
@@ -394,7 +396,7 @@ func (e *editor) renderBar() {
 	}
 	line := canvas.NewRectangle(kit.ColLine)
 	line.SetMinSize(fyne.NewSize(0, 1))
-	row := container.NewBorder(nil, nil, nil, kit.HBox(widget.NewButton(lang.L("Cancel"), e.u.back), save), note)
+	row := container.NewBorder(nil, nil, nil, kit.HBox(widget.NewButton(lang.L("Cancel"), e.u.Back), save), note)
 	// As wide as the form above it, so Save stays under it on a wide window.
 	width := float32(780)
 	if e.id != "" {
@@ -546,7 +548,7 @@ func (e *editor) launchCard() fyne.CanvasObject {
 		applyMode()
 	})
 	browse := widget.NewButton(lang.L("Browse…"), func() {
-		kit.PickProgram(e.u.win, lang.L("Choose game executable"), func(p string) {
+		kit.PickProgram(e.u.Window(), lang.L("Choose game executable"), func(p string) {
 			p = launcher.AppBundle(p) // a program picked inside a macOS .app
 			e.dev.Exe = p
 			e.exeEntry.SetText(p)
@@ -555,7 +557,7 @@ func (e *editor) launchCard() fyne.CanvasObject {
 				return
 			}
 			// Name it after the exe if it's a known game, else its folder.
-			kit.Async(func() (string, error) { return e.u.lib.GuessName(p), nil }, func(name string, _ error) {
+			kit.Async(func() (string, error) { return e.u.Lib().GuessName(p), nil }, func(name string, _ error) {
 				if e.name == "" && name != "" {
 					e.nameEntry.SetText(name)
 				}
@@ -564,7 +566,7 @@ func (e *editor) launchCard() fyne.CanvasObject {
 	})
 	wait := kit.MonoEntry("Game-Win64-Shipping.exe", e.dev.WaitProcess, func(s string) { e.dev.WaitProcess = s })
 	env := kit.MonoMultiLine("", e.envText, 3, func(s string) { e.envText = s })
-	workDir := newPathInput(e.u, e.id, e.tokens, e.dev.WorkDir, "", func(s string) { e.dev.WorkDir = s })
+	workDir := components.NewPathInput(e.u, e.id, e.tokens, e.dev.WorkDir, "", func(s string) { e.dev.WorkDir = s })
 	e.advItem = kit.NewAccordionSection(lang.L("Advanced"), kit.VBox(
 		kit.Field(lang.L("Working directory (default: executable's folder)"), workDir),
 		kit.Field(lang.L("Wait for process (when the exe is a launcher that exits immediately)"), wait),
@@ -575,7 +577,7 @@ func (e *editor) launchCard() fyne.CanvasObject {
 	if e.kind == kindBoth {
 		launchTitle = lang.L("Launch without an emulator")
 	}
-	return kit.Card("", kit.CardHead(launchTitle, kit.Badge(e.u.settings.DeviceName, kit.BadgeNone)),
+	return kit.Card("", kit.CardHead(launchTitle, kit.Badge(e.u.Store().Settings.DeviceName, kit.BadgeNone)),
 		kit.Field(lang.L("Launch with"), kit.VBox(kit.Outlined(mode), hint)),
 		kit.Field(lang.L("Executable"), kit.RowFill(e.exeEntry, browse)),
 		argsField,
@@ -594,14 +596,14 @@ func (e *editor) detectHeroic(exe string) {
 		ok    bool
 	}
 	kit.Async(func() (found, error) {
-		title, ok := e.u.lib.HeroicGame(exe)
+		title, ok := e.u.Lib().HeroicGame(exe)
 		return found{title, ok}, nil
 	}, func(f found, _ error) {
 		if !f.ok || e.dev.Exe != exe {
 			return
 		}
 		e.dev.LaunchMode = library.LaunchHeroic
-		e.u.toast(lang.L("{{.Game}} is installed by Heroic — it will be started through Heroic.", map[string]any{"Game": f.title}), kit.ToastOK)
+		e.u.Toast(lang.L("{{.Game}} is installed by Heroic — it will be started through Heroic.", map[string]any{"Game": f.title}), kit.ToastOK)
 		e.render()
 	})
 }
@@ -625,7 +627,7 @@ func (e *editor) savesCard() fyne.CanvasObject {
 			func(s services.SaveSuggestion) { e.addSuggestion(s); e.render() },
 			func() { e.suggest = nil; e.render() })))
 	}
-	c.Add(e.u.help(lang.L("Where the game keeps its saves on this device. Each device sets its own path."),
+	c.Add(components.Help(e.u, lang.L("Where the game keeps its saves on this device. Each device sets its own path."),
 		lang.L("Each location is synced to its own cloud folder. Every device sets its own path for the same location — e.g. {{.Win}} on Windows and {{.Deck}} on a Steam Deck.",
 			map[string]any{"Win": "{appdata}/GameA", "Deck": "{proton:shortcut}/AppData/Roaming/GameA"})))
 
@@ -680,19 +682,19 @@ func (e *editor) save() {
 	artJobs := e.artworkJobs()
 	var coverErr, artErr error
 	kit.Async(func() (services.GameView, error) {
-		g, err := u.lib.Save(in)
+		g, err := u.Lib().Save(in)
 		if err != nil {
 			return g, err
 		}
 		switch {
 		case coverSrc != "":
-			if _, err := u.lib.SetCover(g.ID, coverSrc); err != nil {
+			if _, err := u.Lib().SetCover(g.ID, coverSrc); err != nil {
 				return g, err
 			}
 		case gridPick != nil:
-			_, coverErr = u.lib.SetCoverFromURL(g.ID, gridPick.URL)
+			_, coverErr = u.Lib().SetCoverFromURL(g.ID, gridPick.URL)
 		}
-		artErr = applyArtwork(u.lib, g.ID, artJobs)
+		artErr = applyArtwork(u.Lib(), g.ID, artJobs)
 		return g, nil
 	}, func(g services.GameView, err error) {
 		e.saving = false
@@ -703,15 +705,18 @@ func (e *editor) save() {
 		}
 		e.saved = true
 		if coverErr != nil {
-			u.toast(lang.L("Cover: {{.Err}}", map[string]any{"Err": coverErr}), kit.ToastErr)
+			u.Toast(lang.L("Cover: {{.Err}}", map[string]any{"Err": coverErr}), kit.ToastErr)
 		}
 		if artErr != nil {
-			u.toast(lang.L("Artwork: {{.Err}}", map[string]any{"Err": artErr}), kit.ToastErr)
+			u.Toast(lang.L("Artwork: {{.Err}}", map[string]any{"Err": artErr}), kit.ToastErr)
 		}
-		u.refresh()
-		u.toast(lang.L("Saved"), kit.ToastOK)
+		u.Store().Refresh()
+		u.Toast(lang.L("Saved"), kit.ToastOK)
 		// In place of the editor: Back from the game goes where the editor was
 		// opened from, not into the editor again.
-		u.replace("/game/" + g.ID)
+		u.Replace("/game/" + g.ID)
 	})
 }
+
+// Redraw draws the page again from its state (env.Redrawable).
+func (e *editor) Redraw() { e.render() }

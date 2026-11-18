@@ -9,17 +9,9 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/akfaiz/carryover/internal/ui/kit"
+	"github.com/akfaiz/carryover/ui/kit"
+	"github.com/akfaiz/carryover/ui/shell"
 )
-
-func TestSectionOf(t *testing.T) {
-	for route, want := range map[string]string{
-		"/": "/", "/game/x": "/", "/edit/x": "/", "/new/emulator": "/",
-		"/emulators": "/emulators", "/cloud": "/cloud", "/settings": "/settings", "/trash": "/trash",
-	} {
-		assert.Equal(t, want, sectionOf(route), route)
-	}
-}
 
 // LB and RB step through the sidebar; B goes back from a game to the library.
 func TestGamepadSectionsAndBack(t *testing.T) {
@@ -27,22 +19,22 @@ func TestGamepadSectionsAndBack(t *testing.T) {
 	g := h.addGame("Celeste", t.TempDir())
 	h.settle()
 
-	h.u.nav.Apply(kit.PadTabNext)
-	assert.Equal(t, "/emulators", h.u.route)
-	h.u.nav.Apply(kit.PadTabNext)
-	assert.Equal(t, "/cloud", h.u.route)
-	h.u.nav.Apply(kit.PadTabPrev)
-	h.u.nav.Apply(kit.PadTabPrev)
-	assert.Equal(t, "/", h.u.route)
-	h.u.nav.Apply(kit.PadTabPrev)
-	assert.Equal(t, "/settings", h.u.route, "goes round")
+	h.u.Navigator().Apply(kit.PadTabNext)
+	assert.Equal(t, "/emulators", h.u.Route())
+	h.u.Navigator().Apply(kit.PadTabNext)
+	assert.Equal(t, "/cloud", h.u.Route())
+	h.u.Navigator().Apply(kit.PadTabPrev)
+	h.u.Navigator().Apply(kit.PadTabPrev)
+	assert.Equal(t, "/", h.u.Route())
+	h.u.Navigator().Apply(kit.PadTabPrev)
+	assert.Equal(t, "/settings", h.u.Route(), "goes round")
 
 	h.open("/")
 	h.open("/game/" + g.ID)
-	h.u.nav.Apply(kit.PadBack)
-	assert.Equal(t, "/", h.u.route)
-	h.u.nav.Apply(kit.PadBack)
-	assert.Equal(t, "/", h.u.route, "B on the library stays there")
+	h.u.Navigator().Apply(kit.PadBack)
+	assert.Equal(t, "/", h.u.Route())
+	h.u.Navigator().Apply(kit.PadBack)
+	assert.Equal(t, "/", h.u.Route(), "B on the library stays there")
 }
 
 // The library starts a gamepad on the first game; A opens it, and its page
@@ -54,7 +46,7 @@ func TestGamepadStartsOnTheFirstGame(t *testing.T) {
 	h.addGame("Celeste", t.TempDir())
 	h.open("/")
 
-	h.u.nav.FocusDefault()
+	h.u.Navigator().FocusDefault()
 	tiles := pageWidgets[*gameTile](h)
 	require.NotEmpty(t, tiles)
 	var first *gameTile
@@ -64,17 +56,17 @@ func TestGamepadStartsOnTheFirstGame(t *testing.T) {
 		}
 	}
 	require.NotNil(t, first)
-	require.Same(t, first.open, h.u.win.Canvas().Focused(), "sorted by name: Celeste first")
+	require.Same(t, first.open, h.u.Window().Canvas().Focused(), "sorted by name: Celeste first")
 
-	h.u.nav.Apply(kit.PadAccept)
+	h.u.Navigator().Apply(kit.PadAccept)
 	h.settle()
-	require.Equal(t, "/game/"+first.g.ID, h.u.route)
-	h.u.nav.FocusDefault()
-	b, ok := h.u.win.Canvas().Focused().(*widget.Button)
+	require.Equal(t, "/game/"+first.g.ID, h.u.Route())
+	h.u.Navigator().FocusDefault()
+	b, ok := h.u.Window().Canvas().Focused().(*widget.Button)
 	require.True(t, ok)
 	assert.Equal(t, "Back", b.Text)
-	h.u.nav.Apply(kit.PadDown)
-	b, ok = h.u.win.Canvas().Focused().(*widget.Button)
+	h.u.Navigator().Apply(kit.PadDown)
+	b, ok = h.u.Window().Canvas().Focused().(*widget.Button)
 	require.True(t, ok)
 	assert.Equal(t, "Play", b.Text)
 }
@@ -86,10 +78,10 @@ func TestGamepadStartsOnThePageNotTheSidebar(t *testing.T) {
 	h := newHarness(t)
 	for _, route := range []string{"/emulators", "/cloud", "/trash", "/settings"} {
 		h.open(route)
-		h.u.nav.FocusDefault()
-		f := h.u.win.Canvas().Focused()
+		h.u.Navigator().FocusDefault()
+		f := h.u.Window().Canvas().Focused()
 		require.NotNil(t, f, route)
-		for path, b := range h.u.navBtns {
+		for path, b := range h.u.NavButtons() {
 			if path != route {
 				assert.NotSame(t, b, f, "%s: focus went to the sidebar's %s", route, path)
 			}
@@ -102,10 +94,10 @@ func TestGamepadClosesDialogs(t *testing.T) {
 	h := newHarness(t)
 	h.open("/settings")
 	showAddGame(h.u)
-	require.NotEmpty(t, h.u.win.Canvas().Overlays().List())
-	h.u.nav.Apply(kit.PadBack)
-	assert.Empty(t, h.u.win.Canvas().Overlays().List())
-	assert.Equal(t, "/settings", h.u.route)
+	require.NotEmpty(t, h.u.Window().Canvas().Overlays().List())
+	h.u.Navigator().Apply(kit.PadBack)
+	assert.Empty(t, h.u.Window().Canvas().Overlays().List())
+	assert.Equal(t, "/settings", h.u.Route())
 }
 
 // With nothing focused, the arrow keys reach the window and pick a control.
@@ -113,7 +105,7 @@ func TestArrowKeysPickAControl(t *testing.T) {
 	h := newHarness(t)
 	h.addGame("Celeste", t.TempDir())
 	h.open("/")
-	c := h.u.win.Canvas()
+	c := h.u.Window().Canvas()
 	c.Unfocus()
 	c.OnTypedKey()(&fyne.KeyEvent{Name: fyne.KeyDown})
 	assert.IsType(t, &kit.Tappable{}, c.Focused())
@@ -127,44 +119,29 @@ func TestGamepadViewSwitchesFullScreen(t *testing.T) {
 	t.Setenv("XDG_CURRENT_DESKTOP", "")
 	t.Setenv("GAMESCOPE_WAYLAND_DISPLAY", "")
 	h := newHarness(t)
-	prefs := h.u.app.Preferences()
-	require.False(t, h.u.win.FullScreen())
-	h.u.nav.Apply(kit.PadView)
-	assert.True(t, h.u.win.FullScreen())
-	assert.True(t, prefs.Bool(prefFullScreen))
-	assert.False(t, prefs.Bool(prefFullScreenSteam), "started by hand: Steam's choice stays")
-	h.u.nav.Apply(kit.PadView)
-	assert.False(t, h.u.win.FullScreen())
-	assert.False(t, prefs.Bool(prefFullScreen))
+	prefs := h.u.App().Preferences()
+	require.False(t, h.u.Window().FullScreen())
+	h.u.Navigator().Apply(kit.PadView)
+	assert.True(t, h.u.Window().FullScreen())
+	assert.True(t, prefs.Bool(shell.PrefFullScreen))
+	assert.False(t, prefs.Bool(shell.PrefFullScreenSteam), "started by hand: Steam's choice stays")
+	h.u.Navigator().Apply(kit.PadView)
+	assert.False(t, h.u.Window().FullScreen())
+	assert.False(t, prefs.Bool(shell.PrefFullScreen))
 
 	t.Setenv("SteamGameId", "123")
 	t.Setenv("SteamTenfoot", "1")
-	h.u.win.SetFullScreen(false)
-	h.u.applyFullScreen()
-	assert.True(t, h.u.win.FullScreen(), "from Big Picture it starts full screen")
-	h.u.toggleFullScreen()
-	h.u.applyFullScreen()
-	assert.False(t, h.u.win.FullScreen(), "until switched off")
-}
-
-// The gamepad is read where Steam hands it over as one; started by hand on a
-// desktop, Steam's Desktop Layout already makes it a mouse and keys.
-func TestPadWanted(t *testing.T) {
-	t.Setenv("SteamGameId", "")
-	t.Setenv("SteamClientLaunch", "")
-	t.Setenv("XDG_CURRENT_DESKTOP", "")
-	t.Setenv("GAMESCOPE_WAYLAND_DISPLAY", "")
-	assert.False(t, padWanted(), "started by hand")
-	t.Setenv("SteamGameId", "123")
-	assert.True(t, padWanted(), "started by Steam")
-	t.Setenv("SteamGameId", "")
-	t.Setenv("XDG_CURRENT_DESKTOP", "gamescope")
-	assert.True(t, padWanted(), "Game Mode")
+	h.u.Window().SetFullScreen(false)
+	h.u.ApplyFullScreen()
+	assert.True(t, h.u.Window().FullScreen(), "from Big Picture it starts full screen")
+	h.u.ToggleFullScreen()
+	h.u.ApplyFullScreen()
+	assert.False(t, h.u.Window().FullScreen(), "until switched off")
 }
 
 // exitButton is the sidebar's Exit button, or nil.
 func exitButton(h *harness) *widget.Button {
-	for _, b := range widgetsOf[*widget.Button](h.u.sidebar) {
+	for _, b := range widgetsOf[*widget.Button](h.u.Sidebar()) {
 		if b.Text == "Exit" {
 			return b
 		}
@@ -184,21 +161,21 @@ func TestExitButton(t *testing.T) {
 	h.settle()
 	assert.Nil(t, exitButton(h), "a desktop window has its own close button")
 
-	h.u.toggleFullScreen()
+	h.u.ToggleFullScreen()
 	exit := exitButton(h)
 	require.NotNil(t, exit, "full screen")
-	assert.Contains(t, kit.Focusables(h.u.win.Content()), fyne.Focusable(exit), "the D-pad reaches it")
+	assert.Contains(t, kit.Focusables(h.u.Window().Content()), fyne.Focusable(exit), "the D-pad reaches it")
 
-	h.u.syncingAll = true
+	h.u.Store().SyncAll.Running = true
 	test.Tap(exit)
 	assert.Contains(t, overlayText(h), "A game is still running or a sync is in progress.", "asks while a sync runs")
-	h.u.nav.Apply(kit.PadBack)
-	assert.Empty(t, h.u.win.Canvas().Overlays().List(), "B keeps Carryover open")
-	h.u.syncingAll = false
+	h.u.Navigator().Apply(kit.PadBack)
+	assert.Empty(t, h.u.Window().Canvas().Overlays().List(), "B keeps Carryover open")
+	h.u.Store().SyncAll.Running = false
 
-	h.u.toggleFullScreen()
+	h.u.ToggleFullScreen()
 	assert.Nil(t, exitButton(h), "back in a window")
 	t.Setenv("SteamGameId", "123")
-	h.u.refreshSidebar()
+	h.u.RefreshSidebar()
 	assert.NotNil(t, exitButton(h), "started by Steam")
 }

@@ -1,19 +1,19 @@
-package ui
+package components
 
 import (
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/lang"
 	"fyne.io/fyne/v2/theme"
 
-	"github.com/akfaiz/carryover/internal/ui/kit"
 	"github.com/akfaiz/carryover/services"
+	"github.com/akfaiz/carryover/ui/kit"
 )
 
-// statusBadge is the sync state badge of a game.
-func statusBadge(g services.GameView) fyne.CanvasObject { return kit.Badge(statusOf(g)) }
+// StatusBadge is the sync state badge of a game.
+func StatusBadge(g services.GameView) fyne.CanvasObject { return kit.Badge(StatusOf(g)) }
 
-// statusOf is the text and kind of statusBadge.
-func statusOf(g services.GameView) (string, int) {
+// StatusOf is the text and kind of StatusBadge.
+func StatusOf(g services.GameView) (string, int) {
 	switch {
 	case g.Status.Running:
 		return lang.L("Running"), kit.BadgeInfo
@@ -31,9 +31,9 @@ func statusOf(g services.GameView) (string, int) {
 	return lang.L("Not synced"), kit.BadgeNone
 }
 
-// statusIcon is a small coloured icon for a game's sync state (nil when there
-// is nothing to say), for places too small for statusBadge.
-func statusIcon(g services.GameView) fyne.Resource {
+// StatusIcon is a small coloured icon for a game's sync state (nil when there
+// is nothing to say), for places too small for StatusBadge.
+func StatusIcon(g services.GameView) fyne.Resource {
 	switch {
 	case g.Status.Running:
 		return theme.MediaPlayIcon()
@@ -47,10 +47,10 @@ func statusIcon(g services.GameView) fyne.Resource {
 	return nil
 }
 
-// needsAttention reports whether the game's state asks the user to do
+// NeedsAttention reports whether the game's state asks the user to do
 // something: set it up here, settle a conflict, look at an error or upload
 // saves changed outside Carryover.
-func needsAttention(g services.GameView) bool {
+func NeedsAttention(g services.GameView) bool {
 	st := g.Overall
 	if st.Running {
 		return false
