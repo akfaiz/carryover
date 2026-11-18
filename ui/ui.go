@@ -14,6 +14,7 @@ import (
 	"github.com/akfaiz/carryover/internal/app/singleinstance"
 	"github.com/akfaiz/carryover/internal/core"
 	"github.com/akfaiz/carryover/services"
+	"github.com/akfaiz/carryover/ui/components"
 	"github.com/akfaiz/carryover/ui/i18n"
 	"github.com/akfaiz/carryover/ui/kit"
 	"github.com/akfaiz/carryover/ui/pages/session"
@@ -69,7 +70,7 @@ func appConfig() shell.Config {
 	return shell.Config{
 		Icon:         appIcon,
 		Page:         pageFor,
-		AddGame:      showAddGame,
+		AddGame:      components.ShowAddGame,
 		SyncProblems: showSyncProblems,
 	}
 }

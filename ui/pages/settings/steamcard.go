@@ -1,8 +1,6 @@
-package ui
+package settings
 
 import (
-	"embed"
-
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/container"
 	"fyne.io/fyne/v2/lang"
@@ -15,27 +13,11 @@ import (
 	"github.com/akfaiz/carryover/ui/kit"
 )
 
-// steamArt is Carryover's own Steam library art, drawn by
-// `go run ./ui/assets/steam/gen`.
-//
-//go:embed assets/steam/*.png
-var steamArt embed.FS
-
-// selfSteamArt returns Carryover's library art by kind (core.SelfArtKinds).
-func selfSteamArt() map[string][]byte {
-	art := map[string][]byte{"icon": appIcon}
-	for _, kind := range core.SelfArtKinds {
-		if b, err := steamArt.ReadFile("assets/steam/" + kind + ".png"); err == nil {
-			art[kind] = b
-		}
-	}
-	return art
-}
-
 // selfSteamCard adds Carryover itself to Steam, so it can be opened from Steam
 // Deck Game Mode and used with a controller.
 type selfSteamCard struct {
 	u     env.Env
+	art   func() map[string][]byte // Carryover's library artwork by kind
 	box   *fyne.Container
 	info  *services.SteamInfo // nil while Steam is being detected
 	user  string
@@ -43,8 +25,9 @@ type selfSteamCard struct {
 	busy  bool
 }
 
-func newSelfSteamCard(u env.Env) fyne.CanvasObject {
-	s := &selfSteamCard{u: u, box: container.NewStack()}
+// newSelfSteamCard is the card; art supplies the library artwork it sets.
+func newSelfSteamCard(u env.Env, art func() map[string][]byte) fyne.CanvasObject {
+	s := &selfSteamCard{u: u, art: art, box: container.NewStack()}
 	s.render()
 	type state struct {
 		info        services.SteamInfo
@@ -128,7 +111,7 @@ func (s *selfSteamCard) add() {
 	s.busy = true
 	s.render()
 	kit.Async(func() (core.AddToSteamResult, error) {
-		return s.u.Steam().AddSelf(user, selfSteamArt())
+		return s.u.Steam().AddSelf(user, s.art())
 	}, func(res core.AddToSteamResult, err error) {
 		s.busy = false
 		if err != nil {

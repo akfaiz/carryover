@@ -23,8 +23,9 @@ import (
 
 // Options plugs in what this page shows but does not own.
 type Options struct {
-	// SteamCard is the card that adds Carryover itself to Steam.
-	SteamCard func(env.Env) fyne.CanvasObject
+	// SteamArt supplies Carryover's own library artwork by kind (core.SelfArtKinds)
+	// for the card that adds Carryover to Steam. Without it the card is left out.
+	SteamArt func() map[string][]byte
 }
 
 // Page is the Settings page.
@@ -201,8 +202,8 @@ func (p *Page) form(st appdir.Settings) fyne.CanvasObject {
 			keyTest.Result,
 			kit.Muted(components.GridKeyHelp()))),
 	}
-	if p.opts.SteamCard != nil {
-		objs = append(objs, narrow(p.opts.SteamCard(u)))
+	if p.opts.SteamArt != nil {
+		objs = append(objs, narrow(newSelfSteamCard(u, p.opts.SteamArt)))
 	}
 	objs = append(objs, narrow(aboutCard(u)))
 	return kit.Stack(objs...)
