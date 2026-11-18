@@ -44,6 +44,8 @@ type Env interface {
 	ToastErr(err error) // nil is ignored
 	OpenFolder(path string)
 
+	// AddGame opens the "add a game" dialog.
+	AddGame()
 	// SyncAll starts "Sync all", or cancels it while it runs.
 	SyncAll()
 	// ApplyTheme switches to the palette of a stored theme setting.

@@ -11,7 +11,9 @@ import (
 
 	"github.com/akfaiz/carryover/services"
 	"github.com/akfaiz/carryover/ui/components"
+	"github.com/akfaiz/carryover/ui/components/emulatorform"
 	"github.com/akfaiz/carryover/ui/kit"
+	cloudpage "github.com/akfaiz/carryover/ui/pages/cloud"
 )
 
 // reachable walks the D-pad from start in every direction and returns every
@@ -89,9 +91,9 @@ func TestGamepadReachesEveryControl(t *testing.T) {
 func TestGamepadReachesDialogControls(t *testing.T) {
 	cases := map[string]func(h *harness){
 		"add game":        func(h *harness) { showAddGame(h.u) },
-		"SteamGridDB key": func(h *harness) { showGridKeyDialog(h.u, nil) },
-		"add emulator":    func(h *harness) { showEmulatorDialog(h.u, func(services.EmulatorView) {}) },
-		"add remote":      func(h *harness) { newRemoteWizard(&cloudPage{u: h.u}).show() },
+		"SteamGridDB key": func(h *harness) { components.ShowGridKeyDialog(h.u, nil) },
+		"add emulator":    func(h *harness) { emulatorform.ShowDialog(h.u, func(services.EmulatorView) {}) },
+		"add remote":      func(h *harness) { cloudpage.New(h.u).AddRemote() },
 		"discard changes": func(h *harness) { components.ConfirmDiscard(h.u, func() {}) },
 		"confirm a delete": func(h *harness) {
 			components.ConfirmDanger(h.u, components.ConfirmOpts{Title: "Delete?", Message: "Sure?", OnConfirm: func(bool) {}})
@@ -133,7 +135,7 @@ func TestGamepadReachesDialogControls(t *testing.T) {
 // typed.
 func TestGamepadBackAsksBeforeDroppingAnEmulator(t *testing.T) {
 	h := newHarness(t)
-	showEmulatorDialog(h.u, func(services.EmulatorView) {})
+	emulatorform.ShowDialog(h.u, func(services.EmulatorView) {})
 	h.settle()
 	c := h.u.Window().Canvas()
 	for _, e := range overlayWidgets[*widget.Entry](h) {

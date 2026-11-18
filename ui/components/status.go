@@ -46,14 +46,3 @@ func StatusIcon(g services.GameView) fyne.Resource {
 	}
 	return nil
 }
-
-// NeedsAttention reports whether the game's state asks the user to do
-// something: set it up here, settle a conflict, look at an error or upload
-// saves changed outside Carryover.
-func NeedsAttention(g services.GameView) bool {
-	st := g.Overall
-	if st.Running {
-		return false
-	}
-	return !g.Ready || st.Conflict || st.LastError != "" || st.LocalChanges
-}

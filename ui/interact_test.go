@@ -24,8 +24,12 @@ import (
 	"github.com/akfaiz/carryover/services"
 	"github.com/akfaiz/carryover/ui/internal/uitest"
 	"github.com/akfaiz/carryover/ui/kit"
+	cloudpage "github.com/akfaiz/carryover/ui/pages/cloud"
+	editorpage "github.com/akfaiz/carryover/ui/pages/editor"
+	gamepage "github.com/akfaiz/carryover/ui/pages/game"
+	libpage "github.com/akfaiz/carryover/ui/pages/library"
+	"github.com/akfaiz/carryover/ui/pages/settings"
 	"github.com/akfaiz/carryover/ui/shell"
-	"github.com/akfaiz/carryover/ui/store"
 )
 
 // harness is the root package's view of the shared uitest harness: the whole
@@ -39,7 +43,7 @@ type harness struct {
 
 func newHarness(t *testing.T) *harness {
 	t.Helper()
-	autosaveDelay = 20 * time.Millisecond
+	settings.AutosaveDelay = 20 * time.Millisecond
 	uh := uitest.New(t, appConfig())
 	return &harness{Harness: uh, t: t, c: uh.Core, u: uh.Shell}
 }
@@ -131,7 +135,7 @@ func TestSettingsSaveAsTheyChange(t *testing.T) {
 	test.Tap(f.backups)
 	h.settle()
 	assert.False(t, f.retention.Disabled(), "turning backups on enables the count")
-	assert.Equal(t, defaultRetention, h.c.Settings.Get().BackupRetention, "saved at once")
+	assert.Equal(t, settings.DefaultRetention, h.c.Settings.Get().BackupRetention, "saved at once")
 	assert.Contains(t, labelTexts(h), "✓ Saved", "a quiet note says so, instead of a toast per change")
 	assert.Empty(t, h.toasts())
 
@@ -241,14 +245,14 @@ func TestSettingsRejectsBadRetention(t *testing.T) {
 			f := findSettingsForm(t, h)
 			test.Tap(f.backups)
 			h.settle()
-			require.Equal(t, defaultRetention, h.c.Settings.Get().BackupRetention)
+			require.Equal(t, settings.DefaultRetention, h.c.Settings.Get().BackupRetention)
 
 			f.retention.SetText(bad)
 			f.name.SetText("Changed")
 			h.settle()
 			got := h.c.Settings.Get()
 			assert.NotEqual(t, "Changed", got.DeviceName, "nothing is saved")
-			assert.Equal(t, defaultRetention, got.BackupRetention, "the count keeps its last good value")
+			assert.Equal(t, settings.DefaultRetention, got.BackupRetention, "the count keeps its last good value")
 			assert.Contains(t, h.toasts(), "backups to keep must be a number from 1 to 100")
 		})
 	}
@@ -669,9 +673,16 @@ func (h *harness) useLocalCloud() string {
 	return dir
 }
 
+// libraryFilter is the library's filter as stored in the preferences.
+func libraryFilter(h *harness) string {
+	return h.u.App().Preferences().StringWithFallback("library.filter", "all")
+}
+
+func setLibraryFilter(h *harness, f string) { h.u.App().Preferences().SetString("library.filter", f) }
+
 func tileNames(h *harness) []string {
 	var out []string
-	for _, tile := range pageWidgets[*gameTile](h) {
+	for _, tile := range pageWidgets[*libpage.Tile](h) {
 		for _, l := range widgetsOf[*widget.Label](tile) {
 			if l.TextStyle.Bold {
 				out = append(out, l.Text)
@@ -728,7 +739,7 @@ func TestLibraryEmptyStateOffersAddGame(t *testing.T) {
 	tapButton(t, h, "＋ Add your first game")
 	tapChoice(t, h, "Emulated game")
 	require.Equal(t, "/new/emulator", h.u.Route())
-	assert.Equal(t, kindEmulator, h.u.Page().(*editor).kind, "the editor starts on the emulator cards")
+	assert.Equal(t, editorpage.KindEmulator, h.u.Page().(*editorpage.Page).Kind(), "the editor starts on the emulator cards")
 }
 
 // An empty search says so and offers to clear it.
@@ -758,7 +769,7 @@ func TestLibraryNeedsAttentionFilter(t *testing.T) {
 	tapButton(t, h, "Needs attention (1)")
 	h.settle()
 	assert.Equal(t, []string{"Not set up"}, tileNames(h))
-	assert.Equal(t, filterAttention, libraryFilter(h.u))
+	assert.Equal(t, "attention", libraryFilter(h))
 
 	h.open("/settings")
 	h.open("/")
@@ -780,7 +791,7 @@ func TestLibraryReadyToPlayFilter(t *testing.T) {
 	tapButton(t, h, "Ready to play (1)")
 	h.settle()
 	assert.Equal(t, []string{"Ready"}, tileNames(h))
-	assert.Equal(t, filterReady, libraryFilter(h.u))
+	assert.Equal(t, "ready", libraryFilter(h))
 	tapButton(t, h, "All (2)")
 	h.settle()
 	assert.Len(t, tileNames(h), 2)
@@ -792,7 +803,7 @@ func TestLibraryReadyToPlayFilterEmpty(t *testing.T) {
 	_, err := h.u.Lib().Save(services.GameInput{Name: "Not set up", Slots: []library.SaveSlot{{Key: "saves"}}})
 	require.NoError(t, err)
 	h.u.Store().Refresh()
-	setLibraryFilter(h.u, filterReady)
+	setLibraryFilter(h, "ready")
 	h.open("/")
 	assert.Empty(t, tileNames(h))
 	assert.Contains(t, strings.Join(labelTexts(h), "\n"), "No game can be played on this device yet")
@@ -814,38 +825,12 @@ func TestLibraryHidesFiltersWhenNothingNeedsAttention(t *testing.T) {
 	assert.NotEmpty(t, pageWidgets[*widget.Select](h), "sorting is still there")
 
 	// Turned on while a game needed attention, it stays so it can be turned off.
-	setLibraryFilter(h.u, filterAttention)
+	setLibraryFilter(h, "attention")
 	h.open("/settings")
 	h.open("/")
 	tapButton(t, h, "All (1)")
 	h.settle()
 	assert.Equal(t, []string{"Ready"}, tileNames(h))
-}
-
-// Tiles are kept and updated in place: a refresh doesn't build them again.
-func TestLibraryKeepsTiles(t *testing.T) {
-	h := newHarness(t)
-	h.addGame("Game A", t.TempDir())
-	h.open("/")
-	before := pageWidgets[*gameTile](h)
-	require.Len(t, before, 1)
-	h.u.Notify(store.Status)
-	entryByPlaceholder(t, h, "Search…").SetText("game")
-	h.settle()
-	after := pageWidgets[*gameTile](h)
-	require.Len(t, after, 1)
-	assert.Same(t, before[0], after[0])
-}
-
-func TestLibraryTileOpensGame(t *testing.T) {
-	h := newHarness(t)
-	g := h.addGame("Game A", t.TempDir())
-	h.open("/")
-	tiles := pageWidgets[*kit.Tappable](h)
-	require.NotEmpty(t, tiles)
-	test.Tap(tiles[0])
-	h.settle()
-	assert.Equal(t, "/game/"+g.ID, h.u.Route())
 }
 
 // A game without a path on this device shows "Set up", which opens the editor.
@@ -921,11 +906,11 @@ func TestEditorAsksBeforeDiscarding(t *testing.T) {
 // askDelete opens the game page's delete dialog (from its "⋯" menu).
 func askDelete(t *testing.T, h *harness) {
 	t.Helper()
-	gp, ok := h.u.Page().(*gameDetail)
+	gp, ok := h.u.Page().(*gamepage.Page)
 	require.True(t, ok, "on a game page")
-	g, _ := h.u.Store().Game(gp.id)
+	g, _ := h.u.Store().Game(gp.GameID())
 	var item *fyne.MenuItem
-	for _, it := range gp.moreMenu(g, false).Items {
+	for _, it := range gp.MoreMenu(g, false).Items {
 		if it.Label == "Delete from library…" {
 			item = it
 		}
@@ -1212,11 +1197,11 @@ func TestGamePageSwitchesBetweenEmulators(t *testing.T) {
 	assert.Equal(t, 1, buttons["Compare with cloud"], "one profile's cards at a time")
 	assert.Equal(t, 1, buttons["Back up now"])
 
-	gp := h.u.Page().(*gameDetail)
-	assert.Empty(t, gp.selectedProfile(gp.profiles(mustGame(t, h, g.ID))).id, "starts on the first")
+	gp := h.u.Page().(*gamepage.Page)
+	assert.Empty(t, gp.SelectedProfile(mustGame(t, h, g.ID)), "starts on the first")
 	tapButton(t, h, "Eden")
 	h.settle()
-	assert.Equal(t, eden.ID, gp.selectedProfile(gp.profiles(mustGame(t, h, g.ID))).id)
+	assert.Equal(t, eden.ID, gp.SelectedProfile(mustGame(t, h, g.ID)))
 	assert.Equal(t, widget.HighImportance, buttonWith(t, pageWidgets[*widget.Button](h), "Eden").Importance, "the selected one stands out")
 }
 
@@ -1333,7 +1318,7 @@ func TestCloudFirstRemoteBecomesTheLocation(t *testing.T) {
 	require.NoError(t, os.WriteFile(conf, []byte("[mine]\ntype = sftp\nhost = mine.invalid\n"), 0o644))
 	t.Cleanup(func() { config.DeleteRemote("mine") })
 	h.open("/cloud")
-	h.u.Page().(*cloudPage).importConf(conf)
+	h.u.Page().(*cloudpage.Page).ImportConf(conf)
 	h.settle()
 	got := h.c.Settings.Get()
 	assert.Equal(t, "mine", got.Remote)
@@ -1360,28 +1345,10 @@ func TestEditorAddsANewEmulatorInADialog(t *testing.T) {
 	h.settle()
 	assert.Empty(t, h.u.Window().Canvas().Overlays().List(), "the dialog closed")
 	assert.Equal(t, "/new/emulator", h.u.Route(), "still in the editor")
-	e := h.u.Page().(*editor)
-	assert.Equal(t, "Zelda", e.name)
-	require.Len(t, e.emus, 1)
-	assert.Equal(t, "Eden", e.emus[0].name)
+	e := h.u.Page().(*editorpage.Page)
+	assert.Equal(t, "Zelda", e.Name())
+	assert.Equal(t, []string{"Eden"}, e.EmulatorNames())
 	require.Len(t, h.u.Emus().List(), 1)
-}
-
-// The filter row gets its height when the games load after the page was first
-// drawn (on startup the page is drawn before the library is read), so it
-// doesn't overlap the header or the grid.
-func TestLibraryRowsGetTheirHeightWhenGamesLoad(t *testing.T) {
-	h := newHarness(t)
-	h.open("/")
-	p := h.u.Page().(*libraryPage)
-	require.Zero(t, p.chipsHost.MinSize().Height, "no games yet: no row")
-
-	h.addGame("Game A", t.TempDir())
-	h.settle()
-	row := p.chipsHost
-	require.Positive(t, row.MinSize().Height)
-	assert.Equal(t, row.MinSize().Height, row.Size().Height, "laid out with its height")
-	assert.GreaterOrEqual(t, p.gridHost.Position().Y, row.Position().Y+row.Size().Height, "the grid starts below it")
 }
 
 // A running "Sync all" shows in the sidebar on every page but the library,
