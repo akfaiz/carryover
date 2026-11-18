@@ -1,4 +1,4 @@
-package ui
+package components
 
 import (
 	"math"
@@ -32,9 +32,9 @@ func timeAgoT(t time.Time) string {
 	return t.Local().Format("2006-01-02")
 }
 
-func timeAgo(s string) string { return timeAgoT(parseTime(s)) }
+func TimeAgo(s string) string { return timeAgoT(parseTime(s)) }
 
-func fmtDate(t time.Time) string {
+func FmtDate(t time.Time) string {
 	if t.IsZero() || t.Year() <= 1 {
 		return "—"
 	}

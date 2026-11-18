@@ -13,11 +13,14 @@ import (
 	"fyne.io/fyne/v2/widget"
 
 	"github.com/akfaiz/carryover/internal/cloudsync/cloud"
-	"github.com/akfaiz/carryover/internal/ui/kit"
+	"github.com/akfaiz/carryover/ui/components"
+	"github.com/akfaiz/carryover/ui/env"
+	"github.com/akfaiz/carryover/ui/kit"
+	"github.com/akfaiz/carryover/ui/store"
 )
 
 type cloudPage struct {
-	u           *UI
+	u           env.Env
 	remotes     []cloud.Remote
 	providers   []cloud.Provider
 	defaultConf string
@@ -27,17 +30,17 @@ type cloudPage struct {
 	scroll      *container.Scroll
 }
 
-func newCloudPage(u *UI) *cloudPage { return &cloudPage{u: u, root: "Carryover"} }
+func newCloudPage(u env.Env) *cloudPage { return &cloudPage{u: u, root: "Carryover"} }
 
-func (p *cloudPage) view() fyne.CanvasObject {
+func (p *cloudPage) View() fyne.CanvasObject {
 	p.scroll = kit.ScrollPage(kit.Muted(lang.L("Loading…")))
 	p.test = kit.NewTestButton(lang.L("Test connection"), lang.L("Connection works."), lang.L("Testing…"), func() func() error {
 		remote, root := p.remote, p.root
-		return func() error { return p.u.cloud.Test(remote, root) }
+		return func() error { return p.u.Cloud().Test(remote, root) }
 	})
 	p.load(true)
-	kit.Async(func() ([]cloud.Provider, error) { return p.u.cloud.Providers(), nil }, func(pr []cloud.Provider, _ error) { p.providers = pr })
-	kit.Async(func() (string, error) { return p.u.cloud.DefaultRcloneConfig(), nil }, func(s string, _ error) {
+	kit.Async(func() ([]cloud.Provider, error) { return p.u.Cloud().Providers(), nil }, func(pr []cloud.Provider, _ error) { p.providers = pr })
+	kit.Async(func() (string, error) { return p.u.Cloud().DefaultRcloneConfig(), nil }, func(s string, _ error) {
 		p.defaultConf = s
 		p.render()
 	})
@@ -46,10 +49,10 @@ func (p *cloudPage) view() fyne.CanvasObject {
 
 // load reads remotes (and, with target, the configured location).
 func (p *cloudPage) load(target bool) {
-	kit.Async(func() ([]cloud.Remote, error) { return p.u.cloud.Remotes(), nil }, func(r []cloud.Remote, _ error) {
+	kit.Async(func() ([]cloud.Remote, error) { return p.u.Cloud().Remotes(), nil }, func(r []cloud.Remote, _ error) {
 		p.remotes = r
 		if target {
-			st := p.u.sync.GetSettings()
+			st := p.u.Sync().GetSettings()
 			p.remote = st.Remote
 			p.root = st.RemoteRoot
 			if p.root == "" {
@@ -62,8 +65,8 @@ func (p *cloudPage) load(target bool) {
 
 // stateChanged re-renders when settings reload (e.g. after Save), so the
 // "active" badge follows the saved remote.
-func (p *cloudPage) stateChanged(what change) {
-	if what == changeLibrary && p.scroll != nil {
+func (p *cloudPage) StateChanged(what store.Topic) {
+	if what == store.Library && p.scroll != nil {
 		p.render()
 	}
 }
@@ -83,7 +86,7 @@ func (p *cloudPage) render() {
 	sel := kit.SelectOf(remotes, p.remote, func(v string) {
 		for _, r := range p.remotes {
 			if r.Name == v && !r.Supported {
-				u.toast(lang.L("This provider isn't included in Carryover"), kit.ToastErr)
+				u.Toast(lang.L("This provider isn't included in Carryover"), kit.ToastErr)
 			}
 		}
 		p.remote = v
@@ -113,21 +116,21 @@ func (p *cloudPage) render() {
 	}
 	for _, r := range p.remotes {
 		list.Add(widget.NewSeparator())
-		list.Add(newRemoteRow(r, r.Name == u.settings.Remote, func() {
+		list.Add(newRemoteRow(r, r.Name == u.Store().Settings.Remote, func() {
 			msg := lang.L("Delete remote “{{.Name}}”? The files in it are not touched.", map[string]any{"Name": r.Name})
-			if r.Name == u.settings.Remote {
+			if r.Name == u.Store().Settings.Remote {
 				msg = lang.L("Delete remote “{{.Name}}”? It is the sync location, so syncing stops until you choose another one. The files in it are not touched.", map[string]any{"Name": r.Name})
 			}
-			confirmDanger(u, confirmOpts{title: lang.L("Delete remote"), message: msg, onConfirm: func(bool) {
-				kit.Async0(func() error { return u.cloud.DeleteRemote(r.Name) }, func(err error) {
-					u.toastErr(err)
+			components.ConfirmDanger(u, components.ConfirmOpts{Title: lang.L("Delete remote"), Message: msg, OnConfirm: func(bool) {
+				kit.Async0(func() error { return u.Cloud().DeleteRemote(r.Name) }, func(err error) {
+					u.ToastErr(err)
 					p.load(false)
-					u.refresh()
+					u.Store().Refresh()
 				})
 			}})
 		}))
 	}
-	if u.settings.Remote == "" {
+	if u.Store().Settings.Remote == "" {
 		// First run: the remote comes first; the first one added becomes the
 		// sync location by itself.
 		intro := kit.Muted(lang.L("Carryover keeps your saves in your own cloud storage. Add a remote (or import your rclone config) and it becomes the sync location; every device then uses the same one."))
@@ -140,7 +143,7 @@ func (p *cloudPage) render() {
 // useFirstRemote makes a remote just added the sync location when there is
 // none yet, so a first setup needs no extra step.
 func (p *cloudPage) useFirstRemote(name string) {
-	if p.u.settings.Remote != "" || name == "" {
+	if p.u.Store().Settings.Remote != "" || name == "" {
 		return
 	}
 	p.remote = name
@@ -149,7 +152,7 @@ func (p *cloudPage) useFirstRemote(name string) {
 
 func (p *cloudPage) saveTarget() {
 	u := p.u
-	st := u.settings
+	st := u.Store().Settings
 	st.Remote = p.remote
 	st.RemoteRoot = strings.Trim(strings.TrimSpace(p.root), "/")
 	if st.RemoteRoot == "" {
@@ -157,19 +160,19 @@ func (p *cloudPage) saveTarget() {
 	}
 	remote := st.Remote
 	kit.Async0(func() error {
-		_, err := u.sync.SaveSettings(st)
+		_, err := u.Sync().SaveSettings(st)
 		return err
 	}, func(err error) {
 		if err != nil {
-			u.toastErr(err)
+			u.ToastErr(err)
 			return
 		}
-		u.refresh()
-		u.toast(lang.L("Cloud location saved"), kit.ToastOK)
+		u.Store().Refresh()
+		u.Toast(lang.L("Cloud location saved"), kit.ToastOK)
 		if remote != "" {
-			kit.Async0(u.sync.SyncLibrary, func(err error) {
+			kit.Async0(u.Sync().SyncLibrary, func(err error) {
 				if err != nil {
-					u.toast(lang.L("Library sync: {{.Err}}", map[string]any{"Err": err}), kit.ToastErr)
+					u.Toast(lang.L("Library sync: {{.Err}}", map[string]any{"Err": err}), kit.ToastErr)
 				}
 			})
 		}
@@ -184,29 +187,29 @@ func (p *cloudPage) pickConf() {
 		path := filepath.FromSlash(r.URI().Path())
 		_ = r.Close()
 		p.importConf(path)
-	}, p.u.win)
+	}, p.u.Window())
 	d.SetTitleText(lang.L("Select rclone.conf"))
 	d.SetFilter(storage.NewExtensionFileFilter([]string{".conf"}))
-	kit.ShowFilePicker(p.u.win, d)
+	kit.ShowFilePicker(p.u.Window(), d)
 }
 
 func (p *cloudPage) importConf(path string) {
 	u := p.u
-	kit.Async(func() (cloud.ImportResult, error) { return u.cloud.ImportConfig(path) }, func(res cloud.ImportResult, err error) {
+	kit.Async(func() (cloud.ImportResult, error) { return u.Cloud().ImportConfig(path) }, func(res cloud.ImportResult, err error) {
 		if err != nil {
-			u.toastErr(err)
+			u.ToastErr(err)
 			return
 		}
 		if len(res.Imported) > 0 {
-			u.toast(lang.L("Imported {{.Names}}", map[string]any{"Names": strings.Join(res.Imported, ", ")}), kit.ToastOK)
+			u.Toast(lang.L("Imported {{.Names}}", map[string]any{"Names": strings.Join(res.Imported, ", ")}), kit.ToastOK)
 		}
 		if len(res.Imported) == 1 {
 			p.useFirstRemote(res.Imported[0])
 		}
 		if len(res.Skipped) > 0 {
-			u.toast(lang.L("Skipped unsupported: {{.Names}}", map[string]any{"Names": strings.Join(res.Skipped, ", ")}), kit.ToastErr)
+			u.Toast(lang.L("Skipped unsupported: {{.Names}}", map[string]any{"Names": strings.Join(res.Skipped, ", ")}), kit.ToastErr)
 		} else if len(res.Imported) == 0 {
-			u.toast(lang.L("No remotes found in that file"), kit.ToastErr)
+			u.Toast(lang.L("No remotes found in that file"), kit.ToastErr)
 		}
 		p.load(false)
 	})
@@ -230,11 +233,11 @@ func newRemoteWizard(p *cloudPage) *remoteWizard {
 }
 
 func (w *remoteWizard) show() {
-	w.d = dialog.NewCustomWithoutButtons(lang.L("Add remote"), container.NewVScroll(w.body), w.p.u.win)
-	w.d.Resize(fyne.NewSize(min(640, w.p.u.win.Canvas().Size().Width-40), min(560, w.p.u.win.Canvas().Size().Height-40)))
+	w.d = dialog.NewCustomWithoutButtons(lang.L("Add remote"), container.NewVScroll(w.body), w.p.u.Window())
+	w.d.Resize(fyne.NewSize(min(640, w.p.u.Window().Canvas().Size().Width-40), min(560, w.p.u.Window().Canvas().Size().Height-40)))
 	w.pick()
 	w.d.Show()
-	kit.OnBack(w.p.u.win, w.close)
+	kit.OnBack(w.p.u.Window(), w.close)
 }
 
 func (w *remoteWizard) set(objs ...fyne.CanvasObject) {
@@ -384,7 +387,7 @@ func (w *remoteWizard) step(fn func() (*cloud.Question, error)) {
 			name := strings.TrimSpace(w.name)
 			w.p.remote = name
 			w.p.load(false)
-			u.toast(lang.L("Remote “{{.Name}}” created", map[string]any{"Name": name}), kit.ToastOK)
+			u.Toast(lang.L("Remote “{{.Name}}” created", map[string]any{"Name": name}), kit.ToastOK)
 			w.p.useFirstRemote(name)
 			return
 		}
@@ -395,12 +398,12 @@ func (w *remoteWizard) step(fn func() (*cloud.Question, error)) {
 
 func (w *remoteWizard) create() {
 	name, typ, params := strings.TrimSpace(w.name), w.prov.Type, w.params
-	w.step(func() (*cloud.Question, error) { return w.p.u.cloud.CreateRemote(name, typ, params) })
+	w.step(func() (*cloud.Question, error) { return w.p.u.Cloud().CreateRemote(name, typ, params) })
 }
 
 func (w *remoteWizard) reply(v string) {
 	name, state := strings.TrimSpace(w.name), w.question.State
-	w.step(func() (*cloud.Question, error) { return w.p.u.cloud.ContinueRemote(name, state, v) })
+	w.step(func() (*cloud.Question, error) { return w.p.u.Cloud().ContinueRemote(name, state, v) })
 }
 
 func (w *remoteWizard) renderQuestion(errText string) {
@@ -453,3 +456,6 @@ func (w *remoteWizard) renderQuestion(errText string) {
 	objs = append(objs, kit.HBox(widget.NewButton(lang.L("Cancel"), w.close), kit.Primary(lang.L("Continue"), func() { w.reply(answer) })))
 	w.set(objs...)
 }
+
+// Redraw draws the page again from its state (env.Redrawable).
+func (p *cloudPage) Redraw() { p.render() }

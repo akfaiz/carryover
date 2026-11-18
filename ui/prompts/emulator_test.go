@@ -1,4 +1,4 @@
-package ui
+package prompts
 
 import (
 	"testing"
@@ -11,20 +11,81 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/akfaiz/carryover/internal/core"
-	"github.com/akfaiz/carryover/internal/ui/kit"
 	"github.com/akfaiz/carryover/services"
+	"github.com/akfaiz/carryover/ui/env"
+	"github.com/akfaiz/carryover/ui/kit"
 )
+
+// stubEnv is the part of env.Env a prompt uses: the window. Anything else would
+// panic on the nil embedded interface, which is the point.
+type stubEnv struct {
+	env.Env
+	win fyne.Window
+}
+
+func (s stubEnv) Window() fyne.Window { return s.win }
+
+// harness runs the countdown's UI work on the test's own goroutine, like the
+// real app's single UI thread.
+type harness struct {
+	t     *testing.T
+	win   fyne.Window
+	queue chan func()
+}
+
+func newHarness(t *testing.T) *harness {
+	t.Helper()
+	h := &harness{t: t, win: test.NewTempWindow(t, widget.NewLabel("")), queue: make(chan func(), 256)}
+	old := kit.OnUI
+	kit.OnUI = func(f func()) { h.queue <- f }
+	t.Cleanup(func() { kit.OnUI = old })
+	return h
+}
+
+func (h *harness) settle() {
+	for {
+		select {
+		case f := <-h.queue:
+			f()
+		case <-time.After(50 * time.Millisecond):
+			return
+		}
+	}
+}
+
+// widgetsOf lists the widgets of type T under root.
+func widgetsOf[T fyne.CanvasObject](root fyne.CanvasObject) []T {
+	var out []T
+	var walk func(o fyne.CanvasObject)
+	walk = func(o fyne.CanvasObject) {
+		if x, ok := o.(T); ok {
+			out = append(out, x)
+		}
+		switch x := o.(type) {
+		case *fyne.Container:
+			for _, c := range x.Objects {
+				walk(c)
+			}
+		case fyne.Widget:
+			for _, c := range test.WidgetRenderer(x).Objects() {
+				walk(c)
+			}
+		}
+	}
+	walk(root)
+	return out
+}
 
 // emulatorPrompt is a prompt with the game's own launch config and two emulators,
 // Ryujinx being the default, shown in a queue like the real one.
-func emulatorPrompt(h *harness, seconds int) (*promptQueue, services.Prompt, <-chan string, fyne.CanvasObject) {
+func emulatorPrompt(h *harness, seconds int) (*Queue, services.Prompt, <-chan string, fyne.CanvasObject) {
 	p := services.Prompt{
 		ID: "p1", Kind: "emulator", GameName: "Game A", Default: "ryu", Seconds: seconds,
 		Choices: []services.ProfileChoice{{ID: core.NativeProfile, Name: "Without an emulator"}, {ID: "eden", Name: "Eden"}, {ID: "ryu", Name: "Ryujinx"}},
 	}
-	q := &promptQueue{u: h.u, queue: []services.Prompt{p}}
+	q := &Queue{e: stubEnv{win: h.win}, queue: []services.Prompt{p}}
 	answers := make(chan string, 4)
-	body, _ := q.emulatorChoice(p, func(a string) { answers <- a }, kit.NewNav(h.u.win, func() {}))
+	body, _ := q.emulatorChoice(p, func(a string) { answers <- a }, kit.NewNav(h.win, func() {}))
 	return q, p, answers, body
 }
 

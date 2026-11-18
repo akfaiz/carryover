@@ -11,8 +11,9 @@ import (
 	"fyne.io/fyne/v2/widget"
 
 	"github.com/akfaiz/carryover/internal/library"
-	"github.com/akfaiz/carryover/internal/ui/kit"
 	"github.com/akfaiz/carryover/services"
+	"github.com/akfaiz/carryover/ui/components"
+	"github.com/akfaiz/carryover/ui/kit"
 )
 
 // emuForm is the editable state of one emulator a game is set up with: the
@@ -230,7 +231,7 @@ func (e *editor) emulatorsCard() fyne.CanvasObject {
 		}
 	}
 	c := kit.VBox(kit.CardHead(lang.L("Emulators")))
-	c.Add(e.u.help(lang.L("Add each emulator you use for this game. Each keeps its own saves in the cloud."),
+	c.Add(components.Help(e.u, lang.L("Add each emulator you use for this game. Each keeps its own saves in the cloud."),
 		lang.L("Every emulator keeps its own save locations and its own cloud save, so progress is never mixed between emulators. The same emulator on another device shares it. The game file is asked for each emulator because its format or folder can differ; it is filled in from the first one.")))
 	// A new emulator is set up in a dialog, so nothing typed here is lost.
 	newEmu := widget.NewButtonWithIcon(lang.L("New emulator…"), theme.ContentAddIcon(), func() {
@@ -311,7 +312,7 @@ func (e *editor) emulatorPanel(m *emuForm, onRemove func()) fyne.CanvasObject {
 		// this emulator's ("Suggest" fills in its own path for each of them).
 		for _, s := range m.slots {
 			c.Add(kit.Field(lang.L("Path on this device: {{.Label}}", map[string]any{"Label": labelOf(s.label, s.key)}),
-				newPathInput(e.u, e.id, e.tokens, s.path, "{appdata}/Game/Saves", func(v string) { s.path = v })))
+				components.NewPathInput(e.u, e.id, e.tokens, s.path, "{appdata}/Game/Saves", func(v string) { s.path = v })))
 		}
 		return kit.Panel(c)
 	}

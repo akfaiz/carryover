@@ -10,8 +10,10 @@ import (
 	"fyne.io/fyne/v2/theme"
 	"fyne.io/fyne/v2/widget"
 
-	"github.com/akfaiz/carryover/internal/ui/kit"
 	"github.com/akfaiz/carryover/services"
+	"github.com/akfaiz/carryover/ui/components"
+	"github.com/akfaiz/carryover/ui/env"
+	"github.com/akfaiz/carryover/ui/kit"
 )
 
 // gameTile is a library grid entry: cover, name and sync status (click to
@@ -20,7 +22,7 @@ import (
 // rebuild the grid and reload every cover.
 type gameTile struct {
 	kit.Composite
-	u        *UI
+	u        env.Env
 	g        services.GameView
 	coverKey string
 	cover    *fyne.Container
@@ -30,13 +32,13 @@ type gameTile struct {
 	open     *kit.Tappable // cover, name and status: opens the game
 }
 
-func newGameTile(u *UI, g services.GameView) *gameTile {
+func newGameTile(u env.Env, g services.GameView) *gameTile {
 	t := &gameTile{u: u, cover: container.NewStack(), status: kit.HBox()}
 	t.name = widget.NewLabelWithStyle("", fyne.TextAlignLeading, fyne.TextStyle{Bold: true})
 	t.play = widget.NewButton("", t.playTapped)
 	// Long names get a second line rather than a tooltip: there is no hover
 	// on a Steam Deck.
-	t.open = kit.NewTappable(kit.VBox(t.cover, kit.TwoLines(t.name), t.status), func() { u.navigate("/game/" + t.g.ID) })
+	t.open = kit.NewTappable(kit.VBox(t.cover, kit.TwoLines(t.name), t.status), func() { u.Navigate("/game/" + t.g.ID) })
 	// One Play per game: tinted, so a full grid isn't a wall of solid blue.
 	t.Init(t, kit.VBox(t.open, kit.Tonal(t.play)))
 	t.set(g)
@@ -55,9 +57,9 @@ func (t *gameTile) set(g services.GameView) {
 	t.name.SetText(g.Name)
 	when := ""
 	if g.Ready {
-		when = timeAgo(g.Status.LastSyncAt)
+		when = components.TimeAgo(g.Status.LastSyncAt)
 	}
-	t.status.Objects = []fyne.CanvasObject{statusBadge(g), kit.Small(when)}
+	t.status.Objects = []fyne.CanvasObject{components.StatusBadge(g), kit.Small(when)}
 	t.status.Refresh()
 
 	label, icon, imp, enabled := lang.L("Play"), theme.MediaPlayIcon(), widget.HighImportance, true
@@ -81,37 +83,37 @@ func (t *gameTile) playTapped() {
 	u, g := t.u, t.g
 	switch {
 	case !g.Ready:
-		u.navigate("/edit/" + g.ID)
+		u.Navigate("/edit/" + g.ID)
 	case g.Device.LaunchMode == "steamwrap":
 		openSteam(u, g)
 	default:
 		t.play.Disable()
 		// A game that can be played in several ways asks which one in a dialog.
-		kit.Async0(func() error { return u.sess.Play(g.ID) }, func(err error) {
+		kit.Async0(func() error { return u.Sess().Play(g.ID) }, func(err error) {
 			if err != nil {
-				u.toastErr(err)
+				u.ToastErr(err)
 				t.play.Enable()
 				return
 			}
-			u.navigate("/game/" + g.ID)
+			u.Navigate("/game/" + g.ID)
 		})
 	}
 }
 
 // openSteam asks Steam to start a game that Steam launches on this device.
-func openSteam(u *UI, g services.GameView) {
+func openSteam(u env.Env, g services.GameView) {
 	link := services.SteamRunURL(g)
 	if link == "" {
-		u.toast(lang.L("Steam can't start this game yet: add it to Steam on the game's page."), kit.ToastErr)
+		u.Toast(lang.L("Steam can't start this game yet: add it to Steam on the game's page."), kit.ToastErr)
 		return
 	}
 	pu, err := url.Parse(link)
 	if err == nil {
-		err = u.app.OpenURL(pu)
+		err = u.App().OpenURL(pu)
 	}
 	if err != nil {
-		u.toastErr(err)
+		u.ToastErr(err)
 		return
 	}
-	u.toast(lang.L("Starting {{.Game}} in Steam…", map[string]any{"Game": g.Name}), kit.ToastInfo)
+	u.Toast(lang.L("Starting {{.Game}} in Steam…", map[string]any{"Game": g.Name}), kit.ToastInfo)
 }

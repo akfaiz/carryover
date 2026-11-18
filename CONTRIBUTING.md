@@ -127,11 +127,10 @@ above (`core` is the top):
 - `internal/app/`: application plumbing: `appdir` (data dir, settings), `applog` (log file), `version`,
   `singleinstance`, `detach` (starts the session watcher outside Steam's process tree) and `notify` (desktop
   notifications)
-- `internal/ui/kit`: reusable Fyne widgets, layouts, palette and theme, toaster and image cache. Pure Fyne: no
-  `lang`, `services` or `core` imports and no user-visible text (callers pass labels in). It exports freely; being
-  under `internal/` it is not public API
 - `services/`: API used by the GUI
 - `ui/`: Fyne GUI: the pages, and everything that knows about games, services or translations
+- `ui/kit`: reusable Fyne widgets, layouts, palette and theme, toaster and image cache. Pure Fyne: no
+  `lang`, `services` or `core` imports and no user-visible text (callers pass labels in). It exports freely
 
 See `CLAUDE.md` for detailed notes on threading, rclone behaviour and platform rules.
 

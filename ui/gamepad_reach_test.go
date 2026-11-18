@@ -9,22 +9,23 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/akfaiz/carryover/internal/ui/kit"
 	"github.com/akfaiz/carryover/services"
+	"github.com/akfaiz/carryover/ui/components"
+	"github.com/akfaiz/carryover/ui/kit"
 )
 
 // reachable walks the D-pad from start in every direction and returns every
 // control it gets to.
 func reachable(h *harness, start fyne.Focusable) map[fyne.Focusable]bool {
-	c := h.u.win.Canvas()
+	c := h.u.Window().Canvas()
 	seen := map[fyne.Focusable]bool{start: true}
 	queue := []fyne.Focusable{start}
 	for len(queue) > 0 {
 		from := queue[0]
 		queue = queue[1:]
 		for _, dir := range []kit.PadAction{kit.PadUp, kit.PadDown, kit.PadLeft, kit.PadRight} {
-			h.u.nav.Focus(from) // scrolled into view, as when the D-pad got there
-			h.u.nav.Apply(dir)
+			h.u.Navigator().Focus(from) // scrolled into view, as when the D-pad got there
+			h.u.Navigator().Apply(dir)
 			if to := c.Focused(); to != nil && !seen[to] {
 				seen[to] = true
 				queue = append(queue, to)
@@ -59,8 +60,8 @@ func TestGamepadReachesEveryControl(t *testing.T) {
 	g, _, _ := h.addEmulatorGame()
 	plain := h.addGame("Celeste", t.TempDir())
 	gone := h.addGame("Hades", t.TempDir())
-	require.NoError(t, h.u.lib.Delete(gone.ID)) // something in the trash
-	h.u.refresh()
+	require.NoError(t, h.u.Lib().Delete(gone.ID)) // something in the trash
+	h.u.Store().Refresh()
 	h.settle()
 	for _, route := range []string{
 		"/", "/game/" + g.ID, "/game/" + plain.ID, "/edit/" + g.ID, "/edit/" + plain.ID,
@@ -68,12 +69,12 @@ func TestGamepadReachesEveryControl(t *testing.T) {
 	} {
 		t.Run(route, func(t *testing.T) {
 			h.open(route)
-			h.u.nav.FocusDefault()
-			start := h.u.win.Canvas().Focused()
+			h.u.Navigator().FocusDefault()
+			start := h.u.Window().Canvas().Focused()
 			require.NotNil(t, start)
 			got := reachable(h, start)
 			var missed []string
-			for _, f := range kit.Focusables(h.u.win.Content()) {
+			for _, f := range kit.Focusables(h.u.Window().Content()) {
 				if !got[f] {
 					missed = append(missed, describe(f))
 				}
@@ -91,12 +92,12 @@ func TestGamepadReachesDialogControls(t *testing.T) {
 		"SteamGridDB key": func(h *harness) { showGridKeyDialog(h.u, nil) },
 		"add emulator":    func(h *harness) { showEmulatorDialog(h.u, func(services.EmulatorView) {}) },
 		"add remote":      func(h *harness) { newRemoteWizard(&cloudPage{u: h.u}).show() },
-		"discard changes": func(h *harness) { confirmDiscard(h.u, func() {}) },
+		"discard changes": func(h *harness) { components.ConfirmDiscard(h.u, func() {}) },
 		"confirm a delete": func(h *harness) {
-			confirmDanger(h.u, confirmOpts{title: "Delete?", message: "Sure?", onConfirm: func(bool) {}})
+			components.ConfirmDanger(h.u, components.ConfirmOpts{Title: "Delete?", Message: "Sure?", OnConfirm: func(bool) {}})
 		},
 		"confirm with more": func(h *harness) {
-			confirmDanger(h.u, confirmOpts{title: "Delete?", message: "Sure?", check: "Saves too", onConfirm: func(bool) {}})
+			components.ConfirmDanger(h.u, components.ConfirmOpts{Title: "Delete?", Message: "Sure?", Check: "Saves too", OnConfirm: func(bool) {}})
 		},
 	}
 	for name, open := range cases {
@@ -104,11 +105,11 @@ func TestGamepadReachesDialogControls(t *testing.T) {
 			h := newHarness(t)
 			open(h)
 			h.settle()
-			c := h.u.win.Canvas()
+			c := h.u.Window().Canvas()
 			top := c.Overlays().Top()
 			require.NotNil(t, top)
 			if c.Focused() == nil {
-				h.u.nav.Apply(kit.PadDown) // the first press picks where to start
+				h.u.Navigator().Apply(kit.PadDown) // the first press picks where to start
 			}
 			start := c.Focused()
 			require.NotNil(t, start)
@@ -121,7 +122,7 @@ func TestGamepadReachesDialogControls(t *testing.T) {
 			}
 			assert.Empty(t, missed, "not reachable with the D-pad")
 
-			h.u.nav.Apply(kit.PadBack)
+			h.u.Navigator().Apply(kit.PadBack)
 			h.settle()
 			assert.Empty(t, c.Overlays().List(), "B closes it")
 		})
@@ -134,14 +135,14 @@ func TestGamepadBackAsksBeforeDroppingAnEmulator(t *testing.T) {
 	h := newHarness(t)
 	showEmulatorDialog(h.u, func(services.EmulatorView) {})
 	h.settle()
-	c := h.u.win.Canvas()
+	c := h.u.Window().Canvas()
 	for _, e := range overlayWidgets[*widget.Entry](h) {
 		e.SetText("Eden")
 		break
 	}
-	h.u.nav.Apply(kit.PadBack)
+	h.u.Navigator().Apply(kit.PadBack)
 	require.Len(t, c.Overlays().List(), 2, "Discard changes? opens over the form")
 	assert.Contains(t, overlayText(h), "Your changes on this page haven't been saved.")
-	h.u.nav.Apply(kit.PadBack)
+	h.u.Navigator().Apply(kit.PadBack)
 	assert.Len(t, c.Overlays().List(), 1, "B keeps editing")
 }

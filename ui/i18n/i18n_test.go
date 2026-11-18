@@ -1,11 +1,12 @@
-package ui
+package i18n
 
 import (
 	"encoding/json"
 	"go/ast"
 	"go/parser"
 	"go/token"
-	"os"
+	"io/fs"
+	"path/filepath"
 	"regexp"
 	"slices"
 	"strconv"
@@ -26,14 +27,12 @@ func TestTranslationCatalog(t *testing.T) {
 	var catalog map[string]json.RawMessage
 	require.NoError(t, json.Unmarshal(data, &catalog))
 
-	entries, err := os.ReadDir(".")
-	require.NoError(t, err)
 	fset := token.NewFileSet()
-	for _, e := range entries {
-		if !strings.HasSuffix(e.Name(), ".go") || strings.HasSuffix(e.Name(), "_test.go") {
-			continue
+	err = filepath.WalkDir("..", func(path string, e fs.DirEntry, err error) error {
+		if err != nil || e.IsDir() || !strings.HasSuffix(path, ".go") || strings.HasSuffix(path, "_test.go") {
+			return err
 		}
-		f, err := parser.ParseFile(fset, e.Name(), nil, 0)
+		f, err := parser.ParseFile(fset, path, nil, 0)
 		require.NoError(t, err)
 		ast.Inspect(f, func(n ast.Node) bool {
 			call, ok := n.(*ast.CallExpr)
@@ -56,11 +55,13 @@ func TestTranslationCatalog(t *testing.T) {
 			assert.Contains(t, catalog, key, "%s: missing from translations/en.json", fset.Position(call.Pos()))
 			return true
 		})
-	}
+		return nil
+	})
+	require.NoError(t, err)
 }
 
 func TestPluralForms(t *testing.T) {
-	initTranslations("")
+	Init("")
 	for n, want := range map[int]string{0: "Synced 0 games", 1: "Synced 1 game", 2: "Synced 2 games"} {
 		got := lang.N("Synced {{.Count}} game", n, map[string]any{"Count": n})
 		assert.Equal(t, want, got, "N(%d)", n)
@@ -96,12 +97,12 @@ func TestLanguageCatalogsMatchEnglish(t *testing.T) {
 		return slices.Compact(out)
 	}
 	en := load("en")
-	for _, o := range languageOptions() {
-		if o.code == "en" {
+	for _, o := range Options() {
+		if o.Code == "en" {
 			continue
 		}
-		t.Run(o.code, func(t *testing.T) {
-			cat := load(o.code)
+		t.Run(o.Code, func(t *testing.T) {
+			cat := load(o.Code)
 			for key, raw := range en {
 				tr, ok := cat[key]
 				if !assert.True(t, ok, "missing: %q", key) {

@@ -8,8 +8,10 @@ import (
 	"fyne.io/fyne/v2/widget"
 
 	"github.com/akfaiz/carryover/internal/saves/pathvar"
-	"github.com/akfaiz/carryover/internal/ui/kit"
 	"github.com/akfaiz/carryover/services"
+	"github.com/akfaiz/carryover/ui/components"
+	"github.com/akfaiz/carryover/ui/env"
+	"github.com/akfaiz/carryover/ui/kit"
 )
 
 // slotForm is the editable state of one save location.
@@ -34,7 +36,7 @@ type slotEditor struct{ kit.Composite }
 // newSlotEditor builds the editor for s. uniqueKey derives a key that is free
 // among the other slots; a nil onRemove hides the delete button. pathChanged
 // (if set) is told when the path on this device changes.
-func newSlotEditor(u *UI, gameID string, tokens []pathvar.Token, s *slotForm, others []services.DevicePaths,
+func newSlotEditor(u env.Env, gameID string, tokens []pathvar.Token, s *slotForm, others []services.DevicePaths,
 	uniqueKey func(base string, self *slotForm) string, onRemove, pathChanged func()) *slotEditor {
 	label := widget.NewEntry()
 	label.SetPlaceHolder(lang.L("Label"))
@@ -54,7 +56,7 @@ func newSlotEditor(u *UI, gameID string, tokens []pathvar.Token, s *slotForm, ot
 
 	c := kit.VBox(
 		kit.RowFill(label, right...),
-		kit.Field(lang.L("Path on this device"), newPathInput(u, gameID, tokens, s.path, "{appdata}/Game/Saves", func(v string) {
+		kit.Field(lang.L("Path on this device"), components.NewPathInput(u, gameID, tokens, s.path, "{appdata}/Game/Saves", func(v string) {
 			s.path = v
 			if pathChanged != nil {
 				pathChanged()

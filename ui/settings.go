@@ -16,19 +16,22 @@ import (
 	"github.com/akfaiz/carryover/internal/app/appdir"
 	"github.com/akfaiz/carryover/internal/app/version"
 	"github.com/akfaiz/carryover/internal/cloudsync/syncer"
-	"github.com/akfaiz/carryover/internal/ui/kit"
+	"github.com/akfaiz/carryover/ui/components"
+	"github.com/akfaiz/carryover/ui/env"
+	"github.com/akfaiz/carryover/ui/i18n"
+	"github.com/akfaiz/carryover/ui/kit"
 )
 
 type settingsPage struct {
-	u *UI
+	u env.Env
 }
 
-func newSettingsPage(u *UI) *settingsPage { return &settingsPage{u: u} }
+func newSettingsPage(u env.Env) *settingsPage { return &settingsPage{u: u} }
 
-func (p *settingsPage) view() fyne.CanvasObject {
+func (p *settingsPage) View() fyne.CanvasObject {
 	u := p.u
 	scroll := kit.ScrollPage(kit.Muted(lang.L("Loading…")))
-	kit.Async(func() (appdir.Settings, error) { return u.sync.GetSettings(), nil }, func(st appdir.Settings, _ error) {
+	kit.Async(func() (appdir.Settings, error) { return u.Sync().GetSettings(), nil }, func(st appdir.Settings, _ error) {
 		kit.ReplaceScroll(scroll, p.form(st))
 	})
 	return scroll
@@ -93,11 +96,11 @@ func (p *settingsPage) form(st appdir.Settings) fyne.CanvasObject {
 	// The language applies at the next start (Fyne picks its translations once).
 	langs := &kit.Choice{}
 	langs.Add("", lang.L("System"))
-	for _, o := range languageOptions() {
-		langs.Add(o.code, o.name)
+	for _, o := range i18n.Options() {
+		langs.Add(o.Code, o.Name)
 	}
 	langNote := kit.Muted(lang.L("Restart Carryover to apply the language."))
-	showLangNote := func(code string) { kit.SetVisible(langNote, code != startLanguage) }
+	showLangNote := func(code string) { kit.SetVisible(langNote, code != i18n.Started()) }
 	showLangNote(st.Language)
 	langSel := kit.SelectOf(langs, st.Language, func(v string) {
 		showLangNote(v)
@@ -117,7 +120,7 @@ func (p *settingsPage) form(st appdir.Settings) fyne.CanvasObject {
 	key.SetText(st.SteamGridDBKey)
 	keyTest := kit.NewTestButton(lang.L("Test"), lang.L("Key works."), lang.L("Testing…"), func() func() error {
 		k := key.Text
-		return func() error { return u.lib.TestSteamGridKey(k) }
+		return func() error { return u.Lib().TestSteamGridKey(k) }
 	})
 	keyTest.SetAllowed(st.SteamGridDBKey != "")
 	keyToSave := st.SteamGridDBKey
@@ -181,26 +184,26 @@ func (p *settingsPage) form(st appdir.Settings) fyne.CanvasObject {
 		}
 		next, ok, err := collect()
 		if err != nil {
-			u.toastErr(err)
+			u.ToastErr(err)
 		}
 		if !ok || next == st {
 			return
 		}
 		saving = true
-		kit.Async(func() (appdir.Settings, error) { return u.sync.SaveSettings(next) }, func(saved appdir.Settings, err error) {
+		kit.Async(func() (appdir.Settings, error) { return u.Sync().SaveSettings(next) }, func(saved appdir.Settings, err error) {
 			saving = false
 			if err != nil {
-				u.toastErr(err)
+				u.ToastErr(err)
 				return
 			}
 			themeChanged := saved.Theme != st.Theme
 			st = saved
 			keyToSave = saved.SteamGridDBKey
 			keyDirty()
-			u.refresh()
+			u.Store().Refresh()
 			showSaved()
 			if themeChanged {
-				u.applyTheme(saved.Theme)
+				u.ApplyTheme(saved.Theme)
 				return // the page is built again
 			}
 			if dirty {
@@ -246,33 +249,33 @@ func gridKeyHelp() string {
 // showGridKeyDialog asks for the SteamGridDB key in a dialog, for pages that
 // shouldn't be left to go to Settings (the game editor). onSaved runs once it
 // is stored.
-func showGridKeyDialog(u *UI, onSaved func()) {
+func showGridKeyDialog(u env.Env, onSaved func()) {
 	key := widget.NewPasswordEntry()
 	key.SetPlaceHolder(lang.L("Paste your key"))
 	keyTest := kit.NewTestButton(lang.L("Test"), lang.L("Key works."), lang.L("Testing…"), func() func() error {
 		k := strings.TrimSpace(key.Text)
-		return func() error { return u.lib.TestSteamGridKey(k) }
+		return func() error { return u.Lib().TestSteamGridKey(k) }
 	})
 	keyTest.SetAllowed(false)
-	var d dialogHider
+	var d components.DialogHider
 	save := kit.Primary(lang.L("Save"), nil)
 	save.Disable()
 	save.OnTapped = func() {
 		k := strings.TrimSpace(key.Text)
 		save.Disable()
 		kit.Async(func() (appdir.Settings, error) {
-			st := u.sync.GetSettings()
+			st := u.Sync().GetSettings()
 			st.SteamGridDBKey = k
-			return u.sync.SaveSettings(st)
+			return u.Sync().SaveSettings(st)
 		}, func(_ appdir.Settings, err error) {
 			if err != nil {
-				u.toastErr(err)
+				u.ToastErr(err)
 				save.Enable()
 				return
 			}
 			d.Hide()
-			u.refresh()
-			u.toast(lang.L("SteamGridDB key saved"), kit.ToastOK)
+			u.Store().Refresh()
+			u.Toast(lang.L("SteamGridDB key saved"), kit.ToastOK)
 			onSaved()
 		})
 	}
@@ -283,12 +286,12 @@ func showGridKeyDialog(u *UI, onSaved func()) {
 	}
 	body := kit.VBox(kit.Muted(gridKeyHelp()), kit.RowFill(key, keyTest.Button), keyTest.Result,
 		kit.HBox(layout.NewSpacer(), widget.NewButton(lang.L("Cancel"), func() { d.Hide() }), save))
-	d = showCustom(u, lang.L("SteamGridDB API key"), body, 540)
+	d = components.ShowCustom(u, lang.L("SteamGridDB API key"), body, 540)
 }
 
 // aboutCard shows which build is running, with links to its release notes
 // and the source code, and the folder of the log to attach to bug reports.
-func aboutCard(u *UI) fyne.CanvasObject {
+func aboutCard(u env.Env) fyne.CanvasObject {
 	info := version.Get()
 	title := lang.L("Development build")
 	notes := lang.L("All releases")
@@ -308,9 +311,9 @@ func aboutCard(u *UI) fyne.CanvasObject {
 		widget.NewHyperlink(notes, kit.MustURL(info.ReleaseURL())),
 		widget.NewHyperlink(lang.L("Source code"), kit.MustURL(version.RepoURL)),
 	))
-	logs := u.c.Dirs.LogsDir()
+	logs := u.Core().Dirs.LogsDir()
 	objs = append(objs,
-		kit.HBox(widget.NewButtonWithIcon(lang.L("Open logs folder"), theme.FolderOpenIcon(), func() { u.openFolder(logs) })),
+		kit.HBox(widget.NewButtonWithIcon(lang.L("Open logs folder"), theme.FolderOpenIcon(), func() { u.OpenFolder(logs) })),
 		kit.Muted(lang.L("When reporting a problem, attach carryover.log from this folder (and carryover.1.log if it happened a while ago).")))
 	return kit.Card(lang.L("About Carryover"), objs...)
 }

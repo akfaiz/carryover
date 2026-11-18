@@ -1,6 +1,6 @@
 //go:build !windows
 
-package ui
+package shell
 
 import (
 	"os"

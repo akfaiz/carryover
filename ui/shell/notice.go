@@ -1,30 +1,18 @@
-package ui
+package shell
 
 import (
-	"sync"
-
 	"fyne.io/fyne/v2/lang"
 
 	"github.com/akfaiz/carryover/internal/core"
-	"github.com/akfaiz/carryover/internal/ui/kit"
+	"github.com/akfaiz/carryover/ui/i18n"
+	"github.com/akfaiz/carryover/ui/kit"
 )
-
-var translationsOnce sync.Once
-
-// loadTranslations registers the catalogs for the language setting, once per
-// process (the GUI at startup, the session watcher before its notification).
-func loadTranslations(language string) {
-	translationsOnce.Do(func() {
-		startLanguage = language
-		initTranslations(language)
-	})
-}
 
 // NoticeText is the desktop notification for what the session watcher did, in
 // the language chosen in Settings. The watcher has no window: it calls this
 // before sending the notification.
 func NoticeText(c *core.Core, n core.Notice) (title, body string) {
-	loadTranslations(c.Settings.Get().Language)
+	i18n.Load(c.Settings.Get().Language)
 	return "Carryover", noticeBody(n)
 }
 
@@ -50,7 +38,7 @@ func noticeToastKind(k core.NoticeKind) kit.ToastKind {
 
 // showNotices shows, once, what session watchers did while no notification
 // could be shown (e.g. in Steam Deck Game Mode).
-func (u *UI) showNotices() {
+func (u *Shell) showNotices() {
 	go func() {
 		notices := u.sync.TakeNotices()
 		if len(notices) == 0 {
