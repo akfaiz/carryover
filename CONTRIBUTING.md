@@ -128,11 +128,40 @@ above (`core` is the top):
   `singleinstance`, `detach` (starts the session watcher outside Steam's process tree) and `notify` (desktop
   notifications)
 - `services/`: API used by the GUI
-- `ui/`: Fyne GUI: the pages, and everything that knows about games, services or translations
-- `ui/kit`: reusable Fyne widgets, layouts, palette and theme, toaster and image cache. Pure Fyne: no
-  `lang`, `services` or `core` imports and no user-visible text (callers pass labels in). It exports freely
+- `ui/`: the Fyne GUI, split by role (see "UI architecture" below)
 
 See `CLAUDE.md` for detailed notes on threading, rclone behaviour and platform rules.
+
+## UI architecture
+
+The GUI is MVVM-lite with one-way data flow:
+
+```
+services.Bus -> store (shared state) -> ViewModel (page rules, no widgets) -> view (Fyne widgets)
+                         ^                                     | commands
+                         +----------- services <---------------+
+```
+
+| Package | Role |
+| --- | --- |
+| `ui/kit` | Reusable Fyne widgets, layouts, palette and theme, toaster, image cache. Pure Fyne: no `lang`, `services` or `core` imports and no user-visible text (callers pass labels in). |
+| `ui/i18n` | Translation catalogs (`translations/*.json`) and their loading. |
+| `ui/store` | The state every page shares (games, settings, session status, transfer progress, "Sync all"). The only listener of `services.Bus`; pages subscribe by topic. |
+| `ui/env` | What a page may use of the app: `env.Env` (window, services, store, navigation, toasts) and the page contracts (`Page`, `Stateful`, `Guarded`, `Searchable`, `Syncable`, `PadFocuser`, `Redrawable`). |
+| `ui/components` | Shared widgets and dialogs that know about the app (help text, confirm dialogs, path input, status badges). |
+| `ui/prompts` | The session prompt dialogs (conflict, lock, error, which emulator). |
+| `ui/pages/<name>` | One page: `viewmodel.go` (state and rules; no `widget`, `container`, `canvas`, `dialog` or `app` imports; reads small interfaces, not `*services.X`) and `view.go` (builds the widgets once, redraws from the ViewModel). `pages/library` is the reference. |
+| `ui/shell` | The main window: sidebar, router, shortcuts, gamepad, toasts, notices and the session wrapper window. Implements `env.Env`. Knows no page: the root plugs them in through `shell.Config`. |
+| `ui` (root) | Composition root: `Run`, the route table (`routes.go`) and the pages not moved yet. |
+| `ui/internal/uitest` | Headless test harness shared by page tests. |
+
+Imports go one way: `kit`, `i18n` <- `store` <- `env` <- `components`, `prompts` <- `pages/*` <- `shell` <- `ui`. A page never imports `shell` or another page; it opens one with `env.Navigate("/game/<id>")`. Pages not moved yet still live in the root package and follow the same rules.
+
+When you add or change a page:
+
+- Put anything that can be decided without a widget (what shows, in which order, which empty state, what a button does) in the ViewModel and test it with fakes; keep widgets in the view.
+- The ViewModel exposes plain state (enums, counts, `[]services.GameView`). The view turns it into text with `lang.L`.
+- Touch widgets only on the UI goroutine; I/O goes through `kit.Async`.
 
 ## Cloud layout
 

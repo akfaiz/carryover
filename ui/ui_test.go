@@ -22,6 +22,7 @@ import (
 	"github.com/akfaiz/carryover/ui/components"
 	"github.com/akfaiz/carryover/ui/internal/uitest"
 	"github.com/akfaiz/carryover/ui/kit"
+	cloudpage "github.com/akfaiz/carryover/ui/pages/cloud"
 	"github.com/akfaiz/carryover/ui/shell"
 	"github.com/akfaiz/carryover/ui/store"
 )
@@ -96,7 +97,7 @@ func TestPagesRender(t *testing.T) {
 	settle()
 	showSyncProblems(u, 3, []services.SyncResult{{GameID: g.ID, Name: g.Name, Action: "conflict"}, {GameID: g.ID, Name: "Other", Error: "boom"}})
 	settle()
-	showGridKeyDialog(u, func() {})
+	components.ShowGridKeyDialog(u, func() {})
 	settle()
 	components.ConfirmDanger(u, components.ConfirmOpts{Title: "Delete", Message: "Sure?", Check: "Also the saves", Checked: "Really?", KeptHint: "Kept.", OnConfirm: func(bool) {}})
 	settle()
@@ -195,9 +196,7 @@ func TestCloudActiveBadgeFollowsSavedRemote(t *testing.T) {
 	require.Equal(t, "one", activeRow())
 
 	// Pick "two" and save, as the user does.
-	p := u.Page().(*cloudPage)
-	p.remote = "two"
-	p.saveTarget()
+	u.Page().(*cloudpage.Page).UseLocation("two")
 	settle()
 	require.Equal(t, "two", activeRow())
 }

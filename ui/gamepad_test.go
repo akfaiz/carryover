@@ -10,6 +10,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/akfaiz/carryover/ui/kit"
+	libpage "github.com/akfaiz/carryover/ui/pages/library"
 	"github.com/akfaiz/carryover/ui/shell"
 )
 
@@ -47,20 +48,20 @@ func TestGamepadStartsOnTheFirstGame(t *testing.T) {
 	h.open("/")
 
 	h.u.Navigator().FocusDefault()
-	tiles := pageWidgets[*gameTile](h)
+	tiles := pageWidgets[*libpage.Tile](h)
 	require.NotEmpty(t, tiles)
-	var first *gameTile
+	var first *libpage.Tile
 	for _, tile := range tiles {
-		if tile.g.Name == "Celeste" {
+		if tile.Game().Name == "Celeste" {
 			first = tile
 		}
 	}
 	require.NotNil(t, first)
-	require.Same(t, first.open, h.u.Window().Canvas().Focused(), "sorted by name: Celeste first")
+	require.Same(t, first.Open(), h.u.Window().Canvas().Focused(), "sorted by name: Celeste first")
 
 	h.u.Navigator().Apply(kit.PadAccept)
 	h.settle()
-	require.Equal(t, "/game/"+first.g.ID, h.u.Route())
+	require.Equal(t, "/game/"+first.Game().ID, h.u.Route())
 	h.u.Navigator().FocusDefault()
 	b, ok := h.u.Window().Canvas().Focused().(*widget.Button)
 	require.True(t, ok)

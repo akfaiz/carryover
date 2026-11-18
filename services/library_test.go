@@ -175,3 +175,22 @@ func TestViewWithShortDeviceID(t *testing.T) {
 	require.Len(t, v.OtherDevices, 1)
 	require.Equal(t, "abc", v.OtherDevices[0].DeviceName)
 }
+
+func TestGameViewNeedsAttention(t *testing.T) {
+	ok := GameView{Ready: true}
+	assert.False(t, ok.NeedsAttention(), "set up and synced")
+
+	notReady := GameView{}
+	assert.True(t, notReady.NeedsAttention(), "not set up on this device")
+
+	for name, st := range map[string]GameStatus{
+		"conflict":      {Conflict: true},
+		"error":         {LastError: "offline"},
+		"local changes": {LocalChanges: true},
+	} {
+		g := GameView{Ready: true, Overall: st}
+		assert.True(t, g.NeedsAttention(), name)
+		g.Overall.Running = true
+		assert.False(t, g.NeedsAttention(), name+" while running")
+	}
+}

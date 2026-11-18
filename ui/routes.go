@@ -4,6 +4,13 @@ import (
 	"strings"
 
 	"github.com/akfaiz/carryover/ui/env"
+	"github.com/akfaiz/carryover/ui/pages/cloud"
+	"github.com/akfaiz/carryover/ui/pages/editor"
+	"github.com/akfaiz/carryover/ui/pages/emulators"
+	"github.com/akfaiz/carryover/ui/pages/game"
+	"github.com/akfaiz/carryover/ui/pages/library"
+	"github.com/akfaiz/carryover/ui/pages/settings"
+	"github.com/akfaiz/carryover/ui/pages/trash"
 )
 
 // pageFor builds the page of a route. Anything unknown is the library.
@@ -23,25 +30,23 @@ func pageFor(u env.Env, path string) env.Page {
 	}
 	switch {
 	case arg(0) == "game" && arg(1) != "":
-		return newGameDetail(u, arg(1))
+		return game.New(u, arg(1))
 	case arg(0) == "edit" && arg(1) != "":
-		return newEditor(u, arg(1), "")
+		return editor.New(u, arg(1), "")
 	case arg(0) == "new" && arg(1) == "steam" && arg(2) != "":
-		return newEditor(u, "", arg(2))
+		return editor.New(u, "", arg(2))
 	case arg(0) == "new" && arg(1) == "emulator":
-		e := newEditor(u, "", "")
-		e.kind = kindEmulator
-		return e
+		return editor.NewEmulated(u)
 	case arg(0) == "new":
-		return newEditor(u, "", "")
+		return editor.New(u, "", "")
 	case arg(0) == "emulators":
-		return newEmulatorsPage(u)
+		return emulators.New(u)
 	case arg(0) == "cloud":
-		return newCloudPage(u)
+		return cloud.New(u)
 	case arg(0) == "trash":
-		return newTrashPage(u)
+		return trash.New(u)
 	case arg(0) == "settings":
-		return newSettingsPage(u)
+		return settings.New(u, settings.Options{SteamCard: newSelfSteamCard})
 	}
-	return newLibraryPage(u)
+	return library.New(u)
 }

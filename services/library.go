@@ -106,6 +106,17 @@ type GameView struct {
 	Overall GameStatus `json:"overall"`
 }
 
+// NeedsAttention reports whether the game's state asks the user to do
+// something: set it up here, settle a conflict, look at an error or upload
+// saves changed outside Carryover. A running game never does.
+func (g GameView) NeedsAttention() bool {
+	st := g.Overall
+	if st.Running {
+		return false
+	}
+	return !g.Ready || st.Conflict || st.LastError != "" || st.LocalChanges
+}
+
 // ProfileView is one emulator profile of a game, from this device's perspective.
 type ProfileView struct {
 	EmulatorID    string             `json:"emulatorId"`

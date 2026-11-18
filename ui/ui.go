@@ -16,6 +16,7 @@ import (
 	"github.com/akfaiz/carryover/services"
 	"github.com/akfaiz/carryover/ui/i18n"
 	"github.com/akfaiz/carryover/ui/kit"
+	"github.com/akfaiz/carryover/ui/pages/session"
 	"github.com/akfaiz/carryover/ui/shell"
 )
 
@@ -43,7 +44,7 @@ func Run(c *core.Core, wrapGameID string, opts core.RunOptions) int {
 		start(c).RunMain(inst)
 		return 0
 	}
-	return start(c).RunWrapper(newSessionPage, wrapGameID, opts)
+	return start(c).RunWrapper(session.New, wrapGameID, opts)
 }
 
 func start(c *core.Core) *shell.Shell {

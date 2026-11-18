@@ -31,6 +31,7 @@ func (u *Shell) Back()                              { u.back() }
 func (u *Shell) Toast(text string, k kit.ToastKind) { u.toast(text, k) }
 func (u *Shell) ToastErr(err error)                 { u.toastErr(err) }
 func (u *Shell) OpenFolder(path string)             { u.openFolder(path) }
+func (u *Shell) AddGame()                           { u.cfg.AddGame(u) }
 func (u *Shell) SyncAll()                           { u.syncAll() }
 func (u *Shell) ApplyTheme(setting string)          { u.applyTheme(setting) }
 func (u *Shell) ToggleFullScreen()                  { u.toggleFullScreen() }
