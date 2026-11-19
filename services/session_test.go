@@ -16,6 +16,7 @@ import (
 func newWrapper(t *testing.T, gameID string, opts core.RunOptions) (*SessionService, *Bus, <-chan SessionOutcome) {
 	t.Helper()
 	t.Setenv(appdir.EnvHome, t.TempDir())
+	t.Cleanup(background.Wait) // catalog uploads write into the home
 	c, err := core.New()
 	require.NoError(t, err)
 	bus := NewBus()
@@ -50,6 +51,7 @@ func addGame(t *testing.T, s *SessionService) string {
 // In launcher mode there is no wrapper and Start does nothing.
 func TestLauncherModeHasNoWrapper(t *testing.T) {
 	t.Setenv(appdir.EnvHome, t.TempDir())
+	t.Cleanup(background.Wait) // catalog uploads write into the home
 	c, err := core.New()
 	require.NoError(t, err)
 	s := NewSessionService(c, NewBus())
@@ -68,6 +70,7 @@ func TestWrapperRunsCommand(t *testing.T) {
 		t.Skip("uses sh")
 	}
 	t.Setenv(appdir.EnvHome, t.TempDir())
+	t.Cleanup(background.Wait) // catalog uploads write into the home
 	c, err := core.New()
 	require.NoError(t, err)
 	bus := NewBus()
@@ -111,6 +114,7 @@ func TestWrapperUnknownGame(t *testing.T) {
 // A game that is already being played can't be started again.
 func TestPlayRefusesRunningGame(t *testing.T) {
 	t.Setenv(appdir.EnvHome, t.TempDir())
+	t.Cleanup(background.Wait) // catalog uploads write into the home
 	c, err := core.New()
 	require.NoError(t, err)
 	s := NewSessionService(c, NewBus())
@@ -131,6 +135,7 @@ func TestPlayFromLauncher(t *testing.T) {
 		t.Skip("uses sh")
 	}
 	t.Setenv(appdir.EnvHome, t.TempDir())
+	t.Cleanup(background.Wait) // catalog uploads write into the home
 	c, err := core.New()
 	require.NoError(t, err)
 	bus := NewBus()

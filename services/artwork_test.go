@@ -24,6 +24,7 @@ var pngBytes = []byte{
 func newLibEnv(t *testing.T) (*LibraryService, *core.Core, string) {
 	t.Helper()
 	t.Setenv(appdir.EnvHome, t.TempDir())
+	t.Cleanup(background.Wait) // catalog uploads write into the home
 	t.Setenv("CARRYOVER_STEAM_ROOT", t.TempDir())
 	c, err := core.New()
 	require.NoError(t, err)

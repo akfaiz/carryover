@@ -22,6 +22,7 @@ import (
 // empty updatedAt string used to fail time.Time parsing before Save ran).
 func TestSaveNewGameFromEditorPayload(t *testing.T) {
 	t.Setenv(appdir.EnvHome, t.TempDir())
+	t.Cleanup(background.Wait) // catalog uploads write into the home
 	c, err := core.New()
 	require.NoError(t, err)
 	svc := NewLibraryService(c, nil, nil)
@@ -56,6 +57,7 @@ func TestSaveNewGameFromEditorPayload(t *testing.T) {
 func TestSavePublishesLibraryToCloud(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv(appdir.EnvHome, home)
+	t.Cleanup(background.Wait) // catalog uploads write into the home
 	c, err := core.New()
 	require.NoError(t, err)
 	config.FileSetValue("cloud", "type", "local")
@@ -85,6 +87,7 @@ func TestSavePublishesLibraryToCloud(t *testing.T) {
 // A game's view points at its safety copies folder only when it holds copies.
 func TestGameViewSafetyDir(t *testing.T) {
 	t.Setenv(appdir.EnvHome, t.TempDir())
+	t.Cleanup(background.Wait) // catalog uploads write into the home
 	c, err := core.New()
 	require.NoError(t, err)
 	g, err := c.Library.Save(library.Game{Name: "Game A", Slots: []library.SaveSlot{{Key: "saves"}}}, c.DeviceID())
@@ -113,6 +116,7 @@ func TestGameViewSafetyDir(t *testing.T) {
 // the game's own prefix, and in any other prefix only those holding saves.
 func TestSuggestSavesInWinePrefixes(t *testing.T) {
 	t.Setenv(appdir.EnvHome, t.TempDir())
+	t.Cleanup(background.Wait) // catalog uploads write into the home
 	c, err := core.New()
 	require.NoError(t, err)
 	root := t.TempDir()
@@ -159,6 +163,7 @@ func TestSuggestSavesInWinePrefixes(t *testing.T) {
 // must not crash the game's view.
 func TestViewWithShortDeviceID(t *testing.T) {
 	t.Setenv(appdir.EnvHome, t.TempDir())
+	t.Cleanup(background.Wait) // catalog uploads write into the home
 	c, err := core.New()
 	require.NoError(t, err)
 	g, err := c.Library.Save(library.Game{

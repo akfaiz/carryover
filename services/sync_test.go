@@ -21,6 +21,7 @@ import (
 func TestSyncCancel(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv(appdir.EnvHome, home)
+	t.Cleanup(background.Wait) // catalog uploads write into the home
 	c, err := core.New()
 	require.NoError(t, err)
 	config.FileSetValue("cloud", "type", "local")
@@ -63,6 +64,7 @@ func TestSyncCancel(t *testing.T) {
 func TestCheckLocalChanges(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv(appdir.EnvHome, home)
+	t.Cleanup(background.Wait) // catalog uploads write into the home
 	c, err := core.New()
 	require.NoError(t, err)
 	config.FileSetValue("cloud", "type", "local")
@@ -120,6 +122,7 @@ func TestCheckLocalChanges(t *testing.T) {
 func TestSyncSkipsGameBeingPlayed(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv(appdir.EnvHome, home)
+	t.Cleanup(background.Wait) // catalog uploads write into the home
 	c, err := core.New()
 	require.NoError(t, err)
 	config.FileSetValue("cloud", "type", "local")

@@ -27,6 +27,7 @@ func newSyncEnv(t *testing.T) syncEnv {
 	t.Helper()
 	home := t.TempDir()
 	t.Setenv(appdir.EnvHome, home)
+	t.Cleanup(background.Wait) // catalog uploads write into the home
 	c, err := core.New()
 	require.NoError(t, err)
 	config.FileSetValue("cloud", "type", "local")
@@ -72,6 +73,7 @@ func TestPlanThenSyncAll(t *testing.T) {
 
 func TestSyncAllNeedsCloud(t *testing.T) {
 	t.Setenv(appdir.EnvHome, t.TempDir())
+	t.Cleanup(background.Wait) // catalog uploads write into the home
 	c, err := core.New()
 	require.NoError(t, err)
 	_, err = NewSyncService(c, NewBus()).SyncAll()

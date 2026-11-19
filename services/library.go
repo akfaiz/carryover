@@ -570,6 +570,10 @@ func (s *LibraryService) Save(in GameInput) (GameView, error) {
 	return s.view(saved), nil
 }
 
+// background counts the catalog uploads running in the background, so a test
+// can wait for them before it removes the data dir they write into.
+var background sync.WaitGroup
+
 // publish syncs the library catalog with the cloud in the background, so a
 // game added or changed on this device shows up on the others without
 // pressing "Sync all". Failures (offline, no cloud yet) are not fatal: the
@@ -578,7 +582,7 @@ func (s *LibraryService) publish() { s.publishAfter(nil) }
 
 // publishAfter is publish that first runs before in the same background job.
 func (s *LibraryService) publishAfter(before func(context.Context)) {
-	go func() {
+	background.Go(func() {
 		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
 		defer cancel()
 		if before != nil {
@@ -589,7 +593,7 @@ func (s *LibraryService) publishAfter(before func(context.Context)) {
 			return
 		}
 		s.bus.libraryChanged("")
-	}()
+	})
 }
 
 // cleanSlots trims slot keys and filter lists in place.
