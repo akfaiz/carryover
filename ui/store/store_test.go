@@ -8,6 +8,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/akfaiz/carryover/internal/app/appdir"
+	"github.com/akfaiz/carryover/internal/cloudsync/syncer"
 	"github.com/akfaiz/carryover/services"
 	"github.com/akfaiz/carryover/ui/kit"
 )
@@ -134,4 +135,18 @@ func TestSyncAllLifecycle(t *testing.T) {
 	assert.False(t, s.SyncAll.Running)
 	assert.False(t, s.SyncAll.Cancelling)
 	assert.Equal(t, []Topic{SyncAll, SyncAll, SyncAll}, topics)
+}
+
+func TestClearProgressAndTrashCount(t *testing.T) {
+	s := New(Loader{})
+	s.Progress["k"] = syncer.Event{}
+	s.ClearProgress("k")
+	assert.NotContains(t, s.Progress, "k")
+	s.ClearProgress("missing") // harmless
+
+	var heard int
+	s.Subscribe(func(Topic) { heard++ })
+	s.SetTrashCount(3)
+	assert.Equal(t, 3, s.TrashCount)
+	assert.Zero(t, heard, "SetTrashCount publishes nothing")
 }

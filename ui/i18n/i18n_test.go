@@ -127,3 +127,16 @@ func TestLanguageCatalogsMatchEnglish(t *testing.T) {
 		})
 	}
 }
+
+func TestLoadRemembersTheStartingLanguage(t *testing.T) {
+	Load("id")
+	assert.Equal(t, "id", Started())
+	Load("en") // once per process: the first setting stays
+	assert.Equal(t, "id", Started())
+}
+
+func TestInitFallsBackToAllCatalogs(t *testing.T) {
+	Init("") // no language: every catalog is registered
+	Init("xx")
+	Init("en")
+}

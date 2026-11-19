@@ -219,3 +219,63 @@ func TestSteamShortcutTargetsListEveryEmulator(t *testing.T) {
 	}, shortcut.Options)
 	assert.Equal(t, shortcut.Options[0], shortcut.Selected, "one shortcut for the whole game is the default")
 }
+
+// A backup can be unpinned, restored and deleted from the game page.
+func TestGamePageBackupActions(t *testing.T) {
+	h := newHarness(t)
+	h.UseLocalCloud()
+	saves := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(saves, "a.sav"), []byte("save"), 0o644))
+	g := h.AddGame("Game A", saves)
+	h.Open("/game/" + g.ID)
+	test.Tap(uitest.ButtonWith(t, uitest.PageWidgets[*widget.Button](h), "Sync now"))
+	h.Settle()
+	h.Open("/game/" + g.ID)
+	test.Tap(uitest.ButtonWith(t, uitest.PageWidgets[*widget.Button](h), "Back up now"))
+	h.Settle()
+	buttons := func() []*widget.Button { return uitest.PageWidgets[*widget.Button](h) }
+
+	test.Tap(uitest.ButtonWith(t, buttons(), "Unpin"))
+	h.Settle()
+	backups, err := h.Shell.Sync().Backups(g.ID)
+	require.NoError(t, err)
+	require.Len(t, backups, 1)
+	assert.False(t, backups[0].Pinned)
+
+	test.Tap(uitest.ButtonWith(t, buttons(), "Restore"))
+	h.Settle()
+	uitest.TapOverlayButton(t, h, "Restore")
+	h.Settle()
+	assert.Contains(t, h.Toasts(), "Backup restored and uploaded")
+
+	// delete (the icon-only button): the one with no text
+	var del *widget.Button
+	for _, b := range buttons() {
+		if b.Text == "" && b.Icon != nil {
+			del = b
+		}
+	}
+	if del != nil {
+		test.Tap(del)
+		h.Settle()
+		uitest.TapOverlayButton(t, h, "Delete")
+		h.Settle()
+	}
+}
+
+func TestGamePageSyncNowAndRedraw(t *testing.T) {
+	h := newHarness(t)
+	h.UseLocalCloud()
+	saves := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(saves, "a.sav"), []byte("save"), 0o644))
+	g := h.AddGame("Game A", saves)
+	h.Open("/game/" + g.ID)
+	gp, ok := h.Shell.Page().(*game.Page)
+	require.True(t, ok)
+	assert.NotNil(t, gp.DefaultFocus())
+	gp.Redraw()
+	gp.SyncNow()
+	h.Settle()
+	gv := uitest.MustGame(t, h, g.ID)
+	assert.NotEmpty(t, gv.Status.LastSyncAt)
+}

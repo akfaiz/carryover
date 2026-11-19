@@ -15,6 +15,7 @@ import (
 	"github.com/akfaiz/carryover/services"
 	"github.com/akfaiz/carryover/ui/env"
 	"github.com/akfaiz/carryover/ui/internal/uitest"
+	"github.com/akfaiz/carryover/ui/kit"
 	"github.com/akfaiz/carryover/ui/pages/cloud"
 	"github.com/akfaiz/carryover/ui/shell"
 )
@@ -169,4 +170,45 @@ func TestCloudActiveBadgeFollowsSavedRemote(t *testing.T) {
 	h.Shell.Page().(*cloud.Page).UseLocation("two")
 	h.Settle()
 	require.Equal(t, "two", activeRow())
+}
+
+// The wizard lists providers, takes a name and options, and creates the remote.
+func TestCloudAddRemoteWizard(t *testing.T) {
+	h := newHarness(t)
+	h.Open("/cloud")
+	uitest.TapButton(t, h, "＋ Add remote")
+	h.Settle()
+	assert.Contains(t, uitest.ButtonTexts(h), "Cancel")
+
+	var sftp *kit.Tappable
+	for _, tp := range uitest.OverlayWidgets[*kit.Tappable](h) {
+		if uitest.HasText(tp, "sftp") {
+			sftp = tp
+		}
+	}
+	require.NotNil(t, sftp, "SFTP provider tile")
+	test.Tap(sftp)
+	h.Settle()
+	assert.Contains(t, uitest.ButtonTexts(h), "Back")
+	assert.Contains(t, uitest.ButtonTexts(h), "Show all options")
+
+	uitest.TapOverlayButton(t, h, "Show all options")
+	h.Settle()
+	uitest.TapOverlayButton(t, h, "Back")
+	h.Settle()
+	test.Tap(sftp)
+	h.Settle()
+	uitest.TapOverlayButton(t, h, "Continue")
+	h.Settle()
+	assert.NotEmpty(t, h.Shell.Cloud().Remotes())
+}
+
+func TestCloudAddRemoteCancel(t *testing.T) {
+	h := newHarness(t)
+	h.Open("/cloud")
+	uitest.TapButton(t, h, "＋ Add remote")
+	h.Settle()
+	uitest.TapOverlayButton(t, h, "Cancel")
+	h.Settle()
+	assert.NotContains(t, uitest.ButtonTexts(h), "Cancel")
 }
