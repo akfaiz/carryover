@@ -52,6 +52,11 @@ golangci-lint run ./...
 golangci-lint fmt ./...    # fixes formatting and imports
 ```
 
+The `Makefile` wraps these: `make lint`, `make test`, `make cover` (writes `coverage.txt`, as CI does, and prints
+the total), `make cover-html` (a report in `dist/coverage.html`), `make fmt` and `make check` (lint, then test).
+`PKGS=./ui/...` narrows the packages and `ARGS='-run Name'` passes flags to `go test`. `make help` lists them.
+`.golangci.yml` uses the `modernize` linter, so `golangci-lint` has to be recent enough to know it.
+
 The tests need no network: the syncer tests use a temporary `local` remote.
 
 To test the other platform with Docker (for example from a Mac):
