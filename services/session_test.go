@@ -1,6 +1,8 @@
 package services
 
 import (
+	"os"
+	"path/filepath"
 	"runtime"
 	"testing"
 	"time"
@@ -155,5 +157,38 @@ func TestPlayFromLauncher(t *testing.T) {
 		require.Equal(t, "done", st.Phase)
 	case <-time.After(30 * time.Second):
 		require.Fail(t, "the session never finished")
+	}
+}
+
+// The wrapper window shows the hero artwork, else the wide one, else the
+// cover, skipping missing files.
+func TestWrapperBackground(t *testing.T) {
+	dir := t.TempDir()
+	for _, n := range []string{"g_cover.png", "g_wide.png", "g_hero.png"} {
+		require.NoError(t, os.WriteFile(filepath.Join(dir, n), []byte("x"), 0o644))
+	}
+	cases := []struct {
+		name string
+		g    library.Game
+		want string
+		wide bool
+	}{
+		{"hero first", library.Game{Cover: "g_cover.png", Art: map[string]string{"hero": "g_hero.png", "wide": "g_wide.png"}}, "g_hero.png", true},
+		{"wide", library.Game{Cover: "g_cover.png", Art: map[string]string{"wide": "g_wide.png"}}, "g_wide.png", true},
+		{"hero file gone", library.Game{Cover: "g_cover.png", Art: map[string]string{"hero": "gone.png", "wide": "g_wide.png"}}, "g_wide.png", true},
+		{"no wide art", library.Game{Cover: "g_cover.png", Art: map[string]string{"logo": "g_wide.png"}}, "g_cover.png", false},
+		{"wide file gone", library.Game{Cover: "g_cover.png", Art: map[string]string{"wide": "gone.png"}}, "g_cover.png", false},
+		{"nothing", library.Game{Cover: "gone.png"}, "", false},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			path, wide := wrapperBackground(dir, c.g)
+			want := ""
+			if c.want != "" {
+				want = filepath.Join(dir, c.want)
+			}
+			assert.Equal(t, want, path)
+			assert.Equal(t, c.wide, wide)
+		})
 	}
 }

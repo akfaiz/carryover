@@ -52,20 +52,44 @@ func (p *Page) View() fyne.CanvasObject {
 	p.cancel.Hide()
 	content := container.NewPadded(container.NewPadded(kit.VBox(brand, name, p.msg, p.prog, kit.HBox(p.cancel))))
 	var bg fyne.CanvasObject = canvas.NewRectangle(kit.ColBg)
-	if p.w.CoverPath != "" {
-		img := canvas.NewImageFromImage(nil)
-		img.FillMode = canvas.ImageFillCover
-		img.Translucency = 0.75
-		kit.Images.LoadFile(p.w.CoverPath, 0, func(i image.Image) {
-			if i != nil {
-				img.Image = i
-				img.Refresh()
-			}
-		})
-		shade := canvas.NewLinearGradient(color.NRGBA{kit.ColBg.R, kit.ColBg.G, kit.ColBg.B, 0x80}, kit.ColBg, 0)
-		bg = container.NewStack(canvas.NewRectangle(kit.ColBg), img, shade)
+	if p.w.Background != "" {
+		bg = p.background()
 	}
 	return container.NewStack(bg, container.NewBorder(nil, content, nil, nil))
+}
+
+// background draws the game's art behind the page. Hero or wide artwork fills the
+// window. A cover is portrait, so it sits at the right edge, full height and
+// uncropped, with its left edge fading into the page colour. A vertical shade
+// over either keeps the text readable.
+func (p *Page) background() fyne.CanvasObject {
+	img := canvas.NewImageFromImage(nil)
+	var art *fyne.Container
+	if p.w.BackgroundWide {
+		img.FillMode = canvas.ImageFillCover
+		img.Translucency = 0.6
+		art = container.NewStack(img)
+	} else {
+		img.FillMode = canvas.ImageFillStretch // the layout gives it the cover's own shape
+		img.Translucency = 0.6
+		fade := canvas.NewHorizontalGradient(kit.ColBg, color.NRGBA{kit.ColBg.R, kit.ColBg.G, kit.ColBg.B, 0})
+		art = container.New(&coverLayout{aspect: 2.0 / 3}, img, fade)
+	}
+	kit.Images.LoadFile(p.w.Background, 0, func(i image.Image) {
+		if i == nil {
+			return
+		}
+		if l, ok := art.Layout.(*coverLayout); ok {
+			if b := i.Bounds(); b.Dy() > 0 {
+				l.aspect = float32(b.Dx()) / float32(b.Dy())
+			}
+		}
+		img.Image = i
+		img.Refresh()
+		art.Refresh()
+	})
+	shade := canvas.NewLinearGradient(color.NRGBA{kit.ColBg.R, kit.ColBg.G, kit.ColBg.B, 0x80}, kit.ColBg, 0)
+	return container.NewStack(canvas.NewRectangle(kit.ColBg), art, shade)
 }
 
 // DefaultFocus is where the first pad press lands: Cancel while there is one.
@@ -112,3 +136,23 @@ func (p *Page) StateChanged(store.Topic) {
 		p.u.Window().Canvas().Unfocus()
 	}
 }
+
+// coverLayout puts the first object (the cover) at the right edge, as tall as
+// the area, with the cover's own width/height ratio, and the second (a fade)
+// over its left third.
+type coverLayout struct{ aspect float32 }
+
+func (l *coverLayout) Layout(objs []fyne.CanvasObject, size fyne.Size) {
+	w := min(size.Height*l.aspect, size.Width)
+	x := size.Width - w
+	if len(objs) > 0 {
+		objs[0].Move(fyne.NewPos(x, 0))
+		objs[0].Resize(fyne.NewSize(w, size.Height))
+	}
+	if len(objs) > 1 {
+		objs[1].Move(fyne.NewPos(x, 0))
+		objs[1].Resize(fyne.NewSize(w/3, size.Height))
+	}
+}
+
+func (l *coverLayout) MinSize([]fyne.CanvasObject) fyne.Size { return fyne.NewSize(0, 0) }

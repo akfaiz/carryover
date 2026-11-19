@@ -3,6 +3,7 @@ package services
 import (
 	"context"
 	"errors"
+	"os"
 	"path/filepath"
 	"runtime"
 	"strings"
@@ -311,11 +312,36 @@ func (s *SessionService) Prompts() []Prompt { return s.p.list() }
 
 // WrapperState is the state of wrapper mode for the UI.
 type WrapperState struct {
-	Active    bool   `json:"active"`
-	GameID    string `json:"gameId"`
-	GameName  string `json:"gameName"`
-	CoverPath string `json:"coverPath"`
-	Status    Status `json:"status"`
+	Active   bool   `json:"active"`
+	GameID   string `json:"gameId"`
+	GameName string `json:"gameName"`
+	// Background is the image behind the wrapper window: the game's hero or
+	// wide artwork (BackgroundWide), else its cover; "" when it has none.
+	Background     string `json:"background"`
+	BackgroundWide bool   `json:"backgroundWide"`
+	Status         Status `json:"status"`
+}
+
+// wrapperBackground picks the wrapper window's background image from the
+// covers dir: the hero artwork (sharpest at full screen), else the wide grid,
+// else the cover, skipping any whose file is missing.
+func wrapperBackground(dir string, g library.Game) (path string, wide bool) {
+	exists := func(name string) bool {
+		if name == "" {
+			return false
+		}
+		_, err := os.Stat(filepath.Join(dir, name))
+		return err == nil
+	}
+	for _, kind := range []ArtKind{ArtHero, ArtWide} {
+		if name := g.Art[string(kind)]; exists(name) {
+			return filepath.Join(dir, name), true
+		}
+	}
+	if exists(g.Cover) {
+		return filepath.Join(dir, g.Cover), false
+	}
+	return "", false
 }
 
 // Wrapper returns wrapper-mode info (Active=false in launcher mode).
@@ -326,9 +352,7 @@ func (s *SessionService) Wrapper() WrapperState {
 	w := WrapperState{Active: true, GameID: s.wrapGameID}
 	if g, err := s.c.Library.Find(s.wrapGameID); err == nil {
 		w.GameID, w.GameName = g.ID, g.Name
-		if g.Cover != "" {
-			w.CoverPath = filepath.Join(s.c.Dirs.CoversDir(), g.Cover)
-		}
+		w.Background, w.BackgroundWide = wrapperBackground(s.c.Dirs.CoversDir(), g)
 	}
 	s.mu.Lock()
 	w.Status = s.status[w.GameID]
