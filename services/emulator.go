@@ -208,11 +208,11 @@ func (s *EmulatorService) deleteForever(id string, saves bool) error {
 // publish uploads the library catalog in the background, like
 // LibraryService.publish.
 func (s *EmulatorService) publish() {
-	go func() {
+	background.Go(func() {
 		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
 		defer cancel()
 		if err := s.c.SyncLibrary(ctx); err == nil {
 			s.bus.libraryChanged("")
 		}
-	}()
+	})
 }
