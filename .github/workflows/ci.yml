@@ -31,14 +31,14 @@ jobs:
         os: [ubuntu-22.04, macos-latest] # macOS lints its own _darwin.go files
     runs-on: ${{ matrix.os }}
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
+      - uses: actions/checkout@v5
+      - uses: actions/setup-go@v6
         with:
           go-version-file: go.mod
       - name: Install Fyne build dependencies
         if: runner.os == 'Linux'
         run: sudo apt-get update && sudo apt-get install -y gcc libgl1-mesa-dev xorg-dev libxkbcommon-dev libwayland-dev wayland-protocols # same as the Dockerfile
-      - uses: golangci/golangci-lint-action@v8
+      - uses: golangci/golangci-lint-action@v9
         with:
           version: v2.15.0
 
@@ -51,8 +51,8 @@ jobs:
     env:
       CGO_ENABLED: "1"
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
+      - uses: actions/checkout@v5
+      - uses: actions/setup-go@v6
         with:
           go-version-file: go.mod
 
@@ -72,7 +72,7 @@ jobs:
         run: go test -coverprofile=coverage.txt ./...
       - name: Upload coverage reports to Codecov
         if: runner.os == 'Linux' # one report is enough
-        uses: codecov/codecov-action@v5
+        uses: codecov/codecov-action@v7
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
           files: coverage.txt
