@@ -52,7 +52,7 @@ func TestSessionPageFollowsTheStatus(t *testing.T) {
 		h.Settle()
 	}
 
-	// the sync before the game: Cancel is offered and takes the pad focus
+	// the sync before the game: Cancel is offered; the first pad press lands on it
 	st.Progress[""] = syncer.Event{Message: "Downloading", Bytes: 10, TotalBytes: 100}
 	set(services.Status{Phase: "sync", Message: "Checking the cloud…", BeforePlay: true})
 	assert.Contains(t, uitest.LabelTexts(h), "Checking the cloud…")

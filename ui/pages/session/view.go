@@ -68,7 +68,7 @@ func (p *Page) View() fyne.CanvasObject {
 	return container.NewStack(bg, container.NewBorder(nil, content, nil, nil))
 }
 
-// DefaultFocus starts a gamepad on Cancel while there is one.
+// DefaultFocus is where the first pad press lands: Cancel while there is one.
 func (p *Page) DefaultFocus() fyne.Focusable {
 	if p.cancel == nil || !p.cancel.Visible() {
 		return nil
@@ -106,6 +106,9 @@ func (p *Page) StateChanged(store.Topic) {
 		}
 		p.cancel.Enable()
 		p.cancel.Show()
-		p.u.FocusForPad()
+		// Leave the focus off Cancel, before and after the game: the player may
+		// still be pressing A, and the first D-pad or A press only focuses it
+		// (Navigator.accept), so a stray press can't abort the sync.
+		p.u.Window().Canvas().Unfocus()
 	}
 }
