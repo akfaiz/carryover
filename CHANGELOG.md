@@ -7,6 +7,8 @@ All notable changes to Carryover are listed here. The format follows
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-11-20
+
 ### Added
 
 - macOS support (12 Monterey or later, Apple Silicon and Intel). Releases include a universal `Carryover.app` as
@@ -36,7 +38,6 @@ All notable changes to Carryover are listed here. The format follows
 - With a controller, the Cancel button in the window shown while syncing before and after a game no longer takes
   the focus, so pressing A as the game closes can't cancel the upload by accident. The first press only selects
   Cancel.
-
 - Play no longer stops with "has several emulators; choose one" when only one of the game's emulators is set up on
   this device: it starts that one, also if the other was played last.
 - Suggested save locations for Eden and other yuzu-family emulators no longer offer a device save the game never
@@ -258,7 +259,8 @@ First public pre-release.
 - Downloads: a Windows exe, a Linux AppImage with in-place updates through Gear Lever or AppImageUpdate, and a
   Linux tarball with an `install.sh`, plus `SHA256SUMS.txt`.
 
-[Unreleased]: https://github.com/akfaiz/carryover/compare/v0.3.0...HEAD
+[Unreleased]: https://github.com/akfaiz/carryover/compare/v0.4.0...HEAD
+[0.4.0]: https://github.com/akfaiz/carryover/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/akfaiz/carryover/compare/v0.2.1...v0.3.0
 [0.2.1]: https://github.com/akfaiz/carryover/compare/v0.2.0...v0.2.1
 [0.2.0]: https://github.com/akfaiz/carryover/compare/v0.1.0...v0.2.0
