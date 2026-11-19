@@ -20,8 +20,8 @@ jobs:
     env:
       CGO_ENABLED: "1"
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
+      - uses: actions/checkout@v5
+      - uses: actions/setup-go@v6
         with:
           go-version-file: go.mod
       - uses: msys2/setup-msys2@v2
@@ -47,7 +47,7 @@ jobs:
         run: |
           $env:PATH = "${{ steps.msys2.outputs.msys2-location }}\ucrt64\bin;$env:PATH"
           ./scripts/windows-package.ps1 -Version ($env:GITHUB_REF_NAME -replace '^v', '') -Build $env:GITHUB_RUN_NUMBER
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: windows
           path: dist/*
@@ -62,8 +62,8 @@ jobs:
       # build-push-action otherwise uploads a build record (*.dockerbuild) as a run artifact.
       DOCKER_BUILD_RECORD_UPLOAD: "false"
     steps:
-      - uses: actions/checkout@v4
-      - uses: docker/setup-buildx-action@v3
+      - uses: actions/checkout@v5
+      - uses: docker/setup-buildx-action@v4
       - name: Stamp version
         run: scripts/stamp-version.sh "$GITHUB_REF_NAME" "$GITHUB_SHA"
       - name: Names
@@ -75,7 +75,7 @@ jobs:
           echo "UPDATE_INFO=gh-releases-zsync|${GITHUB_REPOSITORY_OWNER}|${GITHUB_REPOSITORY#*/}|latest|carryover-*-linux-amd64.AppImage.zsync" >> "$GITHUB_ENV"
       # The AppImage gets its final name here, not by renaming it later: the .zsync file refers to it by name.
       - name: Build AppImage
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@v7
         with:
           context: . # not the git context: it would miss the git-ignored version stamp
           target: appimage-out
@@ -84,7 +84,7 @@ jobs:
             APPIMAGE=${{ env.NAME }}.AppImage
           outputs: type=local,dest=dist
       - name: Build binary
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@v7
         with:
           context: .
           target: binary-out
@@ -93,7 +93,7 @@ jobs:
         run: |
           packaging/linux/tarball.sh dist/linux/carryover "$NAME" dist
           rm -rf dist/linux # only the release files stay in dist/
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: linux
           path: dist/*
@@ -103,8 +103,8 @@ jobs:
     needs: ci
     runs-on: macos-latest # Apple Silicon; the script cross-builds the Intel half
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
+      - uses: actions/checkout@v5
+      - uses: actions/setup-go@v6
         with:
           go-version-file: go.mod
       - name: Stamp version
@@ -112,7 +112,7 @@ jobs:
       # A universal Carryover.app in a disk image, the same way as a local build.
       - name: Package
         run: scripts/macos-package.sh "${GITHUB_REF_NAME#v}" "$GITHUB_RUN_NUMBER"
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: macos
           path: dist/*.dmg
@@ -124,7 +124,7 @@ jobs:
     permissions:
       contents: write # create the release
     steps:
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         with:
           # Only the release files: other run artifacts (e.g. Docker build records) aren't zips.
           pattern: "{windows,linux,macos}"
@@ -133,7 +133,7 @@ jobs:
       - name: Checksums
         working-directory: dist
         run: sha256sum * > SHA256SUMS.txt && cat SHA256SUMS.txt
-      - uses: softprops/action-gh-release@v2
+      - uses: softprops/action-gh-release@v3
         with:
           files: dist/*
           generate_release_notes: true
