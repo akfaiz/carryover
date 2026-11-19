@@ -4,6 +4,8 @@ import (
 	"testing"
 
 	"fyne.io/fyne/v2"
+	"fyne.io/fyne/v2/test"
+	"fyne.io/fyne/v2/widget"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -44,4 +46,24 @@ func TestSidebarShowsRunningGame(t *testing.T) {
 	h.Settle()
 	assert.NotNil(t, h.Shell.Activity())
 	assert.NotEmpty(t, h.Shell.Activity().Objects)
+}
+
+// While "Sync all" runs on another page, the sidebar shows how far it is and
+// returns to the library when pressed.
+func TestSidebarShowsSyncAllElsewhere(t *testing.T) {
+	h := newHarness(t)
+	h.Open("/cloud")
+	st := h.Shell.Store()
+	st.BeginSyncAll()
+	st.SyncAll.Progress = services.SyncAllProgress{Done: 2, Total: 5}
+	h.Shell.Notify(store.SyncAll)
+	st.Publish(store.SyncAll)
+	h.Settle()
+	require.NotEmpty(t, h.Shell.Activity().Objects)
+	b, ok := h.Shell.Activity().Objects[0].(*widget.Button)
+	require.True(t, ok)
+	assert.Equal(t, "Syncing 2 of 5", b.Text)
+	test.Tap(b)
+	h.Settle()
+	assert.Equal(t, "/", h.Shell.Route())
 }
