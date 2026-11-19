@@ -2,6 +2,7 @@ package cloud
 
 import (
 	"errors"
+	"slices"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -32,14 +33,7 @@ func syncRun(work func() (*cloud.Question, error), done func(*cloud.Question, er
 }
 
 func taken(names ...string) func(string) bool {
-	return func(n string) bool {
-		for _, x := range names {
-			if x == n {
-				return true
-			}
-		}
-		return false
-	}
+	return func(n string) bool { return slices.Contains(names, n) }
 }
 
 func TestDefaultName(t *testing.T) {
