@@ -18,8 +18,9 @@ linters:
         viewmodel:
           list-mode: lax
           files:
-            - "**/ui/pages/**/viewmodel.go"
+            - "**/ui/pages/**/viewmodel*.go"
             - "**/ui/components/emulatorform/viewmodel.go"
+            - "!$test"
           deny:
             - pkg: fyne.io/fyne/v2/widget
               desc: a ViewModel holds no widget
@@ -59,6 +60,25 @@ linters:
               desc: kit is pure Fyne
             - pkg: github.com/akfaiz/carryover/ui
               desc: kit is the bottom layer
+        services-only:
+          list-mode: lax
+          files:
+            - "**/ui/components/**"
+            - "**/ui/flows/**"
+            - "**/ui/pages/**"
+            - "**/ui/prompts/**"
+            - "**/ui/store/**"
+            - "**/ui/env/**"
+            - "!$test"
+          deny:
+            - pkg: github.com/akfaiz/carryover/internal/core
+              desc: reach the core through services (re-export what you need in services/aliases.go)
+            - pkg: github.com/akfaiz/carryover/internal/library
+              desc: reach the library through services (see services/aliases.go)
+            - pkg: github.com/akfaiz/carryover/internal/launcher
+              desc: reach the launcher through services (see services/aliases.go)
+            - pkg: github.com/akfaiz/carryover/internal/stores
+              desc: reach the stores through services (see services/aliases.go)
         lower-layers:
           list-mode: lax
           files:
@@ -72,6 +92,20 @@ linters:
               desc: store and env sit below the shell
             - pkg: github.com/akfaiz/carryover/ui/components
               desc: store and env sit below the components
+            - pkg: github.com/akfaiz/carryover/ui/flows
+              desc: store and env sit below the flows
+        components:
+          list-mode: lax
+          files:
+            - "**/ui/components/**"
+            - "!$test"
+          deny:
+            - pkg: github.com/akfaiz/carryover/ui/flows
+              desc: flows are built on components, not the other way round
+            - pkg: github.com/akfaiz/carryover/ui/pages
+              desc: components sit below the pages
+            - pkg: github.com/akfaiz/carryover/ui/shell
+              desc: components sit below the shell
     errcheck:
       exclude-functions:
         - (*os.File).Close

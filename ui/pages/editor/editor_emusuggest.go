@@ -16,15 +16,15 @@ import (
 // the game's name (when the name is still empty) and looks up its save
 // locations, filling them in when they are found on disk.
 func (e *Page) romPicked(m *emuForm) {
-	e.shareRom(m) // the same game file usually works for the other emulators too
+	e.vm.shareRom(m) // the same game file usually works for the other emulators too
 	finish := func() { e.suggestEmuSaves(m, true) }
-	if strings.TrimSpace(e.name) != "" {
+	if strings.TrimSpace(e.vm.name) != "" {
 		finish()
 		return
 	}
-	kit.Async(func() (string, error) { return e.u.Emus().GuessRomName(m.id, m.rom), nil }, func(name string, _ error) {
-		if name != "" && strings.TrimSpace(e.name) == "" {
-			e.name = name
+	kit.Async(func() (string, error) { return e.vm.be.GuessRomName(m.id, m.rom), nil }, func(name string, _ error) {
+		if name != "" && strings.TrimSpace(e.vm.name) == "" {
+			e.vm.name = name
 			if e.nameEntry != nil {
 				e.nameEntry.SetText(name) // also enables Save and "Find on Steam"
 			}
@@ -37,23 +37,23 @@ func (e *Page) romPicked(m *emuForm) {
 // autofill, the locations that exist on disk are filled into empty slots; any
 // error is then ignored (the user didn't ask for suggestions).
 func (e *Page) suggestEmuSaves(m *emuForm, autofill bool) {
-	ev, ok := e.emuView(m.id)
+	ev, ok := e.vm.emuView(m.id)
 	if !ok || ev.Preset == "" {
 		return
 	}
-	if strings.TrimSpace(e.name) == "" && strings.TrimSpace(m.rom) == "" {
+	if strings.TrimSpace(e.vm.name) == "" && strings.TrimSpace(m.rom) == "" {
 		return
 	}
 	m.suggesting, m.sugErr = true, ""
 	e.render()
-	in := services.EmuSuggestInput{GameName: e.name, Rom: m.rom}
-	kit.Async(func() (services.EmuSuggestResult, error) { return e.u.Emus().SuggestSaves(m.id, in) }, func(res services.EmuSuggestResult, err error) {
+	in := services.EmuSuggestInput{GameName: e.vm.name, Rom: m.rom}
+	kit.Async(func() (services.EmuSuggestResult, error) { return e.vm.be.SuggestEmuSaves(m.id, in) }, func(res services.EmuSuggestResult, err error) {
 		m.suggesting = false
 		switch {
 		case err != nil && !autofill:
 			m.sugErr = err.Error()
 		case err == nil:
-			e.ApplyEmuSuggestions(m, res, autofill)
+			e.vm.ApplyEmuSuggestions(m, res, autofill)
 		}
 		e.render()
 	})
@@ -69,13 +69,13 @@ func saveKindLabel(kind string) string {
 // emuSuggestUI is the "Suggest" button of an emulator's save locations and,
 // for under it, the suggestions it found (and why there are none).
 func (e *Page) emuSuggestUI(m *emuForm) (*widget.Button, fyne.CanvasObject) {
-	ev, _ := e.emuView(m.id)
+	ev, _ := e.vm.emuView(m.id)
 	label := lang.L("Suggest")
 	if m.suggesting {
 		label = lang.L("Looking…")
 	}
 	btn := widget.NewButtonWithIcon(label, theme.SearchIcon(), func() { e.suggestEmuSaves(m, false) })
-	kit.SetEnabled(btn, !m.suggesting && ev.Preset != "" && (strings.TrimSpace(e.name) != "" || strings.TrimSpace(m.rom) != ""))
+	kit.SetEnabled(btn, !m.suggesting && ev.Preset != "" && (strings.TrimSpace(e.vm.name) != "" || strings.TrimSpace(m.rom) != ""))
 	c := kit.VBox()
 	if ev.Preset == "" {
 		c.Add(kit.Muted(lang.L("Choose this emulator's type on the Emulators page to get save location suggestions.")))

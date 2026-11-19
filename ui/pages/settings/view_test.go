@@ -11,7 +11,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/akfaiz/carryover/internal/core"
 	"github.com/akfaiz/carryover/internal/stores/steam"
 	"github.com/akfaiz/carryover/services"
 	"github.com/akfaiz/carryover/ui/env"
@@ -27,7 +26,7 @@ func newHarness(t *testing.T) *uitest.Harness {
 	settings.AutosaveDelay = 20 * time.Millisecond
 	art := func() map[string][]byte {
 		out := map[string][]byte{"icon": []byte("png")}
-		for _, kind := range core.SelfArtKinds {
+		for _, kind := range services.SelfArtKinds {
 			out[kind] = []byte("png")
 		}
 		return out

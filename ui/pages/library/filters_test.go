@@ -9,7 +9,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/akfaiz/carryover/internal/library"
 	"github.com/akfaiz/carryover/services"
 	"github.com/akfaiz/carryover/ui/internal/uitest"
 )
@@ -41,7 +40,7 @@ func TestLibrarySearchWithoutMatches(t *testing.T) {
 func TestLibraryNeedsAttentionFilter(t *testing.T) {
 	h := newHarness(t)
 	h.AddGame("Ready", t.TempDir())
-	_, err := h.Shell.Lib().Save(services.GameInput{Name: "Not set up", Slots: []library.SaveSlot{{Key: "saves"}}})
+	_, err := h.Shell.Lib().Save(services.GameInput{Name: "Not set up", Slots: []services.SaveSlot{{Key: "saves"}}})
 	require.NoError(t, err)
 	h.Shell.Store().Refresh()
 	h.Open("/")
@@ -64,7 +63,7 @@ func TestLibraryNeedsAttentionFilter(t *testing.T) {
 func TestLibraryReadyToPlayFilter(t *testing.T) {
 	h := newHarness(t)
 	h.AddGame("Ready", t.TempDir())
-	_, err := h.Shell.Lib().Save(services.GameInput{Name: "Not set up", Slots: []library.SaveSlot{{Key: "saves"}}})
+	_, err := h.Shell.Lib().Save(services.GameInput{Name: "Not set up", Slots: []services.SaveSlot{{Key: "saves"}}})
 	require.NoError(t, err)
 	h.Shell.Store().Refresh()
 	h.Open("/")
@@ -81,7 +80,7 @@ func TestLibraryReadyToPlayFilter(t *testing.T) {
 // With no game playable here, the filter says so and offers all games.
 func TestLibraryReadyToPlayFilterEmpty(t *testing.T) {
 	h := newHarness(t)
-	_, err := h.Shell.Lib().Save(services.GameInput{Name: "Not set up", Slots: []library.SaveSlot{{Key: "saves"}}})
+	_, err := h.Shell.Lib().Save(services.GameInput{Name: "Not set up", Slots: []services.SaveSlot{{Key: "saves"}}})
 	require.NoError(t, err)
 	h.Shell.Store().Refresh()
 	setLibraryFilter(h, "ready")
@@ -117,7 +116,7 @@ func TestLibraryHidesFiltersWhenNothingNeedsAttention(t *testing.T) {
 // A game without a path on this device shows "Set up", which opens the editor.
 func TestLibraryTileSetUpOpensEditor(t *testing.T) {
 	h := newHarness(t)
-	g, err := h.Shell.Lib().Save(services.GameInput{Name: "Game A", Slots: []library.SaveSlot{{Key: "saves"}}})
+	g, err := h.Shell.Lib().Save(services.GameInput{Name: "Game A", Slots: []services.SaveSlot{{Key: "saves"}}})
 	require.NoError(t, err)
 	h.Shell.Store().Refresh()
 	h.Open("/")

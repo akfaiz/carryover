@@ -3,8 +3,13 @@ package kit
 import (
 	"fmt"
 	"math"
+	"net/url"
 	"regexp"
 	"strings"
+
+	"fyne.io/fyne/v2"
+	"fyne.io/fyne/v2/theme"
+	"fyne.io/fyne/v2/widget"
 )
 
 func FormatBytes(n int64) string {
@@ -57,4 +62,61 @@ func SplitLines(t string) []string {
 		}
 	}
 	return out
+}
+
+func Heading(t string) *widget.Label {
+	l := widget.NewLabelWithStyle(t, fyne.TextAlignLeading, fyne.TextStyle{Bold: true})
+	l.SizeName = theme.SizeNameSubHeadingText
+	return l
+}
+
+func Title(t string) *widget.Label {
+	l := widget.NewLabelWithStyle(t, fyne.TextAlignLeading, fyne.TextStyle{Bold: true})
+	l.SizeName = theme.SizeNameHeadingText
+	return l
+}
+
+// Muted is small grey wrapping text.
+func Muted(t string) *widget.Label {
+	l := widget.NewLabel(t)
+	l.Importance = widget.LowImportance
+	l.Wrapping = fyne.TextWrapWord
+	l.SizeName = theme.SizeNameCaptionText
+	return l
+}
+
+func Colored(t string, imp widget.Importance) *widget.Label {
+	l := widget.NewLabel(t)
+	l.Importance = imp
+	l.Wrapping = fyne.TextWrapWord
+	return l
+}
+
+func Mono(t string) *widget.Label {
+	l := widget.NewLabelWithStyle(t, fyne.TextAlignLeading, fyne.TextStyle{Monospace: true})
+	l.Wrapping = fyne.TextWrapBreak
+	return l
+}
+
+func MustURL(s string) *url.URL {
+	u, err := url.Parse(s)
+	if err != nil {
+		panic(err)
+	}
+	return u
+}
+
+// WrapTitle is a heading that wraps instead of growing the layout.
+func WrapTitle(t string) *widget.Label {
+	l := Title(t)
+	l.Wrapping = fyne.TextWrapWord
+	return l
+}
+
+// Small is a non-wrapping grey caption, for use inside rows.
+func Small(t string) *widget.Label {
+	l := widget.NewLabel(t)
+	l.Importance = widget.LowImportance
+	l.SizeName = theme.SizeNameCaptionText
+	return l
 }

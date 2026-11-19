@@ -6,11 +6,10 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/akfaiz/carryover/internal/library"
 	"github.com/akfaiz/carryover/services"
 )
 
-var ownSlots = []library.SaveSlot{{Key: "saves"}}
+var ownSlots = []services.SaveSlot{{Key: "saves"}}
 
 func plainGame() services.GameView {
 	return services.GameView{ID: "g1", Name: "Celeste", Ready: true, Slots: ownSlots}
@@ -27,11 +26,11 @@ func emulated(own bool, emus ...services.ProfileView) services.GameView {
 }
 
 func emu(id, name string, ready bool) services.ProfileView {
-	return services.ProfileView{EmulatorID: id, Name: name, Ready: ready, Slots: []library.SaveSlot{{Key: "account"}}}
+	return services.ProfileView{EmulatorID: id, Name: name, Ready: ready, Slots: []services.SaveSlot{{Key: "account"}}}
 }
 
 func TestProfilesOfAPlainGameIsJustItsOwnSaves(t *testing.T) {
-	vm := newViewModel("g1")
+	vm := newViewModel("g1", nil)
 	profs := vm.profiles(plainGame())
 
 	require.Len(t, profs, 1)
@@ -41,7 +40,7 @@ func TestProfilesOfAPlainGameIsJustItsOwnSaves(t *testing.T) {
 }
 
 func TestProfilesOfAGameWithEmulators(t *testing.T) {
-	vm := newViewModel("g1")
+	vm := newViewModel("g1", nil)
 	profs := vm.profiles(emulated(true, emu("eden", "Eden", true), emu("ryu", "Ryujinx", false)))
 
 	require.Len(t, profs, 3)
@@ -54,7 +53,7 @@ func TestProfilesOfAGameWithEmulators(t *testing.T) {
 }
 
 func TestAGameOnlyPlayedThroughEmulatorsHasNoOwnProfile(t *testing.T) {
-	profs := newViewModel("g1").profiles(emulated(false, emu("eden", "Eden", true)))
+	profs := newViewModel("g1", nil).profiles(emulated(false, emu("eden", "Eden", true)))
 	require.Len(t, profs, 1)
 	assert.Equal(t, "eden", profs[0].id)
 }
@@ -62,27 +61,27 @@ func TestAGameOnlyPlayedThroughEmulatorsHasNoOwnProfile(t *testing.T) {
 func TestProfileViewShowsThatEmulatorsSavesAndStatus(t *testing.T) {
 	g := emulated(true, services.ProfileView{
 		EmulatorID: "eden", Ready: false, SetupHint: "set the path", SafetyDir: "/safety/eden",
-		SteamAppID: "123", Slots: []library.SaveSlot{{Key: "account"}},
+		SteamAppID: "123", Slots: []services.SaveSlot{{Key: "account"}},
 		ResolvedPaths: map[string]string{"account": "/p"},
 		Status:        services.GameStatus{Conflict: true},
 	})
 	g.Device.LaunchMode = "steamwrap"
 
 	v := profileView(g, "eden")
-	assert.Equal(t, []library.SaveSlot{{Key: "account"}}, v.Slots)
+	assert.Equal(t, []services.SaveSlot{{Key: "account"}}, v.Slots)
 	assert.Equal(t, "/p", v.ResolvedPaths["account"])
 	assert.False(t, v.Ready)
 	assert.Equal(t, "set the path", v.SetupHint)
 	assert.True(t, v.Status.Conflict)
 	assert.Equal(t, "/safety/eden", v.SafetyDir)
-	assert.Equal(t, library.LaunchDirect, v.Device.LaunchMode, "an emulator is started by Carryover")
+	assert.Equal(t, services.LaunchDirect, v.Device.LaunchMode, "an emulator is started by Carryover")
 	assert.Equal(t, "123", v.Device.SteamAppID)
 
 	assert.Equal(t, g, profileView(g, ""), "the game's own saves are the game as it is")
 }
 
 func TestSelectedProfile(t *testing.T) {
-	vm := newViewModel("g1")
+	vm := newViewModel("g1", nil)
 	fine := emu("eden", "Eden", true)
 	broken := emu("ryu", "Ryujinx", true)
 	broken.Status = services.GameStatus{Conflict: true}
@@ -102,7 +101,7 @@ func TestSelectedProfile(t *testing.T) {
 }
 
 func TestActiveProfileAndKey(t *testing.T) {
-	vm := newViewModel("g1")
+	vm := newViewModel("g1", nil)
 	assert.Equal(t, "g1", vm.key(), "the game's own saves")
 
 	vm.setActive("eden")
@@ -111,7 +110,7 @@ func TestActiveProfileAndKey(t *testing.T) {
 }
 
 func TestBusyForNamesTheActionAndTheProfile(t *testing.T) {
-	vm := newViewModel("g1")
+	vm := newViewModel("g1", nil)
 	assert.False(t, vm.busyFor("sync", ""))
 
 	vm.busy = "sync"
@@ -122,7 +121,7 @@ func TestBusyForNamesTheActionAndTheProfile(t *testing.T) {
 }
 
 func TestStateIsPerProfileAndKept(t *testing.T) {
-	vm := newViewModel("g1")
+	vm := newViewModel("g1", nil)
 	a := vm.state("eden")
 	a.backupsErr = "offline"
 	assert.Same(t, a, vm.state("eden"))
@@ -131,7 +130,7 @@ func TestStateIsPerProfileAndKept(t *testing.T) {
 }
 
 func TestCanSyncAndSyncTargets(t *testing.T) {
-	vm := newViewModel("g1")
+	vm := newViewModel("g1", nil)
 	profs := vm.profiles(emulated(true, emu("eden", "Eden", true), emu("ryu", "Ryujinx", false)))
 
 	assert.True(t, canSync(profs))
@@ -164,7 +163,7 @@ func TestClassifySync(t *testing.T) {
 }
 
 func TestInitFromTheGamesLaunchMode(t *testing.T) {
-	vm := newViewModel("g1")
+	vm := newViewModel("g1", nil)
 	assert.Equal(t, "direct", vm.steamMode)
 
 	g := plainGame()
@@ -173,23 +172,23 @@ func TestInitFromTheGamesLaunchMode(t *testing.T) {
 	assert.Equal(t, "steamwrap", vm.steamMode)
 	assert.True(t, vm.wrapOpen, "a Steam game with an app id opens its launch options")
 
-	vm = newViewModel("g1")
+	vm = newViewModel("g1", nil)
 	g.StoreAppID = ""
 	vm.initFrom(g)
 	assert.False(t, vm.wrapOpen, "without an app id there is nothing to show")
 
-	vm = newViewModel("g1")
+	vm = newViewModel("g1", nil)
 	g.Device.LaunchMode = "heroic"
 	vm.initFrom(g)
 	assert.Equal(t, "heroic", vm.steamMode)
 
-	vm = newViewModel("g1")
+	vm = newViewModel("g1", nil)
 	vm.initFrom(plainGame())
 	assert.Equal(t, "direct", vm.steamMode)
 }
 
 func TestSteamChoiceForAPlainGameIsTheGame(t *testing.T) {
-	vm := newViewModel("g1")
+	vm := newViewModel("g1", nil)
 	c := vm.steamChoice(plainGame())
 	assert.Equal(t, "g1", c.key)
 	assert.Equal(t, "game", c.target)
@@ -198,7 +197,7 @@ func TestSteamChoiceForAPlainGameIsTheGame(t *testing.T) {
 }
 
 func TestSteamChoiceForAGameWithEmulators(t *testing.T) {
-	vm := newViewModel("g1")
+	vm := newViewModel("g1", nil)
 	g := emulated(true, emu("eden", "Eden", true))
 
 	c := vm.steamChoice(g)
@@ -212,7 +211,7 @@ func TestSteamChoiceForAGameWithEmulators(t *testing.T) {
 	assert.Equal(t, "eden", c.target)
 	assert.False(t, c.asks)
 	assert.Equal(t, "g1.eden", c.key, "the emulator's own shortcut")
-	assert.Equal(t, library.LaunchDirect, c.form.Device.LaunchMode)
+	assert.Equal(t, services.LaunchDirect, c.form.Device.LaunchMode)
 	assert.True(t, c.hideMode, "an emulator is always started by Carryover")
 
 	vm.steamTarget = "removed"
@@ -222,7 +221,7 @@ func TestSteamChoiceForAGameWithEmulators(t *testing.T) {
 }
 
 func TestSteamChoiceHidesTheModeForAGameOnlyPlayedThroughEmulators(t *testing.T) {
-	vm := newViewModel("g1")
+	vm := newViewModel("g1", nil)
 	c := vm.steamChoice(emulated(false, emu("eden", "Eden", true)))
 	assert.True(t, c.asks)
 	assert.True(t, c.hideMode, "no own launch: the shortcut can only ask for an emulator")

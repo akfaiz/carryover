@@ -1,4 +1,4 @@
-package components
+package flows
 
 import (
 	"strings"
@@ -8,6 +8,7 @@ import (
 	"fyne.io/fyne/v2/widget"
 
 	"github.com/akfaiz/carryover/internal/app/appdir"
+	"github.com/akfaiz/carryover/ui/components"
 	"github.com/akfaiz/carryover/ui/env"
 	"github.com/akfaiz/carryover/ui/kit"
 )
@@ -28,7 +29,7 @@ func ShowGridKeyDialog(u env.Env, onSaved func()) {
 		return func() error { return u.Lib().TestSteamGridKey(k) }
 	})
 	keyTest.SetAllowed(false)
-	var d DialogHider
+	var d components.DialogHider
 	save := kit.Primary(lang.L("Save"), nil)
 	save.Disable()
 	save.OnTapped = func() {
@@ -57,5 +58,5 @@ func ShowGridKeyDialog(u env.Env, onSaved func()) {
 	}
 	body := kit.VBox(kit.Muted(GridKeyHelp()), kit.RowFill(key, keyTest.Button), keyTest.Result,
 		kit.HBox(layout.NewSpacer(), widget.NewButton(lang.L("Cancel"), func() { d.Hide() }), save))
-	d = ShowCustom(u, lang.L("SteamGridDB API key"), body, 540)
+	d = components.ShowCustom(u, lang.L("SteamGridDB API key"), body, 540)
 }

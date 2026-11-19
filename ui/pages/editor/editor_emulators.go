@@ -17,7 +17,7 @@ import (
 // shareField is the opt-in "use another emulator's saves" choice; nil when
 // there is nothing to choose.
 func (e *Page) shareField(m *emuForm) fyne.CanvasObject {
-	targets := e.shareTargets(m)
+	targets := e.vm.shareTargets(m)
 	if len(targets) == 0 && m.share == "" {
 		return nil
 	}
@@ -32,7 +32,7 @@ func (e *Page) shareField(m *emuForm) fyne.CanvasObject {
 		if (t == nil && m.share == "") || (t != nil && t.id == m.share) {
 			return // nothing changes
 		}
-		e.setShare(m, t)
+		e.vm.setShare(m, t)
 		e.render()
 		if t != nil {
 			e.suggestEmuSaves(m, true) // this emulator's own paths for the shared locations
@@ -66,20 +66,20 @@ func (e *Page) howCard() fyne.CanvasObject {
 	for i, v := range kinds.Values {
 		opts = append(opts, kit.ChipOption{Value: v, Label: kinds.Labels[i]})
 	}
-	sel := kit.Chips(opts, string(e.kind), func(v string) {
-		if k := PlayKind(v); k != "" && k != e.kind {
-			e.kind = k
+	sel := kit.Chips(opts, string(e.vm.kind), func(v string) {
+		if k := PlayKind(v); k != "" && k != e.vm.kind {
+			e.vm.kind = k
 			e.render()
 		}
 	})
 	c := kit.VBox(kit.CardHead(lang.L("How do you play it?")), sel)
-	switch e.kind {
+	switch e.vm.kind {
 	case KindEmulator:
 		c.Add(kit.Muted(lang.L("Carryover starts the emulator with your game file and syncs the emulator's save folder before and after.")))
 	case KindBoth:
 		c.Add(kit.Muted(lang.L("Set up the game's own launch and saves below, and one entry per emulator you also use.")))
 	default:
-		if len(e.emus) > 0 {
+		if len(e.vm.emus) > 0 {
 			c.Add(kit.Colored(lang.L("The emulators set up for this game are removed from it when you save. Their cloud saves are kept."), widget.WarningImportance))
 		} else {
 			c.Add(kit.Muted(lang.L("Carryover starts the game and syncs its save folders before and after.")))
@@ -91,11 +91,11 @@ func (e *Page) howCard() fyne.CanvasObject {
 // addEmulator sets the game up with an emulator; its game file starts as the
 // other emulators' one.
 func (e *Page) addEmulator(ev services.EmulatorView) {
-	if e.hasEmulator(ev.ID) {
+	if e.vm.hasEmulator(ev.ID) {
 		return
 	}
-	m := &emuForm{id: ev.ID, name: ev.Name, rom: e.firstRom(), slots: []*slotForm{{key: "saves", label: "Saves", isNew: true}}}
-	e.emus = append(e.emus, m)
+	m := &emuForm{id: ev.ID, name: ev.Name, rom: e.vm.firstRom(), slots: []*slotForm{{key: "saves", label: "Saves", isNew: true}}}
+	e.vm.emus = append(e.vm.emus, m)
 	e.render()
 	if m.rom != "" {
 		e.suggestEmuSaves(m, true) // the game file is already known from the other emulator
@@ -105,8 +105,8 @@ func (e *Page) addEmulator(ev services.EmulatorView) {
 func (e *Page) emulatorsCard() fyne.CanvasObject {
 	var names []string
 	byName := map[string]services.EmulatorView{}
-	for _, ev := range e.emuList {
-		if !e.hasEmulator(ev.ID) {
+	for _, ev := range e.vm.emuList {
+		if !e.vm.hasEmulator(ev.ID) {
 			names = append(names, ev.Name)
 			byName[ev.Name] = ev
 		}
@@ -117,12 +117,12 @@ func (e *Page) emulatorsCard() fyne.CanvasObject {
 	// A new emulator is set up in a dialog, so nothing typed here is lost.
 	newEmu := widget.NewButtonWithIcon(lang.L("New emulator…"), theme.ContentAddIcon(), func() {
 		emulatorform.ShowDialog(e.u, func(ev services.EmulatorView) {
-			e.emuList = append(e.emuList, ev)
+			e.vm.emuList = append(e.vm.emuList, ev)
 			e.addEmulator(ev)
 		})
 	})
 	switch {
-	case len(e.emuList) == 0:
+	case len(e.vm.emuList) == 0:
 		c.Add(kit.Muted(lang.L("No emulators are set up on this device yet. Add the one you play this game with:")))
 		newEmu.Importance = widget.HighImportance
 		c.Add(kit.HBox(newEmu))
@@ -138,9 +138,9 @@ func (e *Page) emulatorsCard() fyne.CanvasObject {
 		c.Add(kit.HBox(newEmu))
 	}
 	panels := kit.Stack() // spaced like cards
-	for i, m := range e.emus {
+	for i, m := range e.vm.emus {
 		panels.Add(e.emulatorPanel(m, func() {
-			e.emus = slices.Delete(e.emus, i, i+1)
+			e.vm.emus = slices.Delete(e.vm.emus, i, i+1)
 			e.render()
 		}))
 	}
@@ -189,7 +189,7 @@ func (e *Page) emulatorPanel(m *emuForm, onRemove func()) fyne.CanvasObject {
 		// this emulator's ("Suggest" fills in its own path for each of them).
 		for _, s := range m.slots {
 			c.Add(kit.Field(lang.L("Path on this device: {{.Label}}", map[string]any{"Label": components.LabelOf(s.label, s.key)}),
-				components.NewPathInput(e.u, e.id, e.tokens, s.path, "{appdata}/Game/Saves", func(v string) { s.path = v })))
+				components.NewPathInput(e.u, e.vm.id, e.vm.tokens, s.path, "{appdata}/Game/Saves", func(v string) { s.path = v })))
 		}
 		return kit.Panel(c)
 	}
@@ -205,7 +205,7 @@ func (e *Page) emulatorPanel(m *emuForm, onRemove func()) fyne.CanvasObject {
 				e.render()
 			}
 		}
-		c.Add(newSlotEditor(e.u, e.id, e.tokens, s, e.slotViewOf(s), nil, m.uniqueKey, onRemove, nil))
+		c.Add(newSlotEditor(e.u, e.vm.id, e.vm.tokens, s, e.slotViewOf(s), nil, m.uniqueKey, onRemove, nil))
 	}
 	return kit.Panel(c)
 }

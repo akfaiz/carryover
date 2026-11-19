@@ -17,6 +17,7 @@ import (
 	"github.com/akfaiz/carryover/internal/library"
 	"github.com/akfaiz/carryover/services"
 	"github.com/akfaiz/carryover/ui/components"
+	"github.com/akfaiz/carryover/ui/flows"
 	"github.com/akfaiz/carryover/ui/internal/uitest"
 	"github.com/akfaiz/carryover/ui/kit"
 	"github.com/akfaiz/carryover/ui/shell"
@@ -89,11 +90,11 @@ func TestPagesRender(t *testing.T) {
 
 	// Dialogs.
 	u.Navigate("/")
-	components.ShowAddGame(u)
+	flows.ShowAddGame(u)
 	settle()
 	showSyncProblems(u, 3, []services.SyncResult{{GameID: g.ID, Name: g.Name, Action: "conflict"}, {GameID: g.ID, Name: "Other", Error: "boom"}})
 	settle()
-	components.ShowGridKeyDialog(u, func() {})
+	flows.ShowGridKeyDialog(u, func() {})
 	settle()
 	components.ConfirmDanger(u, components.ConfirmOpts{Title: "Delete", Message: "Sure?", Check: "Also the saves", Checked: "Really?", KeptHint: "Kept.", OnConfirm: func(bool) {}})
 	settle()

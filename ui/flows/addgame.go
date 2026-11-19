@@ -1,4 +1,4 @@
-package components
+package flows
 
 import (
 	"strings"
@@ -12,6 +12,7 @@ import (
 	"fyne.io/fyne/v2/widget"
 
 	"github.com/akfaiz/carryover/services"
+	"github.com/akfaiz/carryover/ui/components"
 	"github.com/akfaiz/carryover/ui/env"
 	"github.com/akfaiz/carryover/ui/kit"
 )
@@ -20,7 +21,7 @@ import (
 // PC game, or a game played through an emulator. Each opens the editor set up
 // for it.
 func ShowAddGame(u env.Env) {
-	var d DialogHider
+	var d components.DialogHider
 	pick := func(f func()) func() { return func() { d.Hide(); f() } }
 	tile := func(name string, icon fyne.Resource, f func()) fyne.CanvasObject {
 		return container.New(layout.NewGridWrapLayout(fyne.NewSize(kit.ChoiceTileSize+16, kit.ChoiceTileSize)),
@@ -35,7 +36,7 @@ func ShowAddGame(u env.Env) {
 		kit.Muted(lang.L("From Steam: a game Steam installed on this device. PC game: any other game, started from its executable or through Heroic. Emulated game: a game file you play through an emulator such as Eden or Ryujinx.")),
 		kit.HBox(layout.NewSpacer(), widget.NewButton(lang.L("Cancel"), func() { d.Hide() })),
 	)
-	d = ShowCustom(u, lang.L("Add a game"), body, 500)
+	d = components.ShowCustom(u, lang.L("Add a game"), body, 500)
 }
 
 // ShowSteamImport lists games installed through Steam; picking one opens the

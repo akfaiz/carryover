@@ -8,14 +8,13 @@ import (
 	"fyne.io/fyne/v2/lang"
 	"fyne.io/fyne/v2/widget"
 
-	"github.com/akfaiz/carryover/internal/stores/steamgrid"
 	"github.com/akfaiz/carryover/services"
 	"github.com/akfaiz/carryover/ui/kit"
 )
 
 // artSpec describes one kind of Steam artwork for the UI.
 type artSpec struct {
-	kind    steamgrid.Kind
+	kind    services.ArtKind
 	label   string
 	hint    string
 	empty   string    // shown when SteamGridDB has none
@@ -28,40 +27,41 @@ type artSpec struct {
 // section in the editor). Functions, not package vars: text goes through lang.
 func artSpecs() []artSpec {
 	return []artSpec{
-		{steamgrid.KindWide, lang.L("Wide cover"), lang.L("Wide capsule, 460×215. Shown in Steam's recent games and some lists."),
+		{services.ArtWide, lang.L("Wide cover"), lang.L("Wide capsule, 460×215. Shown in Steam's recent games and some lists."),
 			lang.L("No wide covers for this game yet."), fyne.NewSize(230, 107), fyne.NewSize(184, 86), false},
-		{steamgrid.KindHero, lang.L("Background"), lang.L("Library background (hero), 1920×620. Shown at the top of the game's page in Steam."),
+		{services.ArtHero, lang.L("Background"), lang.L("Library background (hero), 1920×620. Shown at the top of the game's page in Steam."),
 			lang.L("No backgrounds for this game yet."), fyne.NewSize(310, 100), fyne.NewSize(248, 80), false},
-		{steamgrid.KindLogo, lang.L("Logo"), lang.L("Transparent title logo drawn over the background."),
+		{services.ArtLogo, lang.L("Logo"), lang.L("Transparent title logo drawn over the background."),
 			lang.L("No logos for this game yet."), fyne.NewSize(240, 90), fyne.NewSize(160, 90), true},
-		{steamgrid.KindIcon, lang.L("Icon"), lang.L("Small square icon for the game in Steam's library list."),
+		{services.ArtIcon, lang.L("Icon"), lang.L("Small square icon for the game in Steam's library list."),
 			lang.L("No icons for this game yet."), fyne.NewSize(80, 80), fyne.NewSize(80, 80), true},
 	}
 }
 
 // artSpecFor returns the spec of a kind, including the portrait cover.
-func artSpecFor(kind steamgrid.Kind) artSpec {
+func artSpecFor(kind services.ArtKind) artSpec {
 	for _, s := range artSpecs() {
 		if s.kind == kind {
 			return s
 		}
 	}
-	return artSpec{kind: steamgrid.KindCover, label: lang.L("Cover"), empty: lang.L("No portrait covers for this game yet."),
+	return artSpec{kind: services.ArtCover, label: lang.L("Cover"), empty: lang.L("No portrait covers for this game yet."),
 		preview: fyne.NewSize(80, 120), pick: fyne.NewSize(120, 180)}
 }
 
 // openArtPicker opens the SteamGridDB picker on a kind's tab. The game chosen
 // once is remembered, so the next kind's picker opens straight on its images.
-func (e *Page) openArtPicker(kind steamgrid.Kind) {
+func (e *Page) openArtPicker(kind services.ArtKind) {
 	showArtPicker(e.u, artPickerOpts{
-		term: e.name, steamAppID: e.storeAppID, gameID: e.gridGameID, gameName: e.gridGameName, kind: kind,
-		onGame: func(id int, name string) { e.gridGameID, e.gridGameName = id, name },
-		onPick: func(k steamgrid.Kind, g steamgrid.Grid) {
-			if k == steamgrid.KindCover {
-				e.gridPick, e.coverSrc = &g, ""
+		be:   e.vm.be,
+		term: e.vm.name, steamAppID: e.vm.storeAppID, gameID: e.vm.gridGameID, gameName: e.vm.gridGameName, kind: kind,
+		onGame: func(id int, name string) { e.vm.gridGameID, e.vm.gridGameName = id, name },
+		onPick: func(k services.ArtKind, g services.ArtGrid) {
+			if k == services.ArtCover {
+				e.vm.gridPick, e.vm.coverSrc = &g, ""
 				return
 			}
-			a := e.artEdit(k)
+			a := e.vm.artEdit(k)
 			a.pick, a.src, a.clear = &g, "", false
 		},
 		onClosed: e.render,
@@ -74,7 +74,7 @@ func (e *Page) artworkCard() fyne.CanvasObject {
 	c := kit.VBox(kit.Heading(lang.L("Steam artwork")),
 		kit.Muted(lang.L("Written to Steam's grid folder when you add the game to Steam (or press Update Steam shortcut), so it has its images ready. The portrait cover is chosen above.")))
 	for _, spec := range artSpecs() {
-		a := e.artEdit(spec.kind)
+		a := e.vm.artEdit(spec.kind)
 		var preview fyne.CanvasObject
 		src := kit.CoverSource{Contain: spec.contain}
 		switch {
@@ -99,7 +99,7 @@ func (e *Page) artworkCard() fyne.CanvasObject {
 				e.render()
 			})
 		}))
-		if e.hasGridKey {
+		if e.vm.hasGridKey {
 			btns.Add(widget.NewButton(lang.L("Find…"), func() {
 				e.openArtPicker(spec.kind)
 			}))
@@ -123,35 +123,9 @@ func (e *Page) artworkCard() fyne.CanvasObject {
 			widget.NewLabelWithStyle(spec.label, fyne.TextAlignLeading, fyne.TextStyle{Bold: true}),
 			preview, btns, kit.Muted(status)))
 	}
-	if !e.hasGridKey {
+	if !e.vm.hasGridKey {
 		c.Add(container.NewBorder(nil, nil, nil, kit.LowButton(lang.L("Add key…"), e.askGridKey),
 			kit.Muted(lang.L("Add a SteamGridDB API key to search community artwork."))))
 	}
 	return kit.Card("", c)
-}
-
-// applyArtwork performs jobs on a saved game; it returns the first error but
-// keeps going so one bad image doesn't lose the others.
-func applyArtwork(lib *services.LibraryService, gameID string, jobs map[steamgrid.Kind]artEdit) error {
-	var first error
-	note := func(err error) {
-		if err != nil && first == nil {
-			first = err
-		}
-	}
-	for kind, a := range jobs {
-		k := string(kind)
-		switch {
-		case a.src != "":
-			_, err := lib.SetArt(gameID, k, a.src)
-			note(err)
-		case a.pick != nil:
-			_, err := lib.SetArtFromURL(gameID, k, a.pick.URL)
-			note(err)
-		case a.clear:
-			_, err := lib.ClearArt(gameID, k)
-			note(err)
-		}
-	}
-	return first
 }

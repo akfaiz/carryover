@@ -12,6 +12,7 @@ import (
 	"github.com/akfaiz/carryover/services"
 	"github.com/akfaiz/carryover/ui/components"
 	"github.com/akfaiz/carryover/ui/env"
+	"github.com/akfaiz/carryover/ui/flows"
 	"github.com/akfaiz/carryover/ui/kit"
 )
 
@@ -90,7 +91,7 @@ func (t *Tile) playTapped() {
 	case !g.Ready:
 		u.Navigate("/edit/" + g.ID)
 	case g.Device.LaunchMode == "steamwrap":
-		components.OpenSteam(u, g)
+		flows.OpenSteam(u, g)
 	default:
 		t.play.Disable()
 		// A game that can be played in several ways asks which one in a dialog.

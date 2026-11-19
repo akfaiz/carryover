@@ -153,20 +153,23 @@ services.Bus -> store (shared state) -> ViewModel (page rules, no widgets) -> vi
 | `ui/i18n` | Translation catalogs (`translations/*.json`) and their loading. |
 | `ui/store` | The state every page shares (games, settings, session status, transfer progress, "Sync all"). The only listener of `services.Bus`; pages subscribe by topic. |
 | `ui/env` | What a page may use of the app: `env.Env` (window, services, store, navigation, toasts) and the page contracts (`Page`, `Stateful`, `Guarded`, `Searchable`, `Syncable`, `PadFocuser`, `Redrawable`). |
-| `ui/components` | Shared widgets and dialogs that know about the app (help text, confirm dialogs, path input, status badges, the add-game and Steam import dialogs, the SteamGridDB key dialog). `components/emulatorform` is the emulator form the Emulators page and the game editor share. |
+| `ui/flows` | Multi-step actions that open dialogs, call services and navigate: add a game, import from Steam, set the SteamGridDB key, open a game in Steam. Built on `components`; pages and the shell call them. |
+| `ui/components` | Shared widgets and dialogs that know about the app (help text, confirm dialogs, path input, status badges). `components/emulatorform` is the emulator form the Emulators page and the game editor share. |
 | `ui/prompts` | The session prompt dialogs (conflict, lock, error, which emulator). |
-| `ui/pages/<name>` | One page: `viewmodel.go` (state and rules; no `widget`, `container`, `canvas`, `dialog`, `app` or `lang` imports; reads small interfaces, not `*services.X`) and `view.go` (builds the widgets once, redraws from the ViewModel). The pages are `library`, `trash`, `settings`, `emulators`, `cloud`, `session`, `editor` and `game`; `library` is the reference. The editor and the game page are bigger: their ViewModel is a struct their `Page` embeds, so the view reads its fields directly. |
+| `ui/pages/<name>` | One page: `viewmodel.go` (state and rules; no `widget`, `container`, `canvas`, `dialog`, `app` or `lang` imports; reads small interfaces, not `*services.X`) and `view.go` (builds the widgets once, redraws from the ViewModel). The pages are `library`, `trash`, `settings`, `emulators`, `cloud`, `session`, `editor` and `game`; `library` is the reference. Every `Page` holds its ViewModel in a `vm` field (none embeds it). How a ViewModel reaches the app depends on the page: `library` takes small `Source`/`Prefs` interfaces, `settings`, `emulators` and `cloud` a `Deps` struct of funcs, and the bigger `game` and `editor` pages a `Backend` interface (`backend.go` has the adapter over the services; tests use a fake). Bigger pages are split into `view.go`, one file per card or concern, and `viewmodel*.go`. |
 | `ui/shell` | The main window: sidebar, router, shortcuts, gamepad, toasts, notices and the session wrapper window. Implements `env.Env`. Knows no page: the root plugs them in through `shell.Config`. |
 | `ui` (root) | Composition root: `Run`, the route table (`routes.go`), the sync-problems dialog (it opens the library page's filter, so it sits above the pages) and the artwork the app embeds (icon, Steam art). |
 | `ui/internal/uitest` | Headless test harness and finders shared by the page tests. A page's view tests live in its package; the root `ui` package keeps only the tests that need several real pages at once. |
 
-Imports go one way: `kit`, `i18n` <- `store` <- `env` <- `components`, `prompts` <- `pages/*` <- `shell` <- `ui`. A page never imports `shell` or another page; it opens one with `env.Navigate("/game/<id>")`. The rules about what a ViewModel, a page, `kit`, `store` and `env` may import are enforced by `depguard` in `.golangci.yml`.
+Imports go one way: `kit`, `i18n` <- `store` <- `env` <- `components` <- `flows`, `prompts` <- `pages/*` <- `shell` <- `ui`. A page never imports `shell` or another page; it opens one with `env.Navigate("/game/<id>")`. The rules about what a ViewModel, a page, `kit`, `store` and `env` may import are enforced by `depguard` in `.golangci.yml`.
 
 When you add or change a page:
 
 - Put anything that can be decided without a widget (what shows, in which order, which empty state, what a button does) in the ViewModel and test it with fakes; keep widgets in the view.
 - The ViewModel exposes plain state (enums, counts, `[]services.GameView`). The view turns it into text with `lang.L`.
-- Touch widgets only on the UI goroutine; I/O goes through `kit.Async`.
+- Touch widgets only on the UI goroutine; I/O goes through `kit.Async`. The ViewModel owns the service calls (sync, backups, save pipeline); the view calls the ViewModel from `kit.Async` and shows the result.
+- A page reaches `internal/` only through `services` (`services/aliases.go` re-exports the types the UI needs); depguard rejects `internal/core`, `library`, `launcher` and `stores` under `ui/` except in `shell` and the root.
+- Declare which page contracts a page implements with `var _ env.Guarded = (*Page)(nil)` and the like: the shell finds them by type assertion, so a missing method would otherwise fail silently.
 
 ## Cloud layout
 

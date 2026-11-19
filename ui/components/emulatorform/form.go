@@ -8,7 +8,6 @@ import (
 	"fyne.io/fyne/v2/lang"
 	"fyne.io/fyne/v2/widget"
 
-	"github.com/akfaiz/carryover/internal/launcher"
 	"github.com/akfaiz/carryover/internal/saves/pathvar"
 	"github.com/akfaiz/carryover/services"
 	"github.com/akfaiz/carryover/ui/components"
@@ -78,7 +77,7 @@ func (f *Form) form() fyne.CanvasObject {
 	exe := kit.MonoEntry(example, s.Exe, vm.SetExe)
 	browse := widget.NewButton(lang.L("Browse…"), func() {
 		kit.PickProgram(f.u.Window(), lang.L("Choose the emulator executable"), func(path string) {
-			path = launcher.AppBundle(path) // a program picked inside a macOS .app
+			path = services.AppBundle(path) // a program picked inside a macOS .app
 			vm.SetExe(path)
 			exe.SetText(path)
 			if vm.ExePicked(path) {

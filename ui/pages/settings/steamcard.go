@@ -7,7 +7,6 @@ import (
 	"fyne.io/fyne/v2/theme"
 	"fyne.io/fyne/v2/widget"
 
-	"github.com/akfaiz/carryover/internal/core"
 	"github.com/akfaiz/carryover/services"
 	"github.com/akfaiz/carryover/ui/env"
 	"github.com/akfaiz/carryover/ui/kit"
@@ -110,9 +109,9 @@ func (s *selfSteamCard) add() {
 	user := s.user
 	s.busy = true
 	s.render()
-	kit.Async(func() (core.AddToSteamResult, error) {
+	kit.Async(func() (services.AddToSteamResult, error) {
 		return s.u.Steam().AddSelf(user, s.art())
-	}, func(res core.AddToSteamResult, err error) {
+	}, func(res services.AddToSteamResult, err error) {
 		s.busy = false
 		if err != nil {
 			s.u.ToastErr(err)

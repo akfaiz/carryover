@@ -5,17 +5,37 @@ import (
 	"sync"
 
 	"github.com/akfaiz/carryover/internal/cloudsync/syncer"
-	"github.com/akfaiz/carryover/internal/core"
 	"github.com/akfaiz/carryover/services"
 )
+
+// Backend is what the game page asks of the services; the page's ViewModel
+// holds one, so the operations can be tested without Fyne or a cloud.
+type Backend interface {
+	Plan(key string) (services.PlanView, error)
+	Sync(key, resolution string) (string, error)
+	CancelSync(key string) bool
+	Backups(key string) ([]syncer.Backup, error)
+	BackupNow(key string) error
+	DeleteBackup(key, name string) error
+	SetBackupPinned(key, name string, pinned bool) error
+	RestoreBackup(key, name string) error
+	Play(gameID string) error
+	CancelPlay(key string) bool
+	Delete(gameID string, withSaves bool) error
+	SteamInfo() services.SteamInfo
+	WrapLaunchOptions(gameID string) (string, error)
+	AddToSteam(key, userID, mode string) (services.AddToSteamResult, error)
+	RemoveFromSteam(key, userID string) (int, error)
+}
 
 // ViewModel is the game page's state and rules, without a widget: the profiles
 // of the game (its own saves and one per emulator), which one is shown and
 // which one an action works on, what a profile knows of the cloud, what is
-// running, and the choices of the Steam shortcut form. Page draws it and embeds
-// it, so the page's code reads the fields directly.
+// running, and the choices of the Steam shortcut form. It also runs the page's
+// operations (sync, backups, Steam) through its Backend.
 type ViewModel struct {
 	id string
+	be Backend
 	// A game has profiles: its own saves and one per emulator. active is the
 	// profile the running or last action works on ("" = the game's own saves);
 	// it is read from other goroutines (a sync of several profiles moves it
@@ -40,7 +60,80 @@ type ViewModel struct {
 }
 
 // newViewModel returns the state of the page of the game with that id.
-func newViewModel(id string) *ViewModel { return &ViewModel{id: id, steamMode: "direct"} }
+func newViewModel(id string, be Backend) *ViewModel {
+	return &ViewModel{id: id, be: be, steamMode: "direct"}
+}
+
+// Plan compares a profile's saves with the cloud.
+func (p *ViewModel) Plan(prof string) (services.PlanView, error) {
+	p.setActive(prof)
+	return p.be.Plan(services.SyncKey(p.id, prof))
+}
+
+// SyncProfiles syncs the profiles one after the other, stopping at the first
+// error. done lists the ones synced and actions what each did.
+func (p *ViewModel) SyncProfiles(ids []string) (done, actions []string, err error) {
+	for _, id := range ids {
+		p.setActive(id) // the progress shown follows the profile being synced
+		a, err := p.be.Sync(services.SyncKey(p.id, id), "")
+		if err != nil {
+			return done, actions, err
+		}
+		done, actions = append(done, id), append(actions, a)
+	}
+	return done, actions, nil
+}
+
+// SyncOne syncs one profile; resolution settles a conflict ("local" or "cloud").
+func (p *ViewModel) SyncOne(prof, resolution string) (string, error) {
+	p.setActive(prof)
+	return p.be.Sync(services.SyncKey(p.id, prof), resolution)
+}
+
+// LoadBackups lists a profile's backups.
+func (p *ViewModel) LoadBackups(prof string) ([]syncer.Backup, error) {
+	return p.be.Backups(services.SyncKey(p.id, prof))
+}
+
+// BackupNow stores a pinned backup of a profile's saves.
+func (p *ViewModel) BackupNow(prof string) error {
+	p.setActive(prof)
+	return p.be.BackupNow(services.SyncKey(p.id, prof))
+}
+
+// DeleteBackup deletes a backup of a profile.
+func (p *ViewModel) DeleteBackup(prof string, b syncer.Backup) error {
+	p.setActive(prof)
+	return p.be.DeleteBackup(services.SyncKey(p.id, prof), b.Name)
+}
+
+// TogglePinned pins an unpinned backup, or unpins a pinned one.
+func (p *ViewModel) TogglePinned(prof string, b syncer.Backup) error {
+	p.setActive(prof)
+	return p.be.SetBackupPinned(services.SyncKey(p.id, prof), b.Name, !b.Pinned)
+}
+
+// RestoreBackup puts a backup back on this device and in the cloud.
+func (p *ViewModel) RestoreBackup(prof string, b syncer.Backup) error {
+	p.setActive(prof)
+	return p.be.RestoreBackup(services.SyncKey(p.id, prof), b.Name)
+}
+
+// AddToSteam adds the shortcut of a Steam target. hideMode forces a direct
+// launch (the form has no mode choice then).
+func (p *ViewModel) AddToSteam(key string, hideMode bool) (services.AddToSteamResult, error) {
+	mode := p.steamMode
+	if hideMode {
+		mode = "direct"
+	}
+	return p.be.AddToSteam(key, p.steamUser, mode)
+}
+
+// RemoveFromSteam removes the shortcut of a Steam target and reports how many
+// there were.
+func (p *ViewModel) RemoveFromSteam(key string) (int, error) {
+	return p.be.RemoveFromSteam(key, p.steamUser)
+}
 
 // initFrom sets the Steam form's starting choices from the game as the library
 // lists it: a game Steam launches opens the launch options, a Heroic game
@@ -89,8 +182,8 @@ func (p *ViewModel) activeProfile() string {
 }
 
 // key is what the services address the profile an action works on by
-// (core.SyncKey).
-func (p *ViewModel) key() string { return core.SyncKey(p.id, p.activeProfile()) }
+// (services.SyncKey).
+func (p *ViewModel) key() string { return services.SyncKey(p.id, p.activeProfile()) }
 
 // profileEntry is one profile of the game as the page lists it.
 type profileEntry struct {
@@ -220,7 +313,7 @@ func classifySync(actions []string) (kind syncKind, conflict int) {
 // steamChoice is what the Steam shortcut form is for: the whole game, or one
 // of its emulators.
 type steamChoice struct {
-	key    string // what the Steam calls address it by (core.SyncKey)
+	key    string // what the Steam calls address it by (services.SyncKey)
 	form   services.GameView
 	target string // "game" or an emulator id
 	// asks: the shortcut is the whole game's, which asks which emulator to use
@@ -244,7 +337,7 @@ func (p *ViewModel) steamChoice(orig services.GameView) steamChoice {
 		c.asks = true
 	} else {
 		c.target = p.steamTarget
-		c.key, c.form = core.SyncKey(p.id, c.target), profileView(orig, c.target)
+		c.key, c.form = services.SyncKey(p.id, c.target), profileView(orig, c.target)
 	}
 	c.hideMode = len(orig.Slots) == 0 || !c.asks
 	return c
