@@ -3,7 +3,6 @@ package shell
 import (
 	"fyne.io/fyne/v2"
 
-	"github.com/akfaiz/carryover/internal/core"
 	"github.com/akfaiz/carryover/services"
 	"github.com/akfaiz/carryover/ui/env"
 	"github.com/akfaiz/carryover/ui/kit"
@@ -15,7 +14,6 @@ var _ env.Env = (*Shell)(nil)
 
 func (u *Shell) Window() fyne.Window             { return u.win }
 func (u *Shell) App() fyne.App                   { return u.app }
-func (u *Shell) Core() *core.Core                { return u.c }
 func (u *Shell) Navigator() *kit.Navigator       { return u.nav }
 func (u *Shell) Store() *store.Store             { return u.store }
 func (u *Shell) Lib() *services.LibraryService   { return u.lib }

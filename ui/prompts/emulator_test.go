@@ -10,7 +10,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/akfaiz/carryover/internal/core"
 	"github.com/akfaiz/carryover/services"
 	"github.com/akfaiz/carryover/ui/env"
 	"github.com/akfaiz/carryover/ui/kit"
@@ -81,7 +80,7 @@ func widgetsOf[T fyne.CanvasObject](root fyne.CanvasObject) []T {
 func emulatorPrompt(h *harness, seconds int) (*Queue, services.Prompt, <-chan string, fyne.CanvasObject) {
 	p := services.Prompt{
 		ID: "p1", Kind: "emulator", GameName: "Game A", Default: "ryu", Seconds: seconds,
-		Choices: []services.ProfileChoice{{ID: core.NativeProfile, Name: "Without an emulator"}, {ID: "eden", Name: "Eden"}, {ID: "ryu", Name: "Ryujinx"}},
+		Choices: []services.ProfileChoice{{ID: services.NativeProfile, Name: "Without an emulator"}, {ID: "eden", Name: "Eden"}, {ID: "ryu", Name: "Ryujinx"}},
 	}
 	q := &Queue{e: stubEnv{win: h.win}, queue: []services.Prompt{p}}
 	answers := make(chan string, 4)

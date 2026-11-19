@@ -6,7 +6,6 @@ import (
 	"fyne.io/fyne/v2/test"
 	"github.com/stretchr/testify/assert"
 
-	"github.com/akfaiz/carryover/internal/library"
 	"github.com/akfaiz/carryover/services"
 )
 
@@ -21,7 +20,7 @@ func TestPlanText(t *testing.T) {
 func TestOtherDevices(t *testing.T) {
 	test.NewApp()
 	g := services.GameView{
-		Slots:        []library.SaveSlot{{Key: "saves", Label: "Saves"}},
+		Slots:        []services.SaveSlot{{Key: "saves", Label: "Saves"}},
 		OtherDevices: []services.DevicePaths{{DeviceName: "deck", Paths: map[string]string{}}},
 	}
 	assert.Nil(t, otherDevicesCard(g), "no paths to show")

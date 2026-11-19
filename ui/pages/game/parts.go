@@ -11,7 +11,6 @@ import (
 	"fyne.io/fyne/v2/widget"
 
 	"github.com/akfaiz/carryover/internal/cloudsync/syncer"
-	"github.com/akfaiz/carryover/internal/library"
 	"github.com/akfaiz/carryover/services"
 	"github.com/akfaiz/carryover/ui/components"
 	"github.com/akfaiz/carryover/ui/env"
@@ -75,7 +74,7 @@ func backupRow(b syncer.Backup, restoring, canRestore, canPin bool, onRestore, o
 // when they have none to show (see otherDevicesLine).
 func otherDevicesCard(g services.GameView) fyne.CanvasObject {
 	if !slices.ContainsFunc(g.OtherDevices, func(d services.DevicePaths) bool {
-		return slices.ContainsFunc(g.Slots, func(s library.SaveSlot) bool { return d.Paths[s.Key] != "" })
+		return slices.ContainsFunc(g.Slots, func(s services.SaveSlot) bool { return d.Paths[s.Key] != "" })
 	}) {
 		return nil
 	}

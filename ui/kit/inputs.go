@@ -2,6 +2,7 @@ package kit
 
 import (
 	"fyne.io/fyne/v2"
+	"fyne.io/fyne/v2/container"
 	"fyne.io/fyne/v2/theme"
 	"fyne.io/fyne/v2/widget"
 )
@@ -63,3 +64,24 @@ func NewAccordionSection(title string, body fyne.CanvasObject, open bool) *Accor
 
 // Open reports whether the section is currently expanded.
 func (s *AccordionSection) Open() bool { return s.item.Open }
+
+func fieldLabel(t string) *widget.Label {
+	l := widget.NewLabel(t)
+	l.Importance = widget.LowImportance
+	l.Wrapping = fyne.TextWrapWord
+	return l
+}
+
+// Field is a caption above an input. A one-line input gets InputHeight, so
+// entries, drop-downs and buttons line up: a monospace entry is otherwise
+// shorter than one in the regular font, and both are shorter than a button.
+func Field(label string, input fyne.CanvasObject) fyne.CanvasObject {
+	return container.NewVBox(fieldLabel(label), FullHeight(input))
+}
+
+// InputHeight is the height of a one-line input or button: a line of text or
+// an inline icon, whichever is taller, and the inner padding above and below.
+func InputHeight() float32 {
+	line := fyne.MeasureText("Mg", theme.TextSize(), fyne.TextStyle{}).Height
+	return max(line, theme.IconInlineSize()) + 2*theme.InnerPadding()
+}

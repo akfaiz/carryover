@@ -15,15 +15,15 @@ import (
 	"github.com/akfaiz/carryover/internal/app/appdir"
 	"github.com/akfaiz/carryover/internal/app/version"
 	"github.com/akfaiz/carryover/internal/cloudsync/syncer"
-	"github.com/akfaiz/carryover/ui/components"
 	"github.com/akfaiz/carryover/ui/env"
+	"github.com/akfaiz/carryover/ui/flows"
 	"github.com/akfaiz/carryover/ui/i18n"
 	"github.com/akfaiz/carryover/ui/kit"
 )
 
 // Options plugs in what this page shows but does not own.
 type Options struct {
-	// SteamArt supplies Carryover's own library artwork by kind (core.SelfArtKinds)
+	// SteamArt supplies Carryover's own library artwork by kind (services.SelfArtKinds)
 	// for the card that adds Carryover to Steam. Without it the card is left out.
 	SteamArt func() map[string][]byte
 }
@@ -32,6 +32,7 @@ type Options struct {
 type Page struct {
 	u    env.Env
 	opts Options
+	vm   *ViewModel // of the form shown; set once the settings are loaded
 }
 
 // New returns the Settings page.
@@ -65,7 +66,7 @@ func (p *Page) form(st appdir.Settings) fyne.CanvasObject {
 	savedNote := kit.Small("")
 	var hideNote *time.Timer
 	var keyDirty func()
-	vm := NewViewModel(Deps{
+	p.vm = NewViewModel(Deps{
 		Save: u.Sync().SaveSettings,
 		Run:  func(work func() (appdir.Settings, error), done func(appdir.Settings, error)) { kit.Async(work, done) },
 		Saved: func() {
@@ -80,6 +81,7 @@ func (p *Page) form(st appdir.Settings) fyne.CanvasObject {
 		ThemeChanged: u.ApplyTheme,
 		Error:        func(err error) { u.ToastErr(words(err)) },
 	}, st)
+	vm := p.vm
 
 	var read func() Form
 	commit := func() { vm.Commit(read) }
@@ -200,7 +202,7 @@ func (p *Page) form(st appdir.Settings) fyne.CanvasObject {
 		narrow(kit.Card(lang.L("Cover art"),
 			kit.Field(lang.L("SteamGridDB API key (optional)"), kit.RowFill(key, keySave, keyTest.Button)),
 			keyTest.Result,
-			kit.Muted(components.GridKeyHelp()))),
+			kit.Muted(flows.GridKeyHelp()))),
 	}
 	if p.opts.SteamArt != nil {
 		objs = append(objs, narrow(newSelfSteamCard(u, p.opts.SteamArt)))
@@ -231,7 +233,7 @@ func aboutCard(u env.Env) fyne.CanvasObject {
 		widget.NewHyperlink(notes, kit.MustURL(info.ReleaseURL())),
 		widget.NewHyperlink(lang.L("Source code"), kit.MustURL(version.RepoURL)),
 	))
-	logs := u.Core().Dirs.LogsDir()
+	logs := u.Sync().LogsDir()
 	objs = append(objs,
 		kit.HBox(widget.NewButtonWithIcon(lang.L("Open logs folder"), theme.FolderOpenIcon(), func() { u.OpenFolder(logs) })),
 		kit.Muted(lang.L("When reporting a problem, attach carryover.log from this folder (and carryover.1.log if it happened a while ago).")))

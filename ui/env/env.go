@@ -9,7 +9,6 @@ package env
 import (
 	"fyne.io/fyne/v2"
 
-	"github.com/akfaiz/carryover/internal/core"
 	"github.com/akfaiz/carryover/services"
 	"github.com/akfaiz/carryover/ui/kit"
 	"github.com/akfaiz/carryover/ui/store"
@@ -20,7 +19,6 @@ type Env interface {
 	// Window is the window the page is shown in; dialogs open on it.
 	Window() fyne.Window
 	App() fyne.App
-	Core() *core.Core
 	Navigator() *kit.Navigator
 
 	// Store is the state every page shares.

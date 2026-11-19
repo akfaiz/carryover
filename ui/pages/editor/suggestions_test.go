@@ -7,7 +7,6 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/akfaiz/carryover/internal/saves/ludusavi"
-	"github.com/akfaiz/carryover/internal/stores/steamgrid"
 	"github.com/akfaiz/carryover/services"
 )
 
@@ -50,7 +49,7 @@ func TestArtSpecFor(t *testing.T) {
 	for _, s := range artSpecs() {
 		assert.Equal(t, s.kind, artSpecFor(s.kind).kind)
 	}
-	assert.Equal(t, steamgrid.KindCover, artSpecFor(steamgrid.KindCover).kind)
+	assert.Equal(t, services.ArtCover, artSpecFor(services.ArtCover).kind)
 }
 
 func TestSlotKeys(t *testing.T) {

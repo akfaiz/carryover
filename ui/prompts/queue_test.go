@@ -10,7 +10,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/akfaiz/carryover/internal/cloudsync/syncer"
-	"github.com/akfaiz/carryover/internal/core"
 	"github.com/akfaiz/carryover/services"
 	"github.com/akfaiz/carryover/ui/env"
 	"github.com/akfaiz/carryover/ui/internal/uitest"
@@ -212,7 +211,7 @@ func TestEmulatorPromptNavigation(t *testing.T) {
 	h := newHarness(t)
 	h.Shell.Prompts().Add(services.Prompt{
 		ID: "p1", Kind: "emulator", GameName: "Game A", Default: "ryu", Seconds: 30,
-		Choices: []services.ProfileChoice{{ID: core.NativeProfile, Name: "Without an emulator"}, {ID: "eden", Name: "Eden"}, {ID: "ryu", Name: "Ryujinx"}},
+		Choices: []services.ProfileChoice{{ID: services.NativeProfile, Name: "Without an emulator"}, {ID: "eden", Name: "Eden"}, {ID: "ryu", Name: "Ryujinx"}},
 	})
 	tiles := uitest.OverlayWidgets[*kit.ChoiceTile](h)
 	require.Len(t, tiles, 3)

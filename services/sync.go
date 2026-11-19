@@ -74,6 +74,9 @@ func cancelled(ctx context.Context, err error) error {
 // NewSyncService creates the service. bus may be nil.
 func NewSyncService(c *core.Core, bus *Bus) *SyncService { return &SyncService{c: c, bus: bus} }
 
+// LogsDir is the folder holding carryover.log, for the "open logs" button.
+func (s *SyncService) LogsDir() string { return s.c.Dirs.LogsDir() }
+
 // GetSettings returns device settings.
 func (s *SyncService) GetSettings() appdir.Settings { return s.c.Settings.Get() }
 

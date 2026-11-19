@@ -84,29 +84,6 @@ func TestHelp(t *testing.T) {
 	assert.NotNil(t, components.Help(h.Shell, "summary", "more details"))
 }
 
-func TestGridKeyDialog(t *testing.T) {
-	h := newHarness(t)
-	assert.NotEmpty(t, components.GridKeyHelp())
-	saved := false
-	components.ShowGridKeyDialog(h.Shell, func() { saved = true })
-	h.Settle()
-	assert.Contains(t, uitest.ButtonTexts(h), "Save")
-	entries := uitest.OverlayWidgets[*widget.Entry](h)
-	require.NotEmpty(t, entries)
-	entries[0].SetText("abc")
-	uitest.TapOverlayButton(t, h, "Save")
-	h.Settle()
-	assert.True(t, saved)
-	assert.Equal(t, "abc", h.Shell.Sync().GetSettings().SteamGridDBKey)
-}
-
-func TestOpenSteamWithoutLink(t *testing.T) {
-	h := newHarness(t)
-	components.OpenSteam(h.Shell, services.GameView{Name: "G"})
-	h.Settle()
-	assert.NotEmpty(t, h.Toasts())
-}
-
 func TestRemoveButton(t *testing.T) {
 	newHarness(t)
 	called := false

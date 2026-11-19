@@ -9,7 +9,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/akfaiz/carryover/internal/library"
 	"github.com/akfaiz/carryover/services"
 	"github.com/akfaiz/carryover/ui/env"
 	"github.com/akfaiz/carryover/ui/internal/uitest"
@@ -34,9 +33,9 @@ func addGame(t *testing.T, h *uitest.Harness, name string) services.GameView {
 	t.Helper()
 	g, err := h.Shell.Lib().Save(services.GameInput{
 		Name:  name,
-		Slots: []library.SaveSlot{{Key: "saves", Label: "Saves"}},
+		Slots: []services.SaveSlot{{Key: "saves", Label: "Saves"}},
 		Device: services.DeviceInput{
-			Paths: map[string]string{"saves": t.TempDir()}, Exe: "/x/game.exe", LaunchMode: library.LaunchDirect,
+			Paths: map[string]string{"saves": t.TempDir()}, Exe: "/x/game.exe", LaunchMode: services.LaunchDirect,
 		},
 	})
 	require.NoError(t, err)

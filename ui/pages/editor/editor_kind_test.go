@@ -5,12 +5,11 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	"github.com/akfaiz/carryover/internal/library"
 	"github.com/akfaiz/carryover/services"
 )
 
 func TestPlayKindOf(t *testing.T) {
-	native := services.GameView{Slots: []library.SaveSlot{{Key: "saves"}}}
+	native := services.GameView{Slots: []services.SaveSlot{{Key: "saves"}}}
 	var emulated services.GameView // nothing of its own
 	assert.Equal(t, KindDirect, playKindOf(&native, false))
 	assert.Equal(t, KindBoth, playKindOf(&native, true))

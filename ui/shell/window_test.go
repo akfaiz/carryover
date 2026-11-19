@@ -13,8 +13,8 @@ import (
 
 	"github.com/akfaiz/carryover/internal/core"
 	"github.com/akfaiz/carryover/services"
-	"github.com/akfaiz/carryover/ui/components"
 	"github.com/akfaiz/carryover/ui/env"
+	"github.com/akfaiz/carryover/ui/flows"
 	"github.com/akfaiz/carryover/ui/internal/uitest"
 	"github.com/akfaiz/carryover/ui/kit"
 	"github.com/akfaiz/carryover/ui/shell"
@@ -63,7 +63,7 @@ func TestGamepadSectionsAndBack(t *testing.T) {
 func TestGamepadClosesDialogs(t *testing.T) {
 	h := newHarness(t)
 	h.Open("/settings")
-	components.ShowAddGame(h.Shell)
+	flows.ShowAddGame(h.Shell)
 	require.NotEmpty(t, h.Shell.Window().Canvas().Overlays().List())
 	h.Shell.Navigator().Apply(kit.PadBack)
 	assert.Empty(t, h.Shell.Window().Canvas().Overlays().List())

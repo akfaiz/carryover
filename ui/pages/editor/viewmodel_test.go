@@ -8,7 +8,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/akfaiz/carryover/internal/library"
-	"github.com/akfaiz/carryover/internal/stores/steamgrid"
 	"github.com/akfaiz/carryover/services"
 )
 
@@ -27,7 +26,7 @@ func saveSug(path string, files int, include ...string) services.SaveSuggestion 
 
 func newVM(id string) *ViewModel {
 	return &ViewModel{id: id, loading: true, kind: KindDirect,
-		dev: services.DeviceInput{Paths: map[string]string{}, Env: map[string]string{}, LaunchMode: library.LaunchDirect}}
+		dev: services.DeviceInput{Paths: map[string]string{}, Env: map[string]string{}, LaunchMode: services.LaunchDirect}}
 }
 
 // newGame is a form for a new game, as loaded.
@@ -40,7 +39,7 @@ func newGame() *ViewModel {
 func storedGame() *services.GameView {
 	return &services.GameView{
 		ID: "g1", Name: "Celeste", StoreAppID: "504230", CoverPath: "/c.png", CoverVersion: 3,
-		Slots: []library.SaveSlot{{Key: "saves", Label: "", Include: []string{"*.sav"}, Exclude: []string{"*.log"}}},
+		Slots: []services.SaveSlot{{Key: "saves", Label: "", Include: []string{"*.sav"}, Exclude: []string{"*.log"}}},
 		Device: library.DeviceConfig{
 			Exe: "/games/celeste", Args: "-windowed", WorkDir: "/games", WaitProcess: "celeste.exe",
 			Env: map[string]string{"B": "2", "A": "1"}, LaunchMode: "",
@@ -73,7 +72,7 @@ func TestApplyAStoredGameFillsEveryField(t *testing.T) {
 	assert.Equal(t, "/c.png", vm.coverPath)
 	assert.Equal(t, int64(3), vm.coverVersion)
 	assert.Equal(t, "/games/celeste", vm.dev.Exe)
-	assert.Equal(t, library.LaunchDirect, vm.dev.LaunchMode, "a stored game without a mode launches directly")
+	assert.Equal(t, services.LaunchDirect, vm.dev.LaunchMode, "a stored game without a mode launches directly")
 	assert.Equal(t, "A=1\nB=2", vm.envText, "sorted")
 	assert.True(t, vm.advanced, "working directory, wait process and variables are set: Advanced starts open")
 	assert.Len(t, vm.others, 1)
@@ -86,7 +85,7 @@ func TestApplyAStoredGameFillsEveryField(t *testing.T) {
 	assert.Equal(t, "/home/me/saves", s.path)
 	assert.False(t, s.isNew, "an existing key names its cloud folder and never changes")
 
-	hero := vm.art[steamgrid.KindHero]
+	hero := vm.art[services.ArtHero]
 	require.NotNil(t, hero)
 	assert.Equal(t, "/hero.png", hero.path)
 	assert.True(t, hero.has())
@@ -118,8 +117,8 @@ func TestDirtyFollowsWhatWouldBeLost(t *testing.T) {
 		"new slot":  func(v *ViewModel) { v.addSlot() },
 		"kind":      func(v *ViewModel) { v.kind = KindBoth },
 		"cover":     func(v *ViewModel) { v.coverSrc = "/new.png" },
-		"art":       func(v *ViewModel) { v.artEdit(steamgrid.KindLogo).src = "/logo.png" },
-		"clear art": func(v *ViewModel) { v.artEdit(steamgrid.KindHero).clear = true },
+		"art":       func(v *ViewModel) { v.artEdit(services.ArtLogo).src = "/logo.png" },
+		"clear art": func(v *ViewModel) { v.artEdit(services.ArtHero).clear = true },
 	} {
 		v := newVM("g1")
 		v.Apply(Loaded{Game: storedGame()}, nil)
@@ -141,7 +140,7 @@ func TestPrefillFromSteam(t *testing.T) {
 
 	assert.Equal(t, "Hades", vm.name)
 	assert.Equal(t, "1145360", vm.storeAppID)
-	assert.Equal(t, library.LaunchSteamWrap, vm.dev.LaunchMode, "Steam starts it; Carryover wraps the launch options")
+	assert.Equal(t, services.LaunchSteamWrap, vm.dev.LaunchMode, "Steam starts it; Carryover wraps the launch options")
 	assert.False(t, vm.Dirty(), "the game picked in Steam is where the form starts")
 }
 
@@ -198,7 +197,7 @@ func TestInputForAnEmulatedGameHasNoLaunchOrSavesOfItsOwn(t *testing.T) {
 	require.NoError(t, err)
 	assert.Empty(t, in.Slots)
 	assert.Empty(t, in.Device.Exe)
-	assert.Equal(t, library.LaunchDirect, in.Device.LaunchMode)
+	assert.Equal(t, services.LaunchDirect, in.Device.LaunchMode)
 	require.Len(t, in.Emulators, 1)
 	assert.Equal(t, "eden", in.Emulators[0].EmulatorID)
 	assert.Equal(t, "/roms/zelda.nsp", in.Emulators[0].Rom)
@@ -378,12 +377,12 @@ func TestArtworkJobsListOnlyChanges(t *testing.T) {
 	vm.Apply(Loaded{Game: storedGame()}, nil)
 	assert.Empty(t, vm.artworkJobs(), "nothing changed")
 
-	vm.artEdit(steamgrid.KindLogo).src = "/logo.png"
-	vm.artEdit(steamgrid.KindHero).clear = true
+	vm.artEdit(services.ArtLogo).src = "/logo.png"
+	vm.artEdit(services.ArtHero).clear = true
 	jobs := vm.artworkJobs()
 	assert.Len(t, jobs, 2)
-	assert.Equal(t, "/logo.png", jobs[steamgrid.KindLogo].src)
-	hero := jobs[steamgrid.KindHero]
+	assert.Equal(t, "/logo.png", jobs[services.ArtLogo].src)
+	hero := jobs[services.ArtHero]
 	assert.True(t, hero.clear)
 	assert.False(t, hero.has(), "cleared: no image after saving")
 }

@@ -10,6 +10,7 @@ import (
 	"github.com/akfaiz/carryover/services"
 	"github.com/akfaiz/carryover/ui/components"
 	"github.com/akfaiz/carryover/ui/components/emulatorform"
+	"github.com/akfaiz/carryover/ui/flows"
 	"github.com/akfaiz/carryover/ui/kit"
 	cloudpage "github.com/akfaiz/carryover/ui/pages/cloud"
 )
@@ -50,8 +51,8 @@ func TestGamepadReachesEveryControl(t *testing.T) {
 // press starts, and B closes the dialog.
 func TestGamepadReachesDialogControls(t *testing.T) {
 	cases := map[string]func(h *harness){
-		"add game":        func(h *harness) { components.ShowAddGame(h.u) },
-		"SteamGridDB key": func(h *harness) { components.ShowGridKeyDialog(h.u, nil) },
+		"add game":        func(h *harness) { flows.ShowAddGame(h.u) },
+		"SteamGridDB key": func(h *harness) { flows.ShowGridKeyDialog(h.u, nil) },
 		"add emulator":    func(h *harness) { emulatorform.ShowDialog(h.u, func(services.EmulatorView) {}) },
 		"add remote":      func(h *harness) { cloudpage.New(h.u).AddRemote() },
 		"discard changes": func(h *harness) { components.ConfirmDiscard(h.u, func() {}) },

@@ -10,7 +10,6 @@ import (
 	"fyne.io/fyne/v2/theme"
 	"fyne.io/fyne/v2/widget"
 
-	"github.com/akfaiz/carryover/internal/core"
 	"github.com/akfaiz/carryover/services"
 	"github.com/akfaiz/carryover/ui/kit"
 )
@@ -36,7 +35,7 @@ func (q *Queue) emulatorChoice(p services.Prompt, answer func(string), nav *kit.
 		answer(a)
 	}
 	choiceName := func(c services.ProfileChoice) string {
-		if c.ID == core.NativeProfile {
+		if c.ID == services.NativeProfile {
 			return lang.L("Without an emulator")
 		}
 		return c.Name
@@ -48,7 +47,7 @@ func (q *Queue) emulatorChoice(p services.Prompt, answer func(string), nav *kit.
 	var row *fyne.Container
 	for i, c := range p.Choices {
 		icon := theme.ComputerIcon()
-		if c.ID == core.NativeProfile {
+		if c.ID == services.NativeProfile {
 			icon = theme.MediaPlayIcon() // the game itself, no emulator
 		}
 		isDefault := c.ID == p.Default

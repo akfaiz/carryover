@@ -16,7 +16,6 @@ import (
 func TestShellEnvAccessors(t *testing.T) {
 	h := newHarness(t)
 	s := h.Shell
-	assert.NotNil(t, s.Core())
 	assert.NotNil(t, s.Sync())
 	assert.NotNil(t, s.Cloud())
 	assert.NotNil(t, s.Steam())
