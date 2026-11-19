@@ -28,8 +28,14 @@ All notable changes to Carryover are listed here. The format follows
 
 - The library's filters have a row of their own under search and sort, and the filters not chosen are outlined,
   so they read as choices instead of plain text.
+- The window shown while syncing before and after a game (`carryover run`) shows the game's hero artwork, or its
+  wide artwork, behind it. A game with only a cover shows the whole cover at the right instead of a cropped slice.
 
 ### Fixed
+
+- With a controller, the Cancel button in the window shown while syncing before and after a game no longer takes
+  the focus, so pressing A as the game closes can't cancel the upload by accident. The first press only selects
+  Cancel.
 
 - Play no longer stops with "has several emulators; choose one" when only one of the game's emulators is set up on
   this device: it starts that one, also if the other was played last.
