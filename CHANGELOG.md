@@ -19,6 +19,7 @@ All notable changes to Carryover are listed here. The format follows
 
 - After losing the connection while playing, starting the game again failed with "game is already running or
   syncing in another Carryover process" for minutes: the session watcher held the game while it retried offline.
+- A game with a long name being played no longer widens the sidebar: its "Playing …" entry ends in "…".
 
 ## [0.4.0] - 2026-11-20
 

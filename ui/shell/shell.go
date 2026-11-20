@@ -355,10 +355,9 @@ func (u *Shell) renderActivity() {
 	for _, g := range u.store.Games {
 		if st, ok := u.store.Status[g.ID]; ok && st.Running {
 			id := g.ID
-			b := widget.NewButtonWithIcon(lang.L("Playing {{.Game}}", map[string]any{"Game": g.Name}), theme.MediaPlayIcon(),
-				func() { u.navigate("/game/" + id) })
-			b.Alignment, b.Importance = widget.ButtonAlignLeading, widget.LowImportance
-			objs = append(objs, b)
+			// Truncated: a button would widen the sidebar to a long name.
+			objs = append(objs, kit.IconRow(theme.MediaPlayIcon(), lang.L("Playing {{.Game}}", map[string]any{"Game": g.Name}),
+				func() { u.navigate("/game/" + id) }))
 		}
 	}
 	grew := len(objs) != len(u.activity.Objects)

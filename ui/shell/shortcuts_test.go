@@ -10,6 +10,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/akfaiz/carryover/services"
+	"github.com/akfaiz/carryover/ui/kit"
 	"github.com/akfaiz/carryover/ui/store"
 )
 
@@ -46,6 +47,25 @@ func TestSidebarShowsRunningGame(t *testing.T) {
 	h.Settle()
 	assert.NotNil(t, h.Shell.Activity())
 	assert.NotEmpty(t, h.Shell.Activity().Objects)
+}
+
+// A game with a long name being played doesn't widen the sidebar: its entry
+// ends in "…" and still opens the game.
+func TestSidebarTruncatesLongGameName(t *testing.T) {
+	h := newHarness(t)
+	g := h.AddGame("The Legend of Zelda: Tears of the Kingdom — Collector's Edition", t.TempDir())
+	h.Settle()
+	h.Shell.Store().Status[g.ID] = services.Status{GameID: g.ID, Running: true}
+	h.Shell.Notify(store.Status)
+	h.Shell.RefreshSidebar()
+	h.Settle()
+	require.Len(t, h.Shell.Activity().Objects, 1)
+	assert.LessOrEqual(t, h.Shell.Activity().MinSize().Width, float32(200), "sidebar widened by the game's name")
+	row, ok := h.Shell.Activity().Objects[0].(*kit.Tappable)
+	require.True(t, ok)
+	test.Tap(row)
+	h.Settle()
+	assert.Equal(t, "/game/"+g.ID, h.Shell.Route())
 }
 
 // While "Sync all" runs on another page, the sidebar shows how far it is and
