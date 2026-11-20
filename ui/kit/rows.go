@@ -3,6 +3,7 @@ package kit
 import (
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/container"
+	"fyne.io/fyne/v2/layout"
 	"fyne.io/fyne/v2/theme"
 	"fyne.io/fyne/v2/widget"
 )
@@ -12,6 +13,17 @@ func ListRow(name, detail string, onTap func()) fyne.CanvasObject {
 	n := widget.NewLabelWithStyle(name, fyne.TextAlignLeading, fyne.TextStyle{Bold: true})
 	n.Truncation = fyne.TextTruncateEllipsis
 	return NewTappable(container.NewBorder(nil, nil, nil, Small(detail), n), onTap)
+}
+
+// IconRow is a clickable line with a leading icon and a text that ends in "…"
+// when it doesn't fit. For narrow places such as a sidebar, where a button
+// would widen to its whole text.
+func IconRow(icon fyne.Resource, text string, onTap func()) *Tappable {
+	l := widget.NewLabel(text)
+	l.Truncation = fyne.TextTruncateEllipsis
+	// Inset like a button's icon.
+	lead := container.New(layout.NewCustomPaddedLayout(0, 0, theme.InnerPadding(), 0), widget.NewIcon(icon))
+	return NewTappable(container.NewBorder(nil, nil, lead, nil, l), onTap)
 }
 
 // DetailRow is a clickable list entry for a long detail such as a folder path:
