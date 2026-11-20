@@ -11,12 +11,12 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
-	"regexp"
 	"strings"
 
 	"gopkg.in/yaml.v3"
 
 	"github.com/akfaiz/carryover/internal/stores/heroic"
+	"github.com/akfaiz/carryover/internal/stores/lutris"
 )
 
 // Launchers a prefix can come from.
@@ -137,9 +137,7 @@ func Find(r Roots) []Prefix {
 	for _, dir := range heroic.LinuxConfigDirs(home) {
 		heroicParents = append(heroicParents, f.heroicConfig(dir.Path, home)...)
 	}
-	for _, dir := range lutrisGameDirs(home) {
-		f.lutrisGames(dir, home)
-	}
+	f.lutrisGames(home)
 	for _, dir := range bottlesDirs(home) {
 		f.bottles(dir)
 	}
@@ -165,7 +163,7 @@ func Find(r Roots) []Prefix {
 	}
 	for _, p := range []string{
 		filepath.Join(home, ".local", "share", "lutris", "prefixes"),
-		filepath.Join(home, ".var", "app", lutrisFlatpak, "data", "lutris", "prefixes"),
+		filepath.Join(home, ".var", "app", lutris.FlatpakID, "data", "lutris", "prefixes"),
 	} {
 		f.addChildren(Lutris, p)
 	}
@@ -258,54 +256,12 @@ func (f *finder) heroicConfig(dir, home string) (parents []string) {
 
 // --- Lutris ---
 
-const lutrisFlatpak = "net.lutris.Lutris"
-
-func lutrisGameDirs(home string) []string {
-	return []string{
-		filepath.Join(home, ".local", "share", "lutris", "games"),
-		filepath.Join(home, ".config", "lutris", "games"),
-		filepath.Join(home, ".var", "app", lutrisFlatpak, "data", "lutris", "games"),
-		filepath.Join(home, ".var", "app", lutrisFlatpak, "config", "lutris", "games"),
-	}
-}
-
-// lutrisFileSuffix is the "-<timestamp>" Lutris appends to a game file name.
-var lutrisFileSuffix = regexp.MustCompile(`-\d+$`)
-
-// lutrisGames adds the prefix of each game in a Lutris games folder
-// (<slug>-<timestamp>.yml).
-func (f *finder) lutrisGames(dir, home string) {
-	entries, _ := os.ReadDir(dir)
-	for i, e := range entries {
-		if i >= maxConfigFiles {
-			break
+// lutrisGames adds the prefix of each game Lutris has configured.
+func (f *finder) lutrisGames(home string) {
+	for _, g := range lutris.Installed(home) {
+		if g.Prefix != "" {
+			f.add(Lutris, g.Name, g.Prefix)
 		}
-		if e.IsDir() || !strings.HasSuffix(e.Name(), ".yml") {
-			continue
-		}
-		var spec struct {
-			Name     string `yaml:"name"`
-			GameSlug string `yaml:"game_slug"`
-			Game     struct {
-				Prefix string `yaml:"prefix"`
-			} `yaml:"game"`
-		}
-		b, err := os.ReadFile(filepath.Join(dir, e.Name()))
-		if err != nil || yaml.Unmarshal(b, &spec) != nil {
-			continue
-		}
-		p := absPath(spec.Game.Prefix, home)
-		if p == "" {
-			continue
-		}
-		name := spec.Name
-		if name == "" {
-			name = spec.GameSlug
-		}
-		if name == "" {
-			name = lutrisFileSuffix.ReplaceAllString(strings.TrimSuffix(e.Name(), ".yml"), "")
-		}
-		f.add(Lutris, name, p)
 	}
 }
 

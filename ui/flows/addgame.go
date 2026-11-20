@@ -1,6 +1,7 @@
 package flows
 
 import (
+	"runtime"
 	"strings"
 
 	"fyne.io/fyne/v2"
@@ -27,16 +28,26 @@ func ShowAddGame(u env.Env) {
 		return container.New(layout.NewGridWrapLayout(fyne.NewSize(kit.ChoiceTileSize+16, kit.ChoiceTileSize)),
 			kit.NewChoiceTile(name, icon, false, pick(f)))
 	}
+	tiles := []fyne.CanvasObject{
+		tile(lang.L("From Steam"), theme.DownloadIcon(), func() { ShowSteamImport(u) }),
+	}
+	width := float32(500)
+	help := lang.L("From Steam: a game Steam installed on this device. PC game: any other game, started from its executable or through Heroic. Emulated game: a game file you play through an emulator such as Eden or Ryujinx.")
+	if runtime.GOOS == "linux" {
+		tiles = append(tiles, tile(lang.L("From Lutris"), theme.FolderOpenIcon(), func() { ShowLutrisImport(u) }))
+		width = 640
+		help = lang.L("From Steam: a game Steam installed on this device. From Lutris: a game Lutris installed. PC game: any other game, started from its executable or through Heroic or Lutris. Emulated game: a game file you play through an emulator such as Eden or Ryujinx.")
+	}
+	tiles = append(tiles,
+		tile(lang.L("PC game"), theme.ComputerIcon(), func() { u.Navigate("/new") }),
+		tile(lang.L("Emulated game"), theme.MediaPlayIcon(), func() { u.Navigate("/new/emulator") }),
+	)
 	body := kit.VBox(
-		kit.HBox(
-			tile(lang.L("From Steam"), theme.DownloadIcon(), func() { ShowSteamImport(u) }),
-			tile(lang.L("PC game"), theme.ComputerIcon(), func() { u.Navigate("/new") }),
-			tile(lang.L("Emulated game"), theme.MediaPlayIcon(), func() { u.Navigate("/new/emulator") }),
-		),
-		kit.Muted(lang.L("From Steam: a game Steam installed on this device. PC game: any other game, started from its executable or through Heroic. Emulated game: a game file you play through an emulator such as Eden or Ryujinx.")),
+		kit.HBox(tiles...),
+		kit.Muted(help),
 		kit.HBox(layout.NewSpacer(), widget.NewButton(lang.L("Cancel"), func() { d.Hide() })),
 	)
-	d = components.ShowCustom(u, lang.L("Add a game"), body, 500)
+	d = components.ShowCustom(u, lang.L("Add a game"), body, width)
 }
 
 // ShowSteamImport lists games installed through Steam; picking one opens the

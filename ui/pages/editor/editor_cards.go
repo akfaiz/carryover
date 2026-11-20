@@ -109,6 +109,9 @@ func (e *Page) launchCard() fyne.CanvasObject {
 	if runtime.GOOS == "linux" || runtime.GOOS == "windows" || e.vm.dev.LaunchMode == services.LaunchHeroic {
 		modes.Add(string(services.LaunchHeroic), lang.L("Heroic Games Launcher"))
 	}
+	if runtime.GOOS == "linux" || e.vm.dev.LaunchMode == services.LaunchLutris {
+		modes.Add(string(services.LaunchLutris), lang.L("Lutris"))
+	}
 	modes.Add(string(services.LaunchSteamWrap), lang.L("Steam"))
 	e.exeEntry = kit.MonoEntry("", e.vm.dev.Exe, func(s string) { e.vm.dev.Exe = s })
 	hint := kit.Muted("")
@@ -131,12 +134,16 @@ func (e *Page) launchCard() fyne.CanvasObject {
 		case services.LaunchHeroic:
 			hint.SetText(lang.L("Heroic starts the game with its own settings (and, on Linux, its Wine prefix). Pick the game's executable inside its Heroic install folder; Carryover waits for it to close, then syncs."))
 			e.exeEntry.SetPlaceHolder(exeExample(`Heroic\`))
+		case services.LaunchLutris:
+			hint.SetText(lang.L("Lutris starts the game with its own runner and Wine prefix. Pick the game's executable as set in Lutris; Carryover waits for it to close, then syncs."))
+			e.exeEntry.SetPlaceHolder(exeExample(`Lutris\`))
 		default:
 			hint.SetText(lang.L("Carryover runs the executable below. It syncs saves before the game starts and after it closes."))
 			e.exeEntry.SetPlaceHolder(exeExample(""))
 		}
-		// Heroic launches the game with its own settings, so arguments set here are unused.
-		if e.vm.dev.LaunchMode == services.LaunchHeroic {
+		// Heroic and Lutris launch the game with their own settings, so
+		// arguments set here are unused.
+		if e.vm.dev.LaunchMode == services.LaunchHeroic || e.vm.dev.LaunchMode == services.LaunchLutris {
 			argsField.Hide()
 		} else {
 			argsField.Show()
@@ -153,6 +160,7 @@ func (e *Page) launchCard() fyne.CanvasObject {
 			e.vm.dev.Exe = p
 			e.exeEntry.SetText(p)
 			e.detectHeroic(p)
+			e.detectLutris(p)
 			if e.vm.name != "" {
 				return
 			}
@@ -204,6 +212,30 @@ func (e *Page) detectHeroic(exe string) {
 		}
 		e.vm.dev.LaunchMode = services.LaunchHeroic
 		e.u.Toast(lang.L("{{.Game}} is installed by Heroic — it will be started through Heroic.", map[string]any{"Game": f.title}), kit.ToastOK)
+		e.render()
+	})
+}
+
+// detectLutris switches the launch mode to Lutris when exe belongs to a game
+// Lutris has configured, so the game keeps Lutris's runner and Wine prefix
+// instead of getting a new one from Steam.
+func (e *Page) detectLutris(exe string) {
+	if e.vm.dev.LaunchMode == services.LaunchLutris || e.vm.dev.LaunchMode == services.LaunchHeroic {
+		return
+	}
+	type found struct {
+		title string
+		ok    bool
+	}
+	kit.Async(func() (found, error) {
+		title, ok := e.vm.be.LutrisGame(exe)
+		return found{title, ok}, nil
+	}, func(f found, _ error) {
+		if !f.ok || e.vm.dev.Exe != exe || e.vm.dev.LaunchMode == services.LaunchHeroic {
+			return
+		}
+		e.vm.dev.LaunchMode = services.LaunchLutris
+		e.u.Toast(lang.L("{{.Game}} is installed by Lutris — it will be started through Lutris.", map[string]any{"Game": f.title}), kit.ToastOK)
 		e.render()
 	})
 }

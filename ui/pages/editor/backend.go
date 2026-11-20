@@ -26,6 +26,12 @@ func (b serviceBackend) GuessName(exe string) string { return b.u.Lib().GuessNam
 func (b serviceBackend) HeroicGame(exe string) (string, bool) {
 	return b.u.Lib().HeroicGame(exe)
 }
+func (b serviceBackend) LutrisGame(exe string) (string, bool) {
+	return b.u.Lib().LutrisGame(exe)
+}
+func (b serviceBackend) LutrisLibrary() []services.LutrisLibraryGame {
+	return b.u.Lib().LutrisLibrary()
+}
 func (b serviceBackend) GuessRomName(emulatorID, rom string) string {
 	return b.u.Emus().GuessRomName(emulatorID, rom)
 }

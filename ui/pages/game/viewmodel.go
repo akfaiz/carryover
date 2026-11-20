@@ -136,8 +136,8 @@ func (p *ViewModel) RemoveFromSteam(key string) (int, error) {
 }
 
 // initFrom sets the Steam form's starting choices from the game as the library
-// lists it: a game Steam launches opens the launch options, a Heroic game
-// starts on Heroic.
+// lists it: a game Steam launches opens the launch options, a Heroic or
+// Lutris game starts on its launcher.
 func (p *ViewModel) initFrom(g services.GameView) {
 	switch g.Device.LaunchMode {
 	case "steamwrap":
@@ -145,6 +145,8 @@ func (p *ViewModel) initFrom(g services.GameView) {
 		p.wrapOpen = g.StoreAppID != ""
 	case "heroic":
 		p.steamMode = "heroic"
+	case "lutris":
+		p.steamMode = "lutris"
 	}
 }
 

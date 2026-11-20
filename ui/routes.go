@@ -18,7 +18,8 @@ import (
 //	/                      library
 //	/game/<id>             a game
 //	/edit/<id>             edit a game
-//	/new, /new/emulator    add a game; /new/steam/<app id> from Steam
+//	/new, /new/emulator    add a game; /new/steam/<app id> from Steam,
+//	                       /new/lutris/<config id> from Lutris
 //	/emulators /cloud /trash /settings
 func pageFor(u env.Env, path string) env.Page {
 	parts := strings.Split(strings.Trim(path, "/"), "/")
@@ -35,6 +36,8 @@ func pageFor(u env.Env, path string) env.Page {
 		return editor.New(u, arg(1), "")
 	case arg(0) == "new" && arg(1) == "steam" && arg(2) != "":
 		return editor.New(u, "", arg(2))
+	case arg(0) == "new" && arg(1) == "lutris" && arg(2) != "":
+		return editor.NewFromLutris(u, arg(2))
 	case arg(0) == "new" && arg(1) == "emulator":
 		return editor.NewEmulated(u)
 	case arg(0) == "new":

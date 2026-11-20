@@ -21,6 +21,8 @@ type Backend interface {
 	SuggestSaves(in services.SuggestInput) (services.SuggestResult, error)
 	GuessName(exe string) string
 	HeroicGame(exe string) (title string, ok bool)
+	LutrisGame(exe string) (title string, ok bool)
+	LutrisLibrary() []services.LutrisLibraryGame
 	GuessRomName(emulatorID, rom string) string
 	SuggestEmuSaves(emulatorID string, in services.EmuSuggestInput) (services.EmuSuggestResult, error)
 	SaveGame(in services.GameInput) (services.GameView, error)
@@ -168,6 +170,16 @@ func (e *ViewModel) fillFrom(g *services.GameView) {
 	}
 	e.loadEmulators(g)
 	e.kind = playKindOf(g, len(e.emus) > 0)
+}
+
+// PrefillFromLutris makes a game Lutris installed the form's starting point:
+// its name and executable, started through Lutris so it keeps Lutris's runner
+// and Wine prefix.
+func (e *ViewModel) PrefillFromLutris(g services.LutrisLibraryGame) {
+	e.name = g.Name
+	e.dev.Exe = g.Exe
+	e.dev.LaunchMode = services.LaunchLutris
+	e.orig = e.snapshot()
 }
 
 // PrefillFromSteam makes a game installed through Steam the form's starting
