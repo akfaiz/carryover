@@ -7,6 +7,19 @@ All notable changes to Carryover are listed here. The format follows
 
 ## [Unreleased]
 
+### Changed
+
+- Playing without internet: Carryover notices within a few seconds that the cloud can't be reached and starts the
+  game without syncing, with no question asked ("Offline — playing without syncing"). If the connection is gone
+  after the game, the saves stay on this device and upload on the next sync or play, also without an error
+  prompt. A game played offline while another device played it too shows a conflict to resolve, as before.
+- "Sync all" and "Sync now" also stop at once when offline, instead of retrying for minutes.
+
+### Fixed
+
+- After losing the connection while playing, starting the game again failed with "game is already running or
+  syncing in another Carryover process" for minutes: the session watcher held the game while it retried offline.
+
 ## [0.4.0] - 2026-11-20
 
 ### Added
