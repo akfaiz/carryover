@@ -22,6 +22,8 @@ func noticeBody(n core.Notice) string {
 		return lang.L("{{.Game}}: saves uploaded after Steam closed the game.", map[string]any{"Game": n.Title})
 	case core.NoticeConflict:
 		return lang.L("{{.Game}}: saves changed here and on another device. Open Carryover to choose which to keep.", map[string]any{"Game": n.Title})
+	case core.NoticeOffline:
+		return lang.L("{{.Game}}: saves were not uploaded after Steam closed the game: no internet connection. They upload on the next sync.", map[string]any{"Game": n.Title})
 	}
 	return lang.L("{{.Game}}: saves could not be uploaded after Steam closed the game: {{.Err}}", map[string]any{"Game": n.Title, "Err": n.Err})
 }
@@ -30,7 +32,7 @@ func noticeToastKind(k core.NoticeKind) kit.ToastKind {
 	switch k {
 	case core.NoticeUploaded:
 		return kit.ToastOK
-	case core.NoticeConflict:
+	case core.NoticeConflict, core.NoticeOffline:
 		return kit.ToastInfo
 	}
 	return kit.ToastErr

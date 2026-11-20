@@ -568,6 +568,10 @@ func cmdFinishSession(args []string) int {
 			continue
 		case ctx.Err() != nil:
 			return 130
+		case errors.Is(err, core.ErrOffline):
+			// Not retried: the next start, sync or play of the game finishes it.
+			log.Printf("session watcher %s: offline, the saves upload on the next sync", key)
+			return 0
 		case err != nil:
 			log.Printf("session watcher %s: %v", key, err)
 			return 1

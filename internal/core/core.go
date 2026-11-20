@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"sync"
+	"time"
 
 	"github.com/akfaiz/carryover/internal/app/appdir"
 	"github.com/akfaiz/carryover/internal/cloudsync/cloud"
@@ -42,6 +43,40 @@ type Core struct {
 	// FinishSession once this process is gone, so a session killed with the
 	// game (Steam's "Exit game") still uploads its saves.
 	WatchSession func(cloudKey string)
+
+	// probe, if set, replaces the check that the cloud can be reached (tests).
+	probe func(ctx context.Context) error
+}
+
+// ErrOffline is wrapped by errors meaning the cloud couldn't be reached (no
+// internet). It is not a sync failure: the saves stay on this device and the
+// next sync uploads them.
+var ErrOffline = cloud.ErrOffline
+
+// IsOffline reports whether err means the cloud couldn't be reached.
+func IsOffline(err error) bool { return cloud.IsOffline(err) }
+
+// probeTimeout bounds the check that the cloud can be reached before a play
+// session's syncs. Without it, rclone's retries took minutes offline.
+var probeTimeout = 8 * time.Second
+
+// Online checks within probeTimeout that the cloud answers. The error wraps
+// ErrOffline when it doesn't.
+func (c *Core) Online(ctx context.Context) error {
+	if c.probe != nil {
+		return c.probe(ctx)
+	}
+	eng, err := c.Engine()
+	if err != nil {
+		return err
+	}
+	return eng.Client.Probe(ctx, probeTimeout)
+}
+
+// offline reports whether err (from a call made with ctx) means the cloud
+// couldn't be reached, rather than that ctx was cancelled.
+func offline(ctx context.Context, err error) bool {
+	return err != nil && ctx.Err() == nil && cloud.IsOffline(err)
 }
 
 // New opens Carryover's data directory.

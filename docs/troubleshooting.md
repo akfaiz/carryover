@@ -33,6 +33,11 @@ the "saves uploaded" notification comes from Script Editor, because an unsigned 
 
 Its saves changed since the last sync, usually because the game was started outside Carryover. Press "Sync now".
 
+## I played offline
+
+That's fine: the game starts without syncing and the saves upload on the next sync once you're online. See
+[How it works → Without internet](how-it-works.md#without-internet).
+
 ## A conflict was skipped
 
 When both sides changed, `carryover run --headless` leaves both untouched and flags the game in the launcher, and

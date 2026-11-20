@@ -56,6 +56,9 @@ func Init(configPath string) error {
 		// Opening a remote costs seconds on OneDrive; keep connections
 		// (cloud.Client shares one per remote) for an hour, not 5 minutes.
 		ci.FsCacheExpireDuration = fs.Duration(time.Hour)
+		// rclone waits a minute for a connection by default, and retries it:
+		// without a route (Wi-Fi up, no internet) every call took minutes.
+		ci.ConnectTimeout = fs.Duration(15 * time.Second)
 	})
 	return err
 }

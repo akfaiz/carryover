@@ -3,6 +3,7 @@ package services
 import (
 	"context"
 	"errors"
+	"fmt"
 	"sync"
 
 	"github.com/akfaiz/carryover/internal/app/appdir"
@@ -130,10 +131,11 @@ func (s *SyncService) Plan(gameID string) (PlanView, error) {
 // Sync syncs one game. resolution: "" (auto), "local" or "cloud".
 // Returns the action performed; "conflict" means nothing was transferred.
 func (s *SyncService) Sync(gameID, resolution string) (string, error) {
-	return s.sync(context.Background(), gameID, resolution)
+	return s.sync(context.Background(), gameID, resolution, true)
 }
 
-func (s *SyncService) sync(parent context.Context, gameID, resolution string) (string, error) {
+// sync syncs one game; probe first checks that the cloud can be reached.
+func (s *SyncService) sync(parent context.Context, gameID, resolution string, probe bool) (string, error) {
 	if _, loaded := s.busy.LoadOrStore(gameID, struct{}{}); loaded {
 		return "", errors.New("a sync for this game is already running")
 	}
@@ -149,6 +151,16 @@ func (s *SyncService) sync(parent context.Context, gameID, resolution string) (s
 	}
 	ctx, done := s.start(parent, gameID)
 	defer done()
+	// Offline, the sync would retry for minutes while holding the game's
+	// local lock (and Play would wait for it): check first. SyncAll checks
+	// once for all games.
+	if probe {
+		if err := s.c.Online(ctx); errors.Is(err, core.ErrOffline) {
+			return "", err // not a sync error: nothing to flag
+		} else if err = cancelled(ctx, err); errors.Is(err, ErrSyncCancelled) {
+			return "", err
+		}
+	}
 	_, action, err := eng.Sync(ctx, job, syncer.Resolution(resolution))
 	defer s.bus.libraryChanged(core.GameOf(gameID))
 	if errors.Is(err, syncer.ErrConflict) {
@@ -156,6 +168,10 @@ func (s *SyncService) sync(parent context.Context, gameID, resolution string) (s
 	}
 	if err = cancelled(ctx, err); errors.Is(err, ErrSyncCancelled) {
 		return string(action), err // not a sync error: nothing to flag
+	}
+	if core.IsOffline(err) {
+		// Connection lost midway: the next sync finishes it.
+		return string(action), fmt.Errorf("%w: %w", core.ErrOffline, err)
 	}
 	if err != nil {
 		s.c.States.SetError(gameID, err.Error())
@@ -180,6 +196,9 @@ func (s *SyncService) SyncAll() ([]SyncResult, error) {
 	}
 	ctx, done := s.start(context.Background(), "")
 	defer done()
+	if err := s.c.Online(ctx); errors.Is(err, core.ErrOffline) {
+		return nil, err
+	}
 	if err := s.c.SyncLibrary(ctx); err != nil {
 		return nil, cancelled(ctx, err)
 	}
@@ -207,7 +226,7 @@ func (s *SyncService) SyncAll() ([]SyncResult, error) {
 		}
 		s.bus.syncAllProgress(SyncAllProgress{Done: i, Total: len(items), Name: it.name})
 		r := SyncResult{GameID: it.key, Name: it.name}
-		a, err := s.sync(ctx, it.key, "")
+		a, err := s.sync(ctx, it.key, "", false) // checked once above
 		if errors.Is(err, ErrSyncCancelled) {
 			return out, err
 		}

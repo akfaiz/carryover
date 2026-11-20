@@ -21,6 +21,9 @@ const (
 	NoticeConflict NoticeKind = "conflict"
 	// NoticeFailed: uploading them failed (Err says why).
 	NoticeFailed NoticeKind = "failed"
+	// NoticeOffline: the cloud couldn't be reached; the saves stay on this
+	// device until the next sync uploads them.
+	NoticeOffline NoticeKind = "offline"
 )
 
 // A Notice tells the user what the session watcher did after Steam killed a

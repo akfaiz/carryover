@@ -70,6 +70,10 @@ func (u *Shell) syncAll() {
 			u.toast(lang.N("Sync cancelled after {{.Count}} game", len(res), map[string]any{"Count": len(res)}), kit.ToastInfo)
 			return
 		}
+		if services.IsOffline(err) {
+			u.toast(lang.L("Offline — nothing synced"), kit.ToastInfo)
+			return
+		}
 		if err != nil {
 			u.toastErr(err)
 			return
