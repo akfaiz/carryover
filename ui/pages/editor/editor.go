@@ -51,6 +51,14 @@ func NewFromLutris(u env.Env, configID string) *Page {
 	return e
 }
 
+// NewFromHeroic returns the editor for a new game, pre-filled from the game
+// Heroic installed with this runner and app name.
+func NewFromHeroic(u env.Env, runner, appName string) *Page {
+	e := New(u, "", "")
+	e.vm.heroicGame = [2]string{runner, appName}
+	return e
+}
+
 // NewEmulated returns the editor for a new game that is played through
 // emulators: it starts on that kind.
 func NewEmulated(u env.Env) *Page {
@@ -86,6 +94,9 @@ func (e *Page) View() fyne.CanvasObject {
 		if e.vm.id == "" && e.vm.lutrisID != "" {
 			e.prefillFromLutris(e.vm.lutrisID)
 		}
+		if e.vm.id == "" && e.vm.heroicGame[1] != "" {
+			e.prefillFromHeroic(e.vm.heroicGame[0], e.vm.heroicGame[1])
+		}
 	})
 	// Save and Cancel stay in view under the form, however long it gets.
 	e.root = container.NewBorder(nil, e.bar, nil, nil, e.scroll)
@@ -110,6 +121,19 @@ func (e *Page) prefillFromLutris(configID string) {
 		for _, g := range lib {
 			if g.ConfigID == configID {
 				e.vm.PrefillFromLutris(g)
+				e.render()
+				e.suggestSaves(true)
+				return
+			}
+		}
+	})
+}
+
+func (e *Page) prefillFromHeroic(runner, appName string) {
+	kit.Async(func() ([]services.HeroicLibraryGame, error) { return e.vm.be.HeroicLibrary(), nil }, func(lib []services.HeroicLibraryGame, _ error) {
+		for _, g := range lib {
+			if g.Runner == runner && g.AppName == appName {
+				e.vm.PrefillFromHeroic(g)
 				e.render()
 				e.suggestSaves(true)
 				return

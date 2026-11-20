@@ -20,8 +20,9 @@ import (
 type ViewModel struct {
 	be         Backend
 	id         string
-	steamAppID string // pre-fill from the installed Steam library
-	lutrisID   string // pre-fill from a game configured in Lutris (its config id)
+	steamAppID string    // pre-fill from the installed Steam library
+	lutrisID   string    // pre-fill from a game configured in Lutris (its config id)
+	heroicGame [2]string // pre-fill from a game Heroic installed: runner, app name
 
 	name         string
 	slots        []*slotForm

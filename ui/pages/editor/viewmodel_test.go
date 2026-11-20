@@ -157,6 +157,18 @@ func TestPrefillFromLutris(t *testing.T) {
 	assert.False(t, vm.Dirty(), "the game picked in Lutris is where the form starts")
 }
 
+func TestPrefillFromHeroic(t *testing.T) {
+	vm := newGame()
+	var hg services.HeroicLibraryGame
+	hg.Runner, hg.AppName, hg.Name, hg.Exe = "gog", "1234", "Hades", "/home/deck/Games/Heroic/Hades/Hades.exe"
+	vm.PrefillFromHeroic(hg)
+
+	assert.Equal(t, "Hades", vm.name)
+	assert.Equal(t, "/home/deck/Games/Heroic/Hades/Hades.exe", vm.dev.Exe)
+	assert.Equal(t, services.LaunchHeroic, vm.dev.LaunchMode, "Heroic starts it, with its own settings")
+	assert.False(t, vm.Dirty(), "the game picked in Heroic is where the form starts")
+}
+
 func TestAddSlotNumbersTheNewLocationPastTheTakenOnes(t *testing.T) {
 	vm := newGame() // one slot: "saves"
 	vm.addSlot()

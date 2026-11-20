@@ -1,6 +1,7 @@
 package ui
 
 import (
+	"net/url"
 	"strings"
 
 	"github.com/akfaiz/carryover/ui/env"
@@ -19,7 +20,8 @@ import (
 //	/game/<id>             a game
 //	/edit/<id>             edit a game
 //	/new, /new/emulator    add a game; /new/steam/<app id> from Steam,
-//	                       /new/lutris/<config id> from Lutris
+//	                       /new/lutris/<config id> from Lutris,
+//	                       /new/heroic/<runner>/<app name, path-escaped> from Heroic
 //	/emulators /cloud /trash /settings
 func pageFor(u env.Env, path string) env.Page {
 	parts := strings.Split(strings.Trim(path, "/"), "/")
@@ -36,6 +38,12 @@ func pageFor(u env.Env, path string) env.Page {
 		return editor.New(u, arg(1), "")
 	case arg(0) == "new" && arg(1) == "steam" && arg(2) != "":
 		return editor.New(u, "", arg(2))
+	case arg(0) == "new" && arg(1) == "heroic" && arg(3) != "":
+		app, err := url.PathUnescape(arg(3))
+		if err != nil {
+			app = arg(3)
+		}
+		return editor.NewFromHeroic(u, arg(2), app)
 	case arg(0) == "new" && arg(1) == "lutris" && arg(2) != "":
 		return editor.NewFromLutris(u, arg(2))
 	case arg(0) == "new" && arg(1) == "emulator":

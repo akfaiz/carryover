@@ -5,6 +5,7 @@
 package heroic
 
 import (
+	"bytes"
 	"encoding/json"
 	"net/url"
 	"os"
@@ -34,6 +35,9 @@ type Game struct {
 	InstallPath string
 	// Flatpak is true when the game belongs to the Flatpak build of Heroic.
 	Flatpak bool
+	// Exe is the game's main executable when its store says which one it is
+	// (and it exists), else "".
+	Exe string
 }
 
 // ConfigDir is a Heroic config folder and whether it is the Flatpak build's.
@@ -83,6 +87,11 @@ func ForExe(home, exe string) (Game, bool) {
 	return best, best.AppName != ""
 }
 
+// Has reports whether exe is inside the game's folder.
+func (g Game) Has(exe string) bool {
+	return g.InstallPath != "" && inDir(filepath.Clean(exe), filepath.Clean(g.InstallPath))
+}
+
 // URL is the heroic:// link that makes Heroic launch the game, the same one
 // Heroic's own "Add to Steam" uses.
 func (g Game) URL() string {
@@ -111,31 +120,34 @@ func (g Game) Command() []string {
 func installedIn(d ConfigDir, home string) []Game {
 	titles := Titles(d.Path)
 	var out []Game
-	add := func(runner, app, path string) {
+	add := func(runner, app, path, exe string) {
 		if path = absPath(path, home); app == "" || path == "" {
 			return
 		}
-		out = append(out, Game{Runner: runner, AppName: app, Title: titles[app], InstallPath: path, Flatpak: d.Flatpak})
+		out = append(out, Game{Runner: runner, AppName: app, Title: titles[app], InstallPath: path, Flatpak: d.Flatpak,
+			Exe: existing(exe)})
 	}
 
-	// GOG: {"installed": [{"appName": "...", "install_path": "..."}]}
+	// GOG: {"installed": [{"appName": "...", "install_path": "...", "platform": "windows"}]}
 	var gog struct {
 		Installed []struct {
 			AppName     string `json:"appName"`
 			InstallPath string `json:"install_path"`
+			Platform    string `json:"platform"`
 		} `json:"installed"`
 	}
 	if readJSON(filepath.Join(d.Path, "gog_store", "installed.json"), &gog) {
 		for _, g := range gog.Installed {
-			add(GOG, g.AppName, g.InstallPath)
+			add(GOG, g.AppName, g.InstallPath, gogExe(absPath(g.InstallPath, home), g.AppName, g.Platform))
 		}
 	}
 
-	// Epic (Legendary): {"<app_name>": {"app_name": "...", "install_path": "...", "title": "..."}}
+	// Epic (Legendary): {"<app_name>": {"app_name": "...", "install_path": "...", "title": "...", "executable": "..."}}
 	var epic map[string]struct {
 		AppName     string `json:"app_name"`
 		InstallPath string `json:"install_path"`
 		Title       string `json:"title"`
+		Executable  string `json:"executable"`
 	}
 	if readJSON(filepath.Join(d.Path, "legendaryConfig", "legendary", "installed.json"), &epic) {
 		for key, g := range epic {
@@ -146,7 +158,7 @@ func installedIn(d ConfigDir, home string) []Game {
 			if titles[app] == "" && g.Title != "" {
 				titles[app] = g.Title
 			}
-			add(Legendary, app, g.InstallPath)
+			add(Legendary, app, g.InstallPath, joinRel(absPath(g.InstallPath, home), g.Executable))
 		}
 	}
 
@@ -157,7 +169,7 @@ func installedIn(d ConfigDir, home string) []Game {
 	}
 	if readJSON(filepath.Join(d.Path, "nile_config", "nile", "installed.json"), &amazon) {
 		for _, g := range amazon {
-			add(Nile, g.ID, g.Path)
+			add(Nile, g.ID, g.Path, nileExe(absPath(g.Path, home)))
 		}
 	}
 
@@ -173,7 +185,7 @@ func installedIn(d ConfigDir, home string) []Game {
 	if readJSON(filepath.Join(d.Path, "sideload_apps", "library.json"), &side) {
 		for _, g := range side.Games {
 			if exe := absPath(g.Install.Executable, home); exe != "" {
-				add(Sideload, g.AppName, filepath.Dir(exe))
+				add(Sideload, g.AppName, filepath.Dir(exe), exe)
 			}
 		}
 	}
@@ -209,9 +221,74 @@ func Titles(dir string) map[string]string {
 	return titles
 }
 
+// gogExe is the primary play task of a GOG game for Windows, from the
+// goggame-<id>.info file GOG puts in its folder. A native Linux or macOS
+// build starts through a script, which says nothing about the game's process,
+// so it gets none.
+func gogExe(dir, app, platform string) string {
+	if dir == "" || (platform != "" && !strings.EqualFold(platform, "windows")) {
+		return ""
+	}
+	var info struct {
+		PlayTasks []struct {
+			IsPrimary bool   `json:"isPrimary"`
+			Path      string `json:"path"`
+			Category  string `json:"category"`
+		} `json:"playTasks"`
+	}
+	if !readJSON(filepath.Join(dir, "goggame-"+app+".info"), &info) {
+		return ""
+	}
+	for _, t := range info.PlayTasks {
+		if t.IsPrimary && t.Path != "" {
+			return joinRel(dir, t.Path)
+		}
+	}
+	return ""
+}
+
+// nileExe is the main command of an Amazon game, from its fuel.json.
+func nileExe(dir string) string {
+	if dir == "" {
+		return ""
+	}
+	var fuel struct {
+		Main struct {
+			Command string `json:"Command"`
+		} `json:"Main"`
+	}
+	if !readJSON(filepath.Join(dir, "fuel.json"), &fuel) {
+		return ""
+	}
+	return joinRel(dir, fuel.Main.Command)
+}
+
+// joinRel joins a path the store gives relative to the game's folder (with
+// either kind of slash) to that folder.
+func joinRel(dir, rel string) string {
+	rel = strings.TrimSpace(rel)
+	if dir == "" || rel == "" {
+		return ""
+	}
+	rel = strings.TrimLeft(strings.ReplaceAll(rel, `\`, "/"), "/")
+	return filepath.Join(dir, filepath.FromSlash(rel))
+}
+
+// existing returns p when it is a file, else "".
+func existing(p string) string {
+	if p == "" {
+		return ""
+	}
+	if st, err := os.Stat(p); err != nil || st.IsDir() {
+		return ""
+	}
+	return p
+}
+
 func readJSON(p string, v any) bool {
 	b, err := os.ReadFile(p)
-	return err == nil && json.Unmarshal(b, v) == nil
+	// GOG's .info files may start with a byte order mark.
+	return err == nil && json.Unmarshal(bytes.TrimPrefix(b, []byte("\xef\xbb\xbf")), v) == nil
 }
 
 // absPath resolves a leading ~ against home; anything still not absolute is

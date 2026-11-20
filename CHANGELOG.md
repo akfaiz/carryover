@@ -13,6 +13,9 @@ All notable changes to Carryover are listed here. The format follows
   installed and opens the editor pre-filled; a new "Lutris" launch mode starts the game through Lutris, so it keeps
   Lutris's runner and Wine prefix, waits for the game to exit, then syncs. Picking a game's executable that Lutris
   knows switches to it automatically, and a Steam shortcut for such a game keeps running it through Lutris.
+- "Add a game → From Heroic" (Linux and Windows) lists the GOG, Epic, Amazon and hand-added games Heroic has
+  installed and opens the editor pre-filled with the Heroic launch mode and, where the store says which one it is,
+  the game's executable.
 
 ### Changed
 

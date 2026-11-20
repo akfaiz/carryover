@@ -1175,6 +1175,51 @@ func (s *LibraryService) LutrisLibrary() []LutrisLibraryGame {
 	return out
 }
 
+// HeroicLibraryGame is a game Heroic has installed on this device.
+type HeroicLibraryGame struct {
+	heroic.Game
+	// Name is the game's title, or Heroic's id for it when it has none.
+	Name string `json:"name"`
+	// GameID is set when the library already has a game with an executable
+	// in this game's folder on this device.
+	GameID string `json:"gameId"`
+}
+
+// HeroicLibrary lists the games Heroic has installed on this device (Linux and
+// Windows), by name.
+func (s *LibraryService) HeroicLibrary() []HeroicLibraryGame {
+	out := []HeroicLibraryGame{}
+	if runtime.GOOS != "linux" && runtime.GOOS != "windows" {
+		return out
+	}
+	exes := map[string]string{} // expanded exe -> library game id
+	for _, g := range s.c.Library.List() {
+		dev, ok := g.Device(s.c.DeviceID())
+		if !ok || dev.Exe == "" {
+			continue
+		}
+		if exe, err := s.c.PathContext(g).Expand(dev.Exe); err == nil {
+			exes[filepath.Clean(exe)] = g.ID
+		}
+	}
+	home, _ := os.UserHomeDir()
+	for _, g := range heroic.Installed(home) {
+		hg := HeroicLibraryGame{Game: g, Name: g.Title}
+		if hg.Name == "" {
+			hg.Name = g.AppName
+		}
+		for exe, id := range exes {
+			if g.Has(exe) {
+				hg.GameID = id
+				break
+			}
+		}
+		out = append(out, hg)
+	}
+	sort.SliceStable(out, func(i, j int) bool { return strings.ToLower(out[i].Name) < strings.ToLower(out[j].Name) })
+	return out
+}
+
 // prefixIsFor reports whether a Wine prefix belongs to the game: the launcher
 // lists it under one of the game's names, or the game's exe is inside it.
 func prefixIsFor(pf wineprefix.Prefix, exe string, names ...string) bool {
