@@ -23,6 +23,7 @@ type Backend interface {
 	HeroicGame(exe string) (title string, ok bool)
 	LutrisGame(exe string) (title string, ok bool)
 	LutrisLibrary() []services.LutrisLibraryGame
+	HeroicLibrary() []services.HeroicLibraryGame
 	GuessRomName(emulatorID, rom string) string
 	SuggestEmuSaves(emulatorID string, in services.EmuSuggestInput) (services.EmuSuggestResult, error)
 	SaveGame(in services.GameInput) (services.GameView, error)
@@ -170,6 +171,16 @@ func (e *ViewModel) fillFrom(g *services.GameView) {
 	}
 	e.loadEmulators(g)
 	e.kind = playKindOf(g, len(e.emus) > 0)
+}
+
+// PrefillFromHeroic makes a game Heroic installed the form's starting point:
+// its name and, when its store says, its executable, started through Heroic
+// so it keeps Heroic's settings and Wine prefix.
+func (e *ViewModel) PrefillFromHeroic(g services.HeroicLibraryGame) {
+	e.name = g.Name
+	e.dev.Exe = g.Exe
+	e.dev.LaunchMode = services.LaunchHeroic
+	e.orig = e.snapshot()
 }
 
 // PrefillFromLutris makes a game Lutris installed the form's starting point:

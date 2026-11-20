@@ -39,3 +39,12 @@ func TestShowLutrisImport(t *testing.T) {
 	uitest.TapOverlayButton(t, h, "Close")
 	h.Settle()
 }
+
+func TestShowHeroicImport(t *testing.T) {
+	h := newHarness(t)
+	flows.ShowHeroicImport(h.Shell)
+	h.Settle()
+	assert.Contains(t, uitest.OverlayText(h), "Add from Heroic library")
+	uitest.TapOverlayButton(t, h, "Close")
+	h.Settle()
+}

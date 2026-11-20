@@ -83,3 +83,54 @@ func TestCommand(t *testing.T) {
 	assert.Equal(t, "12 34", u.Query().Get("appName"))
 	assert.Equal(t, GOG, u.Query().Get("runner"))
 }
+
+// Each store says which executable starts the game: GOG in goggame-<id>.info
+// (Windows builds only), Epic in Legendary's installed.json, Amazon in
+// fuel.json, and a game added by hand is its executable. Only files that
+// exist count.
+func TestInstalledExe(t *testing.T) {
+	home := t.TempDir()
+	j := func(parts ...string) string { return filepath.Join(append([]string{home}, parts...)...) }
+	t.Setenv("APPDATA", j("AppData", "Roaming"))
+	cfg := ConfigDirs(home)[0].Path
+
+	hades, native, missing := j("G", "Hades"), j("G", "Native"), j("G", "Missing")
+	writeFile(t, filepath.Join(hades, "x64", "Hades.exe"), "")
+	writeFile(t, filepath.Join(hades, "goggame-1.info"),
+		"\xef\xbb\xbf"+`{"playTasks":[{"category":"tool","path":"Setup.exe"},{"isPrimary":true,"category":"game","path":"x64\\Hades.exe"}]}`)
+	writeFile(t, filepath.Join(native, "start.sh"), "")
+	writeFile(t, filepath.Join(native, "goggame-2.info"), `{"playTasks":[{"isPrimary":true,"path":"start.sh"}]}`)
+	writeFile(t, filepath.Join(missing, "goggame-3.info"), `{"playTasks":[{"isPrimary":true,"path":"Gone.exe"}]}`)
+	writeFile(t, filepath.Join(cfg, "gog_store", "installed.json"), `{"installed":[`+
+		`{"appName":"1","install_path":"`+js(hades)+`","platform":"windows"},`+
+		`{"appName":"2","install_path":"`+js(native)+`","platform":"linux"},`+
+		`{"appName":"3","install_path":"`+js(missing)+`","platform":"windows"}]}`)
+
+	celeste := j("G", "Celeste")
+	writeFile(t, filepath.Join(celeste, "Bin", "Celeste.exe"), "")
+	writeFile(t, filepath.Join(cfg, "legendaryConfig", "legendary", "installed.json"),
+		`{"Salt":{"app_name":"Salt","install_path":"`+js(celeste)+`","executable":"Bin/Celeste.exe"}}`)
+
+	tunic := j("G", "Tunic")
+	writeFile(t, filepath.Join(tunic, "Tunic.exe"), "")
+	writeFile(t, filepath.Join(tunic, "fuel.json"), `{"Main":{"Command":"Tunic.exe"}}`)
+	writeFile(t, filepath.Join(cfg, "nile_config", "nile", "installed.json"), `[{"id":"amzn1.tunic","path":"`+js(tunic)+`"}]`)
+
+	side := j("G", "Side", "Side.exe")
+	writeFile(t, side, "")
+	writeFile(t, filepath.Join(cfg, "sideload_apps", "library.json"),
+		`{"games":[{"app_name":"abc","install":{"executable":"`+js(side)+`"}}]}`)
+
+	exes := map[string]string{}
+	for _, g := range Installed(home) {
+		exes[g.AppName] = g.Exe
+	}
+	assert.Equal(t, map[string]string{
+		"1":           filepath.Join(hades, "x64", "Hades.exe"),
+		"2":           "",
+		"3":           "",
+		"Salt":        filepath.Join(celeste, "Bin", "Celeste.exe"),
+		"amzn1.tunic": filepath.Join(tunic, "Tunic.exe"),
+		"abc":         side,
+	}, exes)
+}

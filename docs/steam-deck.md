@@ -57,8 +57,10 @@ Steam game. See [Save paths](save-paths.md).
 ## Heroic games
 
 Games installed by **Heroic** (GOG, Epic, Amazon, or added by hand) should keep Heroic's own Wine prefix: a
-Proton shortcut would give them a new, empty one. Pick **"Heroic Games Launcher"** as launch mode;
-choosing an executable inside a Heroic install folder selects it automatically. Carryover then launches the game
+Proton shortcut would give them a new, empty one. Use **Add a game → From Heroic** to pick one, or pick
+**"Heroic Games Launcher"** as launch mode; choosing an executable inside a Heroic install folder selects it
+automatically. The import fills in the executable when the store says which one it is (GOG Windows builds, Epic,
+Amazon, games added by hand); otherwise pick it inside the game's folder. Carryover then launches the game
 with `heroic://launch` (as Heroic's own "Add to Steam" does) and waits for that executable to exit. The Steam
 shortcut runs Carryover, so don't force a Proton version on it. Pick the save folder from the Heroic prefix
 suggestions.
