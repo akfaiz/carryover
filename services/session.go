@@ -220,6 +220,8 @@ func (s *SessionService) playAsking(ctx context.Context, gameID string, opts cor
 		status(Status{Phase: "done", Message: "Cancelled"})
 	case err != nil:
 		status(Status{Phase: "error", Message: err.Error()})
+	case errors.Is(res.PostError, core.ErrOffline):
+		status(Status{Phase: "done", Message: "Game closed — offline, saves kept on this device; they upload on the next sync"})
 	case errors.Is(res.PostError, core.ErrCancelled):
 		status(Status{Phase: "done", Message: "Game closed — upload cancelled; your saves will upload on the next sync"})
 	case res.PostError != nil:

@@ -6,6 +6,7 @@ import (
 	"fyne.io/fyne/v2/lang"
 
 	"github.com/akfaiz/carryover/internal/app/singleinstance"
+	"github.com/akfaiz/carryover/services"
 	"github.com/akfaiz/carryover/ui/kit"
 )
 
@@ -39,7 +40,9 @@ func (u *Shell) RunMain(inst *singleinstance.Instance) {
 			}
 		}()
 		kit.Async0(u.sync.SyncLibrary, func(err error) {
-			if err != nil {
+			if services.IsOffline(err) {
+				u.toast(lang.L("Offline — library not synced"), kit.ToastInfo)
+			} else if err != nil {
 				u.toast(lang.L("Library sync: {{.Err}}", map[string]any{"Err": err}), kit.ToastErr)
 			}
 		})

@@ -55,6 +55,17 @@ while it runs, but never the game itself.
 > know with a notification (in Steam Deck Game Mode, the next time you open Carryover). On Linux this needs systemd,
 > which SteamOS has; without it (e.g. Flatpak Steam), press "Sync now" before you play on another device.
 
+## Without internet
+
+Carryover checks that the cloud answers before each sync of a play session (a few seconds at most).
+
+- **Offline before playing:** the game starts without syncing. Nothing is locked in the cloud.
+- **Offline after playing:** the saves stay on this device and the game shows "not uploaded". The next sync or play
+  uploads them. The cloud lock is released by that play or the next start of Carryover; until then, your other
+  devices say the game is being played here (for at most 12 hours).
+- If you also played on another device meanwhile, the next sync reports a conflict and you choose which saves to
+  keep. Nothing is overwritten without asking.
+
 ## Two devices
 
 Playing on a PC, then on a Steam Deck:

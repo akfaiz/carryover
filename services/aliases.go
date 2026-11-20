@@ -62,3 +62,10 @@ var SelfArtKinds = core.SelfArtKinds
 // AppBundle returns the .app bundle a program picked inside one belongs to
 // (macOS), or the path unchanged.
 func AppBundle(path string) string { return launcher.AppBundle(path) }
+
+// ErrOffline is wrapped by errors meaning the cloud couldn't be reached.
+var ErrOffline = core.ErrOffline
+
+// IsOffline reports whether err means the cloud couldn't be reached (no
+// internet), which is not a sync failure: saves stay on this device.
+func IsOffline(err error) bool { return core.IsOffline(err) }

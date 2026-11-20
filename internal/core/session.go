@@ -54,7 +54,12 @@ type SessionResult struct {
 	ExitCode   int
 	PreAction  syncer.Action
 	PostAction syncer.Action
-	PostError  error
+	// PostError is ErrCancelled when the user cancelled the upload, and wraps
+	// ErrOffline when the cloud couldn't be reached (saves kept locally).
+	PostError error
+	// PreOffline: the cloud couldn't be reached before the game started, so
+	// it was started without syncing.
+	PreOffline bool
 }
 
 // ErrCancelled is returned when the user aborts before the game starts, and
@@ -95,7 +100,7 @@ func (c *Core) Play(ctx context.Context, gameID string, opt RunOptions, ui Sessi
 		return res, err
 	}
 
-	lock, err := syncer.AcquireLocalLock(c.Dirs.StateDir(), ckey)
+	lock, err := c.waitLocalLock(ctx, ckey, ui)
 	if err != nil {
 		log.Printf("play %s: %v", key, err)
 		return res, err
@@ -124,47 +129,34 @@ func (c *Core) Play(ctx context.Context, gameID string, opt RunOptions, ui Sessi
 	if doSync {
 		preCtx, preDone := cancelablePhase(ctx, ui)
 		ui.Status("sync", "Checking cloud saves…")
-		// The library catalog and the cloud lock don't depend on this game's
-		// saves: fetch them while the saves are compared (each round trip
-		// costs seconds on some providers).
-		libDone := make(chan struct{})
-		go func() {
-			defer close(libDone)
-			if err := c.SyncCatalog(preCtx); err != nil {
-				log.Printf("library sync: %v", err)
-			}
-		}()
-		var other *syncer.Lock
-		lockChecked := make(chan struct{})
-		go func() {
-			defer close(lockChecked)
-			if l, err := eng.CheckLock(preCtx, ckey); err == nil {
-				other = l
-			}
-		}()
-		plan, err := eng.Plan(preCtx, job)
-		<-libDone
-		<-lockChecked
-		if preCtx.Err() == nil {
-			// The catalog may have brought new save locations or filters for this
-			// game. A plan made with the old ones could upload or delete files the
-			// new ones treat differently, so plan again with the new job.
-			if g, gerr := c.Library.Get(game.ID); gerr == nil {
-				if j, jerr := c.JobFor(g, emuID); jerr == nil && !reflect.DeepEqual(j, job) {
-					game, job = g, j
-					plan, err = eng.Plan(preCtx, job)
-				}
-			}
-		}
-		action := syncer.ActionNone
-		if err == nil {
-			action, err = c.resolveAndApply(preCtx, eng, game, plan, ui, true)
+		var (
+			action  syncer.Action
+			other   *syncer.Lock
+			planned bool
+		)
+		err = c.Online(preCtx)
+		isOffline := offline(preCtx, err)
+		if !isOffline {
+			// Not reachable for another reason (e.g. the login expired): the
+			// sync below fails with it and the user is asked as before.
+			game, job, action, other, planned, err = c.syncBeforePlay(preCtx, eng, game, job, emuID, ckey, ui)
+			// The connection dropped while comparing: nothing was changed yet,
+			// so it is the same as being offline. Once a download has started
+			// it isn't (the saves may be half replaced): the user decides.
+			isOffline = !planned && offline(preCtx, err)
 		}
 		if preDone() || ctx.Err() != nil {
 			// Cancelled by the user, or the whole session was: not a sync error,
 			// and the game isn't launched.
 			log.Printf("play %s: cancelled before launch", key)
 			return res, ErrCancelled
+		}
+		if isOffline {
+			log.Printf("play %s: offline, starting without syncing: %v", key, err)
+			res.PreOffline = true
+			ui.Status("offline", "Offline — playing without syncing")
+			pause(ctx, offlineNotice)
+			action, other, err = syncer.ActionNone, nil, nil
 		}
 		res.PreAction = action
 		if err != nil {
@@ -185,15 +177,20 @@ func (c *Core) Play(ctx context.Context, gameID string, opt RunOptions, ui Sessi
 		// Mark the game as being played without delaying its start; the
 		// release afterwards waits for this write. The marker lets a later
 		// run release the lock if this process is killed (RecoverSessions),
-		// and the session watcher upload the saves (FinishSession).
+		// and the session watcher upload the saves (FinishSession), also
+		// after playing offline, if the connection is back by then.
 		c.markSession(ckey, game.ID, emuID)
 		if c.WatchSession != nil {
 			go c.WatchSession(ckey)
 		}
-		go func() {
-			defer close(lockWritten)
-			_ = eng.AcquireLock(ctx, ckey)
-		}()
+		if isOffline {
+			close(lockWritten) // no cloud lock to take
+		} else {
+			go func() {
+				defer close(lockWritten)
+				_ = eng.AcquireLock(ctx, ckey)
+			}()
+		}
 	} else {
 		close(lockWritten)
 	}
@@ -222,37 +219,142 @@ func (c *Core) Play(ctx context.Context, gameID string, opt RunOptions, ui Sessi
 		defer cancel()
 		upCtx, upDone := cancelablePhase(postCtx, ui)
 		ui.Status("sync", "Uploading saves…")
-		action, err := c.syncWithUI(upCtx, eng, game, job, ui, false)
-		if upDone() {
+		action := syncer.ActionNone
+		err := c.Online(upCtx)
+		isOffline := offline(upCtx, err)
+		if !isOffline {
+			action, err = c.syncWithUI(upCtx, eng, game, job, ui, false)
+			// An upload cut short changes nothing locally, and the next push
+			// repairs what it left in the cloud.
+			isOffline = offline(upCtx, err)
+		}
+		switch {
+		case upDone():
 			// Saves stay as they are locally; the next sync uploads them.
 			action, err = syncer.ActionNone, ErrCancelled
 			log.Printf("play %s: upload after playing cancelled by the user", key)
+		case isOffline:
+			log.Printf("play %s: offline after playing, saves kept on this device: %v", key, err)
+			action, err = syncer.ActionNone, ErrOffline
+			ui.Status("offline", "Offline — saves kept on this device; they upload on the next sync")
 		}
 		res.PostAction, res.PostError = action, err
-		if err != nil && !errors.Is(err, ErrCancelled) {
+		if err != nil && !errors.Is(err, ErrCancelled) && !errors.Is(err, ErrOffline) {
 			c.States.SetError(key, err.Error())
 			ui.ConfirmSyncFailure(postCtx, game, err, false)
 		}
-		var wg sync.WaitGroup
-		wg.Go(func() {
-			<-lockWritten
-			if err := eng.ReleaseLock(postCtx, ckey); err == nil {
-				c.clearSession(ckey)
-			} else {
-				log.Printf("play %s: release cloud lock: %v", key, err)
-			}
-		})
-		wg.Go(func() {
-			if err := c.SyncLibrary(postCtx); err != nil {
-				log.Printf("library sync: %v", err)
-			}
-		})
-		wg.Wait()
+		if isOffline {
+			// The cloud lock (if it was taken) can't be released now: keep the
+			// marker, so the next start or sync releases it (RecoverSessions).
+			// Ended tells the session watcher this session wasn't killed.
+			c.writeSession(ckey, sessionInfo{Game: game.ID, Emulator: emuID, Ended: true})
+		} else {
+			var wg sync.WaitGroup
+			wg.Go(func() {
+				<-lockWritten
+				if err := eng.ReleaseLock(postCtx, ckey); err == nil {
+					c.clearSession(ckey)
+				} else {
+					log.Printf("play %s: release cloud lock: %v", key, err)
+				}
+			})
+			wg.Go(func() {
+				if err := c.SyncLibrary(postCtx); err != nil {
+					log.Printf("library sync: %v", err)
+				}
+			})
+			wg.Wait()
+		}
 	}
 	if runErr != nil {
 		return res, runErr
 	}
 	return res, nil
+}
+
+// syncBeforePlay is the sync before a game starts: it compares the saves,
+// fetching the library catalog and the cloud lock meanwhile, and applies the
+// result. It returns the game and job as the catalog left them, the lock of
+// another device (nil if none), and planned=true once comparing succeeded
+// (from then on, files may have changed).
+func (c *Core) syncBeforePlay(ctx context.Context, eng *syncer.Engine, game library.Game, job syncer.Job, emuID, ckey string, ui SessionUI) (_ library.Game, _ syncer.Job, action syncer.Action, other *syncer.Lock, planned bool, err error) {
+	// The library catalog and the cloud lock don't depend on this game's
+	// saves: fetch them while the saves are compared (each round trip
+	// costs seconds on some providers).
+	libDone := make(chan struct{})
+	go func() {
+		defer close(libDone)
+		if err := c.SyncCatalog(ctx); err != nil {
+			log.Printf("library sync: %v", err)
+		}
+	}()
+	lockChecked := make(chan struct{})
+	go func() {
+		defer close(lockChecked)
+		if l, err := eng.CheckLock(ctx, ckey); err == nil {
+			other = l
+		}
+	}()
+	plan, err := eng.Plan(ctx, job)
+	<-libDone
+	<-lockChecked
+	if err == nil && ctx.Err() == nil {
+		// The catalog may have brought new save locations or filters for this
+		// game. A plan made with the old ones could upload or delete files the
+		// new ones treat differently, so plan again with the new job.
+		if g, gerr := c.Library.Get(game.ID); gerr == nil {
+			if j, jerr := c.JobFor(g, emuID); jerr == nil && !reflect.DeepEqual(j, job) {
+				game, job = g, j
+				plan, err = eng.Plan(ctx, job)
+			}
+		}
+	}
+	if err != nil {
+		return game, job, syncer.ActionNone, other, false, err
+	}
+	action, err = c.resolveAndApply(ctx, eng, game, plan, ui, true)
+	return game, job, action, other, true, err
+}
+
+// offlineNotice is how long "Offline — playing without syncing" stays up
+// before the game starts, so the user sees why nothing was synced.
+var offlineNotice = 1500 * time.Millisecond
+
+// localLockWait is how long Play waits for another Carryover process to let
+// go of the game: the session watcher of the previous session may still be
+// finishing it (it settles for a few seconds, then checks the connection).
+var localLockWait = 20 * time.Second
+
+// waitLocalLock takes the game's local lock, waiting up to localLockWait while
+// another process holds it.
+func (c *Core) waitLocalLock(ctx context.Context, ckey string, ui SessionUI) (*syncer.LocalLock, error) {
+	deadline := time.Now().Add(localLockWait)
+	told := false
+	for {
+		lock, err := syncer.AcquireLocalLock(c.Dirs.StateDir(), ckey)
+		if !errors.Is(err, syncer.ErrLocked) || time.Now().After(deadline) {
+			return lock, err
+		}
+		if !told {
+			told = true
+			ui.Status("sync", "Waiting for the previous session to finish…")
+		}
+		if !pause(ctx, 500*time.Millisecond) {
+			return nil, ErrCancelled
+		}
+	}
+}
+
+// pause waits d, or until ctx ends (then it returns false).
+func pause(ctx context.Context, d time.Duration) bool {
+	t := time.NewTimer(d)
+	defer t.Stop()
+	select {
+	case <-ctx.Done():
+		return false
+	case <-t.C:
+		return true
+	}
 }
 
 // profileLabel names a profile in the log.

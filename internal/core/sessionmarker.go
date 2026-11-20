@@ -28,6 +28,10 @@ const sessionExt = ".session"
 type sessionInfo struct {
 	Game     string `json:"game"`
 	Emulator string `json:"emulator,omitempty"`
+	// Ended: the session ended on its own but couldn't finish (offline after
+	// playing; the user was told). Only the cloud lock is left to release,
+	// and the saves to upload, which the next sync does anyway.
+	Ended bool `json:"ended,omitempty"`
 }
 
 func (c *Core) sessionMarkerPath(cloudKey string) string {
@@ -38,7 +42,11 @@ func (c *Core) sessionMarkerPath(cloudKey string) string {
 // while gameID is played with emuID. Best-effort: without the marker a killed
 // session just keeps its lock until it goes stale.
 func (c *Core) markSession(cloudKey, gameID, emuID string) {
-	b, _ := json.Marshal(sessionInfo{Game: gameID, Emulator: emuID})
+	c.writeSession(cloudKey, sessionInfo{Game: gameID, Emulator: emuID})
+}
+
+func (c *Core) writeSession(cloudKey string, info sessionInfo) {
+	b, _ := json.Marshal(info)
 	if err := os.WriteFile(c.sessionMarkerPath(cloudKey), b, 0o644); err != nil {
 		log.Printf("session marker %s: %v", cloudKey, err)
 	}
@@ -92,8 +100,18 @@ func (c *Core) RecoverSessions(ctx context.Context) (int, error) {
 			continue
 		}
 		if eng == nil {
-			if eng, err = c.Engine(); err != nil {
+			// Checked once, and only when there is something to release: an
+			// offline release would hold the game's local lock for minutes,
+			// and a Play started meanwhile couldn't take it.
+			if err = c.Online(ctx); err == nil {
+				eng, err = c.Engine()
+			}
+			if err != nil {
 				lock.Release()
+				if offline(ctx, err) {
+					log.Printf("recover sessions: offline, left for the next start or sync: %v", err)
+					return recovered, nil
+				}
 				return recovered, err
 			}
 		}
@@ -123,6 +141,8 @@ func (c *Core) RecoverSessions(ctx context.Context) (int, error) {
 // taking over the session, so a game that is still shutting down can finish
 // writing its saves. notice, if not nil, is what the user should be told: an
 // upload, a conflict or a failure (also when releasing the lock then fails).
+// When the cloud can't be reached it returns at once with an error wrapping
+// ErrOffline and keeps the marker for RecoverSessions or the next session.
 func (c *Core) FinishSession(ctx context.Context, cloudKey string, settle time.Duration) (finished bool, notice *Notice, err error) {
 	if _, ok := c.readSession(cloudKey); !ok || !c.CloudConfigured() {
 		return false, nil, nil
@@ -151,11 +171,27 @@ func (c *Core) FinishSession(ctx context.Context, cloudKey string, settle time.D
 	if !ok {
 		return false, nil, nil // recovered by someone else meanwhile
 	}
+	// Offline, the upload and the release below would retry for minutes
+	// while holding the game's local lock, and playing again would fail.
+	if err := c.Online(ctx); err != nil {
+		if !offline(ctx, err) {
+			return false, nil, err
+		}
+		log.Printf("session %s: offline, left for the next start or sync: %v", cloudKey, err)
+		if info.Ended || info.Game == "" {
+			return false, nil, err // the session told the user itself
+		}
+		return false, c.offlineNotice(info), err
+	}
 	eng, err := c.Engine()
 	if err != nil {
 		return false, nil, err
 	}
-	log.Printf("session %s ended without finishing (killed): finishing it", cloudKey)
+	if info.Ended {
+		log.Printf("session %s ended offline: finishing it", cloudKey)
+	} else {
+		log.Printf("session %s ended without finishing (killed): finishing it", cloudKey)
+	}
 	if info.Game != "" {
 		notice = c.uploadAfterKill(ctx, eng, info)
 	}
@@ -164,6 +200,20 @@ func (c *Core) FinishSession(ctx context.Context, cloudKey string, settle time.D
 	}
 	c.clearSession(cloudKey)
 	return true, notice, nil
+}
+
+// offlineNotice tells the user that a killed session's saves weren't uploaded,
+// as the cloud couldn't be reached (nil if the game no longer exists).
+func (c *Core) offlineNotice(info sessionInfo) *Notice {
+	g, err := c.Library.Get(info.Game)
+	if err != nil {
+		return nil
+	}
+	n := &Notice{Time: time.Now(), Key: SyncKey(info.Game, info.Emulator), Title: g.Name, Kind: NoticeOffline}
+	if info.Emulator != "" {
+		n.Title += " (" + c.ProfileName(info.Emulator) + ")"
+	}
+	return n
 }
 
 // uploadAfterKill does the upload a killed session missed, and returns what to
