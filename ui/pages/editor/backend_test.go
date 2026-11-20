@@ -38,9 +38,11 @@ func (f *fakeBackend) SearchSteam(string) ([]services.StoreMatch, error) {
 func (f *fakeBackend) SuggestSaves(services.SuggestInput) (services.SuggestResult, error) {
 	return services.SuggestResult{}, nil
 }
-func (f *fakeBackend) GuessName(string) string            { return "" }
-func (f *fakeBackend) HeroicGame(string) (string, bool)   { return "", false }
-func (f *fakeBackend) GuessRomName(string, string) string { return "" }
+func (f *fakeBackend) GuessName(string) string                     { return "" }
+func (f *fakeBackend) HeroicGame(string) (string, bool)            { return "", false }
+func (f *fakeBackend) LutrisGame(string) (string, bool)            { return "", false }
+func (f *fakeBackend) LutrisLibrary() []services.LutrisLibraryGame { return nil }
+func (f *fakeBackend) GuessRomName(string, string) string          { return "" }
 func (f *fakeBackend) SuggestEmuSaves(string, services.EmuSuggestInput) (services.EmuSuggestResult, error) {
 	return services.EmuSuggestResult{}, nil
 }

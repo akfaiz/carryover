@@ -144,6 +144,19 @@ func TestPrefillFromSteam(t *testing.T) {
 	assert.False(t, vm.Dirty(), "the game picked in Steam is where the form starts")
 }
 
+func TestPrefillFromLutris(t *testing.T) {
+	vm := newGame()
+	vm.name = "typed before"
+	var lg services.LutrisLibraryGame // the embedded Game's fields are promoted
+	lg.ConfigID, lg.Name, lg.Exe = "hades-1", "Hades", "/home/deck/Games/hades/Hades.exe"
+	vm.PrefillFromLutris(lg)
+
+	assert.Equal(t, "Hades", vm.name)
+	assert.Equal(t, "/home/deck/Games/hades/Hades.exe", vm.dev.Exe)
+	assert.Equal(t, services.LaunchLutris, vm.dev.LaunchMode, "Lutris starts it, in its own Wine prefix")
+	assert.False(t, vm.Dirty(), "the game picked in Lutris is where the form starts")
+}
+
 func TestAddSlotNumbersTheNewLocationPastTheTakenOnes(t *testing.T) {
 	vm := newGame() // one slot: "saves"
 	vm.addSlot()

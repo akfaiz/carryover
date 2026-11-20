@@ -183,7 +183,7 @@ func TestAddToSteamErrors(t *testing.T) {
 	// A game with no executable on this device can't be wrapped or run via Heroic.
 	_, err = c2.Library.UpdateDevice(id2, c2.DeviceID(), func(d *library.DeviceConfig) { d.Exe = "" })
 	require.NoError(t, err)
-	for _, mode := range []library.LaunchMode{library.LaunchSteamWrap, library.LaunchHeroic} {
+	for _, mode := range []library.LaunchMode{library.LaunchSteamWrap, library.LaunchHeroic, library.LaunchLutris} {
 		_, err := c2.AddToSteam(id2, "1", mode)
 		assert.Error(t, err, "mode %q without an executable", mode)
 	}
@@ -226,4 +226,27 @@ func TestAddToSteamWholeGameWithEmulators(t *testing.T) {
 	list, _ = steam.ListShortcuts(root, user)
 	require.Len(t, list, 1)
 	assert.Equal(t, "Game A (Eden)", list[0].AppName)
+}
+
+// A game started through Heroic or Lutris keeps that mode when it is added to
+// Steam as a direct shortcut: run any other way it would leave the launcher's
+// Wine prefix.
+func TestAddToSteamKeepsLauncherMode(t *testing.T) {
+	for _, mode := range []library.LaunchMode{library.LaunchHeroic, library.LaunchLutris} {
+		c, id, _, _ := newPlayable(t)
+		root := steamEnv(t)
+		_, err := c.Library.UpdateDevice(id, c.DeviceID(), func(d *library.DeviceConfig) { d.LaunchMode = mode })
+		require.NoError(t, err)
+
+		_, err = c.AddToSteam(id, "12345", library.LaunchDirect)
+		require.NoError(t, err, "mode %q", mode)
+		g, err := c.Library.Get(id)
+		require.NoError(t, err)
+		dev, _ := g.Device(c.DeviceID())
+		assert.Equal(t, mode, dev.LaunchMode)
+		list, err := steam.ListShortcuts(root, "12345")
+		require.NoError(t, err)
+		require.Len(t, list, 1)
+		assert.Equal(t, "run "+id, list[0].LaunchOptions, "Carryover runs the game, not Steam")
+	}
 }

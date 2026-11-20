@@ -513,5 +513,15 @@
   "Scroll": "Gulir",
   "Full screen": "Layar penuh",
   "Press the Steam or Xbox button + X for Steam's keyboard.": "Tekan tombol Steam atau Xbox + X untuk keyboard Steam.",
-  "Exit": "Keluar"
+  "Exit": "Keluar",
+  "{{.Game}} is installed by Lutris — it will be started through Lutris.": "{{.Game}} dipasang oleh Lutris — akan dijalankan lewat Lutris.",
+  "Lutris": "Lutris",
+  "Lutris starts the game with its own runner and Wine prefix. Pick the game's executable as set in Lutris; Carryover waits for it to close, then syncs.": "Lutris menjalankan game dengan runner dan prefiks Wine-nya sendiri. Pilih file eksekusi game seperti yang diatur di Lutris; Carryover menunggu game ditutup, lalu menyinkronkan.",
+  "Steam runs Carryover, which starts the game through Lutris, so it keeps Lutris's runner and Wine prefix. Don't force a Proton version on this shortcut.": "Steam menjalankan Carryover, yang menjalankan game lewat Lutris, sehingga runner dan prefiks Wine Lutris tetap dipakai. Jangan paksa versi Proton pada pintasan ini.",
+  "From Lutris": "Dari Lutris",
+  "From Steam: a game Steam installed on this device. From Lutris: a game Lutris installed. PC game: any other game, started from its executable or through Heroic or Lutris. Emulated game: a game file you play through an emulator such as Eden or Ryujinx.": "Dari Steam: game yang dipasang Steam di perangkat ini. Dari Lutris: game yang dipasang Lutris. Game PC: game lain mana pun, dijalankan dari file eksekusinya atau lewat Heroic atau Lutris. Game emulator: file game yang Anda mainkan lewat emulator seperti Eden atau Ryujinx.",
+  "Reading Lutris library…": "Membaca pustaka Lutris…",
+  "No installed Lutris games found on this device.": "Tidak ada game Lutris yang terpasang di perangkat ini.",
+  "Games installed through Lutris on this device. Carryover starts them through Lutris, so they keep their runner and Wine prefix; you still set the save locations.": "Game yang dipasang lewat Lutris di perangkat ini. Carryover menjalankannya lewat Lutris, sehingga runner dan prefiks Wine-nya tetap dipakai; Anda tetap mengatur lokasi save.",
+  "Add from Lutris library": "Tambah dari pustaka Lutris"
 }

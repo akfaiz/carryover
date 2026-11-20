@@ -513,5 +513,15 @@
   "Scroll": "Scroll",
   "Full screen": "Full screen",
   "Press the Steam or Xbox button + X for Steam's keyboard.": "Press the Steam or Xbox button + X for Steam's keyboard.",
-  "Exit": "Exit"
+  "Exit": "Exit",
+  "{{.Game}} is installed by Lutris — it will be started through Lutris.": "{{.Game}} is installed by Lutris — it will be started through Lutris.",
+  "Lutris": "Lutris",
+  "Lutris starts the game with its own runner and Wine prefix. Pick the game's executable as set in Lutris; Carryover waits for it to close, then syncs.": "Lutris starts the game with its own runner and Wine prefix. Pick the game's executable as set in Lutris; Carryover waits for it to close, then syncs.",
+  "Steam runs Carryover, which starts the game through Lutris, so it keeps Lutris's runner and Wine prefix. Don't force a Proton version on this shortcut.": "Steam runs Carryover, which starts the game through Lutris, so it keeps Lutris's runner and Wine prefix. Don't force a Proton version on this shortcut.",
+  "From Lutris": "From Lutris",
+  "From Steam: a game Steam installed on this device. From Lutris: a game Lutris installed. PC game: any other game, started from its executable or through Heroic or Lutris. Emulated game: a game file you play through an emulator such as Eden or Ryujinx.": "From Steam: a game Steam installed on this device. From Lutris: a game Lutris installed. PC game: any other game, started from its executable or through Heroic or Lutris. Emulated game: a game file you play through an emulator such as Eden or Ryujinx.",
+  "Reading Lutris library…": "Reading Lutris library…",
+  "No installed Lutris games found on this device.": "No installed Lutris games found on this device.",
+  "Games installed through Lutris on this device. Carryover starts them through Lutris, so they keep their runner and Wine prefix; you still set the save locations.": "Games installed through Lutris on this device. Carryover starts them through Lutris, so they keep their runner and Wine prefix; you still set the save locations.",
+  "Add from Lutris library": "Add from Lutris library"
 }

@@ -26,6 +26,7 @@ import (
 	"github.com/akfaiz/carryover/internal/saves/ludusavi"
 	"github.com/akfaiz/carryover/internal/saves/pathvar"
 	"github.com/akfaiz/carryover/internal/stores/heroic"
+	"github.com/akfaiz/carryover/internal/stores/lutris"
 	"github.com/akfaiz/carryover/internal/stores/steam"
 	"github.com/akfaiz/carryover/internal/stores/steamgrid"
 	"github.com/akfaiz/carryover/internal/stores/steamstore"
@@ -1034,8 +1035,9 @@ func (s *LibraryService) SuggestSaves(in SuggestInput) (SuggestResult, error) {
 		if steamInstalled && dev.SteamAppID == "" {
 			env.Proton = "{proton:" + in.StoreAppID + "}"
 		}
-		// Started through Heroic, it runs in Heroic's prefix, never Steam's.
-		if in.LaunchMode == library.LaunchHeroic {
+		// Started through Heroic or Lutris, it runs in that launcher's prefix,
+		// never Steam's.
+		if in.LaunchMode == library.LaunchHeroic || in.LaunchMode == library.LaunchLutris {
 			env.Proton = ""
 		}
 	}
@@ -1043,6 +1045,9 @@ func (s *LibraryService) SuggestSaves(in SuggestInput) (SuggestResult, error) {
 	if exe != "" {
 		if hg, ok := s.heroicGame(exe); ok && hg.Title != "" {
 			names = append(names, hg.Title)
+		}
+		if lg, ok := s.lutrisGame(exe); ok && lg.Name != "" {
+			names = append(names, lg.Name)
 		}
 	}
 
@@ -1114,6 +1119,60 @@ func (s *LibraryService) HeroicGame(exe string) (string, bool) {
 		return g.Title, true
 	}
 	return g.AppName, true
+}
+
+// lutrisGame returns the Lutris game that exe belongs to (Linux only).
+func (s *LibraryService) lutrisGame(exe string) (lutris.Game, bool) {
+	if runtime.GOOS != "linux" {
+		return lutris.Game{}, false
+	}
+	home, _ := os.UserHomeDir()
+	return lutris.ForExe(home, exe)
+}
+
+// LutrisGame returns the title of the game Lutris has configured with this
+// executable (or one of its folders), and whether there is one (Linux only).
+func (s *LibraryService) LutrisGame(exe string) (string, bool) {
+	g, ok := s.lutrisGame(strings.TrimSpace(exe))
+	if !ok {
+		return "", false
+	}
+	return g.Name, true
+}
+
+// LutrisLibraryGame is a game Lutris has installed on this device.
+type LutrisLibraryGame struct {
+	lutris.Game
+	// GameID is set when the library already has a game with this executable
+	// on this device.
+	GameID string `json:"gameId"`
+}
+
+// LutrisLibrary lists the games Lutris has installed on this device that can
+// be started through it (Linux only): those with an executable.
+func (s *LibraryService) LutrisLibrary() []LutrisLibraryGame {
+	out := []LutrisLibraryGame{}
+	if runtime.GOOS != "linux" {
+		return out
+	}
+	known := map[string]string{} // expanded exe -> library game id
+	for _, g := range s.c.Library.List() {
+		dev, ok := g.Device(s.c.DeviceID())
+		if !ok || dev.Exe == "" {
+			continue
+		}
+		if exe, err := s.c.PathContext(g).Expand(dev.Exe); err == nil {
+			known[filepath.Clean(exe)] = g.ID
+		}
+	}
+	home, _ := os.UserHomeDir()
+	for _, g := range lutris.Installed(home) {
+		if g.Exe != "" {
+			out = append(out, LutrisLibraryGame{Game: g, GameID: known[g.Exe]})
+		}
+	}
+	sort.SliceStable(out, func(i, j int) bool { return strings.ToLower(out[i].Name) < strings.ToLower(out[j].Name) })
+	return out
 }
 
 // prefixIsFor reports whether a Wine prefix belongs to the game: the launcher

@@ -39,6 +39,11 @@ const (
 	// Heroic's install folder; it identifies the game and, by its name, the
 	// process to wait for.
 	LaunchHeroic LaunchMode = "heroic"
+	// LaunchLutris starts a game Lutris installed through Lutris (Linux), so
+	// it keeps Lutris's runner and Wine prefix. Exe is the game's executable
+	// as Lutris has it; it identifies the game and, by its name, the process
+	// to wait for.
+	LaunchLutris LaunchMode = "lutris"
 )
 
 // DeviceConfig is the per-device part of a game.

@@ -46,6 +46,7 @@ const (
 	LaunchDirect    = library.LaunchDirect
 	LaunchSteamWrap = library.LaunchSteamWrap
 	LaunchHeroic    = library.LaunchHeroic
+	LaunchLutris    = library.LaunchLutris
 )
 
 // NativeProfile names the game's own launch config (no emulator).

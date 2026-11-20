@@ -30,3 +30,12 @@ func TestShowSteamImport(t *testing.T) {
 	uitest.TapOverlayButton(t, h, "Close")
 	h.Settle()
 }
+
+func TestShowLutrisImport(t *testing.T) {
+	h := newHarness(t)
+	flows.ShowLutrisImport(h.Shell)
+	h.Settle()
+	assert.Contains(t, uitest.OverlayText(h), "Add from Lutris library")
+	uitest.TapOverlayButton(t, h, "Close")
+	h.Settle()
+}

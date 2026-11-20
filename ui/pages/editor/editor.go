@@ -43,6 +43,14 @@ func New(u env.Env, id, steamAppID string) *Page {
 	return &Page{u: u, slotViews: map[*slotForm]*slotView{}, vm: newViewModel(id, steamAppID, serviceBackend{u})}
 }
 
+// NewFromLutris returns the editor for a new game, pre-filled from the game
+// Lutris has under this config id.
+func NewFromLutris(u env.Env, configID string) *Page {
+	e := New(u, "", "")
+	e.vm.lutrisID = configID
+	return e
+}
+
 // NewEmulated returns the editor for a new game that is played through
 // emulators: it starts on that kind.
 func NewEmulated(u env.Env) *Page {
@@ -75,6 +83,9 @@ func (e *Page) View() fyne.CanvasObject {
 		if e.vm.id == "" && e.vm.steamAppID != "" {
 			e.prefillFromSteam(e.vm.steamAppID)
 		}
+		if e.vm.id == "" && e.vm.lutrisID != "" {
+			e.prefillFromLutris(e.vm.lutrisID)
+		}
 	})
 	// Save and Cancel stay in view under the form, however long it gets.
 	e.root = container.NewBorder(nil, e.bar, nil, nil, e.scroll)
@@ -86,6 +97,19 @@ func (e *Page) prefillFromSteam(appID string) {
 		for _, a := range lib {
 			if a.AppID == appID {
 				e.vm.PrefillFromSteam(a)
+				e.render()
+				e.suggestSaves(true)
+				return
+			}
+		}
+	})
+}
+
+func (e *Page) prefillFromLutris(configID string) {
+	kit.Async(func() ([]services.LutrisLibraryGame, error) { return e.vm.be.LutrisLibrary(), nil }, func(lib []services.LutrisLibraryGame, _ error) {
+		for _, g := range lib {
+			if g.ConfigID == configID {
+				e.vm.PrefillFromLutris(g)
 				e.render()
 				e.suggestSaves(true)
 				return

@@ -79,6 +79,7 @@ type AddToSteamResult struct {
 // in Steam) with launch options that route it through Carryover.
 // mode LaunchHeroic: like LaunchDirect, but Carryover starts the game through
 // Heroic, so it keeps Heroic's Wine prefix instead of getting a Proton prefix.
+// mode LaunchLutris: the same through Lutris (Linux).
 func (c *Core) AddToSteam(gameID, userID string, mode library.LaunchMode) (AddToSteamResult, error) {
 	return c.AddToSteamFor(gameID, "", userID, mode)
 }
@@ -100,10 +101,10 @@ func (c *Core) AddToSteamFor(gameID, emuID, userID string, mode library.LaunchMo
 	if err != nil {
 		return res, err
 	}
-	// A Heroic game's direct shortcut must stay a Heroic launch: started
-	// directly, it would leave Heroic's prefix.
-	if mode == library.LaunchDirect && dev.LaunchMode == library.LaunchHeroic {
-		mode = library.LaunchHeroic
+	// A Heroic or Lutris game's direct shortcut must stay a launch through
+	// that launcher: started directly, it would leave the launcher's prefix.
+	if mode == library.LaunchDirect && throughLauncher(dev.LaunchMode) {
+		mode = dev.LaunchMode
 	}
 	sc := steam.Shortcut{AppName: game.Name, Tags: []string{"Carryover"}}
 	switch {
@@ -144,7 +145,7 @@ func (c *Core) AddToSteamFor(gameID, emuID, userID string, mode library.LaunchMo
 			sc.LaunchOptions += " -- %command%"
 		}
 	default:
-		if mode != library.LaunchHeroic {
+		if !throughLauncher(mode) {
 			mode = library.LaunchDirect
 		} else if dev.Exe == "" {
 			return res, errors.New("set the game executable for this device first")
@@ -212,4 +213,10 @@ func (c *Core) RemoveFromSteamFor(gameID, emuID, userID string) (int, error) {
 		}
 	})
 	return n, nil
+}
+
+// throughLauncher reports whether the mode makes another launcher (Heroic,
+// Lutris) start the game, in its own Wine prefix.
+func throughLauncher(m library.LaunchMode) bool {
+	return m == library.LaunchHeroic || m == library.LaunchLutris
 }

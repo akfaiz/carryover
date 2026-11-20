@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"runtime"
 	"strings"
 	"sync"
 	"time"
@@ -16,6 +17,7 @@ import (
 	"github.com/akfaiz/carryover/internal/launcher"
 	"github.com/akfaiz/carryover/internal/library"
 	"github.com/akfaiz/carryover/internal/stores/heroic"
+	"github.com/akfaiz/carryover/internal/stores/lutris"
 )
 
 // SessionUI is how a play session interacts with the user.
@@ -491,8 +493,11 @@ func (c *Core) launchSpec(game library.Game, dev library.DeviceConfig, opt RunOp
 	if err != nil {
 		return spec, err
 	}
-	if dev.LaunchMode == library.LaunchHeroic {
+	switch dev.LaunchMode {
+	case library.LaunchHeroic:
 		return heroicSpec(spec, exe)
+	case library.LaunchLutris:
+		return lutrisSpec(spec, exe)
 	}
 	spec.Exe = exe
 	if dev.WorkDir != "" {
@@ -534,9 +539,9 @@ func (h HeadlessUI) ConfirmSyncFailure(_ context.Context, g library.Game, err er
 func (h HeadlessUI) GameRunning(bool)      {}
 func (h HeadlessUI) SyncCancelable(func()) {}
 
-// heroicAppear is how long a Heroic launch may take to start the game: Heroic
-// may first sync its own cloud saves or download a Wine/Proton build.
-const heroicAppear = 5 * time.Minute
+// launcherAppear is how long a launcher (Heroic, Lutris) may take to start the
+// game: it may first sync its own cloud saves or download a Wine/Proton build.
+const launcherAppear = 5 * time.Minute
 
 // heroicSpec launches the Heroic game that exe belongs to through Heroic, and
 // waits for the game's process (exe's name unless WaitProcess says otherwise).
@@ -552,6 +557,27 @@ func heroicSpec(spec launcher.Spec, exe string) (launcher.Spec, error) {
 	if spec.WaitProcess == "" {
 		spec.WaitProcess = filepath.Base(exe)
 	}
-	spec.Detach, spec.WaitAppear = true, heroicAppear
+	spec.Detach, spec.WaitAppear = true, launcherAppear
+	return spec, nil
+}
+
+// lutrisSpec launches the Lutris game that exe belongs to through Lutris, and
+// waits for the game's process (exe's name unless WaitProcess says otherwise).
+func lutrisSpec(spec launcher.Spec, exe string) (launcher.Spec, error) {
+	if runtime.GOOS != "linux" {
+		return spec, errors.New("starting a game through Lutris is only possible on Linux")
+	}
+	home, _ := os.UserHomeDir()
+	g, ok := lutris.ForExe(home, exe)
+	if !ok {
+		return spec, fmt.Errorf("%s is not in a game Lutris has installed on this device", exe)
+	}
+	cmd := g.Command()
+	spec.Exe, spec.Args = cmd[0], cmd[1:]
+	spec.WorkDir = home
+	if spec.WaitProcess == "" {
+		spec.WaitProcess = filepath.Base(exe)
+	}
+	spec.Detach, spec.WaitAppear = true, launcherAppear
 	return spec, nil
 }

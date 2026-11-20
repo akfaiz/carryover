@@ -96,6 +96,8 @@ func newSteamForm(o steamFormOpts) *steamForm {
 			// Only the direct shortcut exists here.
 		} else if g.Device.LaunchMode == "heroic" {
 			c.Add(kit.Muted(lang.L("Steam runs Carryover, which starts the game through Heroic Games Launcher, so it keeps Heroic's settings (and, on Linux, its Wine prefix). Don't force a Proton version on this shortcut.")))
+		} else if g.Device.LaunchMode == "lutris" {
+			c.Add(kit.Muted(lang.L("Steam runs Carryover, which starts the game through Lutris, so it keeps Lutris's runner and Wine prefix. Don't force a Proton version on this shortcut.")))
 		} else {
 			modes := &kit.Choice{}
 			modes.Add("direct", lang.L("Run Carryover (it starts the game)"))
@@ -106,7 +108,7 @@ func newSteamForm(o steamFormOpts) *steamForm {
 			}
 			c.Add(kit.Field(lang.L("Shortcut type"), kit.Outlined(kit.SelectOf(modes, o.Mode, o.OnMode))))
 		}
-		if o.Mode == "steamwrap" && g.Device.LaunchMode != "heroic" && runtime.GOOS != "darwin" {
+		if o.Mode == "steamwrap" && g.Device.LaunchMode != "heroic" && g.Device.LaunchMode != "lutris" && runtime.GOOS != "darwin" {
 			t := lang.L("After adding, open the shortcut's Properties → Compatibility in Steam and force a Proton version. Its save prefix is available as {{.Token}}.",
 				map[string]any{"Token": "{proton:shortcut}"})
 			if g.Device.SteamAppID != "" {

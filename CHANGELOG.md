@@ -7,6 +7,13 @@ All notable changes to Carryover are listed here. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- Lutris games on Linux (native and Flatpak Lutris). "Add a game → From Lutris" lists the games Lutris has
+  installed and opens the editor pre-filled; a new "Lutris" launch mode starts the game through Lutris, so it keeps
+  Lutris's runner and Wine prefix, waits for the game to exit, then syncs. Picking a game's executable that Lutris
+  knows switches to it automatically, and a Steam shortcut for such a game keeps running it through Lutris.
+
 ### Changed
 
 - Playing without internet: Carryover notices within a few seconds that the cloud can't be reached and starts the

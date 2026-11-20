@@ -66,6 +66,18 @@ suggestions.
 On Windows the mode works the same way: Carryover runs `Heroic.exe --no-gui heroic://launch?…`, which Epic games
 need for their login.
 
+## Lutris games
+
+Games installed by **Lutris** (native or Flatpak) should keep Lutris's own runner and Wine prefix. Use
+**Add a game → From Lutris** to pick one, or choose **"Lutris"** as the game's launch mode and select the game's
+executable; one inside a game Lutris has configured selects the mode automatically. Carryover then starts the game
+with `lutris lutris:rungame/<slug>` (`flatpak run net.lutris.Lutris …` for the Flatpak build) and waits for that
+executable to exit. Arguments, environment and runner options stay in Lutris. The Steam shortcut runs Carryover, so
+don't force a Proton version on it. Pick the save folder from the Lutris prefix suggestions.
+
+Only games with an executable (Wine and Linux runners) can be started this way. Games you start from Lutris's own
+window aren't synced; start them from Carryover or its Steam shortcut.
+
 ## Exiting a game from Steam
 
 Steam's "Exit game" / "Stop" is fine. Carryover still uploads your saves a few seconds later and lets you know
