@@ -36,7 +36,9 @@ type Game struct {
 	// (runners that start a ROM or a script, with main_file).
 	Exe     string
 	WorkDir string
-	// Prefix is the game's Wine prefix, "" when it has none.
+	// Prefix is the game's Wine prefix as Lutris picks it: the one set in the
+	// game's options, else the first one found above its executable; "" when
+	// there is none (a native game, or Wine's default ~/.wine).
 	Prefix string
 	// Flatpak is true when the game belongs to the Flatpak build of Lutris.
 	Flatpak bool
@@ -164,14 +166,48 @@ func readGame(path, id, home string) (Game, bool) {
 	if name == "" {
 		name = titleOf(slug)
 	}
+	exe := absPath(spec.Game.Exe, home)
+	prefix := absPath(spec.Game.Prefix, home)
+	if prefix == "" && exe != "" {
+		prefix = findPrefix(exe)
+	}
 	return Game{
 		ConfigID: id,
 		Slug:     slug,
 		Name:     name,
-		Exe:      absPath(spec.Game.Exe, home),
+		Exe:      exe,
 		WorkDir:  absPath(spec.Game.WorkDir, home),
-		Prefix:   absPath(spec.Game.Prefix, home),
+		Prefix:   prefix,
 	}, true
+}
+
+// findPrefix finds the Wine prefix Lutris uses for a game with no prefix set:
+// the first folder above exe that is one, or that holds one named "prefix" or
+// "pfx" (Lutris's find_prefix).
+func findPrefix(exe string) string {
+	dir := filepath.Dir(exe)
+	for {
+		parent := filepath.Dir(dir)
+		if parent == dir { // the root itself is never a prefix
+			return ""
+		}
+		for _, p := range []string{dir, filepath.Join(dir, "prefix"), filepath.Join(dir, "pfx")} {
+			if isPrefix(p) {
+				return p
+			}
+		}
+		dir = parent
+	}
+}
+
+// isPrefix reports whether p is a Wine prefix, as Lutris tells: it has a
+// drive_c folder and a user.reg file.
+func isPrefix(p string) bool {
+	if !isDir(filepath.Join(p, "drive_c")) {
+		return false
+	}
+	_, err := os.Stat(filepath.Join(p, "user.reg"))
+	return err == nil
 }
 
 // ByConfigID returns the installed game with this config id.

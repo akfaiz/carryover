@@ -16,6 +16,8 @@ All notable changes to Carryover are listed here. The format follows
 - "Add a game → From Heroic" (Linux and Windows) lists the GOG, Epic, Amazon and hand-added games Heroic has
   installed and opens the editor pre-filled with the Heroic launch mode and, where the store says which one it is,
   the game's executable.
+- Save suggestions for a Lutris game cover the Wine prefix Lutris actually runs it in (the one set in the game's
+  options, or else the one Lutris finds above its executable), even when Lutris names the game differently.
 
 ### Changed
 
