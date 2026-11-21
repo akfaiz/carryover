@@ -71,11 +71,13 @@ func TestLibraryEmptyStateOffersAddGame(t *testing.T) {
 	h := newHarness(t)
 	h.open("/")
 	tapButton(t, h, "＋ Add your first game")
+	h.settle() // the dialog opens once the installed launchers are known
 	tapChoice(t, h, "PC game")
 	assert.Equal(t, "/new", h.u.Route())
 
 	h.open("/")
 	tapButton(t, h, "＋ Add your first game")
+	h.settle() // the dialog opens once the installed launchers are known
 	tapChoice(t, h, "Emulated game")
 	require.Equal(t, "/new/emulator", h.u.Route())
 	assert.Equal(t, editorpage.KindEmulator, h.u.Page().(*editorpage.Page).Kind(), "the editor starts on the emulator cards")

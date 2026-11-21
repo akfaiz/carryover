@@ -11,6 +11,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"strings"
 	"unicode"
 
@@ -59,6 +60,41 @@ func GameDirs(home string) []GameDir {
 		{Path: filepath.Join(flat, "data", "lutris", "games"), Flatpak: true},
 		{Path: filepath.Join(flat, "config", "lutris", "games"), Flatpak: true},
 	}
+}
+
+// systemFlatpaks is where Flatpak installs apps for every user; tests
+// replace it.
+var systemFlatpaks = "/var/lib/flatpak/app"
+
+// Present reports whether Lutris is installed for the user with this home
+// folder: its data or config folder exists (Lutris makes them on first
+// start), the native Lutris is found, or its Flatpak is installed.
+func Present(home string) bool {
+	if home != "" && slices.ContainsFunc([]string{
+		filepath.Join(home, ".local", "share", "lutris"),
+		filepath.Join(home, ".config", "lutris"),
+		filepath.Join(home, ".var", "app", FlatpakID),
+		filepath.Join(home, ".local", "share", "flatpak", "app", FlatpakID),
+	}, isDir) {
+		return true
+	}
+	if isDir(filepath.Join(systemFlatpaks, FlatpakID)) {
+		return true
+	}
+	if _, err := lookPath("lutris"); err == nil {
+		return true
+	}
+	for _, p := range nativePaths {
+		if _, err := os.Stat(p); err == nil {
+			return true
+		}
+	}
+	return false
+}
+
+func isDir(p string) bool {
+	st, err := os.Stat(p)
+	return err == nil && st.IsDir()
 }
 
 // fileSuffix is the "-<timestamp>" Lutris appends to a game config's name.

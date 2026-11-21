@@ -61,3 +61,22 @@ func TestHeroicLibraryIsEmptyOnMac(t *testing.T) {
 	svc, _, _ := newLibEnv(t)
 	assert.Empty(t, svc.HeroicLibrary())
 }
+
+// Heroic and Lutris count as installed once their folders exist; on macOS
+// neither can start games for Carryover.
+func TestLaunchers(t *testing.T) {
+	svc, _, _ := newLibEnv(t)
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	if runtime.GOOS == "darwin" {
+		require.NoError(t, os.MkdirAll(filepath.Join(home, ".config", "heroic"), 0o755))
+		assert.Equal(t, Launchers{}, svc.Launchers())
+		return
+	}
+	if runtime.GOOS != "linux" {
+		t.Skip("reads the Linux folders")
+	}
+	require.NoError(t, os.MkdirAll(filepath.Join(home, ".config", "heroic"), 0o755))
+	require.NoError(t, os.MkdirAll(filepath.Join(home, ".local", "share", "lutris"), 0o755))
+	assert.Equal(t, Launchers{Heroic: true, Lutris: true}, svc.Launchers())
+}

@@ -140,3 +140,39 @@ func TestCommand(t *testing.T) {
 	nativePaths = nil
 	assert.Equal(t, []string{"xdg-open", "lutris:rungame/hades"}, g.Command())
 }
+
+func TestPresent(t *testing.T) {
+	oldLook, oldPaths, oldSys := lookPath, nativePaths, systemFlatpaks
+	t.Cleanup(func() { lookPath, nativePaths, systemFlatpaks = oldLook, oldPaths, oldSys })
+	lookPath = func(string) (string, error) { return "", errors.New("not found") }
+	nativePaths = nil
+	systemFlatpaks = filepath.Join(t.TempDir(), "flatpak")
+
+	home := t.TempDir()
+	assert.False(t, Present(home), "nothing of Lutris here")
+	assert.False(t, Present(""))
+
+	for _, dir := range [][]string{
+		{".local", "share", "lutris"},
+		{".config", "lutris"},
+		{".var", "app", FlatpakID},
+		{".local", "share", "flatpak", "app", FlatpakID},
+	} {
+		h := t.TempDir()
+		require.NoError(t, os.MkdirAll(filepath.Join(append([]string{h}, dir...)...), 0o755))
+		assert.True(t, Present(h), "%v", dir)
+	}
+
+	require.NoError(t, os.MkdirAll(filepath.Join(systemFlatpaks, FlatpakID), 0o755))
+	assert.True(t, Present(home), "Flatpak installed for every user")
+	systemFlatpaks = filepath.Join(t.TempDir(), "none")
+
+	lookPath = func(string) (string, error) { return "/usr/bin/lutris", nil }
+	assert.True(t, Present(home), "native Lutris on PATH")
+	lookPath = func(string) (string, error) { return "", errors.New("not found") }
+
+	exe := filepath.Join(t.TempDir(), "lutris")
+	writeFile(t, exe, "")
+	nativePaths = []string{exe}
+	assert.True(t, Present(home), "native Lutris where packages put it")
+}

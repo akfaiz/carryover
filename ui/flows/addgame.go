@@ -1,7 +1,6 @@
 package flows
 
 import (
-	"runtime"
 	"strings"
 
 	"fyne.io/fyne/v2"
@@ -11,15 +10,22 @@ import (
 	"fyne.io/fyne/v2/theme"
 	"fyne.io/fyne/v2/widget"
 
+	"github.com/akfaiz/carryover/services"
 	"github.com/akfaiz/carryover/ui/components"
 	"github.com/akfaiz/carryover/ui/env"
 	"github.com/akfaiz/carryover/ui/kit"
 )
 
-// ShowAddGame asks what kind of game to add: one installed by Steam (or, where
-// they run, Heroic or Lutris), another PC game, or a game played through an
-// emulator. Each opens the editor set up for it.
+// ShowAddGame asks what kind of game to add: one installed by Steam (or by
+// Heroic or Lutris, when installed on this device), another PC game, or a
+// game played through an emulator. Each opens the editor set up for it.
 func ShowAddGame(u env.Env) {
+	kit.Async(func() (services.Launchers, error) { return u.Lib().Launchers(), nil }, func(l services.Launchers, _ error) {
+		showAddGame(u, l)
+	})
+}
+
+func showAddGame(u env.Env, l services.Launchers) {
 	var d components.DialogHider
 	pick := func(f func()) func() { return func() { d.Hide(); f() } }
 	var tiles []fyne.CanvasObject
@@ -29,8 +35,7 @@ func ShowAddGame(u env.Env) {
 			kit.NewChoiceTile(name, icon, false, pick(f))))
 		help = append(help, about)
 	}
-	heroic := runtime.GOOS == "linux" || runtime.GOOS == "windows"
-	lutris := runtime.GOOS == "linux"
+	heroic, lutris := l.Heroic, l.Lutris
 
 	add(lang.L("From Steam"), theme.DownloadIcon(), lang.L("From Steam: a game Steam installed on this device."),
 		func() { ShowSteamImport(u) })
@@ -44,10 +49,12 @@ func ShowAddGame(u env.Env) {
 	}
 	pc := lang.L("PC game: any other game, started from its executable.")
 	switch {
-	case lutris:
+	case heroic && lutris:
 		pc = lang.L("PC game: any other game, started from its executable or through Heroic or Lutris.")
 	case heroic:
 		pc = lang.L("PC game: any other game, started from its executable or through Heroic.")
+	case lutris:
+		pc = lang.L("PC game: any other game, started from its executable or through Lutris.")
 	}
 	add(lang.L("PC game"), theme.ComputerIcon(), pc, func() { u.Navigate("/new") })
 	add(lang.L("Emulated game"), theme.MediaPlayIcon(),
