@@ -135,8 +135,33 @@ func TestDefaultDataDirAndPresets(t *testing.T) {
 	e := newSyncEnv(t)
 	svc := NewEmulatorService(e.c, nil)
 	assert.NotEmpty(t, svc.Presets())
-	assert.Empty(t, svc.DefaultDataDir("nope", "x"))
-	assert.NotEmpty(t, svc.DefaultDataDir("ryujinx", "Ryujinx"))
+	assert.Empty(t, svc.DefaultDataDir("nope", "x", "", ""))
+	assert.NotEmpty(t, svc.DefaultDataDir("ryujinx", "Ryujinx", "", ""))
+
+	// A Flatpak keeps its data in its own home, whichever way it is started.
+	const ry = "{home}/.var/app/io.github.ryubing.Ryujinx/config/Ryujinx"
+	assert.Equal(t, ry, svc.DefaultDataDir("ryujinx", "Ryujinx", "/var/lib/flatpak/exports/bin/io.github.ryubing.Ryujinx", "{rom}"))
+	assert.Equal(t, ry, svc.DefaultDataDir("ryujinx", "Ryujinx", "/usr/bin/flatpak", "run io.github.ryubing.Ryujinx {rom}"))
+}
+
+// A Flatpak emulator saved without a data folder gets its Flatpak's, so what
+// reads it without the command ({ryujinx:...} paths) looks in the right place.
+func TestSaveWritesDownAFlatpaksDataFolder(t *testing.T) {
+	e := newSyncEnv(t)
+	quiet(t, e)
+	svc := NewEmulatorService(e.c, nil)
+	const exe = "/var/lib/flatpak/exports/bin/org.DolphinEmu.dolphin-emu"
+	em, err := svc.Save(EmulatorSetup{Name: "Dolphin", Exe: exe, Preset: "dolphin"})
+	require.NoError(t, err)
+	assert.Equal(t, "{home}/.var/app/org.DolphinEmu.dolphin-emu/data/dolphin-emu", em.Device.DataDir)
+
+	em, err = svc.Save(EmulatorSetup{ID: em.ID, Name: "Dolphin", Exe: exe, Preset: "dolphin", DataDir: "/mine"})
+	require.NoError(t, err)
+	assert.Equal(t, "/mine", em.Device.DataDir, "a folder the user set is kept")
+
+	em, err = svc.Save(EmulatorSetup{Name: "Cemu", Exe: "/opt/cemu/Cemu", Preset: "cemu"})
+	require.NoError(t, err)
+	assert.Empty(t, em.Device.DataDir, "not a Flatpak: the usual folder stays implicit")
 }
 
 // An emulator without per-game saves (Ryujinx) offers its shared locations

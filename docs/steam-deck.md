@@ -80,6 +80,15 @@ don't force a Proton version on it. Pick the save folder from the Lutris prefix 
 Only games with an executable (Wine and Linux runners) can be started this way. Games you start from Lutris's own
 window aren't synced; start them from Carryover or its Steam shortcut.
 
+## Flatpak emulators
+
+Emulators installed from Discover or Flathub are Flatpaks. On the Emulators page, add the emulator and choose it under
+**"Or an emulator installed with Flatpak"**: Carryover sets its launcher (`…/flatpak/exports/bin/<app id>`) as the
+executable and fills in the name, type, usual arguments and data folder. A Flatpak keeps its data in
+`~/.var/app/<app id>/` instead of `~/.local/share` or `~/.config`, so check the data folder if the emulator was set
+up to use another one. If the emulator can't open a game file on the SD card, allow it the folder with Flatseal or
+`flatpak override --user --filesystem=/run/media <app id>`.
+
 ## Exiting a game from Steam
 
 Steam's "Exit game" / "Stop" is fine. Carryover still uploads your saves a few seconds later and lets you know

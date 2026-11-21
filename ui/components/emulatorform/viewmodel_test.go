@@ -2,6 +2,7 @@ package emulatorform
 
 import (
 	"errors"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -22,6 +23,18 @@ func (f *fakeBackend) Presets() []services.PresetView { return f.presets }
 func (f *fakeBackend) GuessEmulator(exe string) services.EmuGuess {
 	f.guessed = append(f.guessed, exe)
 	return f.guess
+}
+
+// DefaultDataDir is "<preset>-dir", or "<preset>-flatpak" for an exe under
+// /flatpak/ ("" without a type).
+func (f *fakeBackend) DefaultDataDir(preset, _, exe, _ string) string {
+	switch {
+	case preset == "":
+		return ""
+	case strings.Contains(exe, "/flatpak/"):
+		return preset + "-flatpak"
+	}
+	return preset + "-dir"
 }
 func (f *fakeBackend) Save(s services.EmulatorSetup) (services.EmulatorView, error) {
 	f.saved = append(f.saved, s)
@@ -133,6 +146,46 @@ func TestExePickedKeepsWhatTheUserWrote(t *testing.T) {
 
 	be.guess = services.EmuGuess{}
 	assert.False(t, NewViewModel(be, services.EmulatorSetup{}).ExePicked("/x"), "nothing recognised")
+}
+
+func TestUseFlatpak(t *testing.T) {
+	const exe = "/var/lib/flatpak/exports/bin/org.ryujinx.Ryujinx"
+	vm := NewViewModel(backend(), services.EmulatorSetup{})
+	assert.Empty(t, vm.CurrentFlatpak())
+	vm.SetFlatpaks([]services.FlatpakEmulator{
+		{AppID: "org.ryujinx.Ryujinx", Name: "Ryujinx", Preset: "ryujinx", Exe: exe},
+	})
+	assert.Len(t, vm.Flatpaks(), 1)
+
+	vm.UseFlatpak("org.no.Such")
+	assert.Empty(t, vm.Setup().Exe, "an unknown app changes nothing")
+
+	vm.UseFlatpak("org.ryujinx.Ryujinx")
+	s := vm.Setup()
+	assert.Equal(t, exe, s.Exe, "its launcher is the executable")
+	assert.Equal(t, "Ryujinx", s.Name)
+	assert.Equal(t, "ryujinx", s.Preset)
+	assert.Equal(t, "{rom}", s.Args)
+	assert.Equal(t, "org.ryujinx.Ryujinx", vm.CurrentFlatpak())
+	assert.Equal(t, "ryujinx-flatpak", vm.DefaultDataDir(), "the data folder inside the Flatpak's home")
+	assert.True(t, vm.Dirty())
+
+	// What the user already wrote stays.
+	vm = NewViewModel(backend(), services.EmulatorSetup{Name: "My Switch", Preset: "eden", Args: "--mine"})
+	vm.SetFlatpaks([]services.FlatpakEmulator{{AppID: "org.ryujinx.Ryujinx", Name: "Ryujinx", Preset: "ryujinx", Exe: exe}})
+	vm.UseFlatpak("org.ryujinx.Ryujinx")
+	assert.Equal(t, services.EmulatorSetup{Name: "My Switch", Exe: exe, Preset: "eden", Args: "--mine"}, vm.Setup())
+}
+
+func TestSetPresetReplacesTheUsualDataFolderOnly(t *testing.T) {
+	vm := NewViewModel(backend(), services.EmulatorSetup{Preset: "eden", DataDir: "eden-dir"})
+	vm.SetPreset("ryujinx")
+	assert.Empty(t, vm.Setup().DataDir, "the old type's usual folder goes; the new one's is shown")
+	assert.Equal(t, "ryujinx-dir", vm.DefaultDataDir())
+
+	vm = NewViewModel(backend(), services.EmulatorSetup{Preset: "eden", DataDir: "/my/eden"})
+	vm.SetPreset("ryujinx")
+	assert.Equal(t, "/my/eden", vm.Setup().DataDir, "a folder of the user's own stays")
 }
 
 func TestSaveLifecycle(t *testing.T) {

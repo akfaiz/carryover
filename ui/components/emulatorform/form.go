@@ -37,6 +37,13 @@ type Form struct {
 func New(u env.Env, s services.EmulatorSetup, tokens []pathvar.Token, onCancel func(), onSaved func(services.EmulatorView)) *Form {
 	f := &Form{u: u, vm: NewViewModel(u.Emus(), s), tokens: tokens, Host: container.NewStack(), onCancel: onCancel, onSaved: onSaved}
 	f.render()
+	kit.Async(func() ([]services.FlatpakEmulator, error) { return u.Emus().Flatpaks(), nil },
+		func(l []services.FlatpakEmulator, _ error) {
+			if len(l) > 0 {
+				f.vm.SetFlatpaks(l)
+				f.render()
+			}
+		})
 	return f
 }
 
@@ -111,6 +118,7 @@ func (f *Form) form() fyne.CanvasObject {
 	kit.SetEnabled(save, !vm.Saving())
 	c := kit.VBox(
 		kit.Field(lang.L("Executable on this device"), kit.RowFill(exe, browse)),
+		f.flatpakField(),
 		kit.Field(lang.L("Name"), name),
 		f.typeField(),
 		kit.Field(lang.L("Arguments"), args),
@@ -123,6 +131,28 @@ func (f *Form) form() fyne.CanvasObject {
 	}
 	c.Add(kit.HBox(widget.NewButton(lang.L("Cancel"), f.onCancel), save))
 	return kit.Card("", c)
+}
+
+// flatpakField offers the emulators installed with Flatpak (Linux): choosing
+// one sets the executable to its launcher and fills in its name, type,
+// arguments and data folder. Nothing is shown when there are none.
+func (f *Form) flatpakField() fyne.CanvasObject {
+	l := f.vm.Flatpaks()
+	if len(l) == 0 {
+		return kit.VBox()
+	}
+	apps := &kit.Choice{}
+	for _, a := range l {
+		apps.Add(a.AppID, a.Name+" ("+a.AppID+")")
+	}
+	sel := kit.SelectOf(apps, f.vm.CurrentFlatpak(), func(id string) {
+		if id != "" && id != f.vm.CurrentFlatpak() {
+			f.vm.UseFlatpak(id)
+			f.render()
+		}
+	})
+	sel.PlaceHolder = lang.L("Choose an installed Flatpak…")
+	return kit.Field(lang.L("Or an emulator installed with Flatpak"), kit.Outlined(sel))
 }
 
 // typeField asks for the emulator's type. Choosing one fills in the usual
@@ -163,7 +193,7 @@ func (f *Form) dataFolderFields(preset services.PresetView) fyne.CanvasObject {
 		return kit.VBox()
 	}
 	c := kit.VBox()
-	placeholder := f.u.Emus().DefaultDataDir(s.Preset, s.Name)
+	placeholder := f.vm.DefaultDataDir()
 	c.Add(kit.Field(lang.L("Data folder on this device: {{.Hint}}", map[string]any{"Hint": preset.RootHint}),
 		components.NewPathInput(f.u, "", f.tokens, s.DataDir, placeholder, f.vm.SetDataDir)))
 	if placeholder != "" {
