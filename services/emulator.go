@@ -99,12 +99,18 @@ func (s *EmulatorService) Save(in EmulatorSetup) (EmulatorView, error) {
 			return EmulatorView{}, errors.New("an emulator with this name already exists")
 		}
 	}
+	dataDir := strings.TrimSpace(in.DataDir)
+	if p, ok := emumanifest.PresetByID(in.Preset); ok && dataDir == "" && flatpakID(in.Exe, in.Args) != "" {
+		// A Flatpak's data folder is written down: what reads it without the
+		// emulator's command ({ryujinx:...} paths) would look in the usual one.
+		dataDir = defaultRoot(p, name, in.Exe, in.Args)
+	}
 	devID := s.c.DeviceID()
 	saved, err := s.c.Library.SaveEmulator(library.Emulator{
 		ID: in.ID, Name: name, Preset: in.Preset,
 		Devices: map[string]library.EmulatorDevice{devID: {
 			Exe: strings.TrimSpace(in.Exe), Args: in.Args, WorkDir: strings.TrimSpace(in.WorkDir),
-			Env: in.Env, WaitProcess: strings.TrimSpace(in.WaitProcess), DataDir: strings.TrimSpace(in.DataDir),
+			Env: in.Env, WaitProcess: strings.TrimSpace(in.WaitProcess), DataDir: dataDir,
 		}},
 	}, devID)
 	if err != nil {

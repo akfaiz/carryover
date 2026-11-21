@@ -1,11 +1,15 @@
 package services
 
 import (
+	"os"
 	"path"
 	"regexp"
+	"runtime"
 	"strings"
 
+	"github.com/akfaiz/carryover/internal/launcher"
 	"github.com/akfaiz/carryover/internal/saves/emumanifest"
+	"github.com/akfaiz/carryover/internal/stores/flatpak"
 )
 
 // EmuGuess is what Carryover could tell about an emulator from its executable.
@@ -25,6 +29,7 @@ var (
 	emuGeneric = map[string]bool{
 		"apprun": true, "launcher": true, "launch": true, "start": true, "run": true, "main": true,
 		"emulator": true, "emu": true, "app": true, "qt": true, "gui": true, "bin": true,
+		"flatpak": true,
 	}
 )
 
@@ -38,6 +43,9 @@ func (s *EmulatorService) GuessEmulator(exe string) EmuGuess {
 	if exe == "" {
 		return EmuGuess{}
 	}
+	if id := flatpak.AppID(exe, nil); id != "" {
+		return guessFlatpak(id)
+	}
 	if name, preset := emumanifest.Detect(exe); name != "" {
 		return EmuGuess{Name: name, Preset: preset}
 	}
@@ -50,6 +58,49 @@ func (s *EmulatorService) GuessEmulator(exe string) EmuGuess {
 		return EmuGuess{}
 	}
 	return EmuGuess{Name: name}
+}
+
+// guessFlatpak names a Flatpak app by its id: a known emulator, otherwise the
+// id's last part ("org.example.MyEmu" -> "MyEmu").
+func guessFlatpak(id string) EmuGuess {
+	if name, preset := emumanifest.Detect(id); name != "" && !flatpakNotEmulators[id] {
+		return EmuGuess{Name: name, Preset: preset}
+	}
+	return EmuGuess{Name: cleanEmuName(id[strings.LastIndex(id, ".")+1:])}
+}
+
+// flatpakNotEmulators are apps whose id has an emulator's name in it.
+var flatpakNotEmulators = map[string]bool{"org.kde.dolphin": true} // KDE's file manager
+
+// flatpakID is the id of the Flatpak app an emulator command starts, "" if it
+// isn't one.
+func flatpakID(exe, args string) string {
+	a, _ := launcher.SplitArgs(args)
+	return flatpak.AppID(exe, a)
+}
+
+// FlatpakEmulator is an emulator installed with Flatpak on this device.
+type FlatpakEmulator struct {
+	AppID  string `json:"appId"`
+	Name   string `json:"name"`
+	Preset string `json:"preset"` // emulator type id
+	// Exe is the launcher Flatpak exports for it, to use as the executable.
+	Exe string `json:"exe"`
+}
+
+// Flatpaks lists the emulators of a known type installed with Flatpak (Linux).
+func (s *EmulatorService) Flatpaks() []FlatpakEmulator {
+	if runtime.GOOS != "linux" {
+		return nil
+	}
+	home, _ := os.UserHomeDir()
+	var out []FlatpakEmulator
+	for _, a := range flatpak.Apps(home) {
+		if g := guessFlatpak(a.ID); g.Preset != "" {
+			out = append(out, FlatpakEmulator{AppID: a.ID, Name: g.Name, Preset: g.Preset, Exe: a.Launcher})
+		}
+	}
+	return out
 }
 
 // cleanEmuName turns a file or folder name into a display name.

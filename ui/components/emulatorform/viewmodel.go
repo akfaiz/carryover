@@ -19,6 +19,7 @@ import (
 type Backend interface {
 	Presets() []services.PresetView
 	GuessEmulator(exe string) services.EmuGuess
+	DefaultDataDir(preset, name, exe, args string) string
 	Save(services.EmulatorSetup) (services.EmulatorView, error)
 }
 
@@ -52,6 +53,7 @@ type ViewModel struct {
 	saving   bool
 	errText  string
 	orig     string // what the form started with, to tell whether it changed
+	flatpaks []services.FlatpakEmulator
 }
 
 // NewViewModel returns a form for s: an existing emulator, or the zero value
@@ -114,12 +116,51 @@ func (vm *ViewModel) Preset(id string) services.PresetView {
 func (vm *ViewModel) CurrentPreset() services.PresetView { return vm.Preset(vm.s.Preset) }
 
 // SetPreset chooses the emulator type. Its usual arguments replace the current
-// ones only if the user hasn't written their own.
+// ones only if the user hasn't written their own, and so does its usual data
+// folder.
 func (vm *ViewModel) SetPreset(id string) {
 	old := vm.CurrentPreset()
+	if vm.s.DataDir != "" && vm.s.DataDir == vm.DefaultDataDir() {
+		vm.s.DataDir = "" // the old type's usual folder: the new type's is shown instead
+	}
 	vm.s.Preset = id
 	if vm.s.Args == "" || vm.s.Args == old.Args {
 		vm.s.Args = vm.Preset(id).Args
+	}
+}
+
+// DefaultDataDir is the data folder used while none is set: the type's usual
+// one, inside the app's own home for a Flatpak ("" if there is none).
+func (vm *ViewModel) DefaultDataDir() string {
+	return vm.be.DefaultDataDir(vm.s.Preset, vm.s.Name, vm.s.Exe, vm.s.Args)
+}
+
+// SetFlatpaks sets the emulators installed with Flatpak, to choose from.
+func (vm *ViewModel) SetFlatpaks(l []services.FlatpakEmulator) { vm.flatpaks = l }
+
+// Flatpaks are the emulators installed with Flatpak on this device.
+func (vm *ViewModel) Flatpaks() []services.FlatpakEmulator { return vm.flatpaks }
+
+// CurrentFlatpak is the app id of the Flatpak the executable starts ("" if it
+// isn't one of Flatpaks).
+func (vm *ViewModel) CurrentFlatpak() string {
+	for _, f := range vm.flatpaks {
+		if f.Exe == strings.TrimSpace(vm.s.Exe) {
+			return f.AppID
+		}
+	}
+	return ""
+}
+
+// UseFlatpak makes the executable the launcher of an installed Flatpak and
+// proposes its name, type and usual arguments for whatever is still empty.
+func (vm *ViewModel) UseFlatpak(appID string) {
+	for _, f := range vm.flatpaks {
+		if f.AppID == appID {
+			vm.s.Exe = f.Exe
+			vm.propose(services.EmuGuess{Name: f.Name, Preset: f.Preset})
+			return
+		}
 	}
 }
 
@@ -137,7 +178,12 @@ func (vm *ViewModel) UsePresetArgs() { vm.s.Args = vm.CurrentPreset().Args }
 // executable or AppImage just chosen, for whatever is still empty. It reports
 // whether anything changed.
 func (vm *ViewModel) ExePicked(path string) (changed bool) {
-	g := vm.be.GuessEmulator(path)
+	return vm.propose(vm.be.GuessEmulator(path))
+}
+
+// propose fills in what is still empty from a guess and reports whether
+// anything changed.
+func (vm *ViewModel) propose(g services.EmuGuess) (changed bool) {
 	if strings.TrimSpace(vm.s.Name) == "" && g.Name != "" {
 		vm.s.Name, changed = g.Name, true
 	}

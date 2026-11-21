@@ -18,6 +18,10 @@ All notable changes to Carryover are listed here. The format follows
   the game's executable.
 - Save suggestions for a Lutris game cover the Wine prefix Lutris actually runs it in (the one set in the game's
   options, or else the one Lutris finds above its executable), even when Lutris names the game differently.
+- Emulators installed with Flatpak (Linux): the emulator form offers the ones installed on the device. Choosing one
+  sets the executable to its Flatpak launcher and fills in the name, type, usual arguments and its data folder,
+  which a Flatpak keeps in `~/.var/app/<id>` rather than the usual place. A Flatpak launcher picked with "Browse…",
+  or `flatpak run <id>` as the command, is recognised too.
 
 ### Changed
 

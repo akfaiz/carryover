@@ -44,6 +44,10 @@ type Preset struct {
 	// Windows, Linux and Mac are default data folders (path tokens allowed);
 	// "{emu}" is the emulator's name in lower case. Empty: no known default.
 	Windows, Linux, Mac string
+	// Flatpak is the data folder of the emulator's Flatpak, relative to the
+	// app's own home (~/.var/app/<id>). Empty: Linux with {xdgdata} and
+	// {xdgconfig} turned into that home's data/ and config/ folders.
+	Flatpak string
 	// PerGame is false when the manifest has no per-game entries (Ryujinx:
 	// one entry for all saves).
 	PerGame bool
@@ -87,25 +91,25 @@ var presets = []Preset{
 	{ID: "ryujinx", Name: "Switch: Ryujinx", File: "ryujinx.yaml",
 		Windows: "{appdata}/Ryujinx", Linux: "{xdgconfig}/Ryujinx", Mac: "{appdata}/Ryujinx", RootHint: "Ryujinx's data folder (contains bis/)"},
 	{ID: "dolphin", Name: "GameCube / Wii: Dolphin", File: "dolphin.yaml", PerGame: true,
-		RootHint: "Dolphin's user folder (GameCube memory card folders, not raw cards)"},
-	{ID: "azahar", Name: "3DS: Azahar / Citra", File: "azahar.yaml", PerGame: true, RootHint: "the emulator's user folder"},
+		Flatpak: "data/dolphin-emu", RootHint: "Dolphin's user folder (GameCube memory card folders, not raw cards)"},
+	{ID: "azahar", Name: "3DS: Azahar / Citra", File: "azahar.yaml", PerGame: true, Flatpak: "data/{emu}-emu", RootHint: "the emulator's user folder"},
 	{ID: "cemu", Name: "Wii U: Cemu", File: "cemu.yaml", PerGame: true,
 		Windows: "{appdata}/Cemu/mlc01", Linux: "{xdgdata}/Cemu/mlc01", Mac: "{appdata}/Cemu/mlc01", RootHint: "Cemu's mlc01 folder"},
-	{ID: "pcsx2", Name: "PS2: PCSX2", File: "pcsx2.yaml", PerGame: true, RootHint: "PCSX2's memcards folder (folder memory cards only)"},
+	{ID: "pcsx2", Name: "PS2: PCSX2", File: "pcsx2.yaml", PerGame: true, Flatpak: "config/PCSX2/memcards", RootHint: "PCSX2's memcards folder (folder memory cards only)"},
 	{ID: "duckstation", Name: "PS1: DuckStation", File: "duckstation.yaml", PerGame: true,
 		Windows: "{documents}/DuckStation", Linux: "{xdgdata}/duckstation", Mac: "{appdata}/DuckStation", RootHint: "DuckStation's data folder (memcards/, savestates/)"},
 	{ID: "rpcs3", Name: "PS3: RPCS3", File: "rpcs3.yaml", PerGame: true,
 		Linux: "{xdgconfig}/rpcs3", Mac: "{appdata}/rpcs3", RootHint: "RPCS3's config folder (contains dev_hdd0/)"},
 	{ID: "shadps4", Name: "PS4: shadPS4", File: "shadps4.yaml", PerGame: true,
 		Windows: "{appdata}/shadPS4", Linux: "{xdgdata}/shadPS4", Mac: "{appdata}/shadPS4", RootHint: "shadPS4's user folder"},
-	{ID: "ppsspp", Name: "PSP: PPSSPP", File: "ppsspp.yaml", PerGame: true, RootHint: "PPSSPP's PSP folder"},
+	{ID: "ppsspp", Name: "PSP: PPSSPP", File: "ppsspp.yaml", PerGame: true, Flatpak: "config/ppsspp/PSP", RootHint: "PPSSPP's PSP folder"},
 	{ID: "vita3k", Name: "PS Vita: Vita3K", File: "vita3k.yaml", PerGame: true,
 		Windows: "{appdata}/Vita3K/Vita3K", Linux: "{xdgdata}/Vita3K/Vita3K", RootHint: "Vita3K's data folder (contains ux0/)"},
 	{ID: "xenia", Name: "Xbox 360: Xenia", File: "xenia.yaml", PerGame: true,
 		Linux: "{xdgdata}/Xenia/content", RootHint: "Xenia's content folder"},
 	{ID: "retroarch", Name: "RetroArch (many systems)", File: "retroarch.yaml", PerGame: true,
-		RootHint: "the folder containing saves/ and states/"},
-	{ID: "scummvm", Name: "ScummVM", File: "scummvm.yaml", PerGame: true, RootHint: "ScummVM's save folder"},
+		Flatpak: "config/retroarch", RootHint: "the folder containing saves/ and states/"},
+	{ID: "scummvm", Name: "ScummVM", File: "scummvm.yaml", PerGame: true, Flatpak: "data/scummvm/saves", RootHint: "ScummVM's save folder"},
 }
 
 // Presets lists the emulator kinds that have a manifest.
@@ -170,6 +174,25 @@ func (p Preset) DefaultRoot(goos, name string) string {
 		return ""
 	}
 	return strings.ReplaceAll(tpl, "{emu}", strings.ToLower(strings.TrimSpace(name)))
+}
+
+// FlatpakRoot is the data folder of the emulator called name when it is the
+// Flatpak app appID ("" if there is no known one): Flatpak points the app's
+// XDG_DATA_HOME and XDG_CONFIG_HOME into its own home, ~/.var/app/<id>.
+func (p Preset) FlatpakRoot(appID, name string) string {
+	rel := p.Flatpak
+	if rel == "" {
+		if r, ok := strings.CutPrefix(p.Linux, "{xdgdata}/"); ok {
+			rel = "data/" + r
+		} else if r, ok := strings.CutPrefix(p.Linux, "{xdgconfig}/"); ok {
+			rel = "config/" + r
+		}
+	}
+	if rel == "" || appID == "" || strings.Contains(rel, "{emu}") && strings.TrimSpace(name) == "" {
+		return ""
+	}
+	rel = strings.ReplaceAll(rel, "{emu}", strings.ToLower(strings.TrimSpace(name)))
+	return "{home}/.var/app/" + appID + "/" + rel
 }
 
 // Entry is one game: its save paths relative to the emulator's data folder.

@@ -36,11 +36,19 @@ func (s *EmulatorService) Presets() []PresetView {
 }
 
 // DefaultDataDir is the usual data folder of an emulator type and name on this
-// OS ("" if unknown); it may contain path tokens.
-func (s *EmulatorService) DefaultDataDir(preset, name string) string {
+// OS ("" if unknown) when it is started with exe and args: a Flatpak keeps its
+// data in its own home. It may contain path tokens.
+func (s *EmulatorService) DefaultDataDir(preset, name, exe, args string) string {
 	p, ok := emumanifest.PresetByID(preset)
 	if !ok {
 		return ""
+	}
+	return defaultRoot(p, name, exe, args)
+}
+
+func defaultRoot(p emumanifest.Preset, name, exe, args string) string {
+	if id := flatpakID(exe, args); id != "" {
+		return p.FlatpakRoot(id, name)
 	}
 	return p.DefaultRoot(runtime.GOOS, name)
 }
@@ -92,9 +100,10 @@ func (s *EmulatorService) SuggestSaves(emulatorID string, in EmuSuggestInput) (E
 	if !ok {
 		return res, errors.New("choose the emulator type on the Emulators page first")
 	}
-	root := emu.Devices[s.c.DeviceID()].DataDir
+	dev := emu.Devices[s.c.DeviceID()]
+	root := dev.DataDir
 	if root == "" {
-		root = preset.DefaultRoot(runtime.GOOS, emu.Name)
+		root = defaultRoot(preset, emu.Name, dev.Exe, dev.Args)
 	}
 	if root == "" {
 		return res, fmt.Errorf("set the data folder of %s on the Emulators page first (%s)", emu.Name, preset.RootHint)

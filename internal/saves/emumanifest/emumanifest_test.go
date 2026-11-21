@@ -90,6 +90,30 @@ func TestDefaultRoot(t *testing.T) {
 	assert.False(t, ok)
 }
 
+func TestFlatpakRoot(t *testing.T) {
+	root := func(preset, app, name string) string {
+		p, ok := PresetByID(preset)
+		require.True(t, ok, preset)
+		return p.FlatpakRoot(app, name)
+	}
+	// From the Linux folder: {xdgdata} and {xdgconfig} move into the app's home.
+	assert.Equal(t, "{home}/.var/app/dev.eden_emu.eden/data/eden", root("switch", "dev.eden_emu.eden", "Eden"))
+	assert.Equal(t, "{home}/.var/app/io.github.ryubing.Ryujinx/config/Ryujinx", root("ryujinx", "io.github.ryubing.Ryujinx", "Ryujinx"))
+	assert.Equal(t, "{home}/.var/app/info.cemu.Cemu/data/Cemu/mlc01", root("cemu", "info.cemu.Cemu", "Cemu"))
+	// Types without a Linux default have their own.
+	assert.Equal(t, "{home}/.var/app/org.DolphinEmu.dolphin-emu/data/dolphin-emu", root("dolphin", "org.DolphinEmu.dolphin-emu", "Dolphin"))
+	assert.Equal(t, "{home}/.var/app/org.azahar_emu.Azahar/data/azahar-emu", root("azahar", "org.azahar_emu.Azahar", "Azahar"))
+	assert.Equal(t, "{home}/.var/app/net.pcsx2.PCSX2/config/PCSX2/memcards", root("pcsx2", "net.pcsx2.PCSX2", "PCSX2"))
+
+	assert.Empty(t, root("switch", "dev.eden_emu.eden", ""), "the folder is named after the emulator")
+	assert.Empty(t, root("cemu", "", "Cemu"), "not a Flatpak")
+	for _, p := range Presets() {
+		if p.Linux != "" || p.Flatpak != "" {
+			assert.NotEmpty(t, p.FlatpakRoot("org.example.Emu", "Emu"), "%s has a Linux folder but none in its Flatpak", p.ID)
+		}
+	}
+}
+
 func TestStoreDownloadsOnceAndUsesCache(t *testing.T) {
 	hits := 0
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
