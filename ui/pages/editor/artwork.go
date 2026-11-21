@@ -94,7 +94,7 @@ func (e *Page) artworkCard() fyne.CanvasObject {
 		preview = container.NewHBox(kit.FixedSize(spec.preview, kit.CoverView(src, spec.preview)))
 
 		btns := kit.HBox(widget.NewButton(lang.L("Choose file…"), func() {
-			e.pickFile(lang.L("Choose image"), []string{".png", ".jpg", ".jpeg", ".webp"}, func(p string) {
+			e.pickFile(lang.L("Choose image"), []string{".png", ".jpg", ".jpeg", ".webp"}, "", func(p string) {
 				a.src, a.pick, a.clear = p, nil, false
 				e.render()
 			})

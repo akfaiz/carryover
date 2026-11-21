@@ -86,14 +86,43 @@ func (p *PathInput) insert(tok string) {
 	}
 }
 
+// browse picks a folder, starting at the one typed in (or the placeholder's,
+// the folder used while none is typed).
 func (p *PathInput) browse() {
-	d := dialog.NewFolderOpen(func(dir fyne.ListableURI, err error) {
-		if err != nil || dir == nil {
-			return
+	from := p.entry.Text
+	if strings.TrimSpace(from) == "" {
+		from = p.entry.PlaceHolder
+	}
+	BrowseFrom(p.u, p.gameID, from, func(start string) {
+		d := dialog.NewFolderOpen(func(dir fyne.ListableURI, err error) {
+			if err != nil || dir == nil {
+				return
+			}
+			p.entry.SetText(p.u.Lib().ContractPath(filepath.FromSlash(dir.Path())))
+		}, p.u.Window())
+		kit.StartIn(d, start)
+		kit.ShowFilePicker(p.u.Window(), d)
+	})
+}
+
+// BrowseFrom finds, off the UI goroutine, the folder a file or folder dialog
+// for raw should open at: raw (a path that may contain tokens, expanded for
+// gameID) if it is a folder, else the nearest folder above it that exists.
+// show then opens the dialog there ("" for the dialog's default: nothing set,
+// a token that can't be expanded, or nothing of the path exists).
+func BrowseFrom(u env.Env, gameID, raw string, show func(dir string)) {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		show("")
+		return
+	}
+	kit.Async(func() (string, error) {
+		p, err := u.Lib().PreviewPath(gameID, raw)
+		if err != nil {
+			return "", nil //nolint:nilerr // unexpandable: the dialog's default
 		}
-		p.entry.SetText(p.u.Lib().ContractPath(filepath.FromSlash(dir.Path())))
-	}, p.u.Window())
-	kit.ShowFilePicker(p.u.Window(), d)
+		return kit.ExistingDir(p), nil
+	}, func(dir string, _ error) { show(dir) })
 }
 
 func (p *PathInput) updatePreview() {

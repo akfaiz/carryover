@@ -77,7 +77,7 @@ func (e *Page) gameCard() fyne.CanvasObject {
 		preview = kit.CoverView(kit.CoverSource{Name: e.vm.name}, size)
 	}
 	btns := kit.HBox(widget.NewButton(lang.L("Choose file…"), func() {
-		e.pickFile(lang.L("Choose cover image"), []string{".png", ".jpg", ".jpeg", ".webp"}, func(p string) {
+		e.pickFile(lang.L("Choose cover image"), []string{".png", ".jpg", ".jpeg", ".webp"}, "", func(p string) {
 			e.vm.coverSrc, e.vm.gridPick = p, nil
 			e.render()
 		})
@@ -155,22 +155,7 @@ func (e *Page) launchCard() fyne.CanvasObject {
 		applyMode()
 	})
 	browse := widget.NewButton(lang.L("Browse…"), func() {
-		kit.PickProgram(e.u.Window(), lang.L("Choose game executable"), func(p string) {
-			p = services.AppBundle(p) // a program picked inside a macOS .app
-			e.vm.dev.Exe = p
-			e.exeEntry.SetText(p)
-			e.detectHeroic(p)
-			e.detectLutris(p)
-			if e.vm.name != "" {
-				return
-			}
-			// Name it after the exe if it's a known game, else its folder.
-			kit.Async(func() (string, error) { return e.vm.be.GuessName(p), nil }, func(name string, _ error) {
-				if e.vm.name == "" && name != "" {
-					e.nameEntry.SetText(name)
-				}
-			})
-		})
+		components.BrowseFrom(e.u, e.vm.id, e.vm.dev.Exe, func(dir string) { e.pickExe(dir) })
 	})
 	wait := kit.MonoEntry("Game-Win64-Shipping.exe", e.vm.dev.WaitProcess, func(s string) { e.vm.dev.WaitProcess = s })
 	env := kit.MonoMultiLine("", e.vm.envText, 3, func(s string) { e.vm.envText = s })
@@ -195,6 +180,27 @@ func (e *Page) launchCard() fyne.CanvasObject {
 // detectHeroic switches the launch mode to Heroic when exe is inside a game
 // folder Heroic installed, so the game keeps Heroic's settings (and on Linux
 // its Wine prefix instead of a new one from Steam).
+// pickExe asks for the game's executable, starting in dir (the folder of the
+// one set, "" for the dialog's default).
+func (e *Page) pickExe(dir string) {
+	kit.PickProgram(e.u.Window(), lang.L("Choose game executable"), dir, func(p string) {
+		p = services.AppBundle(p) // a program picked inside a macOS .app
+		e.vm.dev.Exe = p
+		e.exeEntry.SetText(p)
+		e.detectHeroic(p)
+		e.detectLutris(p)
+		if e.vm.name != "" {
+			return
+		}
+		// Name it after the exe if it's a known game, else its folder.
+		kit.Async(func() (string, error) { return e.vm.be.GuessName(p), nil }, func(name string, _ error) {
+			if e.vm.name == "" && name != "" {
+				e.nameEntry.SetText(name)
+			}
+		})
+	})
+}
+
 func (e *Page) detectHeroic(exe string) {
 	if e.vm.dev.LaunchMode == services.LaunchHeroic {
 		return

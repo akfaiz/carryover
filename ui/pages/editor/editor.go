@@ -9,6 +9,7 @@ import (
 	"fyne.io/fyne/v2/widget"
 
 	"github.com/akfaiz/carryover/services"
+	"github.com/akfaiz/carryover/ui/components"
 	"github.com/akfaiz/carryover/ui/env"
 	"github.com/akfaiz/carryover/ui/flows"
 	"github.com/akfaiz/carryover/ui/kit"
@@ -189,8 +190,12 @@ func (e *Page) searchSteam() {
 	})
 }
 
-func (e *Page) pickFile(title string, exts []string, done func(string)) {
-	kit.PickFile(e.u.Window(), title, exts, done)
+// pickFile asks for a file, starting at the folder of from (a path that may
+// contain tokens; "" for the dialog's default).
+func (e *Page) pickFile(title string, exts []string, from string, done func(string)) {
+	components.BrowseFrom(e.u, e.vm.id, from, func(dir string) {
+		kit.PickFile(e.u.Window(), title, exts, dir, done)
+	})
 }
 
 func (e *Page) render() {

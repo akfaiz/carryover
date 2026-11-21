@@ -1,6 +1,7 @@
 package kit
 
 import (
+	"os"
 	"path/filepath"
 
 	"fyne.io/fyne/v2"
@@ -73,9 +74,42 @@ func fileView(root fyne.CanvasObject) fyne.Focusable {
 	return best
 }
 
+// ExistingDir is the folder a file or folder dialog should open at for an
+// absolute path: the path itself if it is a folder, otherwise the nearest
+// folder above it that exists. It is "" for an empty or relative path, or when
+// only the drive or file system root is left (the dialog's own default is
+// better then). It reads the disk: call it off the UI goroutine.
+func ExistingDir(path string) string {
+	if path == "" || !filepath.IsAbs(path) {
+		return ""
+	}
+	for p := filepath.Clean(path); ; {
+		parent := filepath.Dir(p)
+		if parent == p {
+			return ""
+		}
+		if fi, err := os.Stat(p); err == nil && fi.IsDir() {
+			return p
+		}
+		p = parent
+	}
+}
+
+// StartIn makes a file or folder dialog open at dir (from ExistingDir); ""
+// keeps the dialog's default.
+func StartIn(d *dialog.FileDialog, dir string) {
+	if dir == "" {
+		return
+	}
+	if l, err := storage.ListerForURI(storage.NewFileURI(dir)); err == nil {
+		d.SetLocation(l)
+	}
+}
+
 // PickFile asks for a file, optionally limited to extensions such as ".png",
-// and passes its path to done. Cancelling does nothing.
-func PickFile(win fyne.Window, title string, exts []string, done func(path string)) {
+// and passes its path to done. The dialog opens at dir (from ExistingDir; ""
+// for its default). Cancelling does nothing.
+func PickFile(win fyne.Window, title string, exts []string, dir string, done func(path string)) {
 	d := dialog.NewFileOpen(func(r fyne.URIReadCloser, err error) {
 		if err != nil || r == nil {
 			return
@@ -88,6 +122,7 @@ func PickFile(win fyne.Window, title string, exts []string, done func(path strin
 	if len(exts) > 0 {
 		d.SetFilter(storage.NewExtensionFileFilter(exts))
 	}
+	StartIn(d, dir)
 	ShowFilePicker(win, d)
 }
 

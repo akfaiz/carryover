@@ -33,6 +33,9 @@ All notable changes to Carryover are listed here. The format follows
 
 ### Fixed
 
+- "Browse…" opens at the folder of the path already set (an executable, game file or folder, with its tokens
+  expanded, or the nearest folder of it that exists) instead of the last folder used anywhere; an empty data folder
+  starts at the usual one shown.
 - After losing the connection while playing, starting the game again failed with "game is already running or
   syncing in another Carryover process" for minutes: the session watcher held the game while it retried offline.
 - A game with a long name being played no longer widens the sidebar: its "Playing …" entry ends in "…".

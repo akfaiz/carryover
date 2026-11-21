@@ -160,7 +160,7 @@ func (e *Page) emulatorPanel(m *emuForm, onRemove func()) fyne.CanvasObject {
 	{
 		rom := kit.MonoEntry("", m.rom, func(s string) { m.rom = s })
 		browse := widget.NewButton(lang.L("Browse…"), func() {
-			e.pickFile(lang.L("Choose the game file"), nil, func(p string) {
+			e.pickFile(lang.L("Choose the game file"), nil, m.rom, func(p string) {
 				m.rom = p
 				rom.SetText(p)
 				e.romPicked(m)

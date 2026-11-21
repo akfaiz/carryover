@@ -38,24 +38,33 @@ static char *pickProgram(const char *title, const char *dir, int *ok) {
 import "C"
 
 import (
+	"path/filepath"
+	"strings"
 	"unsafe"
 
 	"fyne.io/fyne/v2"
 )
 
 // PickProgram asks for a program and passes its path to done; cancelling
-// does nothing. On macOS it uses the system's Open panel, starting in
-// /Applications, because Fyne's file dialog shows an app bundle (X.app) as a
-// folder that can't be chosen. If the panel can't be shown it falls back to
-// PickFile.
-func PickProgram(win fyne.Window, title string, done func(path string)) {
-	ct, cd := C.CString(title), C.CString("/Applications")
+// does nothing. On macOS it uses the system's Open panel, starting at dir
+// (from ExistingDir) or else in /Applications, because Fyne's file dialog
+// shows an app bundle (X.app) as a folder that can't be chosen. If the panel
+// can't be shown it falls back to PickFile.
+func PickProgram(win fyne.Window, title, dir string, done func(path string)) {
+	start := dir
+	if strings.HasSuffix(strings.ToLower(start), ".app") {
+		start = filepath.Dir(start) // the folder that holds the bundle, not its inside
+	}
+	if start == "" {
+		start = "/Applications"
+	}
+	ct, cd := C.CString(title), C.CString(start)
 	defer C.free(unsafe.Pointer(ct))
 	defer C.free(unsafe.Pointer(cd))
 	var ok C.int
 	res := C.pickProgram(ct, cd, &ok)
 	if ok == 0 {
-		PickFile(win, title, nil, done)
+		PickFile(win, title, nil, dir, done)
 		return
 	}
 	if res == nil {
