@@ -83,13 +83,15 @@ func (f *Form) form() fyne.CanvasObject {
 	}
 	exe := kit.MonoEntry(example, s.Exe, vm.SetExe)
 	browse := widget.NewButton(lang.L("Browse…"), func() {
-		kit.PickProgram(f.u.Window(), lang.L("Choose the emulator executable"), func(path string) {
-			path = services.AppBundle(path) // a program picked inside a macOS .app
-			vm.SetExe(path)
-			exe.SetText(path)
-			if vm.ExePicked(path) {
-				f.render()
-			}
+		components.BrowseFrom(f.u, "", vm.Setup().Exe, func(dir string) {
+			kit.PickProgram(f.u.Window(), lang.L("Choose the emulator executable"), dir, func(path string) {
+				path = services.AppBundle(path) // a program picked inside a macOS .app
+				vm.SetExe(path)
+				exe.SetText(path)
+				if vm.ExePicked(path) {
+					f.render()
+				}
+			})
 		})
 	})
 	preset := vm.CurrentPreset()

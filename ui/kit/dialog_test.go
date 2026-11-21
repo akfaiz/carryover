@@ -1,6 +1,8 @@
 package kit
 
 import (
+	"os"
+	"path/filepath"
 	"testing"
 
 	"fyne.io/fyne/v2"
@@ -67,10 +69,10 @@ func TestScrollDialog(t *testing.T) {
 func TestPickFileOpensADialog(t *testing.T) {
 	w := newWindow(t)
 	called := false
-	PickFile(w, "Choose", []string{".png"}, func(string) { called = true })
+	PickFile(w, "Choose", []string{".png"}, "", func(string) { called = true })
 	assert.Len(t, w.Canvas().Overlays().List(), 1)
 	assert.False(t, called, "nothing is picked until the user does")
-	PickFile(w, "Choose any", nil, func(string) {})
+	PickFile(w, "Choose any", nil, "", func(string) {})
 }
 
 func TestConfirmDangerWithACheckbox(t *testing.T) {
@@ -135,4 +137,40 @@ func TestConfirmDiscard(t *testing.T) {
 	tapOverlay(t, w, "Discard")
 	assert.Equal(t, 1, left)
 	assert.Empty(t, w.Canvas().Overlays().List())
+}
+
+func TestExistingDir(t *testing.T) {
+	dir := t.TempDir()
+	sub := filepath.Join(dir, "Saves")
+	require.NoError(t, os.Mkdir(sub, 0o755))
+	file := filepath.Join(sub, "game.exe")
+	require.NoError(t, os.WriteFile(file, nil, 0o644))
+
+	assert.Equal(t, sub, ExistingDir(sub), "a folder: itself")
+	assert.Equal(t, sub, ExistingDir(file), "a file: its folder")
+	assert.Equal(t, sub, ExistingDir(filepath.Join(sub, "gone", "deeper", "x.exe")), "the nearest folder that exists")
+	assert.Empty(t, ExistingDir(""))
+	assert.Empty(t, ExistingDir(filepath.Join("relative", "path")), "relative: nothing to start from")
+	assert.Empty(t, ExistingDir(filepath.VolumeName(dir)+string(filepath.Separator)), "only the root is left")
+}
+
+// The picker opens at the folder it is given: the dialog's path bar names it.
+func TestPickFileStartsInTheGivenFolder(t *testing.T) {
+	dir := filepath.Join(t.TempDir(), "PickHere")
+	require.NoError(t, os.Mkdir(dir, 0o755))
+	texts := func(w fyne.Window) []string {
+		var out []string
+		for _, b := range overlayButtons(w) {
+			out = append(out, b.Text)
+		}
+		return out
+	}
+
+	w := newWindow(t)
+	PickFile(w, "Choose", nil, dir, func(string) {})
+	assert.Contains(t, texts(w), "PickHere")
+
+	w = newWindow(t)
+	PickFile(w, "Choose", nil, "", func(string) {})
+	assert.NotContains(t, texts(w), "PickHere", "no folder: the dialog's default")
 }

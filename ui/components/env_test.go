@@ -1,6 +1,8 @@
 package components_test
 
 import (
+	"os"
+	"path/filepath"
 	"testing"
 
 	"fyne.io/fyne/v2"
@@ -105,4 +107,23 @@ func TestPathInput(t *testing.T) {
 	entries[0].SetText("/tmp/x")
 	assert.Equal(t, "/tmp/x", changed)
 	h.Settle()
+}
+
+// A dialog opens at the folder of the path already set: tokens expanded, a
+// missing file or folder replaced by the nearest folder above it.
+func TestBrowseFromFindsTheFolderOfAPath(t *testing.T) {
+	h := newHarness(t)
+	dir := t.TempDir()
+	from := func(raw string) string {
+		got := "unset"
+		components.BrowseFrom(h.Shell, "", raw, func(d string) { got = d })
+		h.Settle()
+		return got
+	}
+	assert.Equal(t, dir, from(filepath.Join(dir, "missing", "game.exe")))
+	home, err := os.UserHomeDir()
+	require.NoError(t, err)
+	assert.Equal(t, home, from("{home}/no-such-folder-carryover"), "tokens are expanded")
+	assert.Empty(t, from(""), "nothing set: the dialog's default")
+	assert.Empty(t, from("{nosuchtoken}/x"), "a path that can't be expanded")
 }
