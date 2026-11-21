@@ -72,6 +72,36 @@ func Installed(home string) []Game {
 	return out
 }
 
+// lookPath finds a program on PATH (or checks a full path); tests replace it.
+var lookPath = exec.LookPath
+
+// systemFlatpaks is where Flatpak installs apps for every user; tests
+// replace it.
+var systemFlatpaks = "/var/lib/flatpak/app"
+
+// Present reports whether Heroic is installed for the user with this home
+// folder: its config folder exists (Heroic makes it on first start), a Heroic
+// build is found, or its Flatpak is installed.
+func Present(home string) bool {
+	for _, d := range ConfigDirs(home) {
+		if isDir(d.Path) {
+			return true
+		}
+	}
+	for _, name := range executables() {
+		if _, err := lookPath(name); err == nil {
+			return true
+		}
+	}
+	return home != "" && (isDir(filepath.Join(home, ".local", "share", "flatpak", "app", FlatpakID)) ||
+		isDir(filepath.Join(systemFlatpaks, FlatpakID)))
+}
+
+func isDir(p string) bool {
+	st, err := os.Stat(p)
+	return err == nil && st.IsDir()
+}
+
 // ForExe returns the installed game whose folder holds exe (the deepest one if
 // folders nest).
 func ForExe(home, exe string) (Game, bool) {
@@ -108,7 +138,7 @@ func (g Game) Command() []string {
 		return []string{"flatpak", "run", FlatpakID, "--no-gui", "--no-sandbox", g.URL()}
 	}
 	for _, name := range executables() {
-		if p, err := exec.LookPath(name); err == nil {
+		if p, err := lookPath(name); err == nil {
 			return append([]string{p}, launchArgs(g.URL())...)
 		}
 	}

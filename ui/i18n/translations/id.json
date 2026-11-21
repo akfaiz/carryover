@@ -533,5 +533,6 @@
   "Add from Heroic library": "Tambah dari pustaka Heroic",
   "Games installed through Heroic on this device. Carryover starts them through Heroic, so they keep its settings (and, on Linux, its Wine prefix); you still set the save locations.": "Game yang dipasang lewat Heroic di perangkat ini. Carryover menjalankannya lewat Heroic, sehingga pengaturannya (dan, di Linux, prefiks Wine-nya) tetap dipakai; Anda tetap mengatur lokasi save.",
   "Reading Heroic library…": "Membaca pustaka Heroic…",
-  "No installed Heroic games found on this device.": "Tidak ada game Heroic yang terpasang di perangkat ini."
+  "No installed Heroic games found on this device.": "Tidak ada game Heroic yang terpasang di perangkat ini.",
+  "PC game: any other game, started from its executable or through Lutris.": "Game PC: game lain mana pun, dijalankan dari file eksekusinya atau lewat Lutris."
 }

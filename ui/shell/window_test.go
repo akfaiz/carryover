@@ -64,6 +64,7 @@ func TestGamepadClosesDialogs(t *testing.T) {
 	h := newHarness(t)
 	h.Open("/settings")
 	flows.ShowAddGame(h.Shell)
+	h.Settle() // the dialog opens once the installed launchers are known
 	require.NotEmpty(t, h.Shell.Window().Canvas().Overlays().List())
 	h.Shell.Navigator().Apply(kit.PadBack)
 	assert.Empty(t, h.Shell.Window().Canvas().Overlays().List())

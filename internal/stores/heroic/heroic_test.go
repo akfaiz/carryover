@@ -1,6 +1,7 @@
 package heroic
 
 import (
+	"errors"
 	"net/url"
 	"os"
 	"path/filepath"
@@ -133,4 +134,28 @@ func TestInstalledExe(t *testing.T) {
 		"amzn1.tunic": filepath.Join(tunic, "Tunic.exe"),
 		"abc":         side,
 	}, exes)
+}
+
+func TestPresent(t *testing.T) {
+	oldLook, oldSys := lookPath, systemFlatpaks
+	t.Cleanup(func() { lookPath, systemFlatpaks = oldLook, oldSys })
+	lookPath = func(string) (string, error) { return "", errors.New("not found") }
+	systemFlatpaks = filepath.Join(t.TempDir(), "flatpak")
+
+	home := t.TempDir()
+	t.Setenv("APPDATA", filepath.Join(home, "AppData", "Roaming"))
+	assert.False(t, Present(home), "nothing of Heroic here")
+
+	// Its config folder, made on first start.
+	require.NoError(t, os.MkdirAll(ConfigDirs(home)[0].Path, 0o755))
+	assert.True(t, Present(home))
+
+	// A Heroic build on PATH, or its Flatpak installed but never started.
+	home = t.TempDir()
+	t.Setenv("APPDATA", filepath.Join(home, "AppData", "Roaming"))
+	lookPath = func(string) (string, error) { return "/usr/bin/heroic", nil }
+	assert.True(t, Present(home))
+	lookPath = func(string) (string, error) { return "", errors.New("not found") }
+	require.NoError(t, os.MkdirAll(filepath.Join(systemFlatpaks, FlatpakID), 0o755))
+	assert.True(t, Present(home))
 }

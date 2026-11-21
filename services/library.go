@@ -1175,6 +1175,26 @@ func (s *LibraryService) LutrisLibrary() []LutrisLibraryGame {
 	return out
 }
 
+// Launchers says which other game launchers are installed on this device and
+// can start games for Carryover.
+type Launchers struct {
+	Heroic bool `json:"heroic"` // Linux and Windows
+	Lutris bool `json:"lutris"` // Linux
+}
+
+// Launchers reports which other game launchers are installed on this device.
+func (s *LibraryService) Launchers() Launchers {
+	home, _ := os.UserHomeDir()
+	var l Launchers
+	if runtime.GOOS == "linux" || runtime.GOOS == "windows" {
+		l.Heroic = heroic.Present(home)
+	}
+	if runtime.GOOS == "linux" {
+		l.Lutris = lutris.Present(home)
+	}
+	return l
+}
+
 // HeroicLibraryGame is a game Heroic has installed on this device.
 type HeroicLibraryGame struct {
 	heroic.Game
