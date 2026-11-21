@@ -5,7 +5,9 @@ Each device maps a game's cloud saves to its own folder, so one game can be `{ap
 translated for each device: Windows folders on a PC, the Proton prefix or native Linux folders on a Steam Deck, and
 native macOS folders on a Mac.
 Folders that already hold saves are shown first. On Linux, the Wine prefixes of Heroic, Lutris and Bottles
-(native or Flatpak, including the SD card) are searched too.
+(native or Flatpak, including the SD card) are searched too. For a Lutris game, the prefix is the one Lutris uses:
+the **Wine prefix** set in the game's options in Lutris, or else the first prefix Lutris finds above the game's
+executable. Every save location of the game in that prefix is suggested, even before it holds a save.
 
 ## Variables
 

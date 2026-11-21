@@ -1042,12 +1042,16 @@ func (s *LibraryService) SuggestSaves(in SuggestInput) (SuggestResult, error) {
 		}
 	}
 	names := []string{g.Name, in.Name}
+	ownPrefix := "" // the prefix Lutris runs the game in, whatever it is named
 	if exe != "" {
 		if hg, ok := s.heroicGame(exe); ok && hg.Title != "" {
 			names = append(names, hg.Title)
 		}
-		if lg, ok := s.lutrisGame(exe); ok && lg.Name != "" {
-			names = append(names, lg.Name)
+		if lg, ok := s.lutrisGame(exe); ok {
+			if lg.Name != "" {
+				names = append(names, lg.Name)
+			}
+			ownPrefix = lg.Prefix
 		}
 	}
 
@@ -1069,7 +1073,7 @@ func (s *LibraryService) SuggestSaves(in SuggestInput) (SuggestResult, error) {
 	// prefix, and in any other prefix only those that hold saves.
 	if s.prefixes != nil {
 		for _, pf := range s.prefixes() {
-			mine := prefixIsFor(pf, exe, names...)
+			mine := prefixIsFor(pf, exe, names...) || samePrefix(pf.Path, ownPrefix)
 			for _, user := range pf.Users {
 				userDir := filepath.ToSlash(pctx.Contract(user))
 				for _, sg := range ludusavi.SuggestPrefix(g, userDir, filepath.Base(user)) {
@@ -1252,6 +1256,16 @@ func prefixIsFor(pf wineprefix.Prefix, exe string, names ...string) bool {
 		}
 	}
 	return false
+}
+
+// samePrefix reports whether a prefix found on this device is own, which may
+// be the folder holding it in a "pfx" subfolder.
+func samePrefix(path, own string) bool {
+	if own == "" {
+		return false
+	}
+	path, own = filepath.Clean(path), filepath.Clean(own)
+	return path == own || path == filepath.Join(own, "pfx")
 }
 
 // prefixLabel names a prefix for the user, e.g. "Heroic: Hades".

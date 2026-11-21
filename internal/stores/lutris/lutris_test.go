@@ -176,3 +176,34 @@ func TestPresent(t *testing.T) {
 	nativePaths = []string{exe}
 	assert.True(t, Present(home), "native Lutris where packages put it")
 }
+
+// With no prefix in its options, a game runs in the first prefix Lutris finds
+// above its executable (itself, or one named "prefix" or "pfx" next to it).
+func TestPrefixFoundAboveTheExecutable(t *testing.T) {
+	home := t.TempDir()
+	j := func(parts ...string) string { return filepath.Join(append([]string{home}, parts...)...) }
+	data := j(".local", "share", "lutris", "games")
+	mkPrefix := func(p string) {
+		require.NoError(t, os.MkdirAll(filepath.Join(p, "drive_c"), 0o755))
+		writeFile(t, filepath.Join(p, "user.reg"), "")
+	}
+	// The exe inside the prefix's drive_c.
+	mkPrefix(j("Games", "inside"))
+	writeFile(t, filepath.Join(data, "inside-1.yml"),
+		"game:\n  exe: "+q(j("Games", "inside", "drive_c", "Game", "a.exe"))+"\n")
+	// A pfx folder next to the game's folder.
+	mkPrefix(j("Games", "beside", "pfx"))
+	writeFile(t, filepath.Join(data, "beside-2.yml"), "game:\n  exe: "+q(j("Games", "beside", "game", "b.exe"))+"\n")
+	// A prefix set in the game's options wins, even when another is above it.
+	writeFile(t, filepath.Join(data, "set-3.yml"),
+		"game:\n  exe: "+q(j("Games", "inside", "drive_c", "c.exe"))+"\n  prefix: "+q(j("Wine", "c"))+"\n")
+	// A drive_c without user.reg is not a prefix; nothing found means none.
+	require.NoError(t, os.MkdirAll(j("Games", "native", "drive_c"), 0o755))
+	writeFile(t, filepath.Join(data, "native-4.yml"), "game:\n  exe: "+q(j("Games", "native", "bin", "d"))+"\n")
+
+	got := byID(Installed(home))
+	assert.Equal(t, j("Games", "inside"), got["inside-1"].Prefix)
+	assert.Equal(t, j("Games", "beside", "pfx"), got["beside-2"].Prefix)
+	assert.Equal(t, j("Wine", "c"), got["set-3"].Prefix)
+	assert.Empty(t, got["native-4"].Prefix)
+}
