@@ -28,7 +28,8 @@ All notable changes to Carryover are listed here. The format follows
     adds, renames and removes them for every device; each device chooses its own folder for each.
   - **Cloud:** accounts can be imported from a PC's rclone.conf (Settings → Cloud). A sign-in waiting for the browser
     can be cancelled, and an account whose sign-in never finished is marked "Sign-in not finished" instead of
-    looking connected. Settings also has the desktop's switches for sharing the library and syncing covers.
+    looking connected. The account in use is marked, and deleting an account asks first. Settings also has the
+    desktop's switches for sharing the library and syncing covers.
   - **Library:** games and emulators go to the trash (Settings → Trash) for 30 days, can be deleted for good with or
     without their cloud saves, and cloud saves no game uses can be restored or deleted. A game's page lists its
     backups (back up now, pin, delete, restore); Settings → Cloud backups turns on cloud backups.

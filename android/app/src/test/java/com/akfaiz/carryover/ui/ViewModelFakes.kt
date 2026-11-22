@@ -419,7 +419,7 @@ internal class FakeCoreApi(
     override suspend fun saveEmulator(setup: EmulatorSetup): EmulatorView {
         call("saveEmulator", setup.id)
         savedEmulators += setup
-        return EmulatorView(id = setup.id, name = setup.name)
+        return EmulatorView(id = setup.id.ifEmpty { "new-emulator" }, name = setup.name)
     }
 
     override suspend fun previewPath(gameId: String, raw: String): String = raw

@@ -68,6 +68,8 @@ data class UiState(
     val hasGridKey: Boolean = false,
     /** How far the search for the covers of the games without one is; null when none is running. */
     val findingCovers: FindProgress? = null,
+    /** The library is being merged with the cloud (pull to refresh). */
+    val refreshingLibrary: Boolean = false,
 )
 
 /**
@@ -163,6 +165,23 @@ class AppViewModel(private val services: AppServices = AppServices.shared) : Vie
         viewModelScope.launch {
             m.attempt(m.str(R.string.err_read_settings)) { services.settings.refresh() }
             loadGames()
+        }
+    }
+
+    /**
+     * Pull to refresh: merges the library with the cloud (games, emulators and
+     * covers added on other devices). No saves are synced: that is Sync all.
+     */
+    fun refreshLibrary() {
+        if (_state.value.refreshingLibrary) return
+        _state.update { it.copy(refreshingLibrary = true) }
+        viewModelScope.launch {
+            try {
+                m.attempt(m.str(R.string.err_library_refresh)) { services.settings.refreshLibrary() }
+                loadGames()
+            } finally {
+                _state.update { it.copy(refreshingLibrary = false) }
+            }
         }
     }
 
@@ -299,15 +318,15 @@ class AppViewModel(private val services: AppServices = AppServices.shared) : Vie
         }
     }
 
-    /** Saves this device's setup of an emulator (new when id is empty). */
-    fun saveEmulator(id: String, name: String, exe: String, args: String, dataDir: String, done: () -> Unit = {}) {
+    /** Saves this device's setup of an emulator (new when id is empty); [done] gets its id. */
+    fun saveEmulator(id: String, name: String, exe: String, args: String, dataDir: String, done: (String) -> Unit = {}) {
         viewModelScope.launch {
             try {
                 val preset = AndroidLibrary.presetFor(_state.value.emulators.firstOrNull { it.id == id }, exe.trim())
-                core.saveEmulator(EmulatorSetup(id, name.trim(), exe.trim(), args.trim(), preset, dataDir.trim()))
+                val saved = core.saveEmulator(EmulatorSetup(id, name.trim(), exe.trim(), args.trim(), preset, dataDir.trim()))
                 m.say(m.str(R.string.msg_emulator_saved, name))
                 loadGames()
-                done()
+                done(saved.id)
             } catch (e: Exception) {
                 m.failed(m.str(R.string.err_save_emulator, name), e)
             }

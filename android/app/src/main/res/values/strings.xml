@@ -83,10 +83,10 @@
 
     <!-- Game -->
     <string name="game_missing">This game is no longer in the library.</string>
-    <string name="game_no_profiles">This game has no save locations. Add them in the desktop app.</string>
+    <string name="game_no_profiles">This game isn\'t played on this device yet. Add an emulator set up here with Edit game.</string>
     <string name="game_profile_own">Game saves</string>
     <string name="game_save_folders">Save folders</string>
-    <string name="action_save_paths">Save paths</string>
+    <string name="play_wait_sync_all">You can play once Sync all finishes.</string>
     <string name="game_launch">Launch</string>
     <string name="game_app_none">No Android app chosen</string>
     <string name="game_app">Android app: %1$s</string>
@@ -113,8 +113,8 @@
         <item quantity="one">%1$d file, %2$s</item>
         <item quantity="other">%1$d files, %2$s</item>
     </plurals>
-    <string name="action_keep_local">Keep this device\'s</string>
-    <string name="action_keep_cloud">Keep the cloud\'s</string>
+    <string name="action_keep_local">Keep this device\'s saves</string>
+    <string name="action_keep_cloud">Keep the cloud saves</string>
     <string name="action_decide_later">Decide later</string>
 
     <!-- Questions while starting or ending a game -->
@@ -159,7 +159,7 @@
         <item quantity="one">Synced %1$d game</item>
         <item quantity="other">Synced %1$d games</item>
     </plurals>
-    <string name="msg_paths_saved">Save paths saved</string>
+    <string name="msg_paths_saved">Save folders updated</string>
     <string name="msg_cloud_connected">Connected: the library is synced</string>
     <string name="msg_saved">Saved</string>
     <string name="msg_cover_changed">Cover changed</string>
@@ -172,7 +172,7 @@
     <string name="err_sync">Sync of %1$s failed</string>
     <string name="err_sync_all">Sync all failed</string>
     <string name="err_add_game">Couldn\'t add the game</string>
-    <string name="err_save_paths">Couldn\'t save the paths</string>
+    <string name="err_save_paths">Couldn\'t save the folders</string>
     <string name="err_use_cloud">Couldn\'t use %1$s</string>
     <string name="err_delete_remote">Couldn\'t delete %1$s</string>
     <string name="err_save">Couldn\'t save</string>
@@ -188,12 +188,18 @@
     <string name="add_game_no_emulators">No emulator is set up on this device yet: choose its app on the Emulators tab first.</string>
     <string name="add_game_rom_hint">The game file the emulator opens; its name fills in the game\'s name.</string>
     <string name="add_game_save_optional">Optional: you can choose it later on the game\'s page.</string>
+    <string name="add_game_save_required">Required: the folder the game keeps its saves in.</string>
+    <string name="add_game_android_note">Many Android games keep their saves in Android/data, which Android doesn\'t let other apps open. Carryover can sync a game only if its saves are in a folder you can choose.</string>
+    <string name="add_game_need_emulator">Choose what the game is played with.</string>
+    <string name="add_game_need_app">Choose the game\'s app.</string>
+    <string name="add_game_need_name">Enter the game\'s name.</string>
+    <string name="add_game_need_folder">Choose the save folder.</string>
 
     <!-- Edit a game -->
     <string name="edit_game">Edit game</string>
     <string name="edit_played_with">Played with</string>
     <string name="edit_elsewhere">Only on your other devices: %1$s</string>
-    <string name="edit_native">PC</string>
+    <string name="edit_native">Desktop version</string>
     <string name="edit_shares">Uses %1$s\'s saves</string>
     <string name="edit_add_title">Add an emulator to %1$s</string>
     <string name="edit_add_none">Every emulator set up on this device already plays this game.</string>
@@ -243,12 +249,15 @@
     <string name="emulator_mode_open">Open the emulator; I pick the game there</string>
     <string name="emulator_mode_direct">Start the game directly (needs the game file)</string>
     <string name="emulator_template">Start template</string>
-    <string name="emulator_template_hint">am start options; {rom} is the game file. Not yet tried with every emulator.</string>
+    <string name="emulator_template_hint">am start options; {rom} is the game file. If the game doesn\'t open, try \"Open the emulator\" instead.</string>
     <string name="emulator_data_folder">Data folder</string>
     <string name="emulator_data_folder_optional">Data folder (optional)</string>
     <string name="emulator_data_hint">Where the emulator keeps its files</string>
     <string name="emulator_data_switch_hint">Needed to find Switch save folders. With Browse, choose the emulator\'s own folder (listed under its name in the picker\'s menu).</string>
     <string name="action_remove_device">Remove from this device…</string>
+    <string name="emulator_danger_title">Remove or delete</string>
+    <string name="emulator_remove_hint">Forgets its app and data folder on this device only.</string>
+    <string name="emulator_delete_hint">Moves it to the trash on all your devices.</string>
     <string name="emulator_remove_title">Remove %1$s from this device?</string>
     <string name="emulator_remove_text">Carryover forgets which app %1$s is on this device and its data folder here. The emulator, its setup on your other devices, your games and their cloud saves stay.</string>
     <string name="preset_note_retroarch">Replace CORE with the core\'s name, such as snes9x or mgba.</string>
@@ -278,7 +287,7 @@
     <string name="language_id" translatable="false">Bahasa Indonesia</string>
     <string name="section_permissions">Permissions</string>
     <string name="section_sessions">Play sessions</string>
-    <string name="setting_grace">Leaving a game ends its session after</string>
+    <string name="setting_grace">Upload delay after leaving a game</string>
     <string name="setting_grace_hint">How long another app may be in front before the saves are uploaded. A longer wait suits games you often leave for a moment.</string>
     <string name="grace_seconds">%1$d seconds</string>
     <string name="setting_background_sync">Sync in the background</string>
@@ -309,7 +318,12 @@
     <string name="cloud_accounts">Cloud accounts</string>
     <string name="cloud_none">None yet.</string>
     <string name="cloud_signin_unfinished">Sign-in not finished. Delete it and add the account again.</string>
+    <string name="cloud_in_use">In use</string>
     <string name="action_delete_remote">Delete %1$s</string>
+    <string name="dialog_delete_remote_title">Delete %1$s?</string>
+    <string name="dialog_delete_remote_text">Carryover forgets this account on this device. Your files in the cloud stay, and you can add the account again.</string>
+    <string name="dialog_delete_remote_active">Carryover syncs through this account: until you choose another one, nothing syncs on this device. Your files in the cloud stay.</string>
+    <string name="msg_remote_deleted">%1$s deleted</string>
     <string name="action_add_account">Add a cloud account</string>
     <string name="cloud_folder">Folder in the cloud</string>
     <string name="cloud_folder_hint">Carryover keeps the library and saves here (default: Carryover).</string>
@@ -348,7 +362,7 @@
     <string name="other_step">Any app that can start an activity with extras works: send the launch it would send the emulator to Carryover\'s screen, with this extra added:</string>
     <string name="other_target">The extra (carryover.target, a string):</string>
     <string name="other_adb">For example, from a computer with adb:</string>
-    <string name="frontends_untested">These settings follow ES-DE\'s and Daijisho\'s documented syntax but haven\'t been tried with every emulator yet.</string>
+    <string name="frontends_untested">These settings follow ES-DE\'s and Daijisho\'s documented syntax. If a game doesn\'t open, check the emulator\'s start template on its page.</string>
     <string name="frontends_bad_template">%1$s\'s start template can\'t be read: %2$s. Fix it on the emulator\'s page.</string>
     <string name="shortcuts_title">Home-screen shortcuts</string>
     <string name="shortcuts_text">Open a game and tap Add to home screen: the shortcut plays it as Play does.</string>
@@ -424,7 +438,7 @@
     <string name="action_delete_with_saves">Delete with cloud saves</string>
     <string name="dialog_delete_game_title">Delete %1$s?</string>
     <string name="dialog_delete_game_text">It moves to the trash on all your devices and can be restored for %1$d days. Its saves in the cloud stay.</string>
-    <string name="dialog_delete_emulator_text">It moves to the trash on all your devices. Games keep their profile for it (they can\'t be launched with it until it is restored), and it can be restored for %1$d days.</string>
+    <string name="dialog_delete_emulator_text">It moves to the trash on all your devices and can be restored for %1$d days. Its games keep their settings for it, but can\'t be played with it until it is restored.</string>
     <string name="dialog_forever_title">Delete %1$s for good?</string>
     <string name="dialog_forever_text">Its settings can\'t be restored any more. What about its saves in the cloud?</string>
     <string name="dialog_forever_hint">Saves you keep can be found again under \"Cloud saves with no game\".</string>
@@ -530,8 +544,8 @@
     <string name="dialog_backups_text">Before a download or an upload replaces saves, Carryover can store a backup of them in the cloud. It makes syncs slower, because the backup is uploaded too.</string>
     <string name="msg_backups_off">Cloud backups are off</string>
     <plurals name="msg_backups_on">
-        <item quantity="one">Cloud backups are on: keeping the last %1$d</item>
-        <item quantity="other">Cloud backups are on: keeping the last %1$d</item>
+        <item quantity="one">Cloud backups are on: keeping the last %1$d per game</item>
+        <item quantity="other">Cloud backups are on: keeping the last %1$d per game</item>
     </plurals>
     <string name="err_backups_setting">Couldn\'t save the setting</string>
     <string name="setting_share_library">Share the library between devices</string>

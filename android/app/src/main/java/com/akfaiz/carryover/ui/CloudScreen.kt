@@ -15,6 +15,8 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.foundation.layout.size
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CircularProgressIndicator
@@ -80,6 +82,10 @@ fun CloudScreen(nav: Nav, vm: CloudViewModel = viewModel()) {
         }
     }
     var root by remember(state.settings.remoteRoot) { mutableStateOf(state.settings.remoteRoot.ifEmpty { "Carryover" }) }
+    // Connecting runs a library sync: the page waits for it, and stays open if it fails.
+    var connecting by remember { mutableStateOf(false) }
+    var deleting by remember { mutableStateOf<String?>(null) }
+    val active = if (state.cloudReady) state.settings.remote else ""
     LaunchedEffect(Unit) { vm.refresh() }
     val ctx = androidx.compose.ui.platform.LocalContext.current
     val scope = rememberCoroutineScope()
@@ -120,7 +126,11 @@ fun CloudScreen(nav: Nav, vm: CloudViewModel = viewModel()) {
                     RadioButton(selected = remote == r.name, onClick = { remote = r.name }, enabled = !r.incomplete)
                     Column(Modifier.weight(1f)) {
                         Text(r.name)
-                        Text(r.type, style = MaterialTheme.typography.bodySmall)
+                        Text(
+                            if (r.name == active) "${r.type} · ${stringResource(R.string.cloud_in_use)}" else r.type,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = if (r.name == active) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
                         if (r.incomplete) {
                             Text(
                                 stringResource(R.string.cloud_signin_unfinished),
@@ -129,7 +139,7 @@ fun CloudScreen(nav: Nav, vm: CloudViewModel = viewModel()) {
                             )
                         }
                     }
-                    IconButton(onClick = { vm.deleteRemote(r.name) }) {
+                    IconButton(onClick = { deleting = r.name }) {
                         Icon(Icons.Filled.Delete, contentDescription = stringResource(R.string.action_delete_remote, r.name))
                     }
                 }
@@ -150,14 +160,36 @@ fun CloudScreen(nav: Nav, vm: CloudViewModel = viewModel()) {
                 singleLine = true,
                 modifier = Modifier.fillMaxWidth(),
             )
-            Button(
-                onClick = {
-                    vm.useCloud(remote, root.trim())
-                    nav.back()
-                },
-                enabled = remote.isNotEmpty() && root.isNotBlank(),
-            ) { Text(stringResource(R.string.action_use_cloud)) }
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                Button(
+                    onClick = {
+                        connecting = true
+                        vm.useCloud(remote, root.trim()) { ok ->
+                            connecting = false
+                            if (ok) nav.back()
+                        }
+                    },
+                    enabled = !connecting && remote.isNotEmpty() && root.isNotBlank(),
+                ) { Text(stringResource(R.string.action_use_cloud)) }
+                if (connecting) CircularProgressIndicator(Modifier.size(24.dp), strokeWidth = 2.dp)
+            }
         }
+    }
+    deleting?.let { name ->
+        AlertDialog(
+            onDismissRequest = { deleting = null },
+            title = { Text(stringResource(R.string.dialog_delete_remote_title, name)) },
+            text = {
+                Text(stringResource(if (name == active) R.string.dialog_delete_remote_active else R.string.dialog_delete_remote_text))
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    deleting = null
+                    vm.deleteRemote(name)
+                }) { Text(stringResource(R.string.action_delete), color = MaterialTheme.colorScheme.error) }
+            },
+            dismissButton = { TextButton(onClick = { deleting = null }) { Text(stringResource(R.string.action_cancel)) } },
+        )
     }
 }
 
@@ -262,7 +294,6 @@ fun AddRemoteScreen(nav: Nav, vm: CloudViewModel = viewModel()) {
                         ) {
                             Column(Modifier.padding(16.dp)) {
                                 Text(pr.description.ifEmpty { pr.type }, style = MaterialTheme.typography.titleMedium)
-                                Text(pr.type, style = MaterialTheme.typography.bodySmall)
                             }
                         }
                     }
@@ -273,7 +304,7 @@ fun AddRemoteScreen(nav: Nav, vm: CloudViewModel = viewModel()) {
                         Choices(q.examples, answer) { answer = it }
                     }
                     if (!(q.exclusive && q.examples.isNotEmpty())) {
-                        OptionField(q.name, answer, q.isPassword) { answer = it }
+                        OptionField(optionLabel(q.name), answer, q.isPassword) { answer = it }
                     }
                     Button(onClick = { step { vm.continueRemote(name.trim(), q.state, answer) } }) { Text(stringResource(R.string.action_continue)) }
                 }
@@ -324,10 +355,13 @@ private fun OptionInput(o: ProviderOption, value: String, onChange: (String) -> 
         if (o.exclusive && o.examples.isNotEmpty()) {
             Choices(o.examples, value.ifEmpty { o.default }, onChange)
         } else {
-            OptionField(o.name + if (o.required) " *" else "", value, o.isPassword, onChange)
+            OptionField(optionLabel(o.name) + if (o.required) " *" else "", value, o.isPassword, onChange)
         }
     }
 }
+
+/** An rclone option's name as a label: "client_id" → "Client id" (rclone has no display names). */
+internal fun optionLabel(name: String): String = name.replace('_', ' ').replaceFirstChar { it.uppercase() }
 
 @Composable
 private fun OptionField(label: String, value: String, password: Boolean, onChange: (String) -> Unit) {

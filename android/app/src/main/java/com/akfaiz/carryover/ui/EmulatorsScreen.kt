@@ -126,7 +126,10 @@ fun EmulatorsScreen(state: UiState, vm: AppViewModel, nav: Nav) {
         AppPickerDialog(stringResource(R.string.emulators_choose_app), onDismiss = { adding = false }) { app ->
             adding = false
             val preset = EmulatorPresets.forPackage(app.pkg)
-            vm.saveEmulator("", preset?.name ?: app.label, EmulatorPresets.exeFor(preset, app.pkg), "", "")
+            // Straight to its page: how a game starts and the data folder are set there.
+            vm.saveEmulator("", preset?.name ?: app.label, EmulatorPresets.exeFor(preset, app.pkg), "", "") { id ->
+                if (id.isNotEmpty()) nav.go(Screen.Emulator(id))
+            }
         }
     }
 }
@@ -278,16 +281,13 @@ private fun EmulatorEditor(e: EmulatorView, vm: AppViewModel, nav: Nav, modifier
             if (e.setUp && e.device.exe.isNotBlank()) {
                 TextButton(onClick = { nav.go(Screen.Frontends(e.id)) }) { Text(stringResource(R.string.action_use_frontend)) }
             }
+        }
+        // Apart from Save, each with what it does: one is this device only, the other every device.
+        SectionCard(stringResource(R.string.emulator_danger_title)) {
             if (e.setUp) {
-                TextButton(
-                    onClick = { removing = true },
-                    colors = androidx.compose.material3.ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error),
-                ) { Text(stringResource(R.string.action_remove_device)) }
+                DangerAction(stringResource(R.string.action_remove_device), stringResource(R.string.emulator_remove_hint)) { removing = true }
             }
-            TextButton(
-                onClick = { deleting = true },
-                colors = androidx.compose.material3.ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error),
-            ) { Text(stringResource(R.string.action_delete_emulator)) }
+            DangerAction(stringResource(R.string.action_delete_emulator), stringResource(R.string.emulator_delete_hint)) { deleting = true }
         }
     }
     if (removing) {
@@ -328,6 +328,23 @@ private fun EmulatorEditor(e: EmulatorView, vm: AppViewModel, nav: Nav, modifier
             exe = EmulatorPresets.exeFor(p, app.pkg)
             if (direct && p != null) args = p.template
         }
+    }
+}
+
+/** A destructive action: its button, and a line on what it does. */
+@Composable
+private fun DangerAction(label: String, hint: String, onClick: () -> Unit) {
+    Column {
+        OutlinedButton(
+            onClick = onClick,
+            colors = androidx.compose.material3.ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.error),
+        ) { Text(label) }
+        Text(
+            hint,
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.padding(start = 4.dp, top = 2.dp),
+        )
     }
 }
 

@@ -321,7 +321,10 @@ fun PromptDialog(p: Prompt, onAnswer: (String) -> Unit) {
                 Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.End) {
                     TextButton(onClick = { onAnswer(Answer.Local.wire) }) { Text(stringResource(R.string.action_keep_local)) }
                     TextButton(onClick = { onAnswer(Answer.Cloud.wire) }) { Text(stringResource(R.string.action_keep_cloud)) }
-                    TextButton(onClick = { onAnswer(Answer.Skip.wire) }) { Text(stringResource(R.string.action_decide_later)) }
+                    // Skip leaves both sides as they are: before playing, the game starts with this device's saves.
+                    TextButton(onClick = { onAnswer(Answer.Skip.wire) }) {
+                        Text(stringResource(if (p.beforePlay) R.string.action_play_no_sync else R.string.action_decide_later))
+                    }
                 }
             },
         )

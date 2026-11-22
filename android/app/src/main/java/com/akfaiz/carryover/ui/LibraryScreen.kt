@@ -124,9 +124,10 @@ fun LibraryScreen(state: UiState, vm: AppViewModel, nav: Nav) {
             )
         },
     ) { padding ->
+        // Pulling brings in what other devices added to the library; the saves of every game are Sync all's (the toolbar).
         PullToRefreshBox(
-            isRefreshing = state.syncAll != null,
-            onRefresh = { if (state.cloudReady) vm.syncAll() },
+            isRefreshing = state.refreshingLibrary,
+            onRefresh = { if (state.cloudReady) vm.refreshLibrary() },
             modifier = Modifier.fillMaxSize().padding(padding),
         ) {
             LazyVerticalGrid(
