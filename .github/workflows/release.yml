@@ -10,12 +10,9 @@ on:
 permissions:
   contents: read
 
+# No CI run here: tags are made on main, where every change has passed CI when it was merged.
 jobs:
-  ci:
-    uses: ./.github/workflows/ci.yml
-
   windows:
-    needs: ci
     runs-on: windows-latest
     env:
       CGO_ENABLED: "1"
@@ -54,7 +51,6 @@ jobs:
           if-no-files-found: error
 
   linux:
-    needs: ci
     # Same Dockerfile as scripts/linux-docker (Debian bookworm, appimagetool pinned
     # there), so the release is the build already tested on the Steam Deck.
     runs-on: ubuntu-latest
@@ -100,7 +96,6 @@ jobs:
           if-no-files-found: error
 
   macos:
-    needs: ci
     runs-on: macos-latest # Apple Silicon; the script cross-builds the Intel half
     steps:
       - uses: actions/checkout@v5
@@ -118,8 +113,56 @@ jobs:
           path: dist/*.dmg
           if-no-files-found: error
 
+  android:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+      - uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: "21"
+      - uses: gradle/actions/setup-gradle@v6
+      - name: Stamp version
+        run: scripts/stamp-version.sh "$GITHUB_REF_NAME" "$GITHUB_SHA"
+      # The signing key, from the repository secrets (see CONTRIBUTING.md, "Android"):
+      # every release must be signed with the same key, or installed apps can't update.
+      - name: Signing key
+        env:
+          KEYSTORE_BASE64: ${{ secrets.CARRYOVER_KEYSTORE_BASE64 }}
+        run: |
+          if [ -z "$KEYSTORE_BASE64" ]; then
+            echo "::error::Set the CARRYOVER_KEYSTORE_BASE64, CARRYOVER_KEYSTORE_PASSWORD and CARRYOVER_KEY_ALIAS secrets to sign the Android release"
+            exit 1
+          fi
+          printf '%s' "$KEYSTORE_BASE64" | base64 -d > "$RUNNER_TEMP/carryover.jks"
+          echo "CARRYOVER_KEYSTORE=$RUNNER_TEMP/carryover.jks" >> "$GITHUB_ENV"
+      # Signed APKs per ABI: carryover-<version>-android-<abi>.apk. The version code is
+      # x*1000000 + y*10000 + z*100 + build, with build = N for a -rcN (or other -xxxN)
+      # pre-release and 99 for the release, so an rc updates to its release.
+      - name: Package
+        env:
+          CARRYOVER_KEYSTORE_PASSWORD: ${{ secrets.CARRYOVER_KEYSTORE_PASSWORD }}
+          CARRYOVER_KEY_ALIAS: ${{ secrets.CARRYOVER_KEY_ALIAS }}
+          CARRYOVER_KEY_PASSWORD: ${{ secrets.CARRYOVER_KEY_PASSWORD }}
+        run: |
+          version=${GITHUB_REF_NAME#v}
+          build=99
+          if [[ $version == *-* ]]; then
+            n=$(grep -o '[0-9]*$' <<<"$version" || true)
+            build=$(( 10#${n:-0} > 98 ? 98 : 10#${n:-0} ))
+          fi
+          scripts/android-build.sh --release --version "$version" --build "$build"
+      - uses: actions/upload-artifact@v7
+        with:
+          name: android
+          path: dist/*.apk
+          if-no-files-found: error
+
   release:
-    needs: [windows, linux, macos]
+    needs: [windows, linux, macos, android]
     runs-on: ubuntu-latest
     permissions:
       contents: write # create the release
@@ -127,7 +170,7 @@ jobs:
       - uses: actions/download-artifact@v8
         with:
           # Only the release files: other run artifacts (e.g. Docker build records) aren't zips.
-          pattern: "{windows,linux,macos}"
+          pattern: "{windows,linux,macos,android}"
           path: dist
           merge-multiple: true
       - name: Checksums
