@@ -5,7 +5,7 @@ import com.akfaiz.carryover.core.LaunchSpec
 
 /**
  * The settings a frontend needs to start a game through Carryover (shown in
- * the app's Frontends page, docs/android-architecture.md, "Start games from a frontend"): the launch the
+ * the app's Frontends page, docs/android-frontends.md): the launch the
  * frontend would send the emulator, sent to [LaunchActivity] instead, plus
  * `carryover.target` naming the emulator's screen. Built from the emulator's
  * start template (`am start` syntax with {rom}), so the game file goes where

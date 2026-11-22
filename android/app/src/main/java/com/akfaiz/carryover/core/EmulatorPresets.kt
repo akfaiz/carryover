@@ -8,7 +8,7 @@ import com.akfaiz.carryover.R
  * the desktop app (emumanifest) for the same emulator family.
  *
  * The packages and templates follow ES-DE's Android find rules and have not
- * all been tried on a device yet (docs/android-architecture.md: to verify). Without
+ * all been tried on a device yet (docs/android-architecture.md, Limits). Without
  * a template, or without a game file, Carryover opens the emulator and the
  * user picks the game there, which works with any emulator.
  */

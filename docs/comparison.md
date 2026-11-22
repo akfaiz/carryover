@@ -11,7 +11,7 @@ Four excellent open-source tools cover nearby ground, and each takes a different
 - **[Hoard](https://github.com/rleeon/hoard)** (as of v1.3.0) is a background service that finds your games, keeps a
   version of their saves each time they change and syncs them to a Hoard server, the hosted Hoard One or your own.
 - **Carryover** is a launcher that syncs around each play session: pull before you play, push after you quit,
-  with one copy in your own cloud storage. An experimental Android app does the same for emulated games.
+  with one copy in your own cloud storage. An Android app does the same for emulated games.
 
 | | Carryover | Hoard | EmuSync | OpenSave | Ludusavi |
 |---|---|---|---|---|---|
@@ -29,7 +29,7 @@ Four excellent open-source tools cover nearby ground, and each takes a different
 | Launching a game from the command line | `carryover run <game> [-- cmd]` pulls, starts the game, then pushes when it exits | No; it watches game processes | No | `opensave launch <gameId>` only starts the game; the daemon syncs changes | `ludusavi wrap` around the game command |
 | Windows registry saves | No | Not documented | No | Yes | Yes |
 | macOS | Yes (universal app) | Yes | No | Yes (2.4.0+) | Yes |
-| Android | Experimental app for emulated games: starts the emulator (also from ES-DE or Daijisho) and uploads when you leave the game | In progress (not released) | No (not planned) | No | No |
+| Android | App for emulated games: starts the emulator (also from ES-DE or Daijisho) and uploads when you leave the game | In progress (not released) | No (not planned) | No | No |
 | Syncs games launched outside it | Flags them as "not uploaded"; one click to sync | Yes (watches game processes and save folders) | Yes, within the timer interval (2 minutes by default) for games with auto sync on | Yes (file watcher) | Only with a manual backup or a wrapper |
 
 ### How each tool syncs

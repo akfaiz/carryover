@@ -115,7 +115,7 @@ go run github.com/fyne-io/fyne-cross@latest linux -arch=amd64 -app-id com.akfaiz
 It writes `fyne-cross/bin/linux-amd64/carryover` (the bare binary) and `fyne-cross/dist/linux-amd64/carryover.tar.xz`
 (binary, `.desktop` file and icon). Use `-arch=arm64` for ARM devices. The first run is slow.
 
-## Android (experimental)
+## Android
 
 [docs/android-architecture.md](docs/android-architecture.md) describes how the Android app works. It is a Kotlin
 app (`android/`, Jetpack Compose) on top of the Go core, which `gomobile bind` turns into an Android library from the
@@ -146,7 +146,8 @@ scripts/android-build.sh --release --version 0.4.0
 - `mobile` is the only API Kotlin sees: plain functions taking and returning JSON (the `services` types) and a
   `Host` interface for events and opening the browser. gomobile can only pass basic types, so keep it that way.
 - `./gradlew testDebugUnitTest` runs the Kotlin unit tests (the launch template parser, the emulator presets,
-  frontend launches and the text catalogs).
+  frontend launches and the text catalogs). To measure coverage, set `enableUnitTestCoverage = true` on the `debug`
+  build type and run `createDebugUnitTestCoverageReport`.
 - UI text lives in `android/app/src/main/res/values/strings.xml`, with Bahasa Indonesia in `values-in/` (use the
   desktop's terms from `ui/i18n/translations/id.json`); `CatalogTest` fails when a language misses a text or a
   placeholder, or a screen passes a literal to `Text(...)`. Messages from the Go core stay English.

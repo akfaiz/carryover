@@ -2,7 +2,7 @@
 
 Effective 2026-11-21.
 
-Carryover is an open-source app for Windows, macOS, Linux and (experimental) Android. It has no servers of its own,
+Carryover is an open-source app for Windows, macOS, Linux and Android. It has no servers of its own,
 no accounts, no telemetry, no analytics, no ads and no crash reporting. The developers receive no data from it.
 
 ## What stays on your device
