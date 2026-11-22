@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- The window before Compose draws: the dark palette's background. -->
+    <style name="Theme.Carryover" parent="android:Theme.Material.NoActionBar">
+        <item name="android:windowBackground">#FF0E0F14</item>
+    </style>
+</resources>

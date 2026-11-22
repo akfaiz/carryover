@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The languages offered in the system's App languages settings (Android 13+). -->
+<locale-config xmlns:android="http://schemas.android.com/apk/res/android">
+    <locale android:name="en" />
+    <!-- Indonesian: "in" is the code Android's resources (values-in) use. -->
+    <locale android:name="in" />
+</locale-config>
