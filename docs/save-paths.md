@@ -34,3 +34,12 @@ every variable with its value on the current device.
 
 A variable that isn't available on a device (for example `{proton:shortcut}` before the game was added to Steam)
 is reported as an error instead of being guessed.
+
+## On Android
+
+Pick save folders with **Browse**, which opens Android's folder picker. Carryover keeps access to the folder you
+allow and shows it as "Internal storage › RetroArch/saves", or "<emulator> › <folder>" when an emulator offers its
+own data folder in the picker. `{home}` is the shared storage (`/storage/emulated/0`); typed paths like
+`{home}/RetroArch/saves` need All-files access (Settings → Permissions). For Switch emulators (Eden, Lemon,
+Citron, …), **Suggest save folders** finds them from the game file's title ID (or the game's folders on another
+device) and this device's emulator profile.

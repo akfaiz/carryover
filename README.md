@@ -5,7 +5,7 @@
 <h1 align="center">Carryover</h1>
 
 <p align="center">
-  <strong>Carry your game saves between PCs, Macs and Steam Deck using your own cloud storage.</strong>
+  <strong>Carry your game saves between PCs, Macs, Steam Deck and Android using your own cloud storage.</strong>
 </p>
 
 <p align="center">
@@ -15,9 +15,9 @@
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="License: MIT"></a>
 </p>
 
-A game launcher for Windows, macOS and Linux / Steam Deck that keeps your save games in sync through your own cloud
-storage. Carryover pulls the latest saves before you play and pushes them when you quit, from its own launcher or
-from Steam, including Game Mode.
+A game launcher for Windows, macOS and Linux / Steam Deck, with an experimental Android app, that keeps your save
+games in sync through your own cloud storage. Carryover pulls the latest saves before you play and pushes them when
+you quit, from its own launcher or from Steam, including Game Mode.
 
 Cloud storage: Google Drive, Dropbox, OneDrive, WebDAV (Nextcloud, ownCloud, NAS), SFTP and SMB.
 [rclone](https://github.com/rclone/rclone) is built in, so there is nothing else to install.
@@ -33,21 +33,26 @@ Cloud storage: Google Drive, Dropbox, OneDrive, WebDAV (Nextcloud, ownCloud, NAS
 - **Per-device save paths** — one game, one cloud copy; each device maps it to its own folder
   (`{appdata}/GameA` on Windows, `{proton:shortcut}/AppData/Roaming/GameA` on a Steam Deck).
 - **Save locations suggested** — known save folders for ~21,000 games, translated for each device, including
-  Proton, Heroic, Lutris and Bottles prefixes on Linux.
+  Proton, Heroic, Lutris and Bottles prefixes on Linux. Emulators get theirs from the emulator's own manifest, on
+  the desktop and in the Android app.
 - **Play from the launcher or from Steam** — "Add to Steam" creates a shortcut that syncs around every session,
   even in Game Mode, with prompts that work on a controller. On Linux, Heroic and Lutris games are started
   through their launcher so they keep its Wine prefix.
 - **Controller support** — added to Steam itself, the whole app works with a gamepad in Game Mode: the D-pad
   moves between games and buttons, A presses, B goes back, and text fields open Steam's keyboard.
 - **Safe conflicts** — if saves changed on both sides, you choose which to keep, and the side being overwritten
-  is backed up first.
+  is backed up first. Backups can be listed, pinned and restored from the game's page (on the desktop and in the
+  Android app).
 - **Emulators** — set up an emulator (Eden, Ryujinx, …) once per device and let a game use several; each keeps
   its own saves in the cloud. Choosing a ROM suggests the game's name and save folders.
+- **Android (experimental)** — play emulated games on a phone, handheld or TV with the same cloud saves as on your
+  PC: Play syncs, starts the emulator and uploads the saves when you leave the game. Frontends such as ES-DE and
+  Daijisho can start games through it, and an Android-only emulator such as Lemon can share Eden's saves with the PC.
 - **Played without Carryover?** — games whose saves changed outside Carryover are marked "not uploaded".
 - **Shared library** — the game list, covers and artwork sync between devices; a game added on the PC shows up on
-  the Deck as "needs setup". Titles come from Steam, covers from SteamGridDB (with your own free API key).
+  the Deck as "needs setup". Titles come from Steam, covers from SteamGridDB (with your own free API key; the Android app finds covers and backgrounds too).
 - **Trash and cleanup** — deleted games and emulators can be restored for 30 days, and cloud saves no game uses
-  any more can be restored or deleted.
+  any more can be restored or deleted (on the desktop and in the Android app).
 
 ## Download
 
@@ -63,6 +68,7 @@ On Windows, pick the installer or the portable exe; both are the same program.
 | Steam Deck, Linux | `carryover-<version>-linux-amd64.AppImage` | Rename it to `carryover.AppImage`, make it executable (file Properties → Permissions, or `chmod +x`) and run it. |
 | Linux | `carryover-<version>-linux-amd64.tar.gz` | Extract it and run `./install.sh` (installs into `~/.local` and adds a menu entry), or `sudo ./install.sh /usr/local` for every user. |
 | macOS 12+ (Apple Silicon and Intel) | `carryover-<version>-macos-universal.dmg` | Open the disk image and drag Carryover to Applications. |
+| Android 8+ (experimental) | `carryover-<version>-android-arm64-v8a.apk` (phones, handhelds, TV boxes; `…-x86_64.apk` for Chromebooks) | Open it on the device and allow your browser or file manager to install apps when Android asks. |
 
 - **Keep the app in one place, under one name.** Steam shortcuts made with "Add to Steam" point at the file's path,
   which is why the exe and AppImage are renamed without the version. Put them in a folder you won't move them out
@@ -72,6 +78,10 @@ On Windows, pick the installer or the portable exe; both are the same program.
 - **macOS blocks the first start.** The app isn't signed with an Apple Developer ID or notarized, so macOS says it
   can't check it for malware. Open it once, then go to System Settings → Privacy & Security and choose
   **Open Anyway**. From Terminal, `xattr -dr com.apple.quarantine /Applications/Carryover.app` does the same.
+- **Android asks once for Usage access.** It lets Carryover see that you left a game, to upload its saves right away.
+  On Android 13+, an app installed from a downloaded file must be unlocked for it first: App info → ⋮ → **Allow
+  restricted settings**; the app shows you where. A new version installs over the old one and keeps your setup;
+  uninstalling removes the app's settings on the phone, not your cloud saves.
 - **Check a download** against `SHA256SUMS.txt` from the same release: `sha256sum -c SHA256SUMS.txt --ignore-missing`
   on Linux, `shasum -a 256 -c SHA256SUMS.txt --ignore-missing` on macOS, or compare the output of
   `Get-FileHash <file>` in PowerShell on Windows.
@@ -89,7 +99,7 @@ On Windows, pick the installer or the portable exe; both are the same program.
 
 On each device:
 
-1. **Cloud storage** — add a remote with "＋ Add remote" (or import your existing rclone config). The first one
+1. **Cloud storage** — add a remote with "＋ Add remote" (or import your existing rclone config, on the desktop and in the Android app). The first one
    becomes the sync location; check its folder under "Sync location". Every device must use the same remote and
    folder.
 2. **＋ Add game** — choose "From Steam", "PC game" or "Emulated game", then set how it starts and its save folder
@@ -97,6 +107,11 @@ On each device:
 3. **▶ Play**, or use "Add to Steam" and start the game from Steam. On the other device, the game shows up as
    "needs setup": set its save folder there, and the saves follow you. For Proton and Heroic games, see
    [Steam and Steam Deck](docs/steam-deck.md).
+
+**On Android**, add the same cloud account and folder under Settings → Cloud. Games your PC plays with an emulator
+that has an Android app show up. On the Emulators tab, choose which app each emulator is; on a game's page, pick its
+save folder (**Suggest save folders** finds it for emulators it knows) and press **Play**. To start games from
+ES-DE or Daijisho, see [Android: start games from a frontend](docs/android-architecture.md#start-games-from-a-frontend).
 
 ## How it works
 
@@ -140,7 +155,8 @@ All options are in [docs/cli.md](docs/cli.md).
 - [Steam and Steam Deck](docs/steam-deck.md) — Proton shortcuts, Heroic games, Game Mode
 - [Save paths](docs/save-paths.md) — every path variable (`{appdata}`, `{proton:shortcut}`, …)
 - [Command line](docs/cli.md) — commands, options and environment variables
-- [Troubleshooting](docs/troubleshooting.md) — logs, SmartScreen, missing uploads
+- [Android: start games from a frontend](docs/android-architecture.md#start-games-from-a-frontend) — ES-DE, Daijisho, home-screen shortcuts
+- [Troubleshooting](docs/troubleshooting.md) — logs, SmartScreen, missing uploads, Android
 - [Compared with other tools](docs/comparison.md)
 - [Privacy policy](PRIVACY.md)
 
@@ -149,12 +165,15 @@ All options are in [docs/cli.md](docs/cli.md).
 [Ludusavi](https://github.com/mtkennerly/ludusavi) backs up and restores saves on one machine.
 [OpenSave](https://github.com/Liquid-co/OpenSave) syncs every change peer-to-peer between paired devices.
 [EmuSync](https://github.com/emu-sync/EmuSync) syncs saves to your cloud storage from a background service on a timer.
+[Hoard](https://github.com/rleeon/hoard) keeps every version of your saves on a Hoard server, hosted or your own,
+from a background service.
 Carryover keeps one copy in your own cloud storage and syncs it around each play session. See
 [docs/comparison.md](docs/comparison.md) for a side-by-side comparison.
 
 ## Building from source
 
-See [CONTRIBUTING.md](CONTRIBUTING.md) for build, test and Linux / Steam Deck and macOS packaging instructions.
+See [CONTRIBUTING.md](CONTRIBUTING.md) for build, test and Linux / Steam Deck, macOS and Android packaging
+instructions, and [Android architecture](docs/android-architecture.md) for how the Android app works.
 
 ## License
 
