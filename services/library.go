@@ -575,6 +575,11 @@ func (s *LibraryService) Save(in GameInput) (GameView, error) {
 // can wait for them before it removes the data dir they write into.
 var background sync.WaitGroup
 
+// WaitBackground returns once the catalog uploads running in the background
+// have finished. A mobile app calls it before the system may stop its
+// process; tests call it before removing the data dir.
+func WaitBackground() { background.Wait() }
+
 // publish syncs the library catalog with the cloud in the background, so a
 // game added or changed on this device shows up on the others without
 // pressing "Sync all". Failures (offline, no cloud yet) are not fatal: the

@@ -32,6 +32,11 @@ type sessionInfo struct {
 	// playing; the user was told). Only the cloud lock is left to release,
 	// and the saves to upload, which the next sync does anyway.
 	Ended bool `json:"ended,omitempty"`
+	// Detached: the session was started with StartSession, so no process
+	// holds the game's local lock while it is played. Until it ends
+	// (EndSession) it is open, not killed: RecoverSessions leaves it alone and
+	// manual syncs are refused (ErrPlaying).
+	Detached bool `json:"detached,omitempty"`
 }
 
 func (c *Core) sessionMarkerPath(cloudKey string) string {
@@ -67,6 +72,34 @@ func (c *Core) readSession(cloudKey string) (info sessionInfo, ok bool) {
 	return info, true
 }
 
+// OpenSession is a session started with StartSession and not ended yet.
+type OpenSession struct {
+	CloudKey string `json:"cloudKey"`
+	Key      string `json:"key"` // the profile's sync key
+	Game     string `json:"game"`
+	Emulator string `json:"emulator,omitempty"`
+}
+
+// OpenSessions lists the sessions started with StartSession that EndSession
+// hasn't finished, for an app whose process was killed while a game ran.
+func (c *Core) OpenSessions() []OpenSession {
+	entries, err := os.ReadDir(c.Dirs.StateDir())
+	if err != nil {
+		return nil
+	}
+	var out []OpenSession
+	for _, e := range entries {
+		id, ok := strings.CutSuffix(e.Name(), sessionExt)
+		if !ok || e.IsDir() {
+			continue
+		}
+		if info, ok := c.readSession(id); ok && info.Detached && !info.Ended {
+			out = append(out, OpenSession{CloudKey: id, Key: SyncKey(info.Game, info.Emulator), Game: info.Game, Emulator: info.Emulator})
+		}
+	}
+	return out
+}
+
 // RecoverSessions releases the cloud locks of play sessions that were killed
 // before they could do it themselves, and returns how many games it cleaned
 // up. Sessions still running (their local lock is held) are left alone. It
@@ -92,6 +125,9 @@ func (c *Core) RecoverSessions(ctx context.Context) (int, error) {
 		}
 		if _, ok := c.playing.Load(id); ok {
 			continue // this process is playing it: AcquireLocalLock can't tell
+		}
+		if c.SessionOpen(id) {
+			continue // started with StartSession and not ended: still being played
 		}
 		// Holding the local lock proves no live Carryover process is playing
 		// this game; a dead process's lock is taken over.
@@ -144,6 +180,14 @@ func (c *Core) RecoverSessions(ctx context.Context) (int, error) {
 // When the cloud can't be reached it returns at once with an error wrapping
 // ErrOffline and keeps the marker for RecoverSessions or the next session.
 func (c *Core) FinishSession(ctx context.Context, cloudKey string, settle time.Duration) (finished bool, notice *Notice, err error) {
+	return c.finishSession(ctx, cloudKey, settle, false)
+}
+
+// finishSession is FinishSession; onlyEnded finishes only a session that has
+// ended (its marker says Ended) and leaves one that started again alone: the
+// marker is checked once the game's local lock is held, which a new session
+// holds while it starts.
+func (c *Core) finishSession(ctx context.Context, cloudKey string, settle time.Duration, onlyEnded bool) (finished bool, notice *Notice, err error) {
 	if _, ok := c.readSession(cloudKey); !ok || !c.CloudConfigured() {
 		return false, nil, nil
 	}
@@ -168,8 +212,8 @@ func (c *Core) FinishSession(ctx context.Context, cloudKey string, settle time.D
 		}
 	}
 	info, ok := c.readSession(cloudKey)
-	if !ok {
-		return false, nil, nil // recovered by someone else meanwhile
+	if !ok || (onlyEnded && !info.Ended) {
+		return false, nil, nil // recovered by someone else meanwhile, or played again
 	}
 	// Offline, the upload and the release below would retry for minutes
 	// while holding the game's local lock, and playing again would fail.
@@ -187,9 +231,12 @@ func (c *Core) FinishSession(ctx context.Context, cloudKey string, settle time.D
 	if err != nil {
 		return false, nil, err
 	}
-	if info.Ended {
+	switch {
+	case info.Ended:
 		log.Printf("session %s ended offline: finishing it", cloudKey)
-	} else {
+	case info.Detached:
+		log.Printf("session %s ended: finishing it", cloudKey)
+	default:
 		log.Printf("session %s ended without finishing (killed): finishing it", cloudKey)
 	}
 	if info.Game != "" {

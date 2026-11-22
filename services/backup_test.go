@@ -71,6 +71,27 @@ func TestPlanThenSyncAll(t *testing.T) {
 	require.Equal(t, string(syncer.ActionNone), res[0].Action)
 }
 
+// SyncAll reports each game as it starts, with the key its own sync events
+// carry, and once more when it is done.
+func TestSyncAllProgress(t *testing.T) {
+	e := newSyncEnv(t)
+	var got []SyncAllProgress
+	var keys []string
+	e.svc.bus.OnSyncAll(func(p SyncAllProgress) { got = append(got, p) })
+	e.svc.bus.OnSync(func(ev syncer.Event) { keys = append(keys, ev.GameID) })
+	e.c.SetEventHandler(e.svc.bus.syncProgress) // as NewSessionService does in the apps
+
+	_, err := e.svc.SyncAll()
+	require.NoError(t, err)
+	name := e.c.Library.List()[0].Name
+	require.Equal(t, []SyncAllProgress{
+		{Total: 1},
+		{Done: 0, Total: 1, Name: name, Key: e.id},
+		{Done: 1, Total: 1},
+	}, got)
+	require.Contains(t, keys, e.id, "the game's sync events carry the same key")
+}
+
 func TestSyncAllNeedsCloud(t *testing.T) {
 	t.Setenv(appdir.EnvHome, t.TempDir())
 	t.Cleanup(background.Wait) // catalog uploads write into the home

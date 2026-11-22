@@ -16,6 +16,7 @@ import (
 
 	"github.com/akfaiz/carryover/internal/app/appdir"
 	"github.com/akfaiz/carryover/internal/cloudsync/cloud"
+	"github.com/akfaiz/carryover/internal/cloudsync/localfs"
 )
 
 // ErrConflict is returned by Apply when both sides changed and no resolution was given.
@@ -133,7 +134,7 @@ func validateJob(job Job) error {
 		if s.LocalPath == "" {
 			return fmt.Errorf("save location %q has no path on this device", s.Key)
 		}
-		if !filepath.IsAbs(s.LocalPath) {
+		if !localfs.IsAbs(s.LocalPath) {
 			return fmt.Errorf("save location %q must be an absolute path: %s", s.Key, s.LocalPath)
 		}
 	}
@@ -448,7 +449,7 @@ func (e *Engine) pull(ctx context.Context, p *Plan) (string, error) {
 		if d.empty() {
 			continue
 		}
-		if err := os.MkdirAll(s.LocalPath, 0o755); err != nil {
+		if err := localfs.MkdirAll(s.LocalPath); err != nil {
 			return "", err
 		}
 		msg := "Downloading " + filesWord(len(d.copy)) + " (" + s.Key + ")"
@@ -456,7 +457,7 @@ func (e *Engine) pull(ctx context.Context, p *Plan) (string, error) {
 			return "", fmt.Errorf("download %s: %w", s.Key, err)
 		}
 		for _, rel := range d.del {
-			if err := os.Remove(filepath.Join(s.LocalPath, filepath.FromSlash(rel))); err != nil && !errors.Is(err, os.ErrNotExist) {
+			if err := localfs.Remove(localfs.Join(s.LocalPath, rel)); err != nil && !errors.Is(err, os.ErrNotExist) {
 				return "", fmt.Errorf("delete %s: %w", rel, err)
 			}
 		}
@@ -465,7 +466,7 @@ func (e *Engine) pull(ctx context.Context, p *Plan) (string, error) {
 		// expect as the synced state.
 		for _, rel := range d.copy {
 			want := p.Remote.Files[s.Key+"/"+rel]
-			got, err := hashFile(filepath.Join(s.LocalPath, filepath.FromSlash(rel)))
+			got, err := hashFile(localfs.Join(s.LocalPath, rel))
 			if err != nil {
 				return "", fmt.Errorf("verify %s: %w", rel, err)
 			}

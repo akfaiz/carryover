@@ -115,6 +115,28 @@ func (s *SyncService) prepare(key string) (*syncer.Engine, syncer.Job, error) {
 	return eng, job, err
 }
 
+// lockGame takes the local lock of key's game for a manual sync, backup or
+// restore. A game played in a session started with StartSession (the Android
+// app) holds no local lock while it runs, so its open session refuses too:
+// both errors wrap syncer.ErrLocked.
+func (s *SyncService) lockGame(key string) (*syncer.LocalLock, error) {
+	ckey := s.c.CloudKeyOf(key)
+	if s.c.SessionOpen(ckey) {
+		return nil, core.ErrPlaying
+	}
+	lock, err := syncer.AcquireLocalLock(s.c.Dirs.StateDir(), ckey)
+	if err != nil {
+		return nil, err
+	}
+	// A session may have started between the check and the lock: StartSession
+	// holds the local lock while it syncs, then leaves only the marker.
+	if s.c.SessionOpen(ckey) {
+		lock.Release()
+		return nil, core.ErrPlaying
+	}
+	return lock, nil
+}
+
 // Plan compares local and cloud saves without transferring anything.
 func (s *SyncService) Plan(gameID string) (PlanView, error) {
 	eng, job, err := s.prepare(gameID)
@@ -140,7 +162,7 @@ func (s *SyncService) sync(parent context.Context, gameID, resolution string, pr
 		return "", errors.New("a sync for this game is already running")
 	}
 	defer s.busy.Delete(gameID)
-	lock, err := syncer.AcquireLocalLock(s.c.Dirs.StateDir(), s.c.CloudKeyOf(gameID))
+	lock, err := s.lockGame(gameID)
 	if err != nil {
 		return "", err
 	}
@@ -224,7 +246,7 @@ func (s *SyncService) SyncAll() ([]SyncResult, error) {
 		if ctx.Err() != nil {
 			return out, ErrSyncCancelled
 		}
-		s.bus.syncAllProgress(SyncAllProgress{Done: i, Total: len(items), Name: it.name})
+		s.bus.syncAllProgress(SyncAllProgress{Done: i, Total: len(items), Name: it.name, Key: it.key})
 		r := SyncResult{GameID: it.key, Name: it.name}
 		a, err := s.sync(ctx, it.key, "", false) // checked once above
 		if errors.Is(err, ErrSyncCancelled) {
@@ -269,7 +291,7 @@ func (s *SyncService) BackupNow(gameID string) error {
 		return errors.New("a sync for this game is already running")
 	}
 	defer s.busy.Delete(gameID)
-	lock, err := syncer.AcquireLocalLock(s.c.Dirs.StateDir(), s.c.CloudKeyOf(gameID))
+	lock, err := s.lockGame(gameID)
 	if err != nil {
 		return err
 	}
@@ -312,7 +334,7 @@ func (s *SyncService) RestoreBackup(gameID, name string) error {
 		return errors.New("a sync for this game is already running")
 	}
 	defer s.busy.Delete(gameID)
-	lock, err := syncer.AcquireLocalLock(s.c.Dirs.StateDir(), s.c.CloudKeyOf(gameID))
+	lock, err := s.lockGame(gameID)
 	if err != nil {
 		return err
 	}

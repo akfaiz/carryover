@@ -4,12 +4,12 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"path/filepath"
 	"runtime"
 	"slices"
 	"strings"
 	"time"
 
+	"github.com/akfaiz/carryover/internal/cloudsync/localfs"
 	"github.com/akfaiz/carryover/internal/saves/emumanifest"
 	"github.com/akfaiz/carryover/internal/saves/ludusavi"
 	"github.com/akfaiz/carryover/internal/saves/pathvar"
@@ -47,10 +47,20 @@ func (s *EmulatorService) DefaultDataDir(preset, name, exe, args string) string 
 }
 
 func defaultRoot(p emumanifest.Preset, name, exe, args string) string {
+	return defaultRootOn(runtime.GOOS, p, name, exe, args)
+}
+
+// defaultRootOn is defaultRoot on the OS goos. Android has no usual data
+// folder to offer: the desktop ones don't exist there, and an emulator's
+// own folder is one the user has to grant to Carryover.
+func defaultRootOn(goos string, p emumanifest.Preset, name, exe, args string) string {
+	if goos == "android" {
+		return ""
+	}
 	if id := flatpakID(exe, args); id != "" {
 		return p.FlatpakRoot(id, name)
 	}
-	return p.DefaultRoot(runtime.GOOS, name)
+	return p.DefaultRoot(goos, name)
 }
 
 // EmuSuggestInput says which game to look up: its name and/or its ROM file
@@ -170,8 +180,8 @@ func (s *EmulatorService) SuggestSaves(emulatorID string, in EmuSuggestInput) (E
 			dir, include := ludusavi.SplitGlob(rootSlash + "/" + rel)
 			sg := EmuSuggestion{Game: e.Title(), Path: dir, Include: include}
 			if expErr == nil {
-				matches, err := filepath.Glob(filepath.FromSlash(expanded + "/" + rel))
-				sg.Exists = err == nil && len(matches) > 0
+				// Through localfs, so a folder the user granted on Android is looked into too.
+				sg.Exists = localfs.Exists(expanded, rel)
 			}
 			res.Suggestions = append(res.Suggestions, sg)
 		}

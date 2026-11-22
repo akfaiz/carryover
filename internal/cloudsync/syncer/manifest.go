@@ -13,7 +13,10 @@ import (
 	"path/filepath"
 	"time"
 
+	"github.com/rclone/rclone/fs/filter"
+
 	"github.com/akfaiz/carryover/internal/cloudsync/cloud"
+	"github.com/akfaiz/carryover/internal/cloudsync/localfs"
 )
 
 // FileInfo describes one save file.
@@ -94,6 +97,12 @@ func ScanLocal(ctx context.Context, slots []Slot, prev *Manifest) (*Manifest, er
 		if err != nil {
 			return nil, err
 		}
+		if localfs.IsFS(sl.LocalPath) {
+			if err := scanFS(ctx, sl, flt, prev, m); err != nil {
+				return nil, err
+			}
+			continue
+		}
 		root := resolveLinks(sl.LocalPath)
 		fi, err := os.Stat(root)
 		if errors.Is(err, os.ErrNotExist) {
@@ -148,12 +157,53 @@ func ScanLocal(ctx context.Context, slots []Slot, prev *Manifest) (*Manifest, er
 	return m, nil
 }
 
+// scanFS is ScanLocal for a save folder without a file path (localfs).
+func scanFS(ctx context.Context, sl Slot, flt *filter.Filter, prev *Manifest, m *Manifest) error {
+	fi, err := localfs.Stat(sl.LocalPath)
+	if errors.Is(err, fs.ErrNotExist) {
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	if !fi.Dir {
+		return errors.New("save path is not a directory: " + sl.LocalPath)
+	}
+	return localfs.Walk(sl.LocalPath, func(rel string, info localfs.Info) error {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
+		if !flt.Include(rel, info.Size, info.ModTime, nil) {
+			return nil
+		}
+		key := sl.Key + "/" + rel
+		mt := info.ModTime.UTC().Truncate(time.Millisecond)
+		// A provider that reports no modification time (Unix time 0 or none)
+		// gives nothing to tell a changed file from an unchanged one: hash it.
+		if prev != nil && info.ModTime.UnixMilli() > 0 {
+			if pf, ok := prev.Files[key]; ok && pf.Size == info.Size && pf.ModTime.Equal(mt) && pf.Hash != "" {
+				m.Files[key] = pf
+				return nil
+			}
+		}
+		h, err := hashFile(localfs.Join(sl.LocalPath, rel))
+		if err != nil {
+			return err
+		}
+		m.Files[key] = FileInfo{Size: info.Size, Hash: h, ModTime: mt}
+		return nil
+	})
+}
+
 // resolveLinks follows symbolic links and junctions in a save folder's path.
 // filepath.WalkDir doesn't descend into a root that is itself a link, so a
 // save folder reached through one (a game folder moved to another drive and
 // linked back, a Steam Deck SD card) would scan as empty. A path that doesn't
 // exist yet (or can't be resolved) is returned unchanged.
 func resolveLinks(p string) string {
+	if localfs.IsFS(p) {
+		return p // no links there
+	}
 	if r, err := filepath.EvalSymlinks(p); err == nil {
 		return r
 	}
@@ -171,7 +221,7 @@ func withResolvedSlots(job Job) Job {
 }
 
 func hashFile(p string) (string, error) {
-	f, err := os.Open(p)
+	f, err := localfs.Open(p)
 	if err != nil {
 		return "", err
 	}

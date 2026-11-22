@@ -12,6 +12,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/akfaiz/carryover/internal/cloudsync/localfs"
 	"github.com/akfaiz/carryover/internal/saves/emumanifest"
 	"github.com/akfaiz/carryover/internal/saves/ryujinx"
 	"github.com/akfaiz/carryover/internal/saves/yuzu"
@@ -363,4 +364,37 @@ func TestSuggestYuzuProfiles(t *testing.T) {
 		require.Len(t, a, 2)
 		assert.Contains(t, a[0].Game, "profile "+pcProfile[:8])
 	})
+
+	t.Run("a folder granted on Android is read through localfs", func(t *testing.T) {
+		localfs.Register(localfs.SAF, localfs.NewMem())
+		t.Cleanup(func() { localfs.Register(localfs.SAF, nil) })
+		root := localfs.SAF + "dev.lemon.lemon_emulator.user/root"
+		w, err := localfs.Create(localfs.Join(root, yuzu.ProfilesRel))
+		require.NoError(t, err)
+		_, _ = w.Write(yuzu.EncodeProfiles([]string{deckProfile}))
+		require.NoError(t, w.Close())
+		w, err = localfs.Create(localfs.Join(root, yuzu.SaveRootRel+"/"+deckProfile+"/"+title+"/progress.bin"))
+		require.NoError(t, err)
+		_, _ = w.Write([]byte("x"))
+		require.NoError(t, w.Close())
+
+		res := suggest(root)
+		a := accounts(res)
+		require.Len(t, a, 1, "the profile the emulator has, once")
+		assert.Equal(t, root+"/nand/user/save/0000000000000000/"+deckProfile+"/"+title, a[0].Path)
+		assert.True(t, a[0].Exists)
+		assert.Empty(t, res.Note)
+	})
+}
+
+// Android has no usual data folder: the desktop ones are not on the phone.
+func TestNoDefaultDataFolderOnAndroid(t *testing.T) {
+	eden, ok := emumanifest.PresetByID("switch")
+	require.True(t, ok)
+	assert.Equal(t, "{xdgdata}/eden", defaultRootOn("linux", eden, "Eden", "eden", ""))
+	assert.Equal(t, "{appdata}/eden", defaultRootOn("windows", eden, "Eden", "eden", ""))
+	assert.Empty(t, defaultRootOn("android", eden, "Eden", "dev.eden.eden_emulator", ""))
+	dolphin, ok := emumanifest.PresetByID("dolphin")
+	require.True(t, ok)
+	assert.Empty(t, defaultRootOn("android", dolphin, "Dolphin", "org.dolphinemu.dolphinemu", ""))
 }
