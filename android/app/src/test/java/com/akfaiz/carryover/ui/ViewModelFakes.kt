@@ -380,6 +380,11 @@ internal class FakeCoreApi(
         return gameView(gameId)
     }
 
+    override suspend fun setSlots(key: String, slots: List<SaveSlot>): GameView {
+        call("setSlots", "$key|${slots.joinToString(",") { "${it.key}=${it.label}" }}")
+        return gameView(key)
+    }
+
     override suspend fun guessRomName(emulatorId: String, fileName: String): String {
         call("guessRomName", "$emulatorId|$fileName")
         return "Guessed"

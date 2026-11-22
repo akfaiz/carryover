@@ -13,6 +13,7 @@ import com.akfaiz.carryover.core.PlanView
 import com.akfaiz.carryover.core.Profile
 import com.akfaiz.carryover.core.Prompt
 import com.akfaiz.carryover.core.Resolution
+import com.akfaiz.carryover.core.SaveSlot
 import com.akfaiz.carryover.core.SessionStatus
 import com.akfaiz.carryover.core.SyncAllProgress
 import com.akfaiz.carryover.core.SyncEvent
@@ -449,6 +450,12 @@ class AppViewModel(private val services: AppServices = AppServices.shared) : Vie
     fun removeGameEmulator(gameId: String, emulatorId: String, emulatorName: String) = edit {
         core.removeGameEmulator(gameId, emulatorId)
         m.str(R.string.msg_game_emulator_removed, emulatorName)
+    }
+
+    /** Sets a profile's save locations ([CoreApi.setSlots]); the core refuses a new one with no name. */
+    fun setSlots(key: String, slots: List<SaveSlot>) = edit {
+        core.setSlots(key, slots)
+        m.str(R.string.msg_slots_saved)
     }
 
     /** Runs a change to a game, says how it went and reloads the library. */

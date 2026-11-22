@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"runtime"
 	"slices"
+	"sort"
 	"strings"
 	"time"
 
@@ -123,6 +124,7 @@ func (s *EmulatorService) SuggestSaves(emulatorID string, in EmuSuggestInput) (E
 	if preset.ID == "ryujinx" {
 		// Ryujinx can be asked which of its numbered save folders are this game's.
 		if r, ok := s.suggestRyujinx(ctx, root, in); ok {
+			foundFirst(r.Suggestions)
 			return r, nil
 		}
 	}
@@ -189,7 +191,14 @@ func (s *EmulatorService) SuggestSaves(emulatorID string, in EmuSuggestInput) (E
 	if !preset.PerGame && len(res.Suggestions) > 0 {
 		res.Note = emu.Name + " keeps the saves of every game together, so these locations hold all games' saves. Choose the ones you want to sync: the user save folders (save and saveMeta) belong together."
 	}
+	foundFirst(res.Suggestions)
 	return res, nil
+}
+
+// foundFirst puts the locations that exist on this device first, in place. The
+// sort is stable, so each group keeps the manifest's order.
+func foundFirst(sgs []EmuSuggestion) {
+	sort.SliceStable(sgs, func(i, j int) bool { return sgs[i].Exists && !sgs[j].Exists })
 }
 
 // GuessRomName suggests a game title for a ROM picked in the editor: the

@@ -266,6 +266,42 @@ func TestFlow(t *testing.T) {
 	assert.Equal(t, "com.example.game", g.Device.Exe)
 	assert.Equal(t, "content://x/game.sfc", g.Emulators[0].Rom, "emulator setup kept")
 
+	// Save locations: a new one gets a key from its name, an old one keeps its
+	// key and filters, and a removed one takes this device's path with it.
+	g = decode[services.GameView](t)(SetSlots(key, mustJSON(t, []library.SaveSlot{
+		{Key: "srm", Label: "Battery saves", Include: []string{"*.srm"}},
+		{Label: "Save states"},
+	})))
+	require.Len(t, g.Emulators[0].Slots, 2)
+	assert.Equal(t, library.SaveSlot{Key: "srm", Label: "Battery saves", Include: []string{"*.srm"}}, g.Emulators[0].Slots[0])
+	assert.Equal(t, "save-states", g.Emulators[0].Slots[1].Key)
+	assert.Equal(t, saves, g.Emulators[0].ResolvedPaths["srm"], "paths kept")
+	assert.False(t, g.Emulators[0].SetUp && g.Emulators[0].Ready, "the new location has no folder yet")
+	g = decode[services.GameView](t)(SetPaths(key, mustJSON(t, map[string]string{"save-states": saves})))
+	assert.Equal(t, saves, g.Emulators[0].ResolvedPaths["save-states"])
+	g = decode[services.GameView](t)(SetSlots(key, mustJSON(t, []library.SaveSlot{{Key: "save-states"}, {Key: "srm", Label: "SRM"}})))
+	assert.Equal(t, []string{"save-states", "srm"}, []string{g.Emulators[0].Slots[0].Key, g.Emulators[0].Slots[1].Key}, "order follows the list")
+	g = decode[services.GameView](t)(SetSlots(key, mustJSON(t, []library.SaveSlot{{Key: "srm"}})))
+	require.Len(t, g.Emulators[0].Slots, 1)
+	assert.NotContains(t, g.Emulators[0].Paths, "save-states", "the removed location's path is gone")
+	assert.Equal(t, saves, g.Emulators[0].Paths["srm"])
+	for name, slots := range map[string][]library.SaveSlot{
+		"empty list":   {},
+		"unknown key":  {{Key: "nope"}},
+		"new, no name": {{Key: "srm"}, {Label: " "}},
+		"listed twice": {{Key: "srm"}, {Key: "srm"}},
+	} {
+		_, err = SetSlots(key, mustJSON(t, slots))
+		require.Error(t, err, name)
+	}
+	_, err = SetSlots(g.ID+".nope", mustJSON(t, []library.SaveSlot{{Label: "x"}}))
+	require.Error(t, err, "unknown emulator")
+	g = decode[services.GameView](t)(SetSlots(g.ID, mustJSON(t, []library.SaveSlot{{Key: "saves"}, {Label: "Game state"}})))
+	require.Len(t, g.Slots, 2, "the game's own saves can have several too")
+	assert.Equal(t, "game-state", g.Slots[1].Key)
+	g = decode[services.GameView](t)(SetSlots(g.ID, mustJSON(t, []library.SaveSlot{{Key: "saves"}})))
+	require.Len(t, g.Slots, 1)
+
 	// A cover picked on the phone is copied into Carryover's data.
 	img := filepath.Join(root, "cover.png")
 	require.NoError(t, os.WriteFile(img, []byte("\x89PNG\r\n\x1a\nfake"), 0o644))

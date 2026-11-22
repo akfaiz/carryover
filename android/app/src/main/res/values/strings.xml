@@ -206,6 +206,16 @@
     <string name="edit_remove_text">On every device, %1$s no longer plays this game. Its cloud saves stay.</string>
     <string name="edit_remove_shared">%1$s uses its saves: remove %1$s first.</string>
     <string name="edit_remove_last">It is the only emulator of this game, so it stays.</string>
+    <string name="edit_slots_title">Save locations</string>
+    <string name="edit_slots_for">Save locations: %1$s</string>
+    <string name="edit_slots_shared">%1$s uses %2$s\'s saves: change the locations there.</string>
+    <string name="action_add_slot">Add a save location</string>
+    <string name="edit_slot_new">New save location</string>
+    <string name="edit_slot_rename">Rename save location</string>
+    <string name="edit_slot_hint">For example \"Save states\". Every device chooses its own folder for it on the game\'s page.</string>
+    <string name="edit_slot_remove_title">Remove %1$s?</string>
+    <string name="edit_slot_remove_text">On every device, %1$s is no longer synced. Files already in the cloud stay.</string>
+    <string name="msg_slots_saved">Save locations changed</string>
     <string name="msg_game_renamed">Renamed</string>
     <string name="msg_game_emulator_added">%1$s added</string>
     <string name="msg_game_emulator_removed">%1$s removed from the game</string>

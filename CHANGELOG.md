@@ -24,6 +24,8 @@ All notable changes to Carryover are listed here. The format follows
   - **Save folders:** picked with the system's folder picker. Switch save folders are found from the emulator's
     profile, and "Suggest save folders" uses the emulator's manifest; a new game with no folder gets the one found
     on the device.
+  - **Save locations:** a game can keep several, such as its saves and its save states. Edit game → Save locations
+    adds, renames and removes them for every device; each device chooses its own folder for each.
   - **Cloud:** accounts can be imported from a PC's rclone.conf (Settings → Cloud). A sign-in waiting for the browser
     can be cancelled, and an account whose sign-in never finished is marked "Sign-in not finished" instead of
     looking connected. Settings also has the desktop's switches for sharing the library and syncing covers.

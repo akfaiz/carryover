@@ -275,6 +275,18 @@ func TestSuggestRyujinxSavesForOneGame(t *testing.T) {
 	}
 }
 
+// The locations with files on this device come first; each group keeps its order.
+func TestFoundFirst(t *testing.T) {
+	sgs := []EmuSuggestion{{Path: "a"}, {Path: "b", Exists: true}, {Path: "c"}, {Path: "d", Exists: true}}
+	foundFirst(sgs)
+	var paths []string
+	for _, s := range sgs {
+		paths = append(paths, s.Path)
+	}
+	assert.Equal(t, []string{"b", "d", "a", "c"}, paths)
+	foundFirst(nil)
+}
+
 // writeProfiles writes the emulator's profile list (the profiles it has).
 func writeProfiles(t *testing.T, dataDir string, ids ...string) {
 	t.Helper()

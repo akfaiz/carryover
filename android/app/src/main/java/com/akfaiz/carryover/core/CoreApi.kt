@@ -176,6 +176,13 @@ interface CoreApi : SessionCore, SettingsCore, SyncCore, BackupCore, SuggestCore
     suspend fun addGameEmulator(gameId: String, emulatorId: String, shareWith: String): GameView
     suspend fun removeGameEmulator(gameId: String, emulatorId: String): GameView
 
+    /**
+     * Sets the save locations of one profile (a game id or an emulator's sync key) on every device. A slot with a key
+     * is an existing one (only its label and filters change); one with an empty key is new and gets its key from the
+     * label. A slot left out is removed; its cloud files stay.
+     */
+    suspend fun setSlots(key: String, slots: List<SaveSlot>): GameView
+
     /** A game's name from its game file's name. */
     suspend fun guessRomName(emulatorId: String, fileName: String): String
     suspend fun setPaths(key: String, paths: Map<String, String>): GameView

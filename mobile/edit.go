@@ -1,6 +1,7 @@
 package mobile
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"slices"
@@ -136,6 +137,125 @@ func RemoveGameEmulator(gameID, emulatorID string) (string, error) {
 	}
 	in.Emulators = slices.Delete(in.Emulators, i, i+1)
 	return encode(s.library.Save(in))
+}
+
+// SetSlots sets the save locations (slots) of one profile of a game, for every
+// device: key is the game id (its own saves) or a sync key (an emulator
+// profile), slotsJSON the new list of library.SaveSlot. A slot with a key must
+// already exist (its key names its cloud folder, so only its label and filters
+// change); one with an empty key is new, and its key is made from its label.
+// A slot left out is removed from the profile and from this device's paths;
+// its cloud files stay. Refused for a profile that uses another emulator's
+// saves (change them there), for an empty list, and while the profile is being
+// played. It returns the saved services.GameView.
+func SetSlots(key, slotsJSON string) (string, error) {
+	s, err := get()
+	if err != nil {
+		return "", err
+	}
+	var slots []library.SaveSlot
+	if err := json.Unmarshal([]byte(slotsJSON), &slots); err != nil {
+		return "", err
+	}
+	gameID, emuID := core.ParseKey(key)
+	v, err := s.library.Get(gameID)
+	if err != nil {
+		return "", err
+	}
+	in := inputOf(v)
+	cur, paths := in.Slots, in.Device.Paths
+	var edited *services.GameEmulatorInput
+	if emuID != "" {
+		i := slices.IndexFunc(in.Emulators, func(e services.GameEmulatorInput) bool { return e.EmulatorID == emuID })
+		if i < 0 {
+			return "", fmt.Errorf("the game has no emulator %q", emuID)
+		}
+		edited = &in.Emulators[i]
+		if edited.ShareWith != "" {
+			return "", fmt.Errorf("%s uses the saves of %s: change them there", s.core.ProfileName(emuID), s.core.ProfileName(edited.ShareWith))
+		}
+		cur, paths = edited.Slots, edited.Paths
+	}
+	next, err := mergeSlots(cur, slots)
+	if err != nil {
+		return "", err
+	}
+	if g, err := s.core.Library.Get(gameID); err == nil && s.core.SessionOpen(core.CloudKey(g, emuID)) {
+		return "", core.ErrPlaying
+	}
+	for _, old := range cur {
+		if !slices.ContainsFunc(next, func(sl library.SaveSlot) bool { return sl.Key == old.Key }) {
+			delete(paths, old.Key)
+		}
+	}
+	if edited != nil {
+		edited.Slots = next
+	} else {
+		in.Slots = next
+	}
+	return encode(s.library.Save(in))
+}
+
+// mergeSlots is the slot list a profile has after an edit: the entries of want
+// in order, an existing one by its key (keeping the key) and a new one (empty
+// key) with a key made from its label that no slot has.
+func mergeSlots(cur, want []library.SaveSlot) ([]library.SaveSlot, error) {
+	if len(want) == 0 {
+		return nil, errors.New("a game needs at least one save location")
+	}
+	out := make([]library.SaveSlot, 0, len(want))
+	for _, sl := range want {
+		sl.Label = strings.TrimSpace(sl.Label)
+		sl.Key = strings.TrimSpace(sl.Key)
+		if sl.Key != "" {
+			if !slices.ContainsFunc(cur, func(c library.SaveSlot) bool { return c.Key == sl.Key }) {
+				return nil, fmt.Errorf("unknown save location %q", sl.Key)
+			}
+			if slices.ContainsFunc(out, func(o library.SaveSlot) bool { return o.Key == sl.Key }) {
+				return nil, fmt.Errorf("save location %q is listed twice", sl.Key)
+			}
+		} else if sl.Label == "" {
+			return nil, errors.New("a new save location needs a name")
+		}
+		out = append(out, sl)
+	}
+	// New keys avoid every key in use now (a removed slot's cloud folder may still
+	// hold files) and every key chosen so far.
+	taken := slices.Clone(cur)
+	for _, sl := range out {
+		taken = append(taken, library.SaveSlot{Key: sl.Key})
+	}
+	for i := range out {
+		if out[i].Key == "" {
+			out[i].Key = slotKeyFor(out[i].Label, taken)
+			taken = append(taken, library.SaveSlot{Key: out[i].Key})
+		}
+	}
+	return out, nil
+}
+
+// slotKeyFor makes a slot key from its label: lower-case letters and digits
+// with dashes between words ("Game state" -> "game-state"), numbered when a
+// slot already has it. A label with no such characters gives "saves-<n>".
+func slotKeyFor(label string, taken []library.SaveSlot) string {
+	var b strings.Builder
+	for _, r := range strings.ToLower(label) {
+		switch {
+		case r >= 'a' && r <= 'z', r >= '0' && r <= '9':
+			b.WriteRune(r)
+		case b.Len() > 0 && !strings.HasSuffix(b.String(), "-"):
+			b.WriteByte('-')
+		}
+	}
+	base := strings.Trim(b.String(), "-")
+	if base == "" {
+		return uniqueSlotKey(taken, 1)
+	}
+	key := base
+	for n := 2; slices.ContainsFunc(taken, func(sl library.SaveSlot) bool { return sl.Key == key }); n++ {
+		key = fmt.Sprintf("%s-%d", base, n)
+	}
+	return key
 }
 
 // GuessRomName suggests a game's name from its game file's name (for a
