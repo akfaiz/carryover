@@ -6,7 +6,7 @@
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
     <!-- Optional: save folders given as file paths need All-files access on Android 11+,
          the storage permissions on Android 8-10; folders granted through the system
-         picker (SAF) need neither. See docs/android-architecture.md, "Save access". -->
+         picker (SAF) need neither. See docs/android-architecture.md, "Save folders". -->
     <uses-permission
         android:name="android.permission.MANAGE_EXTERNAL_STORAGE"
         tools:ignore="ScopedStorage" />

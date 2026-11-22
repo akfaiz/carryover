@@ -55,7 +55,7 @@ import com.akfaiz.carryover.launch.LaunchActivity
 /**
  * How to start games from a frontend (ES-DE, Daijisho, any app) through
  * Carryover, with the settings to copy made for one emulator set up on this
- * device (FrontendConfig). The same as docs/android-architecture.md ("Start games from a frontend").
+ * device (FrontendConfig). The same as docs/android-frontends.md.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable

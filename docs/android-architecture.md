@@ -1,9 +1,9 @@
 # Android architecture
 
-The Android app (experimental) shares the cloud layout, the library and the sync logic with the desktop app, so a
+The Android app shares the cloud layout, the library and the sync logic with the desktop app, so a
 game played on a PC and on an Android phone, handheld or TV uses the same cloud saves. It covers games played in
 emulators and Android games whose save folder the app can reach. Building and releasing:
-[CONTRIBUTING.md](../CONTRIBUTING.md#android-experimental).
+[CONTRIBUTING.md](../CONTRIBUTING.md#android).
 
 ## Why it differs from the desktop
 
@@ -72,15 +72,14 @@ Dependencies point down: `ui` and `launch` use `data` and `session`, which use `
   `FrontState`. Android comes in through small interfaces: `FrontSource` (`UsageFrontSource`), `SessionNotices`
   (`SessionNotifier`) and `SessionHost` (`SessionService`). They are unit tested against a fake `SessionCore`
   (`session/Fakes.kt`). `SessionService` is only the shell: the foreground service, the poll and the commands.
-- **Startup**: `Core.init` runs in `Application.onCreate`, on the main thread. It takes about 50 ms (the log says
-  `core init took N ms`) of a cold start of about 2.7 s on the emulator, so it stays synchronous: moving it would
-  need an "initializing" state in the service, the worker, the boot receiver and every view model.
+- **Startup**: `Core.init` runs in `Application.onCreate`, on the main thread. It is short (the log says
+  `core init took N ms`), so it stays synchronous: moving it would need an "initializing" state in the service, the
+  worker, the boot receiver and every view model.
 - **Not covered by unit tests** (they need a device or an emulator): the Compose screens, the service's lifecycle, the
   notifications, SAF file access, `AndroidPlatform` / `AndroidLaunchPlatform`, and the JNI wrapper `Core`. The rest
-  (session rules, repository, sync, the four view models, the launch planner and display logic) runs on the JVM
+  (session rules, repository, sync, the view models, the launch planner and display logic) runs on the JVM
   against fakes: `FakeCoreApi`, `FakeAppPlatform` and `FakeLaunchPlatform` in the test sources, with a test Main
-  dispatcher (`kotlinx-coroutines-test`), so `./gradlew testDebugUnitTest` is the whole check. To measure coverage, set
-  `enableUnitTestCoverage = true` on the `debug` build type and run `createDebugUnitTestCoverageReport`.
+  dispatcher (`kotlinx-coroutines-test`), so `./gradlew testDebugUnitTest` is the whole check.
 
 ## Play sessions
 
@@ -117,7 +116,7 @@ divergence is a conflict, as on the desktop.
 game files set up on this device (asking once when unknown), then forwards the launch to the emulator. Since any app
 can call it, it starts only apps set up here as an emulator or a game's app, never Carryover, and passes on only the
 URI grants the caller gave (`launch/Forward.kt`). How to set up a frontend is in
-[Start games from a frontend](#start-games-from-a-frontend).
+[Android: start games from a frontend](android-frontends.md).
 
 ## Launch settings
 
@@ -132,112 +131,6 @@ catalog didn't change:
 | `DeviceConfig.Exe` | an Android game's package |
 
 Without a template or a game file, the emulator opens and the user picks the game there.
-
-## Start games from a frontend
-
-The ES-DE and Daijisho settings below follow their documented syntax but haven't been tried with every emulator yet
-(see Limits).
-
-A frontend (ES-DE, Daijisho, Beacon, …) normally starts an emulator itself. To have your saves synced,
-let it start **Carryover** instead, with the same game: Carryover downloads newer saves, starts the
-emulator with exactly what the frontend asked for, and uploads the saves after you leave the game. This
-is what `carryover run … -- %command%` does for Steam on a PC.
-
-> **In the app:** Settings → **Frontends and shortcuts** (or **Use with a frontend** on an emulator's page) shows
-> these steps with the settings made for each emulator set up on the device, ready to copy: the ES-DE entries,
-> the Daijisho start arguments and the `carryover.target` value. The examples below are for PPSSPP.
-
-### What Carryover needs
-
-1. The emulator is set up in Carryover on this device (Settings → Emulators → choose its app).
-2. The game is in Carryover with a profile for that emulator, and its save folder set on this device.
-3. The frontend starts `com.akfaiz.carryover/com.akfaiz.carryover.launch.LaunchActivity` with everything it
-   would send the emulator, plus one extra:
-
-   | Extra | Value |
-   |---|---|
-   | `carryover.target` | the emulator's screen to start: `package/activity`, as the frontend would start it (or just `package`) |
-
-The first time a game file is started this way, Carryover asks which game it is and remembers the answer.
-Starting it again while its session is still open (within the few seconds after you leave it) simply
-continues the session.
-
-Carryover only starts apps that are set up in it as an emulator or as a game's own app; any other target
-is refused.
-
-### ES-DE
-
-ES-DE reads custom emulators from `ES-DE/custom_systems/`. Add Carryover as an emulator in
-`es_find_rules.xml`:
-
-```xml
-<ruleList>
-    <emulator name="CARRYOVER">
-        <!-- Carryover: syncs the saves, then starts the emulator named by carryover.target -->
-        <rule type="androidpackage">
-            <entry>com.akfaiz.carryover/com.akfaiz.carryover.launch.LaunchActivity</entry>
-        </rule>
-    </emulator>
-</ruleList>
-```
-
-Then copy the `<system>` entry of the system from ES-DE's bundled `es_systems.xml` into
-`custom_systems/es_systems.xml` and add a command that is the emulator's own command with
-`%EMULATOR_CARRYOVER%` in front of it and the target added. For PPSSPP:
-
-```xml
-<command label="PPSSPP (Carryover)">%EMULATOR_CARRYOVER% %ACTION%=android.intent.action.VIEW %DATA%=%ROMSAF% %EXTRA_carryover.target%=org.ppsspp.ppsspp/org.ppsspp.ppsspp.PpssppActivity</command>
-```
-
-Choose that command for the system (or per game) in ES-DE.
-
-### Daijisho
-
-In the platform's settings, add a new player and fill in its three fields. For PPSSPP:
-
-- **Player name**: `PPSSPP (Carryover)`
-- **Player am start arguments**: Carryover's screen and the emulator's arguments, plus the target:
-
-  ```
-  -n com.akfaiz.carryover/com.akfaiz.carryover.launch.LaunchActivity
-  -a android.intent.action.VIEW
-  -d {file.uri}
-  -e carryover.target org.ppsspp.ppsspp/org.ppsspp.ppsspp.PpssppActivity
-  ```
-
-- **Player accepted filename regex**: the files the emulator plays, in Daijisho's own shape (group 1 is the name
-  its scrapers search for). Daijisho only takes a regex that starts with `^` and ends with `$`, so each file type
-  is listed in lower and upper case: `^(.*)\.(?:iso|ISO|cso|CSO|chd|CHD|pbp|PBP|elf|ELF|zip|ZIP)$`
-
-Save, then choose the player for the platform or a game. For an emulator that takes the game as a path, pass it
-as the emulator expects it (for RetroArch, `-e ROM {file.path}` with its `LIBRETRO` and `CONFIGFILE` extras), plus
-the target.
-
-### Any other app
-
-Anything that can start an activity with extras works, for example from a computer:
-
-```
-adb shell am start -n com.akfaiz.carryover/.launch.LaunchActivity \
-  -a android.intent.action.VIEW -d <game file URI> \
-  --es carryover.target org.ppsspp.ppsspp/.PpssppActivity
-```
-
-### Home-screen shortcuts
-
-In Carryover, open a game and tap **Add to home screen** under Play: the shortcut plays that game with its
-emulator, as the Play button does. A pinned shortcut uses the game's cover as its icon, and the games played last are
-also the app icon's long-press shortcuts (`LaunchActivity.pushRecent`).
-
-### Good to know
-
-- Game files given as a `content://` URI (ES-DE's `%ROMSAF%`, Daijisho's `{file.uri}`): the frontend lets
-  Carryover read the file, and Carryover passes that on to the emulator. Whether every frontend's
-  permission survives this has not been tried on all of them; a game file given as a path avoids the
-  question.
-- Carryover never passes on access to its own save folders.
-- The save sync, the "Playing" notification and **Done playing** work as when you press Play in
-  Carryover.
 
 ## Save folders
 
@@ -315,57 +208,31 @@ through `mobile/suggest.go`:
 ## Trash
 
 The trash is the desktop's (`library.TrashRetention`, 30 days), reached through `mobile/trash.go`, so a user who only
-has Android can also delete and clean up:
-
-- **Delete** a game (its page → ⋮ → Delete game…) or an emulator (its page → Delete emulator…): it moves to the trash on
-  all devices, its settings are kept for 30 days and its cloud saves stay.
-- **Settings → Trash** lists what was deleted, with the days left: **Restore** it, or **Delete forever…**, which asks
-  whether its cloud saves go too (`withSaves`: saves, backups and lock) or stay.
-- **Cloud saves with no game** (a button, because it reads the cloud): the folders no game uses, from games deleted for
-  good without their saves or emulators removed from a game. **Bring back** adds one to the library again (it still
-  needs its save folder on this device) and **Delete** removes it for good.
-
-`TrashViewModel` is the page (it reads the trash each time the page opens, and the cloud only when asked); deleting
-is in `AppViewModel`. `TrashCore` is the part of the core they use.
+has Android can also delete and clean up. Deleting a game or an emulator moves it to the trash on all devices and
+keeps its cloud saves. Settings → Trash restores it or deletes it for good, with or without its cloud saves
+(`withSaves`: saves, backups and lock), and lists the cloud saves no game uses (read from the cloud only when asked)
+to bring back or delete. `TrashViewModel` is the page and `TrashCore` the part of the core it uses; deleting is in
+`AppViewModel`.
 
 ## Backups of the saves
 
-The backups are the desktop's (`syncer` zips, see "How Carryover syncs saves"), reached through `mobile/backup.go`
-(`Backups`, `BackupNow`, `SetBackupPinned`, `DeleteBackup`, `RestoreBackup`), so a user who only has Android can undo
-a bad overwrite too:
-
-- **Settings → Cloud backups** is `Settings.BackupRetention`, shared with the desktop: off (0, the default), or the
-  last 3, 5, 10, 20 (or the number the desktop set) backups per game. With it on, the side a sync overwrites is zipped
-  into the game's cloud folder first; with it off, a download that replaces this device's saves still keeps a copy on
-  this device only.
-- **A game's page → Backups** (one page per profile, since each emulator has its own saves) lists the backups,
-  newest first, as "whose saves, and why" (a device's saves before a download replaced them, the cloud's before an
-  upload, a manual one, or a copy kept on this device). **Back up now** makes a pinned one; **Pin / Unpin** protects a
-  backup from being deleted automatically; **Delete** removes it for every device (after a question); **Restore**
-  replaces the saves on this device and in the cloud with it (after a question; the saves it replaces are backed up
-  first). Backing up and restoring can be cancelled, and being offline is said, not an error.
-
-`BackupsViewModel` is the page and `BackupCore` the part of the core it uses; restoring changes the game's status,
-which reaches the library through the core's library event like a sync does.
+The backups are the desktop's (`syncer` zips, see "How Carryover syncs saves"), reached through `mobile/backup.go`, so
+a user who only has Android can undo a bad overwrite too. Settings → Cloud backups is `Settings.BackupRetention`,
+shared with the desktop (0, off, is the default); with it off, a download that replaces this device's saves still
+keeps a copy on this device only. A game's page lists the backups per profile, since each emulator has its own saves:
+back up now, pin, delete and restore. Restoring backs up the saves it replaces first, and backing up and restoring
+can be cancelled. `BackupsViewModel` is the page and `BackupCore` the part of the core it uses; restoring changes the
+game's status, which reaches the library through the core's library event like a sync does.
 
 ## Covers and backgrounds from SteamGridDB
 
-With the user's own SteamGridDB API key (Settings → Artwork; the field is the shared `Settings.SteamGridDBKey`, and
-Carryover checks the key with SteamGridDB before it saves it) the app finds artwork the way the desktop editor does,
-through `mobile/art.go`:
-
-- **A game's page, ⋮ menu → Find cover… / Find background…** opens `FindArtScreen`: search by name (the game's own name
-  is filled in), choose the SteamGridDB game, then choose an image. The core downloads the chosen one (SteamGridDB's
-  hosts over https only) and keeps it as the cover, or as the background behind the game's page (the core's `hero`
-  artwork, which the page header already showed). **Remove background** clears it. Without a key the page says so and
-  opens Settings.
-- **Library, the cover search button** (shown with a key, when a game has no cover) finds a cover for every game
-  without one, taking the best match (`ArtPicks`: the same name, else a verified game; the highest-scored image) and
-  stopping after two failures in a row (no network, a rejected key).
-
-`ArtViewModel` is the page and `data/CoverFinder` the bulk search (plain Kotlin over `ArtCore`, unit tested with the
-rest). Thumbnails are fetched by the app itself (`rememberRemoteImage`), only from `*.steamgriddb.com` over https
-(`isGridImageUrl`).
+With the user's own SteamGridDB API key (`Settings.SteamGridDBKey`, shared with the desktop and checked with
+SteamGridDB before it is saved) the app finds artwork the way the desktop editor does, through `mobile/art.go`. A
+game's page searches by name and keeps the chosen image as the cover or as the background (the core's `hero`
+artwork); the library's cover search finds a cover for every game without one, taking the best match (`ArtPicks`) and
+stopping after two failures in a row. The core downloads only from SteamGridDB's hosts over https, and the app
+fetches thumbnails itself only from `*.steamgriddb.com` over https (`rememberRemoteImage`, `isGridImageUrl`).
+`ArtViewModel` is the page and `data/CoverFinder` the bulk search (plain Kotlin over `ArtCore`).
 
 ## Permissions
 
@@ -390,12 +257,11 @@ same as **Sync all**: it also downloads saves that changed on another device, an
 ## Limits
 
 - Games started outside Carryover aren't synced before or after, apart from the optional background sync.
-- `Android/data` folders are reachable only through an emulator's own picker entry (no Shizuku or root).
-  So an emulator is a preset (`EmulatorPresets`) only if its saves can be reached: it publishes a documents provider
-  (Eden, Dolphin, RetroArch, Vita3K) or keeps them in a folder you pick (PPSSPP, Azahar, melonDS, ScummVM). NetherSX2 /
-  AetherSX2 and DuckStation keep theirs in `Android/data` with no provider, so they are not offered (one already set up
-  on a device still works as far as it can). PPSSPP and ScummVM fall back to `Android/data` until you pick a folder in
-  the emulator; an emulator's page (Data folder card) and a game's profile (Save folders) say so, and how to reach the
-  saves (`EmulatorPreset.savesNote`). Not checked against the app: Lemon, Citron and yuzu (assumed to share Eden's provider).
-- Direct-start templates, emulators' picker entries and frontends' URI grants are not yet verified with every
-  emulator and frontend.
+- `Android/data` folders are reachable only through an emulator's own picker entry (no Shizuku or root). So an
+  emulator is a preset (`EmulatorPresets`) only if its saves can be reached: it publishes a documents provider (Eden,
+  Dolphin, RetroArch, Vita3K) or keeps them in a folder you pick (PPSSPP, Azahar, melonDS, ScummVM). NetherSX2 /
+  AetherSX2 and DuckStation keep theirs in `Android/data` with no provider, so they are not offered (one already set
+  up on a device still works as far as it can). PPSSPP and ScummVM fall back to `Android/data` until you pick a
+  folder in the emulator; an emulator's page and a game's profile say so (`EmulatorPreset.savesNote`).
+- Not yet verified on a device with every emulator and frontend: the direct-start templates, the emulators' picker
+  entries (Lemon, Citron and yuzu are assumed to publish Eden's) and the frontends' URI grants.

@@ -12,10 +12,20 @@
   <a href="https://github.com/akfaiz/carryover/releases"><img src="https://img.shields.io/github/v/release/akfaiz/carryover?include_prereleases&sort=semver" alt="Latest release"></a>
   <a href="https://github.com/akfaiz/carryover/actions/workflows/ci.yml"><img src="https://github.com/akfaiz/carryover/actions/workflows/ci.yml/badge.svg?branch=main" alt="CI"></a>
   <a href="https://codecov.io/gh/akfaiz/carryover"><img src="https://codecov.io/gh/akfaiz/carryover/graph/badge.svg?token=D6m0uefsJn" alt="codecov"></a>
+  <a href="https://github.com/akfaiz/carryover/releases"><img src="https://img.shields.io/github/downloads/akfaiz/carryover/total" alt="Downloads"></a>
+  <a href="go.mod"><img src="https://img.shields.io/github/go-mod/go-version/akfaiz/carryover" alt="Go version"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="License: MIT"></a>
 </p>
 
-A game launcher for Windows, macOS and Linux / Steam Deck, with an experimental Android app, that keeps your save
+<p align="center">
+  <a href="#download"><img src="https://img.shields.io/badge/Windows-0078D6?logo=data:image/svg%2Bxml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCI%2BPHBhdGggZmlsbD0id2hpdGUiIGQ9Ik0wIDMuNCA5LjggMnY5LjRIMHpNMTEgMS44IDI0IDB2MTEuNEgxMXpNMCAxMi42aDkuOFYyMkwwIDIwLjZ6TTExIDEyLjZoMTNWMjRsLTEzLTEuOHoiLz48L3N2Zz4%3D" alt="Windows"></a>
+  <a href="#download"><img src="https://img.shields.io/badge/macOS%2012%2B-000000?logo=apple&logoColor=white" alt="macOS 12+"></a>
+  <a href="#download"><img src="https://img.shields.io/badge/Linux-FCC624?logo=linux&logoColor=black" alt="Linux"></a>
+  <a href="#download"><img src="https://img.shields.io/badge/Steam%20Deck-1A9FFF?logo=steamdeck&logoColor=white" alt="Steam Deck"></a>
+  <a href="#download"><img src="https://img.shields.io/badge/Android%208%2B-3DDC84?logo=android&logoColor=white" alt="Android 8+"></a>
+</p>
+
+A game launcher for Windows, macOS and Linux / Steam Deck, with an Android app, that keeps your save
 games in sync through your own cloud storage. Carryover pulls the latest saves before you play and pushes them when
 you quit, from its own launcher or from Steam, including Game Mode.
 
@@ -45,7 +55,7 @@ Cloud storage: Google Drive, Dropbox, OneDrive, WebDAV (Nextcloud, ownCloud, NAS
   Android app).
 - **Emulators** — set up an emulator (Eden, Ryujinx, …) once per device and let a game use several; each keeps
   its own saves in the cloud. Choosing a ROM suggests the game's name and save folders.
-- **Android (experimental)** — play emulated games on a phone, handheld or TV with the same cloud saves as on your
+- **Android** — play emulated games on a phone, handheld or TV with the same cloud saves as on your
   PC: Play syncs, starts the emulator and uploads the saves when you leave the game. Frontends such as ES-DE and
   Daijisho can start games through it, and an Android-only emulator such as Lemon can share Eden's saves with the PC.
 - **Played without Carryover?** — games whose saves changed outside Carryover are marked "not uploaded".
@@ -68,7 +78,7 @@ On Windows, pick the installer or the portable exe; both are the same program.
 | Steam Deck, Linux | `carryover-<version>-linux-amd64.AppImage` | Rename it to `carryover.AppImage`, make it executable (file Properties → Permissions, or `chmod +x`) and run it. |
 | Linux | `carryover-<version>-linux-amd64.tar.gz` | Extract it and run `./install.sh` (installs into `~/.local` and adds a menu entry), or `sudo ./install.sh /usr/local` for every user. |
 | macOS 12+ (Apple Silicon and Intel) | `carryover-<version>-macos-universal.dmg` | Open the disk image and drag Carryover to Applications. |
-| Android 8+ (experimental) | `carryover-<version>-android-arm64-v8a.apk` (phones, handhelds, TV boxes; `…-x86_64.apk` for Chromebooks) | Open it on the device and allow your browser or file manager to install apps when Android asks. |
+| Android 8+ | `carryover-<version>-android-arm64-v8a.apk` (phones, handhelds, TV boxes; `…-x86_64.apk` for Chromebooks) | Open it on the device and allow your browser or file manager to install apps when Android asks. |
 
 - **Keep the app in one place, under one name.** Steam shortcuts made with "Add to Steam" point at the file's path,
   which is why the exe and AppImage are renamed without the version. Put them in a folder you won't move them out
@@ -111,7 +121,7 @@ On each device:
 **On Android**, add the same cloud account and folder under Settings → Cloud. Games your PC plays with an emulator
 that has an Android app show up. On the Emulators tab, choose which app each emulator is; on a game's page, pick its
 save folder (**Suggest save folders** finds it for emulators it knows) and press **Play**. To start games from
-ES-DE or Daijisho, see [Android: start games from a frontend](docs/android-architecture.md#start-games-from-a-frontend).
+ES-DE or Daijisho, see [Android: start games from a frontend](docs/android-frontends.md).
 
 ## How it works
 
@@ -155,7 +165,7 @@ All options are in [docs/cli.md](docs/cli.md).
 - [Steam and Steam Deck](docs/steam-deck.md) — Proton shortcuts, Heroic games, Game Mode
 - [Save paths](docs/save-paths.md) — every path variable (`{appdata}`, `{proton:shortcut}`, …)
 - [Command line](docs/cli.md) — commands, options and environment variables
-- [Android: start games from a frontend](docs/android-architecture.md#start-games-from-a-frontend) — ES-DE, Daijisho, home-screen shortcuts
+- [Android: start games from a frontend](docs/android-frontends.md) — ES-DE, Daijisho, home-screen shortcuts
 - [Troubleshooting](docs/troubleshooting.md) — logs, SmartScreen, missing uploads, Android
 - [Compared with other tools](docs/comparison.md)
 - [Privacy policy](PRIVACY.md)

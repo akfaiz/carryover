@@ -55,7 +55,7 @@ import com.akfaiz.carryover.ui.PromptDialog
  * it would send the emulator, plus carryover.target naming the emulator;
  * a shortcut sends carryover.key naming the game profile. Carryover syncs,
  * starts the game and closes; the session watcher uploads after playing.
- * See docs/android-architecture.md ("Start games from a frontend").
+ * See docs/android-frontends.md.
  */
 class LaunchActivity : ComponentActivity() {
     // Made for the intent that started this activity (the view model holds it through its platform).
