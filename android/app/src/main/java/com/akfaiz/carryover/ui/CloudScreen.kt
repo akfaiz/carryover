@@ -73,8 +73,11 @@ fun CloudScreen(nav: Nav, vm: CloudViewModel = viewModel()) {
     var remote by remember(state.settings.remote) { mutableStateOf(state.settings.remote) }
     // The accounts load after the page opens (and one may just have been added):
     // with none chosen yet, take the first.
+    // An account whose sign-in never finished can't be used: it is never the one taken or kept.
     LaunchedEffect(state.remotes) {
-        if (state.remotes.none { it.name == remote }) remote = state.remotes.firstOrNull()?.name.orEmpty()
+        if (state.remotes.none { it.name == remote && !it.incomplete }) {
+            remote = state.remotes.firstOrNull { !it.incomplete }?.name.orEmpty()
+        }
     }
     var root by remember(state.settings.remoteRoot) { mutableStateOf(state.settings.remoteRoot.ifEmpty { "Carryover" }) }
     LaunchedEffect(Unit) { vm.refresh() }
@@ -107,13 +110,24 @@ fun CloudScreen(nav: Nav, vm: CloudViewModel = viewModel()) {
             }
             for (r in state.remotes) {
                 Row(
-                    Modifier.fillMaxWidth().selectable(selected = remote == r.name, onClick = { remote = r.name }),
+                    Modifier.fillMaxWidth().selectable(
+                        selected = remote == r.name,
+                        enabled = !r.incomplete,
+                        onClick = { remote = r.name },
+                    ),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    RadioButton(selected = remote == r.name, onClick = { remote = r.name })
+                    RadioButton(selected = remote == r.name, onClick = { remote = r.name }, enabled = !r.incomplete)
                     Column(Modifier.weight(1f)) {
                         Text(r.name)
                         Text(r.type, style = MaterialTheme.typography.bodySmall)
+                        if (r.incomplete) {
+                            Text(
+                                stringResource(R.string.cloud_signin_unfinished),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.error,
+                            )
+                        }
                     }
                     IconButton(onClick = { vm.deleteRemote(r.name) }) {
                         Icon(Icons.Filled.Delete, contentDescription = stringResource(R.string.action_delete_remote, r.name))
@@ -163,6 +177,8 @@ fun AddRemoteScreen(nav: Nav, vm: CloudViewModel = viewModel()) {
     var question by remember { mutableStateOf<Question?>(null) }
     var answer by remember { mutableStateOf("") }
     var working by remember { mutableStateOf(false) }
+    // The user gave up waiting for the browser: the step then ends in an error that isn't one to show.
+    var cancelled by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
     val authUrl by vm.authUrl.collectAsStateWithLifecycle()
 
@@ -175,6 +191,7 @@ fun AddRemoteScreen(nav: Nav, vm: CloudViewModel = viewModel()) {
 
     fun step(work: suspend () -> Question) {
         working = true
+        cancelled = false
         error = null
         scope.launch {
             try {
@@ -189,9 +206,16 @@ fun AddRemoteScreen(nav: Nav, vm: CloudViewModel = viewModel()) {
                 }
             } catch (e: Exception) {
                 if (e is CancellationException) throw e
-                error = e.message ?: e.toString()
+                if (cancelled) {
+                    // Back to the options: the core dropped the account it had begun.
+                    question = null
+                    vm.refresh()
+                } else {
+                    error = e.message ?: e.toString()
+                }
             } finally {
                 working = false
+                cancelled = false
                 vm.clearAuthUrl()
             }
         }
@@ -216,7 +240,14 @@ fun AddRemoteScreen(nav: Nav, vm: CloudViewModel = viewModel()) {
                             style = MaterialTheme.typography.bodySmall,
                         )
                         Text(url, style = MaterialTheme.typography.bodySmall)
-                        OutlinedButton(onClick = { vm.openBrowser(url) }) { Text(stringResource(R.string.action_open_browser)) }
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            OutlinedButton(onClick = { vm.openBrowser(url) }) { Text(stringResource(R.string.action_open_browser)) }
+                            // Waiting for the browser is the only step that can hang: this ends it.
+                            TextButton(onClick = {
+                                cancelled = true
+                                vm.cancelSignIn()
+                            }) { Text(stringResource(R.string.action_cancel)) }
+                        }
                     }
                 }
                 p == null -> {

@@ -345,6 +345,11 @@ internal class FakeCoreApi(
         return question
     }
 
+    override suspend fun cancelSignIn(): Boolean {
+        call("cancelSignIn")
+        return true
+    }
+
     override suspend fun game(id: String): GameView {
         call("game", id)
         return session.games.firstOrNull { it.id == id } ?: gameView(id)

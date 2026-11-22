@@ -298,6 +298,7 @@
     <string name="cloud_intro">Use the same cloud account and folder as on your other devices, so they share one library and the same saves.</string>
     <string name="cloud_accounts">Cloud accounts</string>
     <string name="cloud_none">None yet.</string>
+    <string name="cloud_signin_unfinished">Sign-in not finished. Delete it and add the account again.</string>
     <string name="action_delete_remote">Delete %1$s</string>
     <string name="action_add_account">Add a cloud account</string>
     <string name="cloud_folder">Folder in the cloud</string>

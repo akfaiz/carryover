@@ -96,7 +96,13 @@ data class ImportResult(
 )
 
 @Serializable
-data class Remote(val name: String = "", val type: String = "", val supported: Boolean = true)
+data class Remote(
+    val name: String = "",
+    val type: String = "",
+    val supported: Boolean = true,
+    /** An account whose sign-in never finished (no token): it can't be used, only deleted. */
+    val incomplete: Boolean = false,
+)
 
 @Serializable
 data class OptionExample(val value: String = "", val help: String = "")

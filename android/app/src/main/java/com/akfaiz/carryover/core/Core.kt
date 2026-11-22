@@ -147,6 +147,8 @@ object Core : CoreApi {
         Mobile.continueRemote(name, state, answer).decode()
     }
 
+    override suspend fun cancelSignIn(): Boolean = io { Mobile.cancelSignIn() }
+
     override suspend fun deleteRemote(name: String) = io { Mobile.deleteRemote(name) }
     override suspend fun testRemote(remote: String, root: String) = io { Mobile.testRemote(remote, root) }
 

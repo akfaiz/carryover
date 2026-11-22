@@ -7,15 +7,27 @@ import (
 	"path/filepath"
 	"runtime"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/akfaiz/carryover/internal/cloudsync/cloud"
 	"github.com/akfaiz/carryover/internal/core"
 )
 
+// ErrSignInCancelled is what CreateRemote and ContinueRemote return when
+// CancelSignIn stopped the wait for the browser.
+var ErrSignInCancelled = errors.New("sign-in cancelled")
+
+// signInTimeout is how long a step waits for the user to sign in in the browser.
+const signInTimeout = 10 * time.Minute
+
 // CloudService configures rclone remotes.
 type CloudService struct {
 	c *core.Core
+
+	signMu     sync.Mutex
+	signCancel context.CancelFunc // stops the step that waits for the browser, if any
+	signSeq    int
 }
 
 // NewCloudService creates the service.
@@ -33,19 +45,74 @@ func (s *CloudService) Remotes() []cloud.Remote {
 	return r
 }
 
-// CreateRemote starts creating a remote. OAuth providers open the browser and
-// this call returns once authorisation finishes (or times out after 10 minutes).
-func (s *CloudService) CreateRemote(name, typ string, params map[string]string) (*cloud.Question, error) {
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
-	defer cancel()
-	return cloud.CreateRemote(ctx, name, typ, params)
+// signIn starts a step that may wait for the browser: its context ends after
+// signInTimeout or when CancelSignIn is called, and done releases it.
+func (s *CloudService) signIn() (ctx context.Context, done func()) {
+	ctx, cancel := context.WithTimeout(context.Background(), signInTimeout)
+	s.signMu.Lock()
+	s.signSeq++
+	seq := s.signSeq
+	s.signCancel = cancel
+	s.signMu.Unlock()
+	return ctx, func() {
+		s.signMu.Lock()
+		if s.signSeq == seq {
+			s.signCancel = nil
+		}
+		s.signMu.Unlock()
+		cancel()
+	}
 }
 
-// ContinueRemote answers a configuration question.
+// CancelSignIn stops the wait for the browser of a CreateRemote or ContinueRemote
+// that is running (which then fails with ErrSignInCancelled and drops the remote
+// it had begun), and reports whether there was one.
+func (s *CloudService) CancelSignIn() bool {
+	s.signMu.Lock()
+	cancel := s.signCancel
+	s.signCancel = nil
+	s.signMu.Unlock()
+	if cancel == nil {
+		return false
+	}
+	cancel()
+	return true
+}
+
+// signInError turns the error of a step that CancelSignIn stopped into
+// ErrSignInCancelled and drops the remote that never got a token.
+func signInError(ctx context.Context, name string, err error) error {
+	if err != nil && errors.Is(ctx.Err(), context.Canceled) {
+		cloud.DropUnfinished(name)
+		return ErrSignInCancelled
+	}
+	return err
+}
+
+// CreateRemote starts creating a remote. OAuth providers open the browser and
+// this call returns once authorisation finishes, is cancelled with CancelSignIn
+// or times out after 10 minutes. A failure leaves no half-made OAuth remote behind.
+func (s *CloudService) CreateRemote(name, typ string, params map[string]string) (*cloud.Question, error) {
+	ctx, done := s.signIn()
+	defer done()
+	q, err := cloud.CreateRemote(ctx, name, typ, params)
+	if err != nil {
+		cloud.DropUnfinished(name) // the form is shown again: CreateRemote starts over
+		return nil, signInError(ctx, name, err)
+	}
+	return q, nil
+}
+
+// ContinueRemote answers a configuration question. Like CreateRemote it can
+// wait for the browser; after a cancel the remote it had begun is dropped.
 func (s *CloudService) ContinueRemote(name, state, result string) (*cloud.Question, error) {
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
-	defer cancel()
-	return cloud.ContinueRemote(ctx, name, state, result)
+	ctx, done := s.signIn()
+	defer done()
+	q, err := cloud.ContinueRemote(ctx, name, state, result)
+	if err != nil {
+		return nil, signInError(ctx, name, err)
+	}
+	return q, nil
 }
 
 // DeleteRemote removes a remote. If it is the active one, sync is disabled.

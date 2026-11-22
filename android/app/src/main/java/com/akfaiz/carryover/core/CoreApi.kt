@@ -155,6 +155,12 @@ interface CoreApi : SessionCore, SettingsCore, SyncCore, BackupCore, SuggestCore
     suspend fun createRemote(name: String, type: String, params: Map<String, String>): Question
     suspend fun continueRemote(name: String, state: String, answer: String): Question
 
+    /**
+     * Stops the wait for the browser sign-in of a createRemote/continueRemote that is running: it then fails and the
+     * account it had begun is dropped. True if one was waiting.
+     */
+    suspend fun cancelSignIn(): Boolean
+
     /** Copies the accounts of supported kinds from the contents of an rclone.conf; an account of the same name is replaced. */
     suspend fun importRcloneConfig(contents: String): ImportResult
 
