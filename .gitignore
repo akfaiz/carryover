@@ -12,3 +12,14 @@ fyne-cross
 /internal/app/version/zz_release.go
 # written by go test -coverprofile (CI uploads it to Codecov)
 /coverage.txt
+# Android (android/): Gradle output, the local SDK path, and the Go core built by scripts/android-bind.sh
+/android/.gradle/
+/android/.kotlin/
+/android/build/
+/android/app/build/
+/android/local.properties
+/android/.idea/
+/android/app/libs/
+# Android signing keys (scripts/android-build.*): kept outside the repository
+*.jks
+*.keystore
