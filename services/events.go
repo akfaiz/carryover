@@ -72,11 +72,13 @@ type Bus struct {
 }
 
 // SyncAllProgress reports how far SyncAll is: Done of Total games finished,
-// Name being the game now syncing (empty once finished).
+// Name being the game now syncing (empty once finished) and Key its sync key,
+// which its own sync progress events (syncer.Event.GameID) carry.
 type SyncAllProgress struct {
 	Done  int    `json:"done"`
 	Total int    `json:"total"`
 	Name  string `json:"name"`
+	Key   string `json:"key"`
 }
 
 // OnSyncAll subscribes to SyncAll progress.

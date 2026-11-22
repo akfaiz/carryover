@@ -136,3 +136,14 @@ func TestContractTie(t *testing.T) {
 		require.Equal(t, "{"+key+"}/Game", (Context{}).Contract(dir))
 	}
 }
+
+// A save folder granted through Android's Storage Access Framework isn't a
+// file path: it keeps its '/' separators on every OS and has no tokens.
+func TestSAFPath(t *testing.T) {
+	c := Context{}
+	p := ":saf:com.android.externalstorage.documents/primary%3AEmu/saves/"
+	got, err := c.Expand(p)
+	require.NoError(t, err)
+	require.Equal(t, ":saf:com.android.externalstorage.documents/primary%3AEmu/saves", got)
+	require.Equal(t, p, c.Contract(p))
+}

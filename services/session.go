@@ -8,6 +8,7 @@ import (
 	"runtime"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/akfaiz/carryover/internal/cloudsync/syncer"
 	"github.com/akfaiz/carryover/internal/core"
@@ -136,6 +137,47 @@ const noChoice = -1
 // prompt starts the one played last when it runs out; with 0 it waits for an
 // answer, as when the user pressed Play in the launcher.
 func (s *SessionService) playAsking(ctx context.Context, gameID string, opts core.RunOptions, askSeconds int) (core.SessionResult, error) {
+	r, err := s.open(ctx, gameID, opts, askSeconds)
+	if err != nil {
+		return core.SessionResult{}, err
+	}
+	defer r.done()
+	res, err := s.c.Play(ctx, r.game.ID, r.opts, r.ui)
+	switch {
+	case errors.Is(err, core.ErrCancelled):
+		r.status(Status{Phase: "done", Message: "Cancelled"})
+	case err != nil:
+		r.status(Status{Phase: "error", Message: err.Error()})
+	case errors.Is(res.PostError, core.ErrOffline):
+		r.status(Status{Phase: "done", Message: "Game closed — offline, saves kept on this device; they upload on the next sync"})
+	case errors.Is(res.PostError, core.ErrCancelled):
+		r.status(Status{Phase: "done", Message: "Game closed — upload cancelled; your saves will upload on the next sync"})
+	case res.PostError != nil:
+		r.status(Status{Phase: "error", Message: "Game closed, but upload failed: " + res.PostError.Error()})
+	case res.PostAction == syncer.ActionConflict:
+		r.status(Status{Phase: "done", Message: "Game closed — save conflict left unresolved"})
+	default:
+		r.status(Status{Phase: "done", Message: "Game closed, saves synced"})
+	}
+	return res, err
+}
+
+// sessionRun is a session the service is running: the game, the profile it
+// is played with (opts.Emulator is resolved) and the UI the core asks through.
+type sessionRun struct {
+	game   library.Game
+	opts   core.RunOptions
+	name   string // the game's name, plus " (<emulator>)" for an emulator profile
+	ui     *guiUI
+	status func(Status)
+	done   func() // ends the service's bookkeeping of the session
+}
+
+// open prepares a session of gameID (a game id or name, or a sync key):
+// it asks which emulator to use when askSeconds >= 0 and the game can be
+// played in several ways (see playAsking), resolves the profile, and marks it
+// as running until done is called.
+func (s *SessionService) open(ctx context.Context, gameID string, opts core.RunOptions, askSeconds int) (*sessionRun, error) {
 	g, err := s.c.Library.Find(gameID)
 	if err != nil {
 		// Not a game id or name: maybe "<game id>.<emulator id>".
@@ -146,7 +188,7 @@ func (s *SessionService) playAsking(ctx context.Context, gameID string, opts cor
 	}
 	if err != nil {
 		s.setStatus(Status{GameID: gameID, Phase: "error", Message: err.Error()})
-		return core.SessionResult{}, err
+		return nil, err
 	}
 	if askSeconds >= 0 && opts.Emulator == "" && len(opts.Command) == 0 {
 		if choices, def := s.profileChoices(g); len(choices) > 1 {
@@ -158,7 +200,7 @@ func (s *SessionService) playAsking(ctx context.Context, gameID string, opts cor
 			})
 			if ans == "" || ans == "cancel" {
 				s.setStatus(Status{GameID: g.ID, Phase: "done", Message: "Cancelled"})
-				return core.SessionResult{}, core.ErrCancelled
+				return nil, core.ErrCancelled
 			}
 			opts.Emulator = ans
 		}
@@ -166,7 +208,7 @@ func (s *SessionService) playAsking(ctx context.Context, gameID string, opts cor
 	emuID, err := s.c.ResolveProfile(g, opts.Emulator)
 	if err != nil {
 		s.setStatus(Status{GameID: g.ID, Phase: "error", Message: err.Error()})
-		return core.SessionResult{}, err
+		return nil, err
 	}
 	opts.Emulator = emuID
 	if emuID == "" {
@@ -186,17 +228,17 @@ func (s *SessionService) playAsking(ctx context.Context, gameID string, opts cor
 	s.mu.Lock()
 	if s.running[key] {
 		s.mu.Unlock()
-		return core.SessionResult{}, errors.New(name + " is already running")
+		return nil, errors.New(name + " is already running")
 	}
 	s.running[key] = true
 	s.mu.Unlock()
 	s.bus.libraryChanged(g.ID)
-	defer func() {
+	done := func() {
 		s.mu.Lock()
 		delete(s.running, key)
 		s.mu.Unlock()
 		s.bus.libraryChanged(g.ID)
-	}()
+	}
 
 	ui := &guiUI{gameID: g.ID, profile: emuID, key: key, suffix: suffix, p: s.p, onStatus: s.setStatus, onRunning: func(r bool) {
 		if s.OnGameRunning != nil {
@@ -214,24 +256,83 @@ func (s *SessionService) playAsking(ctx context.Context, gameID string, opts cor
 		}
 		s.mu.Unlock()
 	}}
-	res, err := s.c.Play(ctx, g.ID, opts, ui)
+	return &sessionRun{game: g, opts: opts, name: name, ui: ui, status: status, done: done}, nil
+}
+
+// Begin starts playing gameID (a game id, or a sync key for an emulator
+// profile) with a game that the caller starts itself, as the Android app does
+// with an emulator: it syncs before playing, asking through prompts as Play
+// does, takes the cloud lock and returns. emulator picks the profile as in
+// PlayWith; a game that can be played in several ways and none named asks
+// which one. Once the game has closed, End finishes the session. It returns
+// core.ErrCancelled when the game shouldn't start.
+func (s *SessionService) Begin(gameID, emulator string) (core.SessionStart, error) {
+	ctx := context.Background()
+	r, err := s.open(ctx, gameID, core.RunOptions{Emulator: emulator}, 0)
+	if err != nil {
+		return core.SessionStart{}, err
+	}
+	defer r.done()
+	start, err := s.c.StartSession(ctx, r.game.ID, r.opts.Emulator, r.ui)
 	switch {
 	case errors.Is(err, core.ErrCancelled):
-		status(Status{Phase: "done", Message: "Cancelled"})
+		r.status(Status{Phase: "done", Message: "Cancelled"})
 	case err != nil:
-		status(Status{Phase: "error", Message: err.Error()})
-	case errors.Is(res.PostError, core.ErrOffline):
-		status(Status{Phase: "done", Message: "Game closed — offline, saves kept on this device; they upload on the next sync"})
-	case errors.Is(res.PostError, core.ErrCancelled):
-		status(Status{Phase: "done", Message: "Game closed — upload cancelled; your saves will upload on the next sync"})
-	case res.PostError != nil:
-		status(Status{Phase: "error", Message: "Game closed, but upload failed: " + res.PostError.Error()})
-	case res.PostAction == syncer.ActionConflict:
-		status(Status{Phase: "done", Message: "Game closed — save conflict left unresolved"})
+		r.status(Status{Phase: "error", Message: err.Error()})
+	case start.PreOffline:
+		r.status(Status{Phase: "playing", Running: true, Message: "Offline — playing " + r.name + " without syncing"})
 	default:
-		status(Status{Phase: "done", Message: "Game closed, saves synced"})
+		r.status(Status{Phase: "playing", Running: true, Message: "Playing " + r.name})
 	}
-	return res, err
+	return start, err
+}
+
+// End finishes a session started with Begin, once the game has closed: it
+// uploads the saves if only this device changed them (a conflict is flagged,
+// nothing is downloaded), releases the cloud lock, and returns what to tell
+// the user (nil: nothing worth telling). key is a game id or sync key. Offline
+// the error wraps core.ErrOffline and the next sync uploads the saves.
+func (s *SessionService) End(key string) (*core.Notice, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Minute)
+	defer cancel()
+	gameID, emuID := core.ParseKey(key)
+	s.setStatus(Status{GameID: gameID, Profile: emuID, Key: key, Phase: "sync", Message: "Uploading saves…"})
+	_, notice, err := s.c.EndSession(ctx, s.c.CloudKeyOf(key))
+	s.reportEnd(key, notice, err)
+	return notice, err
+}
+
+// EndPending finishes a session that ended without its upload (the cloud
+// couldn't be reached), once the network is back: a retry in the background.
+// It does nothing, returning no notice and no error, when the session was
+// finished meanwhile or the game was started again.
+func (s *SessionService) EndPending(key string) (*core.Notice, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Minute)
+	defer cancel()
+	finished, notice, err := s.c.EndPending(ctx, s.c.CloudKeyOf(key))
+	if !finished && notice == nil && err == nil {
+		return nil, nil
+	}
+	s.reportEnd(key, notice, err)
+	return notice, err
+}
+
+// reportEnd reports how a session's end went, as a status and a library change.
+func (s *SessionService) reportEnd(key string, notice *core.Notice, err error) {
+	gameID, emuID := core.ParseKey(key)
+	st := Status{GameID: gameID, Profile: emuID, Key: key, Phase: "done", Message: "Game closed, saves synced"}
+	switch {
+	case errors.Is(err, core.ErrOffline):
+		st.Message = "Game closed — offline, saves kept on this device; they upload on the next sync"
+	case err != nil:
+		st.Phase, st.Message = "error", "Game closed, but upload failed: "+err.Error()
+	case notice != nil && notice.Kind == core.NoticeConflict:
+		st.Message = "Game closed — save conflict left unresolved"
+	case notice != nil && notice.Kind == core.NoticeFailed:
+		st.Phase, st.Message = "error", "Game closed, but upload failed: "+notice.Err
+	}
+	s.setStatus(st)
+	s.bus.libraryChanged(gameID)
 }
 
 // EmulatorChoiceSeconds is how long the "which emulator?" prompt waits before it

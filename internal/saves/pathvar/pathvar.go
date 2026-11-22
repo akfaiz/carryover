@@ -5,6 +5,7 @@ package pathvar
 import (
 	"fmt"
 	"os"
+	"path"
 	"path/filepath"
 	"regexp"
 	"runtime"
@@ -38,6 +39,11 @@ func DefaultContext() Context {
 	return Context{SteamRoot: steam.FindRoot()}
 }
 
+// safPrefix starts a save folder granted through Android's Storage Access
+// Framework (localfs.SAF in the cloudsync group, which this package can't
+// import): ":saf:<authority>/<tree>/<sub/path>".
+const safPrefix = ":saf:"
+
 var tokenRe = regexp.MustCompile(`\{([a-zA-Z]+)(?::([^}]+))?\}`)
 
 // Expand replaces tokens and environment variables in p and cleans the result.
@@ -59,6 +65,10 @@ func (c Context) Expand(p string) (string, error) {
 		return "", expandErr
 	}
 	out = expandEnv(out)
+	if strings.HasPrefix(out, safPrefix) {
+		// Not a file path: keep its '/' separators on every OS.
+		return path.Clean(out), nil
+	}
 	if strings.HasPrefix(out, "~/") || out == "~" {
 		home, _ := os.UserHomeDir()
 		out = filepath.Join(home, strings.TrimPrefix(out, "~"))
@@ -225,6 +235,9 @@ func (c Context) Tokens() []Token {
 // Contract rewrites an absolute path to use the most specific matching token,
 // making it easier to read. It is the inverse of Expand for simple tokens.
 func (c Context) Contract(p string) string {
+	if strings.HasPrefix(p, safPrefix) {
+		return p // no token stands for part of it
+	}
 	p = filepath.Clean(p)
 	best, bestVal := "", ""
 	cands := baseTokens()
