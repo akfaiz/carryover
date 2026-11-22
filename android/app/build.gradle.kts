@@ -42,7 +42,9 @@ android {
                 storeFile = file(releaseKeystore.get())
                 storePassword = providers.environmentVariable("CARRYOVER_KEYSTORE_PASSWORD").orNull
                 keyAlias = providers.environmentVariable("CARRYOVER_KEY_ALIAS").orNull
-                keyPassword = providers.environmentVariable("CARRYOVER_KEY_PASSWORD").orNull
+                // An empty CARRYOVER_KEY_PASSWORD counts as unset: CI passes it empty when that
+                // secret doesn't exist, and the key then has the keystore's password.
+                keyPassword = providers.environmentVariable("CARRYOVER_KEY_PASSWORD").orNull?.takeIf { it.isNotEmpty() }
                     ?: providers.environmentVariable("CARRYOVER_KEYSTORE_PASSWORD").orNull
             }
         }
@@ -52,6 +54,9 @@ android {
         release {
             optimization {
                 enable = true
+                keepRules {
+                    files.add(file("proguard-rules.pro"))
+                }
             }
             // Without CARRYOVER_KEYSTORE the release APKs are unsigned (not installable).
             signingConfigs.findByName("release")?.let { signingConfig = it }
