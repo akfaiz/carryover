@@ -20,6 +20,8 @@ data class EmulatorPreset(
     val manifestPreset: String = "",
     /** What the template needs edited before it works, as a string resource (0: nothing). */
     val note: Int = 0,
+    /** Where its saves are and how to reach them from Carryover, as a string resource (0: nothing to say). */
+    val savesNote: Int = 0,
     /** The game files it opens, by extension (empty: depends, any file); for a frontend's file filter. */
     val extensions: List<String> = emptyList(),
 )
@@ -34,6 +36,7 @@ object EmulatorPresets {
                 "-e CONFIGFILE /storage/emulated/0/Android/data/com.retroarch/files/retroarch.cfg",
             manifestPreset = "retroarch",
             note = R.string.preset_note_retroarch,
+            savesNote = R.string.saves_note_provider,
         ),
         EmulatorPreset(
             "Dolphin",
@@ -41,6 +44,7 @@ object EmulatorPresets {
             activity = ".ui.main.MainActivity",
             template = "-a android.intent.action.VIEW -e AutoStartFile {rom}",
             manifestPreset = "dolphin",
+            savesNote = R.string.saves_note_provider,
             extensions = listOf("iso", "gcm", "gcz", "ciso", "wbfs", "rvz", "wia", "wad", "dol", "elf"),
         ),
         EmulatorPreset(
@@ -49,6 +53,7 @@ object EmulatorPresets {
             activity = ".PpssppActivity",
             template = "-a android.intent.action.VIEW -d {rom}",
             manifestPreset = "ppsspp",
+            savesNote = R.string.saves_note_ppsspp,
             extensions = listOf("iso", "cso", "chd", "pbp", "elf", "zip"),
         ),
         EmulatorPreset(
@@ -84,23 +89,8 @@ object EmulatorPresets {
             activity = "org.citra.citra_emu.activities.EmulationActivity",
             template = "-a android.intent.action.VIEW -d {rom}",
             manifestPreset = "azahar",
+            savesNote = R.string.saves_note_picked,
             extensions = listOf("3ds", "3dsx", "cci", "cxi", "cia", "app", "elf", "axf"),
-        ),
-        EmulatorPreset(
-            "NetherSX2 / AetherSX2",
-            listOf("xyz.aethersx2.android"),
-            activity = ".EmulationActivity",
-            template = "-e bootPath {rom}",
-            manifestPreset = "pcsx2",
-            extensions = listOf("iso", "chd", "cso", "bin", "img", "mdf", "nrg", "gz", "elf"),
-        ),
-        EmulatorPreset(
-            "DuckStation",
-            listOf("com.github.stenzek.duckstation"),
-            activity = ".EmulationActivity",
-            template = "-e bootPath {rom}",
-            manifestPreset = "duckstation",
-            extensions = listOf("cue", "bin", "chd", "iso", "img", "ecm", "mds", "pbp", "m3u", "exe"),
         ),
         EmulatorPreset(
             "melonDS",
@@ -110,15 +100,34 @@ object EmulatorPresets {
             extensions = listOf("nds", "dsi", "ids", "srl", "zip"),
         ),
         // No known way to start a game directly: the emulator opens, the user picks the game.
-        EmulatorPreset("ScummVM", listOf("org.scummvm.scummvm"), manifestPreset = "scummvm"),
-        EmulatorPreset("Vita3K", listOf("org.vita3k.emulator"), manifestPreset = "vita3k", extensions = listOf("vpk", "zip")),
+        EmulatorPreset(
+            "ScummVM",
+            listOf("org.scummvm.scummvm"),
+            manifestPreset = "scummvm",
+            savesNote = R.string.saves_note_scummvm,
+        ),
+        EmulatorPreset(
+            "Vita3K",
+            listOf("org.vita3k.emulator"),
+            manifestPreset = "vita3k",
+            savesNote = R.string.saves_note_provider,
+            extensions = listOf("vpk", "zip"),
+        ),
     )
 
     /**
      * Whether a library emulator can be used on Android: it is set up on this
      * device, or it is a kind with an Android app (by the desktop's preset, or
      * by name for one without a preset). Ryujinx, Cemu, RPCS3, shadPS4 and
-     * Xenia have none, so the app hides them and their games.
+     * Xenia have no Android app, so the app hides them and their games.
+     *
+     * An emulator is listed only if its saves can be reached from here: it
+     * publishes a documents provider that the folder picker shows (Eden,
+     * Dolphin, RetroArch, Vita3K), or keeps them in a folder the user picks
+     * (PPSSPP, Azahar, melonDS, ScummVM). NetherSX2/AetherSX2 and DuckStation
+     * keep them in `Android/data` with no provider, which scoped storage hides
+     * from every other app, so they are not listed (and PCSX2 / DuckStation
+     * games are hidden), unless one is already set up on this device.
      */
     fun onAndroid(e: EmulatorView): Boolean {
         if (e.setUp || e.device.exe.isNotBlank()) return true
@@ -131,6 +140,17 @@ object EmulatorPresets {
 
     /** Lower-case letters and digits only: "Azahar / Citra" -> "azaharcitra". */
     private fun normalize(s: String): String = s.lowercase().filter { it.isLetterOrDigit() }
+
+    /**
+     * The note on reaching a library emulator's saves (a string resource, 0: none): its app's preset on
+     * this device, else the first preset of its kind.
+     */
+    fun savesNote(e: EmulatorView?): Int {
+        if (e == null) return 0
+        val preset = forPackage(e.device.exe.substringBefore('/'))
+            ?: all.firstOrNull { e.preset.isNotEmpty() && it.manifestPreset == e.preset && it.savesNote != 0 }
+        return preset?.savesNote ?: 0
+    }
 
     /** The preset of an installed package, if it is a known emulator. */
     fun forPackage(pkg: String): EmulatorPreset? = all.firstOrNull { pkg in it.packages }

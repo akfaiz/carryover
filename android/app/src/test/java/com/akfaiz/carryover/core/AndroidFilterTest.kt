@@ -15,7 +15,6 @@ class AndroidFilterTest {
     fun emulatorsWithAnAndroidApp() {
         assertTrue(EmulatorPresets.onAndroid(emu("Eden", preset = "switch")))
         assertTrue(EmulatorPresets.onAndroid(emu("RetroArch", preset = "retroarch")))
-        assertTrue("NetherSX2 plays PCSX2's games", EmulatorPresets.onAndroid(emu("PCSX2", preset = "pcsx2")))
         // No preset: known by name.
         assertTrue(EmulatorPresets.onAndroid(emu("melonDS 1.0")))
         assertTrue(EmulatorPresets.onAndroid(emu("Citra")))
@@ -24,9 +23,22 @@ class AndroidFilterTest {
         assertFalse(EmulatorPresets.onAndroid(emu("Cemu", preset = "cemu")))
         assertFalse(EmulatorPresets.onAndroid(emu("RPCS3", preset = "rpcs3")))
         assertFalse(EmulatorPresets.onAndroid(emu("My Emu")))
+        // An Android app whose saves sit in Android/data, out of reach of any other app.
+        assertFalse(EmulatorPresets.onAndroid(emu("PCSX2", preset = "pcsx2")))
+        assertFalse(EmulatorPresets.onAndroid(emu("DuckStation", preset = "duckstation")))
+        assertFalse(EmulatorPresets.onAndroid(emu("NetherSX2")))
         // Whatever it is, one set up on this device is used here.
         assertTrue(EmulatorPresets.onAndroid(emu("Ryujinx", preset = "ryujinx", setUp = true)))
         assertTrue(EmulatorPresets.onAndroid(emu("My Emu", exe = "com.example.emu")))
+    }
+
+    @Test
+    fun savesNoteFollowsTheEmulator() {
+        assertTrue("by kind", EmulatorPresets.savesNote(emu("PPSSPP", preset = "ppsspp")) != 0)
+        assertTrue("by app", EmulatorPresets.savesNote(emu("My PSP", exe = "org.ppsspp.ppsspp/.PpssppActivity")) != 0)
+        assertEquals("Switch emulators have their own hint", 0, EmulatorPresets.savesNote(emu("Eden", preset = "switch")))
+        assertEquals(0, EmulatorPresets.savesNote(emu("My Emu")))
+        assertEquals(0, EmulatorPresets.savesNote(null))
     }
 
     private val slots = listOf(SaveSlot("saves"))
