@@ -9,6 +9,27 @@ All notable changes to Carryover are listed here. The format follows
 
 ### Added
 
+- An Android app (experimental), released as `carryover-<version>-android-arm64-v8a.apk` (phones, handhelds) and
+  `…-android-x86_64.apk`. It shares the library and cloud saves with the desktop: Play syncs, starts the emulator or
+  the game's app and uploads the saves when you leave the game; frontends such as ES-DE and Daijisho can launch games
+  through it (Settings → Frontends and shortcuts shows the settings to copy for each emulator), and games can be
+  pinned to the home screen. Save folders are picked with the system's folder picker,
+  Switch save folders are found from the emulator's profile, and an Android-only emulator such as Lemon can share
+  Eden's saves with a PC. It has covers, light and dark themes, Bahasa Indonesia, D-pad and gamepad navigation, and
+  sends its logs for bug reports. Saves of a game left while offline upload by themselves once the network is back,
+  a game you return to within 10 minutes of leaving it can be tracked again from a notification, the time before leaving a game
+  ends its session is a setting, and "Sync in the background" (off by default) syncs all games while the device is
+  charging, idle and on Wi-Fi. Games and emulators can be deleted into the trash (Settings → Trash) and restored for
+  30 days, deleted for good with or without their cloud saves, and the cloud saves no game uses can be brought
+  back or deleted, so a library that lives only on Android can be cleaned up too. With your own SteamGridDB API key
+  (Settings → Artwork) a game's page can find its cover or its background on SteamGridDB, and one button in the
+  library finds the covers of all the games that have none. A game's page lists its backups (Backups): back up now,
+  pin, delete and restore, and Settings → Cloud backups turns on the cloud backups the desktop app has and says how
+  many are kept. Settings also has the desktop's two library switches: share the library between devices, and sync
+  covers and artwork. For an emulator with a known type and a data folder, a game's page suggests its save folders from
+  the emulator's manifest (Suggest save folders), and a new game with no folder gets the one found on the device. See
+  `docs/android-architecture.md`. Cloud accounts can be imported from an rclone.conf of a PC (Settings → Cloud), so there
+  is nothing to sign in to on the phone.
 - Lutris games on Linux (native and Flatpak Lutris). "Add a game → From Lutris" lists the games Lutris has
   installed and opens the editor pre-filled; a new "Lutris" launch mode starts the game through Lutris, so it keeps
   Lutris's runner and Wine prefix, waits for the game to exit, then syncs. Picking a game's executable that Lutris

@@ -115,6 +115,54 @@ go run github.com/fyne-io/fyne-cross@latest linux -arch=amd64 -app-id com.akfaiz
 It writes `fyne-cross/bin/linux-amd64/carryover` (the bare binary) and `fyne-cross/dist/linux-amd64/carryover.tar.xz`
 (binary, `.desktop` file and icon). Use `-arch=arm64` for ARM devices. The first run is slow.
 
+## Android (experimental)
+
+[docs/android-architecture.md](docs/android-architecture.md) describes how the Android app works. It is a Kotlin
+app (`android/`, Jetpack Compose) on top of the Go core, which `gomobile bind` turns into an Android library from the
+`mobile` package. Needs Go, the Android SDK with an NDK (Android Studio installs both) and Java 17+. One script builds everything and writes the APKs (one per ABI) to `dist/`:
+
+```
+.\scripts\android-build.ps1                          # Windows: carryover-<version>-android-<abi>-debug.apk
+scripts/android-build.sh                             # Linux, macOS (and Git Bash)
+.\scripts\android-build.ps1 -Release -Version 0.4.0  # signed release APKs: carryover-0.4.0-android-<abi>.apk
+scripts/android-build.sh --release --version 0.4.0
+```
+
+- They find the SDK (`ANDROID_HOME`, else Android Studio's default folder), the newest NDK and a JDK (`JAVA_HOME`,
+  else Android Studio's `jbr`), write `android/local.properties` if missing, and pass the version to Gradle
+  (version code `x*1000000 + y*10000 + z*100 + build`; `-Build`/`--build` 0-99). `-Targets`/`--targets` picks the
+  ABIs (default `android/arm64,android/amd64`; amd64 is for the emulator and Chromebooks); `-SkipBind`/`--skip-bind`
+  reuses the Go core after a Kotlin-only change. Like the desktop scripts they don't stamp the version into the Go
+  core (`scripts/stamp-version.sh` does).
+- Release builds are shrunk with R8 and signed with a key given in the environment, never in the repository:
+  `CARRYOVER_KEYSTORE` (path), `CARRYOVER_KEYSTORE_PASSWORD`, `CARRYOVER_KEY_ALIAS` (and `CARRYOVER_KEY_PASSWORD` if
+  it differs). Make a key once with `keytool -genkeypair -v -keystore carryover.jks -alias carryover -keyalg RSA
+  -keysize 4096 -validity 10000` and keep it (and its passwords) safe: updates must be signed with the same key.
+- By hand: `scripts/android-bind.sh` builds only the Go core (`android/app/libs/carryover-core.aar`, ~45 s), then
+  `cd android && ./gradlew assembleDebug`; Android Studio opens `android/` after the first bind.
+
+- The Go core is built with the `gomobile`/`gobind` versions pinned as tools in `go.mod`; rebuild it (any script
+  without `--skip-bind`) after changing Go code.
+- `mobile` is the only API Kotlin sees: plain functions taking and returning JSON (the `services` types) and a
+  `Host` interface for events and opening the browser. gomobile can only pass basic types, so keep it that way.
+- `./gradlew testDebugUnitTest` runs the Kotlin unit tests (the launch template parser, the emulator presets,
+  frontend launches and the text catalogs).
+- UI text lives in `android/app/src/main/res/values/strings.xml`, with Bahasa Indonesia in `values-in/` (use the
+  desktop's terms from `ui/i18n/translations/id.json`); `CatalogTest` fails when a language misses a text or a
+  placeholder, or a screen passes a literal to `Text(...)`. Messages from the Go core stay English.
+- Install with `adb install -r app/build/outputs/apk/debug/app-x86_64-debug.apk` (emulator) or the `arm64-v8a`
+  one (devices). The app's prompts grant its special permissions through Settings; when testing, `adb shell appops
+  set com.akfaiz.carryover MANAGE_EXTERNAL_STORAGE allow` (All-files access) and `... GET_USAGE_STATS allow`
+  (Usage access, which lets the session watcher see that a game was left; `ignore` to test without it) do the
+  same. Any installed app can stand in for an emulator (the Emulators tab); the watcher logs under the
+  `CarryoverSession` tag and the Go core under `GoLog`.
+- Without All-files access (`appops set --uid com.akfaiz.carryover MANAGE_EXTERNAL_STORAGE default`; the uid
+  mode outlives `pm clear`), Browse grants the folder through the system picker and stores a `:saf:` path,
+  which is how folders of other apps (an emulator's own data folder) are always reached. The app keeps its data in its private storage (`files/carryover`, the same layout as the desktop
+  data dir); its log is `files/carryover/logs/carryover.log` (`adb shell run-as com.akfaiz.carryover cat ...`). Users send
+  logs from Settings → About → Logs for a bug report (Share or Save to a file): a zip with both logs, Android's log
+  of the app and a `report.txt` of versions, device and permissions.
+
 ## Code map
 
 `internal/` is grouped by layer. A package may import from its own group or from groups below it, never from
@@ -223,8 +271,8 @@ Safety copies taken before a download (when cloud backups are off) stay on the d
    Or on GitHub: **Releases → Draft a new release → Choose a tag**, type the new tag (target `main`) and
    **Publish release**. A saved draft does nothing until it is published.
 
-`.github/workflows/release.yml` runs the CI checks first (a failing test stops the release), then builds the files
-and attaches them, with a `SHA256SUMS.txt`, to the release. It creates the release, with notes generated from the
+`.github/workflows/release.yml` builds the files and attaches them, with a `SHA256SUMS.txt`, to the release. It
+doesn't run the CI checks again: tag a commit on `main`, which passed CI when it was merged. It creates the release, with notes generated from the
 commits, if it doesn't exist yet.
 
 A tag with a suffix, such as `v0.2.0-rc1`, becomes a pre-release (overriding the checkbox on the website).
@@ -258,6 +306,14 @@ Each file is named `carryover-<version>-<os>-<arch>.<ext>`, where `<version>` is
   how Steam shortcuts to Carryover itself are recognised. It is not notarized, so Gatekeeper blocks the first start
   until the user chooses "Open Anyway" in System Settings → Privacy & Security. Like the Windows script it takes the
   version (default: `git describe`) and a build number, restores `FyneApp.toml` and doesn't stamp the version.
+- `…-android-arm64-v8a.apk` (phones, handhelds, most TV boxes) and `…-android-x86_64.apk` (Chromebooks, the
+  emulator): signed release APKs from `scripts/android-build.sh --release`. The version code is `x*1000000 + y*10000
+  + z*100 + build`, where the release job takes `build` from a pre-release tag's number (`v0.5.0-rc2` → 2) and 99 for
+  the release itself, so an rc updates to its release. Every release must be signed with the same key, or installed
+  apps can't update; the job reads it from these repository secrets (Settings → Secrets and variables → Actions):
+  `CARRYOVER_KEYSTORE_BASE64` (the keystore file, `base64 -w0 carryover.jks`), `CARRYOVER_KEYSTORE_PASSWORD`,
+  `CARRYOVER_KEY_ALIAS` and, if it differs from the keystore's, `CARRYOVER_KEY_PASSWORD`. Without them the release
+  fails rather than publish unsigned APKs. Keep a copy of the keystore and its passwords outside GitHub.
 
 ### Versions
 
@@ -269,5 +325,6 @@ tag's `x.y.z` plus the workflow run number. `Version` in `FyneApp.toml` is not u
 
 ### CI
 
-`.github/workflows/ci.yml` runs on every pull request and push to `main`: `golangci-lint` on Linux and macOS, and
-`go test ./...` on Linux, Windows and macOS.
+`.github/workflows/ci.yml` runs on every pull request and push to `main`: `golangci-lint` on Linux and macOS,
+`go test ./...` on Linux, Windows and macOS, and the Android app (`scripts/android-build.sh`, then the Kotlin unit
+tests and Android lint), whose debug APKs are kept as the run's `android-debug-apks` artifact for 14 days.
