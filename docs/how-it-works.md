@@ -99,6 +99,15 @@ game was started outside Carryover) and marks those games "not uploaded". Press 
 Each emulator a game uses keeps its own saves in the cloud, so they never mix; the same emulator on another device
 shares them.
 
+## On Android
+
+An Android app can't wait for another app the way a Steam shortcut waits for a game, so the Android app starts the
+game itself: Play (or a frontend, or a home-screen shortcut) syncs first, then starts the emulator. While you play,
+it watches which app is on screen (with Usage access) and uploads once you've left the game for 10 seconds, or when
+you tap **Done playing** in its notification; a notification tells you how it went. A game started from the emulator
+directly isn't synced around it: the next time you open Carryover, it is marked "changed here". See
+[Android architecture](android-architecture.md).
+
 ## What is stored in the cloud
 
 See [Cloud layout](../CONTRIBUTING.md#cloud-layout) in CONTRIBUTING.md.
