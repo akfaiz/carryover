@@ -1,0 +1,75 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The desktop icon's artwork (ui/assets/appicon.svg, 1024 units), scaled into
+     the adaptive icon's safe zone (a 66dp circle in the middle of 108dp). -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:aapt="http://schemas.android.com/aapt"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="1024"
+    android:viewportHeight="1024">
+    <group
+        android:pivotX="512"
+        android:pivotY="512"
+        android:scaleX="0.72"
+        android:scaleY="0.72"
+        android:translateY="-6">
+        <!-- ground the save hops over -->
+        <path
+            android:pathData="M186,732H810"
+            android:strokeWidth="20"
+            android:strokeColor="#24FFFFFF"
+            android:strokeLineCap="round" />
+        <!-- the hop: progress carried over from one device to the other -->
+        <path
+            android:pathData="M238,622V572A260,260 0,0 1,758 572V592"
+            android:strokeWidth="60"
+            android:strokeLineCap="round"
+            android:strokeLineJoin="round">
+            <aapt:attr name="android:strokeColor">
+                <gradient
+                    android:type="linear"
+                    android:startX="238"
+                    android:startY="0"
+                    android:endX="758"
+                    android:endY="0">
+                    <item android:offset="0" android:color="#FF5B8CFF" />
+                    <item android:offset="1" android:color="#FF3CCF91" />
+                </gradient>
+            </aapt:attr>
+        </path>
+        <path
+            android:pathData="M682,586L834,586L758,698Z"
+            android:fillColor="#FF3CCF91"
+            android:strokeWidth="28"
+            android:strokeColor="#FF3CCF91"
+            android:strokeLineJoin="round" />
+        <!-- play button carried under the hop -->
+        <path
+            android:pathData="M454,460L454,620L590,540Z"
+            android:strokeWidth="40"
+            android:strokeLineJoin="round">
+            <aapt:attr name="android:fillColor">
+                <gradient
+                    android:type="linear"
+                    android:startX="454"
+                    android:startY="460"
+                    android:endX="590"
+                    android:endY="620">
+                    <item android:offset="0" android:color="#FF7AA3FF" />
+                    <item android:offset="1" android:color="#FF3D6DE0" />
+                </gradient>
+            </aapt:attr>
+            <aapt:attr name="android:strokeColor">
+                <gradient
+                    android:type="linear"
+                    android:startX="454"
+                    android:startY="460"
+                    android:endX="590"
+                    android:endY="620">
+                    <item android:offset="0" android:color="#FF7AA3FF" />
+                    <item android:offset="1" android:color="#FF3D6DE0" />
+                </gradient>
+            </aapt:attr>
+        </path>
+    </group>
+</vector>

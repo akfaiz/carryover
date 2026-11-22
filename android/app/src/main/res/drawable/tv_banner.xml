@@ -1,0 +1,60 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The Android TV home row's banner (320x180dp): the launcher icon's artwork on its
+     background colours, wide. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:aapt="http://schemas.android.com/aapt"
+    android:width="320dp"
+    android:height="180dp"
+    android:viewportWidth="1820"
+    android:viewportHeight="1024">
+    <path android:pathData="M0,0h1820v1024h-1820z">
+        <aapt:attr name="android:fillColor">
+            <gradient
+                android:type="linear"
+                android:startX="0"
+                android:startY="0"
+                android:endX="0"
+                android:endY="1024">
+                <item android:offset="0" android:color="#FF232838" />
+                <item android:offset="1" android:color="#FF0E0F14" />
+            </gradient>
+        </aapt:attr>
+    </path>
+    <!-- ui/assets/appicon.svg's artwork, centred: shifted right by (1820-1024)/2 -->
+    <group android:translateX="398">
+        <path
+            android:pathData="M186,732H810"
+            android:strokeWidth="20"
+            android:strokeColor="#24FFFFFF"
+            android:strokeLineCap="round" />
+        <path
+            android:pathData="M238,622V572A260,260 0,0 1,758 572V592"
+            android:strokeWidth="60"
+            android:strokeLineCap="round"
+            android:strokeLineJoin="round">
+            <aapt:attr name="android:strokeColor">
+                <gradient
+                    android:type="linear"
+                    android:startX="238"
+                    android:startY="0"
+                    android:endX="758"
+                    android:endY="0">
+                    <item android:offset="0" android:color="#FF5B8CFF" />
+                    <item android:offset="1" android:color="#FF3CCF91" />
+                </gradient>
+            </aapt:attr>
+        </path>
+        <path
+            android:pathData="M682,586L834,586L758,698Z"
+            android:fillColor="#FF3CCF91"
+            android:strokeWidth="28"
+            android:strokeColor="#FF3CCF91"
+            android:strokeLineJoin="round" />
+        <path
+            android:pathData="M454,460L454,620L590,540Z"
+            android:fillColor="#FF5B8CFF"
+            android:strokeWidth="40"
+            android:strokeColor="#FF5B8CFF"
+            android:strokeLineJoin="round" />
+    </group>
+</vector>
