@@ -26,6 +26,37 @@ func TestImportConfigSkipsUnsupported(t *testing.T) {
 	}
 }
 
+func TestImportConfigDataReplacesAndSaysSo(t *testing.T) {
+	dir := t.TempDir()
+	require.NoError(t, Init(filepath.Join(dir, "rclone.conf")))
+	conf := "[imp-nas]\r\ntype = smb\r\nhost = nas.local\r\n\r\n[imp-dav]\r\ntype = webdav\r\nurl = http://example.com\r\n\r\n[imp-ftp]\r\ntype = ftp\r\n"
+	res, err := ImportConfigData([]byte(conf))
+	require.NoError(t, err)
+	assert.Equal(t, []string{"imp-nas", "imp-dav"}, res.Imported, "a file with Windows line endings reads the same")
+	assert.Equal(t, []string{"imp-ftp (ftp)"}, res.Skipped)
+	assert.Empty(t, res.Replaced, "nothing was there before")
+
+	res, err = ImportConfigData([]byte("[imp-nas]\ntype = smb\nhost = other.local\n"))
+	require.NoError(t, err)
+	assert.Equal(t, []string{"imp-nas"}, res.Imported)
+	assert.Equal(t, []string{"imp-nas"}, res.Replaced, "the old settings of imp-nas are gone")
+	var names []string
+	for _, r := range ListRemotes() {
+		names = append(names, r.Name)
+	}
+	assert.Subset(t, names, []string{"imp-nas", "imp-dav"}) // rclone's config is shared by the tests of this package
+
+	res, err = ImportConfigData([]byte("[bucket]\ntype = s3\n"))
+	require.NoError(t, err)
+	assert.Empty(t, res.Imported, "nothing of a supported kind")
+	assert.Equal(t, []string{"bucket (s3)"}, res.Skipped)
+	res, err = ImportConfigData([]byte("not an rclone.conf at all"))
+	require.NoError(t, err)
+	assert.Empty(t, res.Imported)
+	_, err = ImportConfigData([]byte("RCLONE_ENCRYPT_V0:\nabc"))
+	require.ErrorContains(t, err, "encrypted")
+}
+
 func TestProvidersMatchSupported(t *testing.T) {
 	var got []string
 	for _, p := range Providers() {

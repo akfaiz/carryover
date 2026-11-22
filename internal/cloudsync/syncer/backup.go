@@ -17,6 +17,7 @@ import (
 	"time"
 
 	"github.com/akfaiz/carryover/internal/cloudsync/cloud"
+	"github.com/akfaiz/carryover/internal/cloudsync/localfs"
 )
 
 // Backups live in games/<id>/backups/<time>_<device>_<kind>.zip, holding
@@ -97,7 +98,7 @@ func localEntries(job Job, m *Manifest) []zipEntry {
 	var entries []zipEntry
 	for _, s := range job.Slots {
 		for rel, f := range slotFiles(m, s.Key, nil) {
-			entries = append(entries, zipEntry{name: s.Key + "/" + rel, src: filepath.Join(s.LocalPath, filepath.FromSlash(rel)), modTime: f.ModTime})
+			entries = append(entries, zipEntry{name: s.Key + "/" + rel, src: localfs.Join(s.LocalPath, rel), modTime: f.ModTime})
 		}
 	}
 	sort.Slice(entries, func(i, j int) bool { return entries[i].name < entries[j].name })
@@ -159,7 +160,7 @@ func writeZip(dst string, entries []zipEntry, m *Manifest) (err error) {
 }
 
 func addZipFile(zw *zip.Writer, en zipEntry) error {
-	src, err := os.Open(en.src)
+	src, err := localfs.Open(en.src)
 	if err != nil {
 		return err
 	}
@@ -504,7 +505,7 @@ func restoreZipFile(ctx context.Context, job Job, path string, local *Manifest) 
 			if !filepath.IsLocal(filepath.FromSlash(rel)) {
 				return fmt.Errorf("backup contains an unsafe path: %s", zf.Name)
 			}
-			if err := extractFile(zf, filepath.Join(s.LocalPath, filepath.FromSlash(rel))); err != nil {
+			if err := extractFile(zf, localfs.Join(s.LocalPath, rel)); err != nil {
 				return fmt.Errorf("restore %s: %w", zf.Name, err)
 			}
 			inBackup[rel] = true
@@ -517,6 +518,9 @@ func restoreZipFile(ctx context.Context, job Job, path string, local *Manifest) 
 }
 
 func extractFile(zf *zip.File, dst string) error {
+	if localfs.IsFS(dst) {
+		return extractFS(zf, dst)
+	}
 	if err := os.MkdirAll(filepath.Dir(dst), 0o755); err != nil {
 		return err
 	}
@@ -549,10 +553,32 @@ func extractFile(zf *zip.File, dst string) error {
 	return nil
 }
 
+// extractFS is extractFile for a save folder without a file path (localfs):
+// the file is written in place, as such folders have no reliable rename, and
+// keeps the time it was written, as their modification times can't be set.
+// A restore that fails halfway can be undone from the safety copy or backup
+// taken before it.
+func extractFS(zf *zip.File, dst string) error {
+	r, err := zf.Open()
+	if err != nil {
+		return err
+	}
+	defer r.Close()
+	w, err := localfs.Create(dst)
+	if err != nil {
+		return err
+	}
+	if _, err := io.Copy(w, r); err != nil {
+		_ = w.Close()
+		return err
+	}
+	return w.Close()
+}
+
 // restoreFolder restores an older folder backup.
 func (e *Engine) restoreFolder(ctx context.Context, job Job, name string, local *Manifest) error {
 	for _, s := range job.Slots {
-		if err := os.MkdirAll(s.LocalPath, 0o755); err != nil {
+		if err := localfs.MkdirAll(s.LocalPath); err != nil {
 			return err
 		}
 		flt, err := s.Filters.NewFilter()
@@ -590,7 +616,7 @@ func removeMissing(s Slot, local *Manifest, keep map[string]bool) error {
 		if keep[rel] {
 			continue
 		}
-		if err := os.Remove(filepath.Join(s.LocalPath, filepath.FromSlash(rel))); err != nil && !errors.Is(err, os.ErrNotExist) {
+		if err := localfs.Remove(localfs.Join(s.LocalPath, rel)); err != nil && !errors.Is(err, os.ErrNotExist) {
 			return err
 		}
 	}

@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"strings"
 	"time"
 
 	"github.com/akfaiz/carryover/internal/cloudsync/cloud"
@@ -88,6 +89,15 @@ func (s *CloudService) DefaultRcloneConfig() string {
 		}
 	}
 	return ""
+}
+
+// ImportConfigData imports remotes of supported providers from the contents of
+// an rclone.conf (the Android app has no file path to give).
+func (s *CloudService) ImportConfigData(contents string) (cloud.ImportResult, error) {
+	if strings.TrimSpace(contents) == "" {
+		return cloud.ImportResult{}, errors.New("the file is empty")
+	}
+	return cloud.ImportConfigData([]byte(contents))
 }
 
 // ImportConfig imports remotes of supported providers from an rclone.conf.

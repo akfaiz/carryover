@@ -17,9 +17,10 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
-	"os"
-	"path/filepath"
+	"io"
 	"strings"
+
+	"github.com/akfaiz/carryover/internal/cloudsync/localfs"
 )
 
 // DeviceProfile is the folder name of the device save, shared by all profiles.
@@ -31,15 +32,20 @@ const (
 	maxProfiles    = 8
 )
 
-// SaveRoot is the folder that holds the profile folders.
-func SaveRoot(dataDir string) string {
-	return filepath.Join(dataDir, "nand", "user", "save", "0000000000000000")
-}
+// SaveRoot is the folder that holds the profile folders. dataDir may be a
+// folder without a file path (a Storage Access Framework folder on Android):
+// every read here goes through localfs.
+func SaveRoot(dataDir string) string { return localfs.Join(dataDir, SaveRootRel) }
+
+// SaveRootRel and ProfilesRel are SaveRoot and the profiles file relative to
+// the data folder, '/'-separated (for data folders without a file path).
+const (
+	SaveRootRel = "nand/user/save/0000000000000000"
+	ProfilesRel = "nand/system/save/8000000000000010/su/avators/profiles.dat"
+)
 
 // profilesFile is the emulator's list of user profiles.
-func profilesFile(dataDir string) string {
-	return filepath.Join(dataDir, "nand", "system", "save", "8000000000000010", "su", "avators", "profiles.dat")
-}
+func profilesFile(dataDir string) string { return localfs.Join(dataDir, ProfilesRel) }
 
 // ParseProfiles returns the profile IDs in a profiles.dat, as the names of
 // their save folders (32 upper-case hex digits). The file stores each ID
@@ -90,7 +96,12 @@ func allZero(b []byte) bool {
 
 // ProfileIDs lists the user profiles of the emulator in dataDir.
 func ProfileIDs(dataDir string) ([]string, error) {
-	b, err := os.ReadFile(profilesFile(dataDir))
+	r, err := localfs.Open(profilesFile(dataDir))
+	if err != nil {
+		return nil, fmt.Errorf("read the emulator's profiles: %w", err)
+	}
+	defer r.Close()
+	b, err := io.ReadAll(r)
 	if err != nil {
 		return nil, fmt.Errorf("read the emulator's profiles: %w", err)
 	}
@@ -108,23 +119,24 @@ func IsProfileID(s string) bool {
 
 // TitleDir is the folder holding a game's save of one profile.
 func TitleDir(dataDir, profileID, titleID string) string {
-	return filepath.Join(SaveRoot(dataDir), strings.ToUpper(profileID), strings.ToUpper(titleID))
+	return localfs.Join(SaveRoot(dataDir), strings.ToUpper(profileID)+"/"+strings.ToUpper(titleID))
 }
 
 // Saves lists the profile folders under the save root that hold a save of the
 // game, device save (DeviceProfile) included.
 func Saves(dataDir, titleID string) []string {
-	entries, err := os.ReadDir(SaveRoot(dataDir))
+	root := SaveRoot(dataDir)
+	entries, err := localfs.ReadDir(root)
 	if err != nil {
 		return nil
 	}
 	var out []string
 	for _, e := range entries {
-		if !e.IsDir() || !IsProfileID(e.Name()) {
+		if !e.Dir || !IsProfileID(e.Name) {
 			continue
 		}
-		if st, err := os.Stat(filepath.Join(SaveRoot(dataDir), e.Name(), strings.ToUpper(titleID))); err == nil && st.IsDir() {
-			out = append(out, strings.ToUpper(e.Name()))
+		if st, err := localfs.Stat(localfs.Join(root, e.Name+"/"+strings.ToUpper(titleID))); err == nil && st.Dir {
+			out = append(out, strings.ToUpper(e.Name))
 		}
 	}
 	return out

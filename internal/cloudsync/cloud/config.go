@@ -262,17 +262,26 @@ func ContinueRemote(ctx context.Context, name, state, result string) (*Question,
 type ImportResult struct {
 	Imported []string `json:"imported"`
 	Skipped  []string `json:"skipped"` // "name (type)" of unsupported provider types
+	// Replaced are the imported remotes that were there already: their old
+	// settings are gone.
+	Replaced []string `json:"replaced"`
 }
 
 // ImportConfig copies remotes of supported provider types from an existing
 // rclone.conf into Carryover's config. Existing remotes with the same name are
 // overwritten; remotes of other types are skipped.
 func ImportConfig(path string) (ImportResult, error) {
-	res := ImportResult{Imported: []string{}, Skipped: []string{}}
 	b, err := os.ReadFile(path)
 	if err != nil {
-		return res, err
+		return ImportResult{Imported: []string{}, Skipped: []string{}, Replaced: []string{}}, err
 	}
+	return ImportConfigData(b)
+}
+
+// ImportConfigData is ImportConfig for the contents of an rclone.conf, for
+// when there is no file to read (Android hands over what the user picked).
+func ImportConfigData(b []byte) (ImportResult, error) {
+	res := ImportResult{Imported: []string{}, Skipped: []string{}, Replaced: []string{}}
 	if strings.HasPrefix(strings.TrimSpace(string(b)), "RCLONE_ENCRYPT_V0") {
 		return res, errors.New("encrypted rclone configs are not supported; decrypt it first (rclone config encryption remove)")
 	}
@@ -290,6 +299,9 @@ func ImportConfig(path string) (ImportResult, error) {
 		if !IsSupported(typ) {
 			res.Skipped = append(res.Skipped, fmt.Sprintf("%s (%s)", sec.name, typ))
 			continue
+		}
+		if data.HasSection(sec.name) {
+			res.Replaced = append(res.Replaced, sec.name)
 		}
 		data.DeleteSection(sec.name)
 		cache.Clear()
