@@ -57,6 +57,36 @@ func TestImportConfigDataReplacesAndSaysSo(t *testing.T) {
 	require.ErrorContains(t, err, "encrypted")
 }
 
+// A sign-in that never finished leaves an OAuth remote with no token: it is listed
+// as incomplete, and only such a remote is dropped.
+func TestUnfinishedSignInIsFlaggedAndDropped(t *testing.T) {
+	require.NoError(t, Init(filepath.Join(t.TempDir(), "rclone.conf")))
+	conf := "[un-dbx]\ntype = dropbox\n\n" +
+		"[un-dbx-ok]\ntype = dropbox\ntoken = {\"access_token\":\"x\"}\n\n" +
+		"[un-nas]\ntype = smb\nhost = nas.local\n"
+	_, err := ImportConfigData([]byte(conf))
+	require.NoError(t, err)
+
+	incomplete := map[string]bool{}
+	for _, r := range ListRemotes() {
+		incomplete[r.Name] = r.Incomplete
+	}
+	assert.True(t, incomplete["un-dbx"], "OAuth remote without a token")
+	assert.False(t, incomplete["un-dbx-ok"], "has a token")
+	assert.False(t, incomplete["un-nas"], "not an OAuth remote, so no token is expected")
+
+	assert.False(t, DropUnfinished("un-dbx-ok"), "a signed-in remote stays")
+	assert.False(t, DropUnfinished("un-nas"), "so does one that needs no token")
+	assert.False(t, DropUnfinished("un-missing"))
+	assert.True(t, DropUnfinished("un-dbx"))
+	names := map[string]bool{}
+	for _, r := range ListRemotes() {
+		names[r.Name] = true
+	}
+	assert.False(t, names["un-dbx"], "dropped")
+	assert.True(t, names["un-dbx-ok"] && names["un-nas"])
+}
+
 func TestProvidersMatchSupported(t *testing.T) {
 	var got []string
 	for _, p := range Providers() {

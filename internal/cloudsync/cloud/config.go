@@ -69,6 +69,19 @@ type Remote struct {
 	Type string `json:"type"`
 	// Supported is false for remotes of a provider type Carryover doesn't include.
 	Supported bool `json:"supported"`
+	// Incomplete is true for an OAuth remote that has no token: its sign-in never
+	// finished (rclone writes the remote when the sign-in starts), so it can't be used.
+	Incomplete bool `json:"incomplete,omitempty"`
+}
+
+// unfinished reports whether the remote is an OAuth remote with no token.
+// configMu must be held.
+func unfinished(name, typ string) bool {
+	if !usesOAuth(typ) {
+		return false
+	}
+	tok, _ := config.FileGetValue(name, "token")
+	return strings.TrimSpace(tok) == ""
 }
 
 // ListRemotes returns the remotes in Carryover's rclone config.
@@ -78,7 +91,7 @@ func ListRemotes() []Remote {
 	var out []Remote
 	for _, name := range config.GetRemoteNames() {
 		t, _ := config.FileGetValue(name, "type")
-		out = append(out, Remote{Name: name, Type: t, Supported: IsSupported(t)})
+		out = append(out, Remote{Name: name, Type: t, Supported: IsSupported(t), Incomplete: unfinished(name, t)})
 	}
 	sort.Slice(out, func(i, j int) bool { return out[i].Name < out[j].Name })
 	return out
@@ -90,6 +103,21 @@ func DeleteRemote(name string) {
 	defer configMu.Unlock()
 	config.DeleteRemote(name)
 	cache.Clear()
+}
+
+// DropUnfinished removes the remote if it is an OAuth remote whose sign-in never
+// produced a token (a sign-in that was cancelled or failed), and reports whether
+// it did. A remote with a token, or of another kind, is never touched.
+func DropUnfinished(name string) bool {
+	configMu.Lock()
+	defer configMu.Unlock()
+	typ, ok := config.FileGetValue(name, "type")
+	if !ok || !unfinished(name, typ) {
+		return false
+	}
+	config.DeleteRemote(name)
+	cache.Clear()
+	return true
 }
 
 // ProviderOption is a backend option shown in the setup form.

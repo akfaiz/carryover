@@ -38,6 +38,11 @@ class CloudViewModel(private val services: AppServices = AppServices.shared) : V
     suspend fun continueRemote(name: String, state: String, answer: String): Question =
         core.continueRemote(name, state, answer)
 
+    /** Gives up waiting for the browser sign-in: the step that waits for it fails and its account is dropped. */
+    fun cancelSignIn() {
+        viewModelScope.launch { runCatching { core.cancelSignIn() } }
+    }
+
     /**
      * Copies the accounts of the supported kinds from the contents of an rclone.conf the user picked, and says what
      * happened in one message: how many, which ones replaced an account of the same name, which were left out.

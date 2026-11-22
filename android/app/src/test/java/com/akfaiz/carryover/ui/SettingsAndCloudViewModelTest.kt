@@ -4,6 +4,7 @@ import com.akfaiz.carryover.R
 import com.akfaiz.carryover.core.ImportResult
 import com.akfaiz.carryover.core.Provider
 import com.akfaiz.carryover.core.Question
+import com.akfaiz.carryover.core.Remote
 import kotlinx.coroutines.runBlocking
 import org.junit.After
 import org.junit.Assert.assertEquals
@@ -337,6 +338,20 @@ class SettingsAndCloudViewModelTest {
         vm.continueRemote("gdrive", "s1", "answer")
         assertTrue("createRemote gdrive|drive|scope=drive" in h.core.calls)
         assertTrue("continueRemote gdrive|s1|answer" in h.core.calls)
+    }
+
+    @Test
+    fun givingUpOnTheBrowserSignInGoesToTheCore() {
+        cloud().cancelSignIn()
+        assertTrue("cancelSignIn" in h.core.calls)
+    }
+
+    @Test
+    fun anAccountWhoseSignInNeverFinishedIsFlagged() {
+        val remotes = kotlinx.serialization.json.Json { ignoreUnknownKeys = true }
+            .decodeFromString<List<Remote>>("""[{"name":"a","type":"dropbox","supported":true,"incomplete":true},{"name":"b","type":"smb","supported":true}]""")
+        assertTrue(remotes[0].incomplete)
+        assertFalse("the field is left out when false", remotes[1].incomplete)
     }
 
     @Test

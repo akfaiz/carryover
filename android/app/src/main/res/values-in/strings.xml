@@ -283,6 +283,7 @@
     <string name="cloud_intro">Pakai akun cloud dan folder yang sama dengan perangkat Anda yang lain, agar semuanya berbagi satu pustaka dan save yang sama.</string>
     <string name="cloud_accounts">Akun cloud</string>
     <string name="cloud_none">Belum ada.</string>
+    <string name="cloud_signin_unfinished">Proses masuk belum selesai. Hapus lalu tambahkan akunnya lagi.</string>
     <string name="action_delete_remote">Hapus %1$s</string>
     <string name="action_add_account">Tambah akun cloud</string>
     <string name="cloud_folder">Folder di cloud</string>

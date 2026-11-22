@@ -252,6 +252,19 @@ also the app icon's long-press shortcuts (`LaunchActivity.pushRecent`).
   device's `profiles.dat` (read through `localfs`, so a granted folder works), so the profile ID never enters the
   cloud layout.
 
+## Signing in to a cloud
+
+Settings → Cloud → **Add a cloud account** runs rclone's OAuth flow: the core listens on `127.0.0.1:53682`, the app opens
+the browser at that address (it forwards to the provider), and the provider's redirect comes back to the same port.
+
+- rclone asks first whether to use a web browser; the core answers yes itself (`mobile.answerBrowser`), so the browser
+  opens right after **Connect**.
+- While the app waits there is a **Cancel** button (`mobile.CancelSignIn` → `CloudService.CancelSignIn`). It ends the
+  wait, frees the port and drops the account the flow had begun.
+- rclone writes the remote when the flow starts, so a sign-in that was abandoned (the app was closed, the browser never
+  got back) leaves an account with no token. `cloud.Remote.Incomplete` flags it: the Cloud page shows it as "Sign-in
+  not finished", can't select it, and only offers Delete.
+
 ## Cloud accounts from an rclone.conf
 
 Signing in to a cloud on a phone is clumsy, so Settings → Cloud → **Import from an rclone.conf file** copies the
