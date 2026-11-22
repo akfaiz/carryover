@@ -178,6 +178,10 @@ object Core : CoreApi {
         Mobile.removeGameEmulator(gameId, emulatorId).decode()
     }
 
+    override suspend fun setSlots(key: String, slots: List<SaveSlot>): GameView = io {
+        Mobile.setSlots(key, json.encodeToString(slots)).decode()
+    }
+
     /** A game's name from its game file's name. */
     override suspend fun guessRomName(emulatorId: String, fileName: String): String = io { Mobile.guessRomName(emulatorId, fileName) }
 

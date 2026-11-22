@@ -42,6 +42,7 @@ import com.akfaiz.carryover.core.EmulatorPresets
 import com.akfaiz.carryover.core.EmulatorView
 import com.akfaiz.carryover.core.GameView
 import com.akfaiz.carryover.core.ProfileView
+import com.akfaiz.carryover.core.SaveSlot
 
 /**
  * Edits a game for every device: its name, and the emulators it is played
@@ -80,6 +81,7 @@ fun EditGameScreen(id: String, state: UiState, vm: AppViewModel, nav: Nav) {
             ) {
                 NameCard(game, vm)
                 EmulatorsCard(game, state, vm)
+                SlotsCards(game, state, vm)
             }
         }
     }
@@ -182,6 +184,137 @@ private fun EmulatorsCard(g: GameView, state: UiState, vm: AppViewModel) {
             },
         )
     }
+}
+
+/** One way a game's saves are kept, as the slot editor sees it: [shareWith] is the emulator whose saves it uses. */
+private class SlotProfile(val key: String, val name: String?, val slots: List<SaveSlot>, val shareWith: String)
+
+/**
+ * The save locations of each profile that plays here, such as a game's saves and
+ * its save states: add one, rename one, or remove one. They are the game's on
+ * every device (each device chooses its own folder for them on the game's
+ * page); a removed one only stops syncing, its cloud files stay. A profile that
+ * uses another emulator's saves has no locations of its own to change.
+ */
+@Composable
+private fun SlotsCards(g: GameView, state: UiState, vm: AppViewModel) {
+    val byId = state.emulators.associateBy { it.id }
+    val own = g.slots.isNotEmpty() && (g.hasDevice || g.device.paths.values.any { it.isNotBlank() } || g.device.exe.isNotBlank())
+    val profiles = buildList {
+        if (own) add(SlotProfile(g.id, null, g.slots, ""))
+        for (p in g.emulators) {
+            if (byId[p.emulatorId]?.let(EmulatorPresets::onAndroid) == true) add(SlotProfile(p.key, p.name, p.slots, p.shareWith))
+        }
+    }
+    val names = g.emulators.associate { it.emulatorId to it.name }
+    for (p in profiles) {
+        SlotsCard(p, names[p.shareWith] ?: p.shareWith, vm)
+    }
+}
+
+@Composable
+private fun SlotsCard(p: SlotProfile, sharedName: String, vm: AppViewModel) {
+    // The slot being renamed, "" for a new one; null while no dialog is open.
+    var naming by remember { mutableStateOf<String?>(null) }
+    var removing by remember { mutableStateOf<SaveSlot?>(null) }
+    val title = p.name?.let { stringResource(R.string.edit_slots_for, it) } ?: stringResource(R.string.edit_slots_title)
+
+    SectionCard(title) {
+        if (p.shareWith.isNotEmpty()) {
+            Text(
+                stringResource(R.string.edit_slots_shared, p.name.orEmpty(), sharedName),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(horizontal = 16.dp),
+            )
+            return@SectionCard
+        }
+        for (sl in p.slots) {
+            SettingRow(
+                icon = null,
+                title = sl.title,
+                onClick = { naming = sl.key },
+                // The last one stays: a profile with no location has nothing to sync.
+                trailing = if (p.slots.size > 1) {
+                    {
+                        IconButton(onClick = { removing = sl }) {
+                            Icon(Icons.Outlined.Delete, contentDescription = stringResource(R.string.action_remove))
+                        }
+                    }
+                } else {
+                    null
+                },
+            )
+        }
+        OutlinedButton(onClick = { naming = "" }) {
+            Icon(Icons.Filled.Add, null)
+            Text(stringResource(R.string.action_add_slot), Modifier.padding(start = 8.dp))
+        }
+    }
+
+    naming?.let { key ->
+        val current = p.slots.firstOrNull { it.key == key }
+        SlotNameDialog(
+            title = stringResource(if (current == null) R.string.edit_slot_new else R.string.edit_slot_rename),
+            initial = current?.label?.ifBlank { current.key }.orEmpty(),
+            onDismiss = { naming = null },
+        ) { label ->
+            naming = null
+            // Existing slots go back with their keys and filters, a new one with no key.
+            val next = if (current == null) {
+                p.slots + SaveSlot(label = label)
+            } else {
+                p.slots.map { if (it.key == key) it.copy(label = label) else it }
+            }
+            vm.setSlots(p.key, next)
+        }
+    }
+    removing?.let { sl ->
+        AlertDialog(
+            onDismissRequest = { removing = null },
+            title = { Text(stringResource(R.string.edit_slot_remove_title, sl.title)) },
+            text = { Text(stringResource(R.string.edit_slot_remove_text, sl.title)) },
+            confirmButton = {
+                TextButton(onClick = {
+                    removing = null
+                    vm.setSlots(p.key, p.slots.filter { it.key != sl.key })
+                }) { Text(stringResource(R.string.action_remove)) }
+            },
+            dismissButton = { TextButton(onClick = { removing = null }) { Text(stringResource(R.string.action_cancel)) } },
+        )
+    }
+}
+
+/** Asks for a save location's name. */
+@Composable
+private fun SlotNameDialog(title: String, initial: String, onDismiss: () -> Unit, onSave: (String) -> Unit) {
+    var name by rememberSaveable { mutableStateOf(initial) }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(title) },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                OutlinedTextField(
+                    name,
+                    { name = it },
+                    singleLine = true,
+                    label = { Text(stringResource(R.string.field_name)) },
+                    modifier = Modifier.fillMaxWidth().dpadExit(),
+                )
+                Text(
+                    stringResource(R.string.edit_slot_hint),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = { onSave(name.trim()) }, enabled = name.isNotBlank() && name.trim() != initial) {
+                Text(stringResource(R.string.action_save))
+            }
+        },
+        dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.action_cancel)) } },
+    )
 }
 
 /**

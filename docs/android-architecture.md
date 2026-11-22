@@ -145,6 +145,21 @@ Without a template or a game file, the emulator opens and the user picks the gam
   device's `profiles.dat` (read through `localfs`, so a granted folder works), so the profile ID never enters the
   cloud layout.
 
+## Save locations (slots)
+
+A profile (a game's own saves, or an emulator's) can keep several save locations, such as a game's saves and its save
+states. They are `SaveSlot`s, shared by every device; each device sets its own folder per slot on the game's page.
+A game added on Android starts with one slot (`saves`); **Edit game → Save locations** adds, renames and removes
+slots (`mobile.SetSlots`):
+
+- A slot's key names its cloud folder, so it never changes: an existing slot only changes its label (and keeps its
+  filters). A new slot's key is made from its label (`Save states` → `save-states`, numbered if taken).
+- Removing a slot drops it from the profile and this device's folder for it; its files in the cloud stay. The last
+  slot can't be removed.
+- A profile that uses another emulator's saves (`ShareWith`) has no slots of its own: change them on the emulator it
+  shares with.
+- Refused while the profile is being played (`core.ErrPlaying`).
+
 ## Signing in to a cloud
 
 Settings → Cloud → **Add a cloud account** runs rclone's OAuth flow: the core listens on `127.0.0.1:53682`, the app opens

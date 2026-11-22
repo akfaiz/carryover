@@ -195,6 +195,16 @@
     <string name="edit_remove_text">Di semua perangkat, %1$s tidak lagi memainkan game ini. Save di cloud tetap ada.</string>
     <string name="edit_remove_shared">%1$s memakai save-nya: hapus %1$s terlebih dahulu.</string>
     <string name="edit_remove_last">Ini satu-satunya emulator game ini, jadi tetap ada.</string>
+    <string name="edit_slots_title">Lokasi save</string>
+    <string name="edit_slots_for">Lokasi save: %1$s</string>
+    <string name="edit_slots_shared">%1$s memakai save %2$s: ubah lokasinya di sana.</string>
+    <string name="action_add_slot">Tambah lokasi save</string>
+    <string name="edit_slot_new">Lokasi save baru</string>
+    <string name="edit_slot_rename">Ganti nama lokasi save</string>
+    <string name="edit_slot_hint">Contoh: \"Save state\". Tiap perangkat memilih foldernya sendiri di halaman game.</string>
+    <string name="edit_slot_remove_title">Hapus %1$s?</string>
+    <string name="edit_slot_remove_text">Di semua perangkat, %1$s tidak lagi disinkronkan. File yang sudah ada di cloud tetap ada.</string>
+    <string name="msg_slots_saved">Lokasi save diubah</string>
     <string name="msg_game_renamed">Nama diganti</string>
     <string name="msg_game_emulator_added">%1$s ditambahkan</string>
     <string name="msg_game_emulator_removed">%1$s dihapus dari game</string>

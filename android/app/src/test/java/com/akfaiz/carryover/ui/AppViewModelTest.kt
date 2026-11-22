@@ -11,6 +11,7 @@ import com.akfaiz.carryover.core.Prompt
 import com.akfaiz.carryover.core.PromptKind
 import com.akfaiz.carryover.core.ProfileView
 import com.akfaiz.carryover.core.Resolution
+import com.akfaiz.carryover.core.SaveSlot
 import com.akfaiz.carryover.core.SessionStatus
 import com.akfaiz.carryover.core.Settings
 import com.akfaiz.carryover.core.SyncAction
@@ -548,6 +549,21 @@ class AppViewModelTest {
             listOf(h.text(R.string.msg_game_renamed), h.text(R.string.msg_game_emulator_added, "Eden"), h.text(R.string.msg_game_emulator_removed, "Eden")),
             h.said,
         )
+    }
+
+    @Test
+    fun saveLocationsAreSetOnTheCore() {
+        val vm = viewModel()
+        vm.setSlots("g.eden", listOf(SaveSlot(key = "saves", label = "Saves"), SaveSlot(label = "Save states")))
+        assertTrue("setSlots g.eden|saves=Saves,=Save states" in h.core.calls)
+        assertEquals(listOf(h.text(R.string.msg_slots_saved)), h.said)
+    }
+
+    @Test
+    fun aFailedSaveLocationChangeSaysWhy() {
+        h.core.failing += "setSlots"
+        viewModel().setSlots("g", listOf(SaveSlot(label = "x")))
+        assertEquals(listOf(error(R.string.err_edit_game, "setSlots failed")), h.said)
     }
 
     @Test
