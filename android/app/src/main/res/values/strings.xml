@@ -243,6 +243,10 @@
     <string name="emulator_remove_text">Carryover forgets which app %1$s is on this device and its data folder here. The emulator, its setup on your other devices, your games and their cloud saves stay.</string>
     <string name="preset_note_retroarch">Replace CORE with the core\'s name, such as snes9x or mgba.</string>
     <string name="preset_note_lemon">Choose the game file with Browse: Lemon opens a game given as a content:// file.</string>
+    <string name="saves_note_provider">The emulator\'s own files appear in the folder picker under its name (open the menu in the picker\'s corner). Choose its save folder there.</string>
+    <string name="saves_note_picked">Choose the folder you picked as the emulator\'s user folder.</string>
+    <string name="saves_note_ppsspp">Until you pick a PSP folder in PPSSPP, it keeps saves in Android/data, which Carryover cannot reach. In PPSSPP open Settings → System → PSP Memory Stick → Memory Stick folder, choose a folder, then choose that folder here.</string>
+    <string name="saves_note_scummvm">ScummVM keeps saves in its private folder, which Carryover cannot reach. In ScummVM open Paths, set the Save path to a folder you choose and move your old saves there, then choose that folder here.</string>
     <plurals name="emulator_games">
         <item quantity="one">%1$d game</item>
         <item quantity="other">%1$d games</item>

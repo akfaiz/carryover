@@ -378,5 +378,11 @@ same as **Sync all**: it also downloads saves that changed on another device, an
 
 - Games started outside Carryover aren't synced before or after, apart from the optional background sync.
 - `Android/data` folders are reachable only through an emulator's own picker entry (no Shizuku or root).
+  So an emulator is a preset (`EmulatorPresets`) only if its saves can be reached: it publishes a documents provider
+  (Eden, Dolphin, RetroArch, Vita3K) or keeps them in a folder you pick (PPSSPP, Azahar, melonDS, ScummVM). NetherSX2 /
+  AetherSX2 and DuckStation keep theirs in `Android/data` with no provider, so they are not offered (one already set up
+  on a device still works as far as it can). PPSSPP and ScummVM fall back to `Android/data` until you pick a folder in
+  the emulator; an emulator's page (Data folder card) and a game's profile (Save folders) say so, and how to reach the
+  saves (`EmulatorPreset.savesNote`). Not checked against the app: Lemon, Citron and yuzu (assumed to share Eden's provider).
 - Direct-start templates, emulators' picker entries and frontends' URI grants are not yet verified with every
   emulator and frontend.

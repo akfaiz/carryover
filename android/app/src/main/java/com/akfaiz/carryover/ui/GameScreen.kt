@@ -89,6 +89,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.akfaiz.carryover.R
+import com.akfaiz.carryover.core.EmulatorPresets
 import com.akfaiz.carryover.core.GameView
 import com.akfaiz.carryover.core.Profile
 import com.akfaiz.carryover.core.Resolution
@@ -462,6 +463,10 @@ private fun ProfileCard(g: GameView, p: Profile, state: UiState, vm: AppViewMode
         }
 
         Text(stringResource(R.string.game_save_folders), style = MaterialTheme.typography.labelLarge, modifier = Modifier.padding(top = 4.dp))
+        // Some emulators keep saves where Carryover can't reach until the user picks a folder in them.
+        EmulatorPresets.savesNote(state.emulators.firstOrNull { it.id == p.emulatorId }).takeIf { it != 0 }?.let {
+            Text(stringResource(it), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
         for (slot in p.slots) {
             val err = p.pathErrors[slot.key]
             val resolved = p.resolvedPaths[slot.key]
