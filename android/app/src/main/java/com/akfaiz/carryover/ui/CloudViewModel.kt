@@ -66,18 +66,21 @@ class CloudViewModel(private val services: AppServices = AppServices.shared) : V
     /** Says the file the user picked could not be read. */
     fun importUnreadable(e: Exception) = m.failed(m.str(R.string.err_import_config), e)
 
-    fun useCloud(remote: String, root: String) {
+    /** Syncs with [remote]:[root]; [done] gets whether it worked (the page stays open on a failure). */
+    fun useCloud(remote: String, root: String, done: (Boolean) -> Unit = {}) {
         viewModelScope.launch {
-            m.attempt(m.str(R.string.err_use_cloud, "$remote:$root")) {
+            val ok = m.attempt(m.str(R.string.err_use_cloud, "$remote:$root")) {
                 repo.useCloud(remote, root)
                 m.say(m.str(R.string.msg_cloud_connected))
-            }
+            } != null
+            done(ok)
         }
     }
 
     fun deleteRemote(name: String) {
         viewModelScope.launch {
-            m.attempt(m.str(R.string.err_delete_remote, name)) { repo.deleteRemote(name) }
+            val ok = m.attempt(m.str(R.string.err_delete_remote, name)) { repo.deleteRemote(name) } != null
+            if (ok) m.say(m.str(R.string.msg_remote_deleted, name))
             m.attempt(m.str(R.string.err_read_settings)) { repo.refresh() }
         }
     }

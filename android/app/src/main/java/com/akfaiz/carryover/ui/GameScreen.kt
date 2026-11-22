@@ -127,6 +127,10 @@ fun GameScreen(id: String, state: UiState, vm: AppViewModel, nav: Nav) {
                 }
                 if (profiles.isEmpty()) {
                     Text(stringResource(R.string.game_no_profiles), color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    OutlinedButton(onClick = { nav.go(Screen.EditGame(g.id)) }) {
+                        Icon(Icons.Outlined.Edit, null, Modifier.size(18.dp))
+                        Text(stringResource(R.string.edit_game), Modifier.padding(start = 8.dp))
+                    }
                 }
                 for (p in profiles) {
                     ProfileCard(g, p, state, vm, nav, ending)
@@ -185,7 +189,7 @@ private fun Header(g: GameView, badge: Badge, vm: AppViewModel, nav: Nav) {
                         containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.75f),
                         contentColor = MaterialTheme.colorScheme.onSurface,
                     ),
-                ) { Icon(Icons.Outlined.MoreVert, contentDescription = null) }
+                ) { Icon(Icons.Outlined.MoreVert, contentDescription = stringResource(R.string.action_more_options)) }
                 DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
                     DropdownMenuItem(
                         text = { Text(stringResource(R.string.edit_game)) },
@@ -267,8 +271,8 @@ private fun Header(g: GameView, badge: Badge, vm: AppViewModel, nav: Nav) {
                     .size(width = 104.dp, height = 156.dp)
                     .shadow(8.dp, shape)
                     .clip(shape)
-                    .border(1.dp, MaterialTheme.colorScheme.outlineVariant, shape)
-                    .clickable { pickCover.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)) },
+                    // Not a button: a stray tap while scrolling shouldn't open the photo picker (the ⋮ menu changes it).
+                    .border(1.dp, MaterialTheme.colorScheme.outlineVariant, shape),
             ) {
                 CoverImage(g, Modifier.fillMaxSize())
             }
@@ -320,10 +324,20 @@ private fun PlayRow(g: GameView, profiles: List<Profile>, state: UiState, vm: Ap
             val playable = profiles.filter { vm.launchSetup(it) != null }
             val only = profiles.singleOrNull()
             if (playable.isEmpty() && only == null) return
-            Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
-                if (playable.isNotEmpty()) PlayButton(g, playable, state, vm, Modifier.weight(1f))
-                if (only != null && only.canSync) {
-                    SyncButton(g, only, state, vm, if (playable.isEmpty()) Modifier.weight(1f) else Modifier)
+            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
+                    if (playable.isNotEmpty()) PlayButton(g, playable, state, vm, Modifier.weight(1f))
+                    if (only != null && only.canSync) {
+                        SyncButton(g, only, state, vm, if (playable.isEmpty()) Modifier.weight(1f) else Modifier)
+                    }
+                }
+                // Play waits for Sync all: say so rather than only greying it out.
+                if (playable.isNotEmpty() && state.syncAll != null) {
+                    Text(
+                        stringResource(R.string.play_wait_sync_all),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
                 }
             }
         }
@@ -481,7 +495,7 @@ private fun ProfileCard(g: GameView, p: Profile, state: UiState, vm: AppViewMode
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
             AnimatedVisibility(dirty) {
                 Button(onClick = { vm.setPaths(p.key, p.slots.associate { it.key to (edits[it.key] ?: "") }) }) {
-                    Text(stringResource(R.string.action_save_paths))
+                    Text(stringResource(R.string.action_save))
                 }
             }
             // Where the emulator keeps this game's saves, from its manifest (needs its type and data folder).

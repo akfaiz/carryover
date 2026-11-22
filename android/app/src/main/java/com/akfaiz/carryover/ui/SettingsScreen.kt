@@ -35,7 +35,7 @@ import androidx.compose.material.icons.outlined.Share
 import androidx.compose.material.icons.outlined.FolderOpen
 import androidx.compose.material.icons.outlined.Info
 import androidx.compose.material.icons.outlined.Language
-import androidx.compose.material.icons.outlined.Launch
+import androidx.compose.material.icons.automirrored.outlined.Launch
 import androidx.compose.material.icons.outlined.Notifications
 import androidx.compose.material.icons.outlined.Palette
 import androidx.compose.material.icons.outlined.PhoneAndroid
@@ -240,7 +240,7 @@ fun SettingsScreen(nav: Nav, vm: SettingsViewModel = viewModel()) {
                         onClick = { naming = true },
                     )
                     SettingRow(
-                        Icons.Outlined.Launch,
+                        Icons.AutoMirrored.Outlined.Launch,
                         stringResource(R.string.frontends_title),
                         stringResource(R.string.frontends_row_hint),
                         onClick = { nav.go(Screen.Frontends()) },

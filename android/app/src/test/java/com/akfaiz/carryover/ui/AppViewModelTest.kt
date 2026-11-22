@@ -61,6 +61,27 @@ class AppViewModelTest {
     }
 
     @Test
+    fun pullToRefreshMergesTheLibraryWithoutSyncingSaves() {
+        val vm = viewModel()
+        h.core.session.games = listOf(emulated("1", "Banjo"))
+        h.core.session.emulators = listOf(eden)
+        vm.refreshLibrary()
+        assertEquals(1, h.core.settingsCore.calls.count { it == "syncLibrary" })
+        assertEquals(listOf("Banjo"), vm.state.value.games.map { it.name })
+        assertFalse(vm.state.value.refreshingLibrary)
+        assertNull("no Sync all", vm.state.value.syncAll)
+    }
+
+    @Test
+    fun aFailedLibraryRefreshIsSaid() {
+        val vm = viewModel()
+        h.core.settingsCore.libraryError = IllegalStateException("offline")
+        vm.refreshLibrary()
+        assertEquals(listOf(h.text(R.string.msg_error, h.text(R.string.err_library_refresh), "offline")), h.said)
+        assertFalse(vm.state.value.refreshingLibrary)
+    }
+
+    @Test
     fun cloudReadyFollowsTheSettings() {
         h.core.settingsCore.settings = Settings(remote = "gdrive")
         val vm = viewModel()
@@ -442,7 +463,12 @@ class AppViewModelTest {
     fun anEmulatorSetupIsSavedWithItsPresetAndTrimmed() {
         val vm = viewModel()
         var done = 0
-        vm.saveEmulator("", " RetroArch ", " com.retroarch ", " -e ROM {rom} ", " /data ", done = { done++ })
+        var savedId = ""
+        vm.saveEmulator("", " RetroArch ", " com.retroarch ", " -e ROM {rom} ", " /data ", done = {
+            done++
+            savedId = it
+        })
+        assertEquals("the new emulator's id, to open its page", "new-emulator", savedId)
         val saved = h.core.savedEmulators.single()
         assertEquals("RetroArch", saved.name)
         assertEquals("com.retroarch", saved.exe)

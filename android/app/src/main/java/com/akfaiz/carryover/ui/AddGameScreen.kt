@@ -77,10 +77,15 @@ fun AddGameScreen(state: UiState, vm: AppViewModel, nav: Nav) {
         if (guess.isNotBlank()) name = guess
     }
 
-    val ready = name.isNotBlank() && when {
-        android -> app.isNotBlank() && savePath.isNotBlank()
-        else -> emulator.isNotEmpty()
+    // What is still missing, first in page order: said under Add instead of only greying it out.
+    val missing = when {
+        emulator.isEmpty() -> R.string.add_game_need_emulator
+        android && app.isBlank() -> R.string.add_game_need_app
+        name.isBlank() -> R.string.add_game_need_name
+        android && savePath.isBlank() -> R.string.add_game_need_folder
+        else -> null
     }
+    val ready = missing == null
     Scaffold(
         contentWindowInsets = LocalPageInsets.current,
         topBar = {
@@ -149,11 +154,18 @@ fun AddGameScreen(state: UiState, vm: AppViewModel, nav: Nav) {
                 }
 
                 SectionCard(stringResource(R.string.field_save_folder)) {
+                    if (android) {
+                        Text(
+                            stringResource(R.string.add_game_android_note),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
                     FolderField(
                         savePath,
                         { savePath = it },
                         stringResource(R.string.field_save_folder),
-                        supporting = if (android) null else stringResource(R.string.add_game_save_optional),
+                        supporting = stringResource(if (android) R.string.add_game_save_required else R.string.add_game_save_optional),
                     )
                 }
 
@@ -172,6 +184,14 @@ fun AddGameScreen(state: UiState, vm: AppViewModel, nav: Nav) {
                     enabled = ready,
                     modifier = Modifier.fillMaxWidth().height(52.dp),
                 ) { Text(stringResource(R.string.action_add)) }
+                missing?.let {
+                    Text(
+                        stringResource(it),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.align(Alignment.CenterHorizontally),
+                    )
+                }
             }
         }
     }

@@ -237,29 +237,33 @@ class SettingsAndCloudViewModelTest {
     @Test
     fun aCloudIsTestedSavedAndSaid() {
         val vm = cloud()
-        vm.useCloud("gdrive", "Carryover")
+        var ok: Boolean? = null
+        vm.useCloud("gdrive", "Carryover") { ok = it }
         assertEquals(listOf("test gdrive:Carryover", "update", "syncLibrary"), h.core.settingsCore.calls)
         assertTrue(vm.state.value.cloudReady)
         assertEquals(listOf(h.text(R.string.msg_cloud_connected)), h.said)
+        assertEquals("the page may close", true, ok)
     }
 
     @Test
     fun aCloudThatFailsTheTestIsSaidAndNotSaved() {
         h.core.settingsCore.testError = IllegalStateException("login expired")
         val vm = cloud()
-        vm.useCloud("gdrive", "Carryover")
+        var ok: Boolean? = null
+        vm.useCloud("gdrive", "Carryover") { ok = it }
         assertEquals(listOf(error(h.text(R.string.err_use_cloud, "gdrive:Carryover"), "login expired")), h.said)
         assertEquals(false, vm.state.value.cloudReady)
+        assertEquals("the page stays open", false, ok)
     }
 
     @Test
-    fun deletingAnAccountRefreshesTheList() {
+    fun deletingAnAccountRefreshesTheListAndSaysSo() {
         val vm = cloud()
         vm.refresh()
         vm.deleteRemote("gdrive")
         assertTrue("delete gdrive" in h.core.settingsCore.calls)
         assertEquals(emptyList<String>(), vm.state.value.remotes.map { it.name })
-        assertTrue(h.said.isEmpty())
+        assertEquals(listOf(h.text(R.string.msg_remote_deleted, "gdrive")), h.said)
     }
 
     @Test

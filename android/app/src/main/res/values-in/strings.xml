@@ -76,10 +76,10 @@
 
     <!-- Game -->
     <string name="game_missing">Game ini sudah tidak ada di pustaka.</string>
-    <string name="game_no_profiles">Game ini tidak punya lokasi save. Tambahkan di aplikasi desktop.</string>
+    <string name="game_no_profiles">Game ini belum dimainkan di perangkat ini. Tambahkan emulator yang sudah diatur di sini lewat Ubah game.</string>
     <string name="game_profile_own">Save game</string>
     <string name="game_save_folders">Folder save</string>
-    <string name="action_save_paths">Simpan path</string>
+    <string name="play_wait_sync_all">Anda bisa bermain setelah Sinkronkan semua selesai.</string>
     <string name="game_launch">Peluncuran</string>
     <string name="game_app_none">Belum ada aplikasi Android yang dipilih</string>
     <string name="game_app">Aplikasi Android: %1$s</string>
@@ -148,7 +148,7 @@
     <plurals name="msg_syncall_done">
         <item quantity="other">%1$d game disinkronkan</item>
     </plurals>
-    <string name="msg_paths_saved">Path save disimpan</string>
+    <string name="msg_paths_saved">Folder save diperbarui</string>
     <string name="msg_cloud_connected">Terhubung: pustaka sudah disinkronkan</string>
     <string name="msg_saved">Disimpan</string>
     <string name="msg_cover_changed">Sampul diganti</string>
@@ -161,7 +161,7 @@
     <string name="err_sync">Sinkronisasi %1$s gagal</string>
     <string name="err_sync_all">Sinkronkan semua gagal</string>
     <string name="err_add_game">Tidak dapat menambahkan game</string>
-    <string name="err_save_paths">Tidak dapat menyimpan path</string>
+    <string name="err_save_paths">Tidak dapat menyimpan folder</string>
     <string name="err_use_cloud">Tidak dapat memakai %1$s</string>
     <string name="err_delete_remote">Tidak dapat menghapus %1$s</string>
     <string name="err_save">Tidak dapat menyimpan</string>
@@ -177,12 +177,18 @@
     <string name="add_game_no_emulators">Belum ada emulator yang diatur di perangkat ini: pilih aplikasinya di tab Emulator terlebih dahulu.</string>
     <string name="add_game_rom_hint">File game yang dibuka emulator; namanya mengisi nama game.</string>
     <string name="add_game_save_optional">Opsional: Anda bisa memilihnya nanti di halaman game.</string>
+    <string name="add_game_save_required">Wajib: folder tempat game menyimpan save-nya.</string>
+    <string name="add_game_android_note">Banyak game Android menyimpan save di Android/data, yang tidak boleh dibuka aplikasi lain oleh Android. Carryover hanya dapat menyinkronkan game yang save-nya ada di folder yang bisa Anda pilih.</string>
+    <string name="add_game_need_emulator">Pilih cara game ini dimainkan.</string>
+    <string name="add_game_need_app">Pilih aplikasi game.</string>
+    <string name="add_game_need_name">Masukkan nama game.</string>
+    <string name="add_game_need_folder">Pilih folder save.</string>
 
     <!-- Edit a game -->
     <string name="edit_game">Ubah game</string>
     <string name="edit_played_with">Dimainkan dengan</string>
     <string name="edit_elsewhere">Hanya di perangkat Anda yang lain: %1$s</string>
-    <string name="edit_native">PC</string>
+    <string name="edit_native">Versi desktop</string>
     <string name="edit_shares">Memakai save %1$s</string>
     <string name="edit_add_title">Tambah emulator ke %1$s</string>
     <string name="edit_add_none">Semua emulator yang diatur di perangkat ini sudah memainkan game ini.</string>
@@ -231,12 +237,15 @@
     <string name="emulator_mode_open">Buka emulator; saya memilih game di sana</string>
     <string name="emulator_mode_direct">Mulai game langsung (perlu file game)</string>
     <string name="emulator_template">Template peluncuran</string>
-    <string name="emulator_template_hint">Opsi am start; {rom} adalah file game. Belum dicoba dengan semua emulator.</string>
+    <string name="emulator_template_hint">Opsi am start; {rom} adalah file game. Jika game tidak terbuka, coba \"Buka emulator\".</string>
     <string name="emulator_data_folder">Folder data</string>
     <string name="emulator_data_folder_optional">Folder data (opsional)</string>
     <string name="emulator_data_hint">Tempat emulator menyimpan file-nya</string>
     <string name="emulator_data_switch_hint">Diperlukan untuk mencari folder save Switch. Dengan Telusuri, pilih folder milik emulator itu sendiri (tercantum dengan namanya di menu pemilih).</string>
     <string name="action_remove_device">Hapus dari perangkat ini…</string>
+    <string name="emulator_danger_title">Hapus</string>
+    <string name="emulator_remove_hint">Melupakan aplikasi dan folder datanya di perangkat ini saja.</string>
+    <string name="emulator_delete_hint">Memindahkannya ke tempat sampah di semua perangkat Anda.</string>
     <string name="emulator_remove_title">Hapus %1$s dari perangkat ini?</string>
     <string name="emulator_remove_text">Carryover melupakan aplikasi %1$s di perangkat ini beserta folder datanya di sini. Emulator, pengaturannya di perangkat Anda yang lain, game Anda, dan save di cloud tetap ada.</string>
     <string name="preset_note_retroarch">Ganti CORE dengan nama core, misalnya snes9x atau mgba.</string>
@@ -263,7 +272,7 @@
     <string name="language_system">Ikuti sistem</string>
     <string name="section_permissions">Izin</string>
     <string name="section_sessions">Sesi bermain</string>
-    <string name="setting_grace">Keluar dari game mengakhiri sesinya setelah</string>
+    <string name="setting_grace">Jeda unggah setelah keluar dari game</string>
     <string name="setting_grace_hint">Berapa lama aplikasi lain boleh di depan sebelum save diunggah. Waktu lebih lama cocok untuk game yang sering Anda tinggalkan sebentar.</string>
     <string name="grace_seconds">%1$d detik</string>
     <string name="setting_background_sync">Sinkronisasi di latar belakang</string>
@@ -294,7 +303,12 @@
     <string name="cloud_accounts">Akun cloud</string>
     <string name="cloud_none">Belum ada.</string>
     <string name="cloud_signin_unfinished">Proses masuk belum selesai. Hapus lalu tambahkan akunnya lagi.</string>
+    <string name="cloud_in_use">Dipakai</string>
     <string name="action_delete_remote">Hapus %1$s</string>
+    <string name="dialog_delete_remote_title">Hapus %1$s?</string>
+    <string name="dialog_delete_remote_text">Carryover melupakan akun ini di perangkat ini. File Anda di cloud tetap ada, dan Anda bisa menambahkan akun ini lagi.</string>
+    <string name="dialog_delete_remote_active">Carryover menyinkronkan lewat akun ini: sampai Anda memilih akun lain, tidak ada yang disinkronkan di perangkat ini. File Anda di cloud tetap ada.</string>
+    <string name="msg_remote_deleted">%1$s dihapus</string>
     <string name="action_add_account">Tambah akun cloud</string>
     <string name="cloud_folder">Folder di cloud</string>
     <string name="cloud_folder_hint">Carryover menyimpan pustaka dan save di sini (bawaan: Carryover).</string>
@@ -327,7 +341,7 @@
     <string name="other_step">Aplikasi apa pun yang bisa menjalankan activity dengan extras bisa dipakai: kirim peluncuran yang biasanya dikirim ke emulator ke layar Carryover, dengan tambahan extra ini:</string>
     <string name="other_target">Extra-nya (carryover.target, berupa string):</string>
     <string name="other_adb">Contohnya, dari komputer dengan adb:</string>
-    <string name="frontends_untested">Pengaturan ini mengikuti sintaks resmi ES-DE dan Daijisho, tetapi belum dicoba dengan semua emulator.</string>
+    <string name="frontends_untested">Pengaturan ini mengikuti sintaks resmi ES-DE dan Daijisho. Jika game tidak terbuka, periksa template mulai emulator di halamannya.</string>
     <string name="frontends_bad_template">Template peluncuran %1$s tidak dapat dibaca: %2$s. Perbaiki di halaman emulatornya.</string>
     <string name="shortcuts_title">Pintasan layar utama</string>
     <string name="shortcuts_text">Buka sebuah game dan ketuk Tambahkan ke layar utama: pintasannya memainkan game itu seperti tombol Main.</string>
@@ -402,7 +416,7 @@
     <string name="action_delete_with_saves">Hapus beserta save cloud</string>
     <string name="dialog_delete_game_title">Hapus %1$s?</string>
     <string name="dialog_delete_game_text">Dipindahkan ke tempat sampah di semua perangkat Anda dan dapat dipulihkan selama %1$d hari. Save-nya di cloud tetap ada.</string>
-    <string name="dialog_delete_emulator_text">Dipindahkan ke tempat sampah di semua perangkat Anda. Game tetap memiliki profilnya (tidak dapat dijalankan dengannya sampai dipulihkan), dan dapat dipulihkan selama %1$d hari.</string>
+    <string name="dialog_delete_emulator_text">Dipindahkan ke tempat sampah di semua perangkat Anda dan dapat dipulihkan selama %1$d hari. Game-nya tetap menyimpan pengaturan untuknya, tetapi tidak dapat dimainkan dengannya sampai dipulihkan.</string>
     <string name="dialog_forever_title">Hapus %1$s secara permanen?</string>
     <string name="dialog_forever_text">Pengaturannya tidak dapat dipulihkan lagi. Bagaimana dengan save-nya di cloud?</string>
     <string name="dialog_forever_hint">Save yang Anda simpan dapat ditemukan lagi di \"Save cloud tanpa game\".</string>
@@ -505,7 +519,7 @@
     <string name="dialog_backups_text">Sebelum unduhan atau unggahan menimpa save, Carryover dapat menyimpan cadangannya di cloud. Sinkronisasi jadi lebih lambat karena cadangan ikut diunggah.</string>
     <string name="msg_backups_off">Cadangan cloud mati</string>
     <plurals name="msg_backups_on">
-        <item quantity="other">Cadangan cloud aktif: menyimpan %1$d terakhir</item>
+        <item quantity="other">Cadangan cloud aktif: menyimpan %1$d terakhir per game</item>
     </plurals>
     <string name="err_backups_setting">Tidak dapat menyimpan pengaturan</string>
     <string name="setting_share_library">Bagikan pustaka antar perangkat</string>
