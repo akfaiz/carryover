@@ -33,6 +33,8 @@ All notable changes to Carryover are listed here. The format follows
 
 ### Fixed
 
+- Restoring a leftover cloud save folder that no longer exists in the cloud (it was deleted from another
+  device after the list was read) no longer creates an empty "Recovered game".
 - "Browse…" opens at the folder of the path already set (an executable, game file or folder, with its tokens
   expanded, or the nearest folder of it that exists) instead of the last folder used anywhere; an empty data folder
   starts at the usual one shown.

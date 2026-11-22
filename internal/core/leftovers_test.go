@@ -151,6 +151,18 @@ func TestRestoreLeftoverRecreatesTheGame(t *testing.T) {
 	require.Error(t, err)
 }
 
+// A key whose folder is not in the cloud (a stale list: it was deleted from
+// another device) must not create an empty game.
+func TestRestoreLeftoverOfAFolderThatIsGone(t *testing.T) {
+	c, _, _, _ := newPlayable(t)
+	const key = "12345678-aaaa-bbbb-cccc-000000000000"
+
+	_, err := c.RestoreLeftover(context.Background(), key)
+	require.Error(t, err)
+	_, err = c.Library.GetAny(key)
+	require.ErrorIs(t, err, library.ErrNotFound, "no ghost game")
+}
+
 // A folder of a game the library never heard of gets a placeholder name, and
 // its slots come from the folders under current/ when there is no manifest.
 func TestRestoreLeftoverOfAnUnknownGame(t *testing.T) {

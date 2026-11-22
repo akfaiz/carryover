@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log"
 	"path"
+	"slices"
 	"sort"
 	"strings"
 	"time"
@@ -162,6 +163,12 @@ func (c *Core) RestoreLeftover(ctx context.Context, key string) (string, error) 
 	if !c.isLeftover(key) {
 		return "", errors.New("a game in the library uses these saves")
 	}
+	// A stale list (the folder was deleted from another device) must not create an empty game.
+	if there, err := c.cloudFolderExists(ctx, key); err != nil {
+		return "", err
+	} else if !there {
+		return "", errors.New("these cloud saves no longer exist")
+	}
 	gameID, emuID := ParseKey(key)
 	slots, err := c.cloudSlots(ctx, key)
 	if err != nil {
@@ -208,6 +215,19 @@ func (c *Core) RestoreLeftover(ctx context.Context, key string) (string, error) 
 		return "", err
 	}
 	return saved.ID, nil
+}
+
+// cloudFolderExists reports whether games/<key> is in the cloud.
+func (c *Core) cloudFolderExists(ctx context.Context, key string) (bool, error) {
+	cl, err := cloud.NewClient(c.Settings.Get().CloudBase())
+	if err != nil {
+		return false, err
+	}
+	dirs, err := cl.ListDirs(ctx, gamesCloudDir)
+	if err != nil {
+		return false, fmt.Errorf("list cloud saves: %w", err)
+	}
+	return slices.Contains(dirs, key), nil
 }
 
 // cloudSlots returns the save slots a cloud folder holds, from its manifest or,
