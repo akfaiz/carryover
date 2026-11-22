@@ -231,6 +231,10 @@
     <string name="emulator_remove_text">Carryover melupakan aplikasi %1$s di perangkat ini beserta folder datanya di sini. Emulator, pengaturannya di perangkat Anda yang lain, game Anda, dan save di cloud tetap ada.</string>
     <string name="preset_note_retroarch">Ganti CORE dengan nama core, misalnya snes9x atau mgba.</string>
     <string name="preset_note_lemon">Pilih file game dengan Telusuri: Lemon membuka game yang diberikan sebagai file content://.</string>
+    <string name="saves_note_provider">File emulator ini muncul di pemilih folder dengan namanya (buka menu di sudut pemilih). Pilih folder save-nya di sana.</string>
+    <string name="saves_note_picked">Pilih folder yang Anda tentukan sebagai folder pengguna emulator.</string>
+    <string name="saves_note_ppsspp">Sebelum Anda memilih folder PSP di PPSSPP, save disimpan di Android/data yang tidak dapat dijangkau Carryover. Di PPSSPP buka Pengaturan → Sistem → PSP Memory Stick → Memory Stick folder, pilih sebuah folder, lalu pilih folder itu di sini.</string>
+    <string name="saves_note_scummvm">ScummVM menyimpan save di folder privatnya yang tidak dapat dijangkau Carryover. Di ScummVM buka Paths, atur Save path ke folder pilihan Anda dan pindahkan save lama ke sana, lalu pilih folder itu di sini.</string>
     <plurals name="emulator_games">
         <item quantity="other">%1$d game</item>
     </plurals>

@@ -254,6 +254,9 @@ private fun EmulatorEditor(e: EmulatorView, vm: AppViewModel, nav: Nav, modifier
             }
             val switch = e.preset == "switch" || preset?.manifestPreset == "switch"
             SectionCard(stringResource(if (switch) R.string.emulator_data_folder else R.string.emulator_data_folder_optional)) {
+                preset?.savesNote?.takeIf { it != 0 }?.let {
+                    Text(stringResource(it), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
                 FolderField(
                     dataDir,
                     { dataDir = it },
