@@ -91,3 +91,18 @@ fun backupChoices(current: Int): List<Int> = (listOf(0, 3, 5, 10, 20) + current.
  * slash and two stars that the core adds to each so that a folder of that name is taken too.
  */
 fun suggestionFilters(include: List<String>): List<String> = include.filter { !it.endsWith("/" + "**") }.distinct()
+
+/** Filter patterns as typed, one per line, as the core keeps them: trimmed, without empty lines. */
+fun parseFilters(text: String): List<String> = text.lines().map { it.trim() }.filter { it.isNotEmpty() }
+
+/** A save location's filter patterns as text to edit: one per line. */
+fun filtersText(patterns: List<String>): String = patterns.joinToString("\n")
+
+/**
+ * A save location's filter patterns as a summary shows them: a pattern's twin ending in a slash and two stars (which
+ * takes a folder of that name too) is left out when the pattern itself is there; a twin alone stays.
+ */
+fun shownFilters(patterns: List<String>): List<String> {
+    val twin = "/" + "**"
+    return patterns.filter { p -> !p.endsWith(twin) || p.removeSuffix(twin) !in patterns }.distinct()
+}

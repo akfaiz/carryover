@@ -217,7 +217,7 @@
     <string name="edit_slots_shared">%1$s uses %2$s\'s saves: change the locations there.</string>
     <string name="action_add_slot">Add a save location</string>
     <string name="edit_slot_new">New save location</string>
-    <string name="edit_slot_rename">Rename save location</string>
+    <string name="edit_slot_rename">Edit save location</string>
     <string name="edit_slot_hint">For example \"Save states\". Every device chooses its own folder for it on the game\'s page.</string>
     <string name="edit_slot_remove_title">Remove %1$s?</string>
     <string name="edit_slot_remove_text">On every device, %1$s is no longer synced. Files already in the cloud stay.</string>
@@ -599,4 +599,13 @@
     <string name="msg_device_reused">This device is %1$s again</string>
     <string name="err_devices">Couldn\'t read the devices</string>
     <string name="err_device_change">Couldn\'t change the device</string>
+    <string name="field_include">Include only (one pattern per line)</string>
+    <string name="field_exclude">Exclude (one pattern per line)</string>
+    <string name="edit_slot_filters_hint">Leave both empty to sync every file in the folder. * matches any part of a name and ** goes into subfolders too, for example *.sav or saves/**.</string>
+    <string name="slot_filters_only">Only %1$s</string>
+    <string name="slot_filters_except">Except %1$s</string>
+    <string name="slot_filters_none">All files in the folder</string>
+    <string name="action_edit_filters">Filters</string>
+    <string name="slot_include_example" translatable="false">*.sav</string>
+    <string name="slot_exclude_example" translatable="false">*.log</string>
 </resources>

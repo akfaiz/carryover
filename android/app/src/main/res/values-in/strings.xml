@@ -206,7 +206,7 @@
     <string name="edit_slots_shared">%1$s memakai save %2$s: ubah lokasinya di sana.</string>
     <string name="action_add_slot">Tambah lokasi save</string>
     <string name="edit_slot_new">Lokasi save baru</string>
-    <string name="edit_slot_rename">Ganti nama lokasi save</string>
+    <string name="edit_slot_rename">Ubah lokasi save</string>
     <string name="edit_slot_hint">Contoh: \"Save state\". Tiap perangkat memilih foldernya sendiri di halaman game.</string>
     <string name="edit_slot_remove_title">Hapus %1$s?</string>
     <string name="edit_slot_remove_text">Di semua perangkat, %1$s tidak lagi disinkronkan. File yang sudah ada di cloud tetap ada.</string>
@@ -572,4 +572,11 @@
     <string name="msg_device_reused">Perangkat ini kembali menjadi %1$s</string>
     <string name="err_devices">Tidak dapat membaca daftar perangkat</string>
     <string name="err_device_change">Tidak dapat mengubah perangkat</string>
+    <string name="field_include">Hanya sertakan (satu pola per baris)</string>
+    <string name="field_exclude">Kecualikan (satu pola per baris)</string>
+    <string name="edit_slot_filters_hint">Kosongkan keduanya untuk menyinkronkan semua file di folder. * cocok dengan bagian mana pun dari nama dan ** juga masuk ke subfolder, misalnya *.sav atau saves/**.</string>
+    <string name="slot_filters_only">Hanya %1$s</string>
+    <string name="slot_filters_except">Kecuali %1$s</string>
+    <string name="slot_filters_none">Semua file di folder</string>
+    <string name="action_edit_filters">Filter</string>
 </resources>

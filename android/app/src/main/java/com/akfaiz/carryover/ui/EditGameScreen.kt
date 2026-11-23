@@ -233,6 +233,7 @@ private fun SlotsCard(p: SlotProfile, sharedName: String, vm: AppViewModel) {
             SettingRow(
                 icon = null,
                 title = sl.title,
+                detail = filtersSummary(sl),
                 onClick = { naming = sl.key },
                 // The last one stays: a profile with no location has nothing to sync.
                 trailing = if (p.slots.size > 1) {
@@ -254,18 +255,14 @@ private fun SlotsCard(p: SlotProfile, sharedName: String, vm: AppViewModel) {
 
     naming?.let { key ->
         val current = p.slots.firstOrNull { it.key == key }
-        SlotNameDialog(
+        SlotDialog(
             title = stringResource(if (current == null) R.string.edit_slot_new else R.string.edit_slot_rename),
-            initial = current?.label?.ifBlank { current.key }.orEmpty(),
+            initial = current,
             onDismiss = { naming = null },
-        ) { label ->
+        ) { edited ->
             naming = null
-            // Existing slots go back with their keys and filters, a new one with no key.
-            val next = if (current == null) {
-                p.slots + SaveSlot(label = label)
-            } else {
-                p.slots.map { if (it.key == key) it.copy(label = label) else it }
-            }
+            // Existing slots go back with their keys, a new one with no key.
+            val next = if (current == null) p.slots + edited else p.slots.map { if (it.key == key) edited else it }
             vm.setSlots(p.key, next)
         }
     }
@@ -283,38 +280,6 @@ private fun SlotsCard(p: SlotProfile, sharedName: String, vm: AppViewModel) {
             dismissButton = { TextButton(onClick = { removing = null }) { Text(stringResource(R.string.action_cancel)) } },
         )
     }
-}
-
-/** Asks for a save location's name. */
-@Composable
-private fun SlotNameDialog(title: String, initial: String, onDismiss: () -> Unit, onSave: (String) -> Unit) {
-    var name by rememberSaveable { mutableStateOf(initial) }
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text(title) },
-        text = {
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                OutlinedTextField(
-                    name,
-                    { name = it },
-                    singleLine = true,
-                    label = { Text(stringResource(R.string.field_name)) },
-                    modifier = Modifier.fillMaxWidth().dpadExit(),
-                )
-                Text(
-                    stringResource(R.string.edit_slot_hint),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
-        },
-        confirmButton = {
-            TextButton(onClick = { onSave(name.trim()) }, enabled = name.isNotBlank() && name.trim() != initial) {
-                Text(stringResource(R.string.action_save))
-            }
-        },
-        dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.action_cancel)) } },
-    )
 }
 
 /**
