@@ -68,7 +68,7 @@ Cloud storage: Google Drive, Dropbox, OneDrive, WebDAV (Nextcloud, ownCloud, NAS
 
 Get the latest version from the [Releases page](https://github.com/akfaiz/carryover/releases/latest).
 
-Every file is named `carryover-<version>-<os>-<arch>`, for example `carryover-0.4.0-windows-amd64.zip`.
+Every file is named `carryover-<version>-<os>-<arch>`, for example `carryover-0.5.0-windows-amd64.zip`.
 On Windows, pick the installer or the portable zip; both hold the same program.
 
 | Platform | File | How to run |
@@ -96,10 +96,10 @@ On Windows, pick the installer or the portable zip; both hold the same program.
   on Linux, `shasum -a 256 -c SHA256SUMS.txt --ignore-missing` on macOS, or compare the output of
   `Get-FileHash <file>` in PowerShell on Windows.
 - **Updating:** run the new installer over the old install, or download the new version and put it over the old
-  file (`carryover.exe` from the zip, or the renamed `carryover.AppImage`), so Steam shortcuts keep working. The AppImage can also update
-  itself through [Gear Lever](https://flathub.org/apps/it.mijorus.gearlever) or AppImageUpdate (full releases only,
-  not pre-releases). For the tarball, run `install.sh` from the new version. On macOS, replace
-  `/Applications/Carryover.app` with the new one.
+  file (`carryover.exe` from the zip, or the renamed `carryover.AppImage`), so Steam shortcuts keep working. The
+  AppImage can also update itself through [Gear Lever](https://flathub.org/apps/it.mijorus.gearlever) or
+  AppImageUpdate (full releases only, not pre-releases). For the tarball, run `install.sh` from the new version.
+  On macOS, replace `/Applications/Carryover.app` with the new one.
 - **Uninstalling** (installer): Windows Settings → Apps. Your settings, library and cloud configuration in
   `%APPDATA%\Carryover` are kept; both Windows versions use that folder, so you can switch between them. On macOS,
   move Carryover.app to the Trash; settings stay in `~/Library/Application Support/Carryover`.
