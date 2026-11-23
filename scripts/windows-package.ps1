@@ -1,10 +1,10 @@
 <#
 .SYNOPSIS
-  Build the Windows release files: the portable exe and the NSIS installer.
+  Build the Windows release files: the portable zip and the NSIS installer.
 
 .DESCRIPTION
   Writes to dist\ (or -OutDir):
-    carryover-<version>-windows-amd64.exe          portable, the exe from `fyne package`
+    carryover-<version>-windows-amd64.zip          portable: carryover.exe, the exe from `fyne package`
     carryover-<version>-windows-amd64-setup.exe    installer (packaging\windows\carryover.nsi)
 
   The release workflow runs this too, so a local build matches the release.
@@ -17,7 +17,7 @@
 
 .EXAMPLE
   .\scripts\windows-package.ps1                     # version from `git describe`
-  .\scripts\windows-package.ps1 -Version 0.3.0      # carryover-0.3.0-windows-amd64*.exe
+  .\scripts\windows-package.ps1 -Version 0.3.0      # carryover-0.3.0-windows-amd64{.zip,-setup.exe}
   .\scripts\windows-package.ps1 -Version 0.3.0-rc1 -Build 42
 #>
 param(
@@ -68,12 +68,24 @@ Push-Location $root
 $fyneApp = Join-Path $root 'FyneApp.toml'
 $fyneAppBytes = [IO.File]::ReadAllBytes($fyneApp)
 $env:CGO_ENABLED = '1'
+# The exe is built here and only shipped inside the zip and the installer.
+$work = Join-Path $OutDir 'windows-work'
 try {
-    Write-Host "Building $name.exe"
+    if (Test-Path $work) { Remove-Item -Recurse -Force $work }
+    New-Item -ItemType Directory -Force $work | Out-Null
+
+    Write-Host 'Building carryover.exe'
     go tool fyne package --os windows --release --name carryover --app-version $numeric --app-build $Build
     if ($LASTEXITCODE) { throw 'fyne package failed' }
-    $exe = Join-Path $OutDir "$name.exe"
+    # Named carryover.exe, without the version: Steam shortcuts point at the path,
+    # so it can be replaced by a newer one under the same name.
+    $exe = Join-Path $work 'carryover.exe'
     Move-Item -Force (Join-Path $root 'carryover.exe') $exe
+
+    $zip = Join-Path $OutDir "$name.zip"
+    Write-Host "Writing $name.zip"
+    if (Test-Path $zip) { Remove-Item -Force $zip }
+    Compress-Archive -CompressionLevel Optimal -Path $exe -DestinationPath $zip
 
     $setup = Join-Path $OutDir "$name-setup.exe"
     Write-Host "Building $name-setup.exe"
@@ -83,9 +95,10 @@ try {
         (Join-Path $root 'packaging\windows\carryover.nsi')
     if ($LASTEXITCODE) { throw 'makensis failed' }
 
-    Write-Host "Wrote $exe"
+    Write-Host "Wrote $zip"
     Write-Host "Wrote $setup"
 } finally {
+    if (Test-Path $work) { Remove-Item -Recurse -Force $work }
     [IO.File]::WriteAllBytes($fyneApp, $fyneAppBytes)
     Pop-Location
 }

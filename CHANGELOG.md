@@ -58,6 +58,9 @@ All notable changes to Carryover are listed here. The format follows
   after the game, the saves stay on this device and upload on the next sync or play, also without an error
   prompt. A game played offline while another device played it too shows a conflict to resolve, as before.
 - "Sync all" and "Sync now" also stop at once when offline, instead of retrying for minutes.
+- Smaller downloads: the portable Windows build is now `carryover-<version>-windows-amd64.zip` (with
+  `carryover.exe` inside, no renaming needed) and the macOS app `carryover-<version>-macos-universal.zip`, instead
+  of the bare exe and the dmg.
 
 ### Fixed
 

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Builds the macOS release file: a universal (Apple Silicon + Intel) app bundle
-# in a disk image.
+# in a zip.
 #
 #   scripts/macos-package.sh [version] [build]
 #     version  release version without the "v" (default: from `git describe`)
@@ -8,7 +8,7 @@
 #
 # Writes to dist/:
 #   Carryover.app                                   the bundle
-#   carryover-<version>-macos-universal.dmg         the bundle and an Applications link
+#   carryover-<version>-macos-universal.zip         the bundle, zipped with ditto
 #
 # The release workflow runs this too, so a local build matches the release. It
 # does not stamp the version into the program: run scripts/stamp-version.sh first
@@ -44,7 +44,7 @@ name="carryover-$version-macos-universal"
 dist="$root/dist"
 work="$dist/macos-work"
 app="$dist/Carryover.app"
-rm -rf "$work" "$app" "$dist/$name.dmg"
+rm -rf "$work" "$app" "$dist/$name.zip"
 mkdir -p "$work"
 
 # `fyne package` bumps Build in FyneApp.toml; put the file back as it was.
@@ -75,19 +75,10 @@ mv Carryover.app "$app"
 # Apple Silicon only runs signed code: sign the whole bundle ad hoc.
 codesign --force --deep --sign - "$app"
 
-echo "Writing $name.dmg"
-stage="$work/dmg"
-mkdir -p "$stage"
-cp -R "$app" "$stage/"
-ln -s /Applications "$stage/Applications"
-# hdiutil sometimes fails with "Resource busy" (seen on CI runners): try again.
-for try in 1 2 3; do
-  if hdiutil create -quiet -volname Carryover -srcfolder "$stage" -ov -format UDZO "$dist/$name.dmg"; then
-    break
-  fi
-  [ "$try" = 3 ] && exit 1
-  sleep 5
-done
+# ditto, not zip: it keeps the bundle's symlinks, permissions and code signature,
+# like the Finder's "Compress", and the Finder unzips it to Carryover.app.
+echo "Writing $name.zip"
+ditto -c -k --sequesterRsrc --keepParent "$app" "$dist/$name.zip"
 
 echo "Wrote $app"
-echo "Wrote $dist/$name.dmg"
+echo "Wrote $dist/$name.zip"

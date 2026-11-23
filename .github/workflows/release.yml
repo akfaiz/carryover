@@ -37,7 +37,7 @@ jobs:
       - name: Stamp version
         shell: bash
         run: scripts/stamp-version.sh "$GITHUB_REF_NAME" "$GITHUB_SHA"
-      # The portable exe and the installer, the same way as a local build.
+      # The portable zip and the installer, the same way as a local build.
       # Release files are named carryover-<version>-<os>-<arch>.<ext>, version without the "v".
       - name: Package
         shell: pwsh
@@ -104,13 +104,13 @@ jobs:
           go-version-file: go.mod
       - name: Stamp version
         run: scripts/stamp-version.sh "$GITHUB_REF_NAME" "$GITHUB_SHA"
-      # A universal Carryover.app in a disk image, the same way as a local build.
+      # A universal Carryover.app in a zip, the same way as a local build.
       - name: Package
         run: scripts/macos-package.sh "${GITHUB_REF_NAME#v}" "$GITHUB_RUN_NUMBER"
       - uses: actions/upload-artifact@v7
         with:
           name: macos
-          path: dist/*.dmg
+          path: dist/*.zip
           if-no-files-found: error
 
   android:

@@ -32,10 +32,10 @@ body:
     attributes:
       label: How Carryover is installed
       options:
-        - Windows exe
+        - Windows (installer or portable zip)
         - AppImage
         - Tarball (install.sh)
-        - macOS app (dmg)
+        - macOS app
         - Built from source
     validations:
       required: true

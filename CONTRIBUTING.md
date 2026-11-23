@@ -137,13 +137,13 @@ pre-release; AppImage updates only see full releases.
 
 Each file is named `carryover-<version>-<os>-<arch>.<ext>`, `<version>` being the tag without its `v`:
 
-- `…-windows-amd64.exe` (portable) and `…-windows-amd64-setup.exe` (per-user NSIS installer into
+- `…-windows-amd64.zip` (portable, `carryover.exe` inside) and `…-windows-amd64-setup.exe` (per-user NSIS installer into
   `%LOCALAPPDATA%\Programs\Carryover`): from `.\scripts\windows-package.ps1 [-Version x.y.z]`, which needs NSIS
   (`winget install NSIS.NSIS`) and restores `FyneApp.toml`. Not code-signed, so SmartScreen warns on first run.
 - `…-linux-amd64.AppImage` and its `.zsync`: built with the Dockerfile, like `linux-docker appimage`.
 - `…-linux-amd64.tar.gz` (`packaging/linux/tarball.sh`): an install prefix plus `install.sh` (into `~/.local`).
-- `…-macos-universal.dmg`: a universal `Carryover.app` from `scripts/macos-package.sh [x.y.z]` on a Mac, signed ad
-  hoc and not notarized. The program inside stays named `carryover`, which is how Steam shortcuts to Carryover
+- `…-macos-universal.zip`: a universal `Carryover.app` from `scripts/macos-package.sh [x.y.z]` on a Mac, zipped with
+  `ditto` (keeps the bundle's symlinks and signature), signed ad hoc and not notarized. The program inside stays named `carryover`, which is how Steam shortcuts to Carryover
   itself are recognised.
 - `…-android-arm64-v8a.apk` and `…-android-x86_64.apk`: signed with the key in the repository secrets
   `CARRYOVER_KEYSTORE_BASE64` (`base64 -w0 carryover.jks`), `CARRYOVER_KEYSTORE_PASSWORD`, `CARRYOVER_KEY_ALIAS`
