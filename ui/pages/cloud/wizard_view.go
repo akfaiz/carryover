@@ -6,8 +6,9 @@ import (
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/container"
 	"fyne.io/fyne/v2/dialog"
-	"fyne.io/fyne/v2/lang"
 	"fyne.io/fyne/v2/widget"
+
+	"github.com/akfaiz/carryover/ui/i18n"
 
 	"github.com/akfaiz/carryover/internal/cloudsync/cloud"
 	"github.com/akfaiz/carryover/ui/kit"
@@ -28,7 +29,7 @@ func newWizardView(p *Page, vm *Wizard) *wizardView {
 
 func (w *wizardView) show() {
 	win := w.p.u.Window()
-	w.d = dialog.NewCustomWithoutButtons(lang.L("Add remote"), container.NewVScroll(w.body), win)
+	w.d = dialog.NewCustomWithoutButtons(i18n.L("Add remote"), container.NewVScroll(w.body), win)
 	w.d.Resize(fyne.NewSize(min(640, win.Canvas().Size().Width-40), min(560, win.Canvas().Size().Height-40)))
 	w.pick()
 	w.d.Show()
@@ -50,7 +51,7 @@ func (w *wizardView) pick() {
 		b := kit.NewTappable(kit.Card("", name, kit.Small(pr.Type)), func() { w.vm.Choose(pr); w.renderForm("") })
 		grid.Add(b)
 	}
-	w.set(kit.Heading(lang.L("Choose storage provider")), grid, kit.HBox(widget.NewButton(lang.L("Cancel"), w.close)))
+	w.set(kit.Heading(i18n.L("Choose storage provider")), grid, kit.HBox(widget.NewButton(i18n.L("Cancel"), w.close)))
 }
 
 func (w *wizardView) renderForm(errText string) {
@@ -58,10 +59,10 @@ func (w *wizardView) renderForm(errText string) {
 	pr := vm.Provider()
 	name := widget.NewEntry()
 	name.SetText(vm.Name())
-	cont := kit.Primary(lang.L("Continue"), w.create)
+	cont := kit.Primary(i18n.L("Continue"), w.create)
 	name.OnChanged = func(s string) { vm.SetName(s); kit.SetEnabled(cont, vm.NameOK()) }
 	kit.SetEnabled(cont, vm.NameOK())
-	objs := []fyne.CanvasObject{kit.Heading(lang.L("New {{.Provider}} remote", map[string]any{"Provider": pr.Description})), kit.Field(lang.L("Name"), name)}
+	objs := []fyne.CanvasObject{kit.Heading(i18n.L("New {{.Provider}} remote", map[string]any{"Provider": pr.Description})), kit.Field(i18n.L("Name"), name)}
 	opts, more := vm.VisibleOptions()
 	for _, o := range opts {
 		label := o.Name
@@ -72,15 +73,15 @@ func (w *wizardView) renderForm(errText string) {
 		objs = append(objs, kit.Field(label, w.optionInput(o)))
 	}
 	if more {
-		objs = append(objs, kit.HBox(kit.LowButton(lang.L("Show all options"), func() { vm.ShowAll(); w.renderForm(errText) })))
+		objs = append(objs, kit.HBox(kit.LowButton(i18n.L("Show all options"), func() { vm.ShowAll(); w.renderForm(errText) })))
 	}
 	if pr.OAuth {
-		objs = append(objs, kit.Muted(lang.L("After you continue, your browser opens to sign in. Come back here when done.")))
+		objs = append(objs, kit.Muted(i18n.L("After you continue, your browser opens to sign in. Come back here when done.")))
 	}
 	if errText != "" {
 		objs = append(objs, kit.Colored(errText, widget.DangerImportance))
 	}
-	objs = append(objs, kit.HBox(widget.NewButton(lang.L("Back"), w.pick), cont))
+	objs = append(objs, kit.HBox(widget.NewButton(i18n.L("Back"), w.pick), cont))
 	w.set(objs...)
 }
 
@@ -94,9 +95,9 @@ func (w *wizardView) optionInput(o cloud.ProviderOption) fyne.CanvasObject {
 	cur := w.vm.Param(o.Name)
 	if len(o.Examples) > 0 && o.Exclusive {
 		c := &kit.Choice{}
-		def := lang.L("(default)")
+		def := i18n.L("(default)")
 		if o.Default != "" && o.Default != "<nil>" {
-			def = lang.L("(default: {{.Value}})", map[string]any{"Value": o.Default})
+			def = i18n.L("(default: {{.Value}})", map[string]any{"Value": o.Default})
 		}
 		c.Add("", def)
 		for _, ex := range o.Examples {
@@ -132,9 +133,9 @@ func (w *wizardView) optionInput(o cloud.ProviderOption) fyne.CanvasObject {
 
 func (w *wizardView) working() {
 	bar := widget.NewProgressBarInfinite()
-	w.set(kit.Heading(lang.L("Configuring…")), kit.Muted(lang.L("If a browser window opened, finish signing in there.")), bar,
+	w.set(kit.Heading(i18n.L("Configuring…")), kit.Muted(i18n.L("If a browser window opened, finish signing in there.")), bar,
 		// rclone keeps waiting in the background until its own timeout.
-		kit.HBox(widget.NewButton(lang.L("Cancel"), w.close)))
+		kit.HBox(widget.NewButton(i18n.L("Cancel"), w.close)))
 }
 
 // run is how the wizard's steps run: off the UI thread, then back on it.
@@ -151,7 +152,7 @@ func (w *wizardView) next(r Result) {
 		w.renderQuestion(r.Err)
 	case ResultCreated:
 		w.close()
-		w.p.u.Toast(lang.L("Remote “{{.Name}}” created", map[string]any{"Name": r.Name}), kit.ToastOK)
+		w.p.u.Toast(i18n.L("Remote “{{.Name}}” created", map[string]any{"Name": r.Name}), kit.ToastOK)
 		w.p.vm.RemoteCreated(r.Name)
 	}
 }
@@ -178,7 +179,7 @@ func (w *wizardView) renderQuestion(errText string) {
 	}
 	if q.IsBool {
 		errLabel()
-		objs = append(objs, kit.HBox(widget.NewButton(lang.L("No"), func() { w.reply("false") }), kit.Primary(lang.L("Yes"), func() { w.reply("true") })))
+		objs = append(objs, kit.HBox(widget.NewButton(i18n.L("No"), func() { w.reply("false") }), kit.Primary(i18n.L("Yes"), func() { w.reply("true") })))
 		w.set(objs...)
 		return
 	}
@@ -213,6 +214,6 @@ func (w *wizardView) renderQuestion(errText string) {
 	}
 	objs = append(objs, kit.FullHeight(input))
 	errLabel()
-	objs = append(objs, kit.HBox(widget.NewButton(lang.L("Cancel"), w.close), kit.Primary(lang.L("Continue"), func() { w.reply(answer) })))
+	objs = append(objs, kit.HBox(widget.NewButton(i18n.L("Cancel"), w.close), kit.Primary(i18n.L("Continue"), func() { w.reply(answer) })))
 	w.set(objs...)
 }

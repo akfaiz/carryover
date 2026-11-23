@@ -4,9 +4,10 @@ import (
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/canvas"
 	"fyne.io/fyne/v2/container"
-	"fyne.io/fyne/v2/lang"
 	"fyne.io/fyne/v2/layout"
 	"fyne.io/fyne/v2/widget"
+
+	"github.com/akfaiz/carryover/ui/i18n"
 
 	"github.com/akfaiz/carryover/ui/kit"
 )
@@ -17,9 +18,9 @@ func (e *Page) renderBar() {
 	if e.bar == nil || e.root == nil || e.vm.loading {
 		return
 	}
-	saveLabel := lang.L("Save")
+	saveLabel := i18n.L("Save")
 	if e.vm.saving {
-		saveLabel = lang.L("Saving…")
+		saveLabel = i18n.L("Saving…")
 	}
 	save := kit.Primary(saveLabel, e.save)
 	kit.SetEnabled(save, e.vm.CanSave())
@@ -28,15 +29,15 @@ func (e *Page) renderBar() {
 	case NoteError:
 		note = kit.Colored(e.vm.errText, widget.DangerImportance)
 	case NoteName:
-		note = kit.Muted(lang.L("Give the game a name to save it."))
+		note = kit.Muted(i18n.L("Give the game a name to save it."))
 	case NoteEmulator:
-		note = kit.Muted(lang.L("Add the emulator you play it with."))
+		note = kit.Muted(i18n.L("Add the emulator you play it with."))
 	case NoteSaveLocation:
-		note = kit.Muted(lang.L("No save location is set for this device yet. You can save anyway; the game shows “needs setup” here until you set one."))
+		note = kit.Muted(i18n.L("No save location is set for this device yet. You can save anyway; the game shows “needs setup” here until you set one."))
 	}
 	line := canvas.NewRectangle(kit.ColLine)
 	line.SetMinSize(fyne.NewSize(0, 1))
-	row := container.NewBorder(nil, nil, nil, kit.HBox(widget.NewButton(lang.L("Cancel"), e.u.Back), save), note)
+	row := container.NewBorder(nil, nil, nil, kit.HBox(widget.NewButton(i18n.L("Cancel"), e.u.Back), save), note)
 	// As wide as the form above it, so Save stays under it on a wide window.
 	width := float32(780)
 	if e.vm.id != "" {
@@ -54,7 +55,7 @@ func (e *Page) save() {
 	e.vm.errText = ""
 	in, err := e.vm.Input()
 	if err != nil {
-		e.vm.errText = lang.L("Add at least one emulator, or choose “PC or Steam game”.")
+		e.vm.errText = i18n.L("Add at least one emulator, or choose “PC or Steam game”.")
 		e.renderBar()
 		return
 	}
@@ -75,13 +76,13 @@ func (e *Page) save() {
 		}
 		e.vm.saved = true
 		if coverErr != nil {
-			u.Toast(lang.L("Cover: {{.Err}}", map[string]any{"Err": coverErr}), kit.ToastErr)
+			u.Toast(i18n.L("Cover: {{.Err}}", map[string]any{"Err": coverErr}), kit.ToastErr)
 		}
 		if artErr != nil {
-			u.Toast(lang.L("Artwork: {{.Err}}", map[string]any{"Err": artErr}), kit.ToastErr)
+			u.Toast(i18n.L("Artwork: {{.Err}}", map[string]any{"Err": artErr}), kit.ToastErr)
 		}
 		u.Store().Refresh()
-		u.Toast(lang.L("Saved"), kit.ToastOK)
+		u.Toast(i18n.L("Saved"), kit.ToastOK)
 		// In place of the editor: Back from the game goes where the editor was
 		// opened from, not into the editor again.
 		u.Replace("/game/" + g.ID)

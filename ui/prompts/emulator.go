@@ -5,10 +5,11 @@ import (
 
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/container"
-	"fyne.io/fyne/v2/lang"
 	"fyne.io/fyne/v2/layout"
 	"fyne.io/fyne/v2/theme"
 	"fyne.io/fyne/v2/widget"
+
+	"github.com/akfaiz/carryover/ui/i18n"
 
 	"github.com/akfaiz/carryover/services"
 	"github.com/akfaiz/carryover/ui/kit"
@@ -36,7 +37,7 @@ func (q *Queue) emulatorChoice(p services.Prompt, answer func(string), nav *kit.
 	}
 	choiceName := func(c services.ProfileChoice) string {
 		if c.ID == services.NativeProfile {
-			return lang.L("Without an emulator")
+			return i18n.L("Without an emulator")
 		}
 		return c.Name
 	}
@@ -72,10 +73,10 @@ func (q *Queue) emulatorChoice(p services.Prompt, answer func(string), nav *kit.
 			countdown.SetText("")
 			return
 		}
-		countdown.SetText(lang.N("Starting with {{.Emulator}} in {{.Count}} second", remaining,
+		countdown.SetText(i18n.N("Starting with {{.Emulator}} in {{.Count}} second", remaining,
 			map[string]any{"Emulator": defName, "Count": remaining}))
 	}
-	pause := nav.Button(lang.L("Stop countdown"), widget.MediumImportance, nil)
+	pause := nav.Button(i18n.L("Stop countdown"), widget.MediumImportance, nil)
 	stopCountdown := func() {
 		if paused {
 			return
@@ -125,11 +126,11 @@ func (q *Queue) emulatorChoice(p services.Prompt, answer func(string), nav *kit.
 		}()
 	}
 
-	hint := lang.L("Choose how to play. The highlighted one is the one you played last.")
+	hint := i18n.L("Choose how to play. The highlighted one is the one you played last.")
 	if p.Seconds > 0 {
-		hint = lang.L("Choose how to play. The highlighted one starts by itself when the countdown ends.")
+		hint = i18n.L("Choose how to play. The highlighted one starts by itself when the countdown ends.")
 	}
-	cancel := nav.Button(lang.L("Cancel"), widget.MediumImportance, func() { finish("cancel") })
+	cancel := nav.Button(i18n.L("Cancel"), widget.MediumImportance, func() { finish("cancel") })
 	return kit.VBox(
 		kit.Muted(hint),
 		tiles,

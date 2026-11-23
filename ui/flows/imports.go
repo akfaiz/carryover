@@ -7,8 +7,9 @@ import (
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/container"
 	"fyne.io/fyne/v2/dialog"
-	"fyne.io/fyne/v2/lang"
 	"fyne.io/fyne/v2/widget"
+
+	"github.com/akfaiz/carryover/ui/i18n"
 
 	"github.com/akfaiz/carryover/ui/env"
 	"github.com/akfaiz/carryover/ui/kit"
@@ -31,7 +32,7 @@ type importText struct {
 // library.
 func showImport(u env.Env, t importText, load func() []importRow) {
 	filter := widget.NewEntry()
-	filter.SetPlaceHolder(lang.L("Filter…"))
+	filter.SetPlaceHolder(i18n.L("Filter…"))
 	list := container.NewVBox(kit.Muted(t.reading))
 	var games []importRow
 	var d *dialog.CustomDialog
@@ -48,7 +49,7 @@ func showImport(u env.Env, t importText, load func() []importRow) {
 			}
 			var right fyne.CanvasObject
 			if g.gameID != "" {
-				right = container.NewCenter(kit.Badge(lang.L("In library"), kit.BadgeOK))
+				right = container.NewCenter(kit.Badge(i18n.L("In library"), kit.BadgeOK))
 			}
 			lead := kit.CoverView(kit.CoverSource{Name: g.name}, fyne.NewSize(36, 54))
 			list.Add(kit.MediaRow(lead, g.name, right, func() {
@@ -65,7 +66,7 @@ func showImport(u env.Env, t importText, load func() []importRow) {
 	filter.OnChanged = func(string) { render() }
 
 	top := kit.VBox(kit.Muted(t.intro), kit.FullHeight(filter))
-	d = dialog.NewCustom(t.title, lang.L("Close"), container.NewBorder(top, nil, nil, nil, container.NewVScroll(list)), u.Window())
+	d = dialog.NewCustom(t.title, i18n.L("Close"), container.NewBorder(top, nil, nil, nil, container.NewVScroll(list)), u.Window())
 	d.Resize(kit.DialogSize(u.Window()))
 	d.Show()
 	kit.OnBack(u.Window(), d.Hide)
@@ -79,10 +80,10 @@ func showImport(u env.Env, t importText, load func() []importRow) {
 // editor pre-filled (or the existing game).
 func ShowSteamImport(u env.Env) {
 	showImport(u, importText{
-		title:   lang.L("Add from Steam library"),
-		intro:   lang.L("Games installed through Steam on this device. The title comes from Steam; you still set the save locations. Steam keeps launching the game — Carryover syncs around it through the launch options shown on the game page."),
-		reading: lang.L("Reading Steam library…"),
-		empty:   lang.L("No installed Steam games found on this device."),
+		title:   i18n.L("Add from Steam library"),
+		intro:   i18n.L("Games installed through Steam on this device. The title comes from Steam; you still set the save locations. Steam keeps launching the game — Carryover syncs around it through the launch options shown on the game page."),
+		reading: i18n.L("Reading Steam library…"),
+		empty:   i18n.L("No installed Steam games found on this device."),
 	}, func() []importRow {
 		var rows []importRow
 		for _, g := range u.Lib().SteamLibrary() {
@@ -96,10 +97,10 @@ func ShowSteamImport(u env.Env) {
 // Windows); picking one opens the editor pre-filled (or the existing game).
 func ShowHeroicImport(u env.Env) {
 	showImport(u, importText{
-		title:   lang.L("Add from Heroic library"),
-		intro:   lang.L("Games installed through Heroic on this device. Carryover starts them through Heroic, so they keep its settings (and, on Linux, its Wine prefix); you still set the save locations."),
-		reading: lang.L("Reading Heroic library…"),
-		empty:   lang.L("No installed Heroic games found on this device."),
+		title:   i18n.L("Add from Heroic library"),
+		intro:   i18n.L("Games installed through Heroic on this device. Carryover starts them through Heroic, so they keep its settings (and, on Linux, its Wine prefix); you still set the save locations."),
+		reading: i18n.L("Reading Heroic library…"),
+		empty:   i18n.L("No installed Heroic games found on this device."),
 	}, func() []importRow {
 		var rows []importRow
 		for _, g := range u.Lib().HeroicLibrary() {
@@ -114,10 +115,10 @@ func ShowHeroicImport(u env.Env) {
 // (Linux); picking one opens the editor pre-filled (or the existing game).
 func ShowLutrisImport(u env.Env) {
 	showImport(u, importText{
-		title:   lang.L("Add from Lutris library"),
-		intro:   lang.L("Games installed through Lutris on this device. Carryover starts them through Lutris, so they keep their runner and Wine prefix; you still set the save locations."),
-		reading: lang.L("Reading Lutris library…"),
-		empty:   lang.L("No installed Lutris games found on this device."),
+		title:   i18n.L("Add from Lutris library"),
+		intro:   i18n.L("Games installed through Lutris on this device. Carryover starts them through Lutris, so they keep their runner and Wine prefix; you still set the save locations."),
+		reading: i18n.L("Reading Lutris library…"),
+		empty:   i18n.L("No installed Lutris games found on this device."),
 	}, func() []importRow {
 		var rows []importRow
 		for _, g := range u.Lib().LutrisLibrary() {

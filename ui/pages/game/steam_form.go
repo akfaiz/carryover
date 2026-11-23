@@ -3,9 +3,10 @@ package game
 import (
 	"runtime"
 
-	"fyne.io/fyne/v2/lang"
 	"fyne.io/fyne/v2/theme"
 	"fyne.io/fyne/v2/widget"
+
+	"github.com/akfaiz/carryover/ui/i18n"
 
 	"github.com/akfaiz/carryover/services"
 	"github.com/akfaiz/carryover/ui/components"
@@ -51,13 +52,13 @@ func newSteamForm(o steamFormOpts) *steamForm {
 	g := o.Game
 	switch {
 	case o.Info == nil:
-		c.Add(kit.Muted(lang.L("Detecting Steam…")))
+		c.Add(kit.Muted(i18n.L("Detecting Steam…")))
 	case !o.Info.Found:
-		c.Add(kit.Muted(lang.L("Steam was not found on this device.")))
+		c.Add(kit.Muted(i18n.L("Steam was not found on this device.")))
 	case g.Device.SteamAppID != "" && !o.Expanded:
 		c.Add(kit.HBox(widget.NewIcon(theme.NewSuccessThemedResource(theme.ConfirmIcon())),
-			widget.NewLabel(lang.L("In Steam on this device"))))
-		change := widget.NewButton(lang.L("Change…"), o.OnExpand)
+			widget.NewLabel(i18n.L("In Steam on this device"))))
+		change := widget.NewButton(i18n.L("Change…"), o.OnExpand)
 		rm := components.RemoveButton(o.OnRemove)
 		kit.SetEnabled(change, !o.Busy)
 		kit.SetEnabled(rm, !o.Busy)
@@ -65,61 +66,61 @@ func newSteamForm(o steamFormOpts) *steamForm {
 		if len(o.Profiles) > 0 {
 			// The targets: the shortcut shown is the whole game's or one emulator's.
 			targets := &kit.Choice{}
-			targets.Add("game", lang.L("The whole game: asks which emulator to use when it starts"))
+			targets.Add("game", i18n.L("The whole game: asks which emulator to use when it starts"))
 			for _, pv := range o.Profiles {
-				targets.Add(pv.EmulatorID, lang.L("Only {{.Emulator}}", map[string]any{"Emulator": pv.Name}))
+				targets.Add(pv.EmulatorID, i18n.L("Only {{.Emulator}}", map[string]any{"Emulator": pv.Name}))
 			}
-			c.Add(kit.Field(lang.L("Shortcut for"), kit.Outlined(kit.SelectOf(targets, o.Target, o.OnTarget))))
+			c.Add(kit.Field(i18n.L("Shortcut for"), kit.Outlined(kit.SelectOf(targets, o.Target, o.OnTarget))))
 		}
 	default:
-		c.Add(kit.Muted(lang.L("Add {{.Game}} to Steam as a non-Steam game. Steam launches it through Carryover, so saves sync automatically before and after every session — also in Steam Deck Game Mode.",
+		c.Add(kit.Muted(i18n.L("Add {{.Game}} to Steam as a non-Steam game. Steam launches it through Carryover, so saves sync automatically before and after every session — also in Steam Deck Game Mode.",
 			map[string]any{"Game": g.Name})))
 		if len(o.Info.Users) > 1 {
 			users := &kit.Choice{}
 			for _, us := range o.Info.Users {
 				users.Add(us.ID, us.Name)
 			}
-			c.Add(kit.Field(lang.L("Steam account"), kit.Outlined(kit.SelectOf(users, o.User, o.OnUser))))
+			c.Add(kit.Field(i18n.L("Steam account"), kit.Outlined(kit.SelectOf(users, o.User, o.OnUser))))
 		}
 		if len(o.Profiles) > 0 {
 			targets := &kit.Choice{}
-			targets.Add("game", lang.L("The whole game: asks which emulator to use when it starts"))
+			targets.Add("game", i18n.L("The whole game: asks which emulator to use when it starts"))
 			for _, pv := range o.Profiles {
-				targets.Add(pv.EmulatorID, lang.L("Only {{.Emulator}}", map[string]any{"Emulator": pv.Name}))
+				targets.Add(pv.EmulatorID, i18n.L("Only {{.Emulator}}", map[string]any{"Emulator": pv.Name}))
 			}
-			c.Add(kit.Field(lang.L("Shortcut for"), kit.Outlined(kit.SelectOf(targets, o.Target, o.OnTarget))))
+			c.Add(kit.Field(i18n.L("Shortcut for"), kit.Outlined(kit.SelectOf(targets, o.Target, o.OnTarget))))
 		}
 		if o.AsksAtLaunch {
-			c.Add(kit.Muted(lang.L("Steam shows one game. When it starts, Carryover asks which emulator to use and, after a few seconds, starts the one you played last.")))
+			c.Add(kit.Muted(i18n.L("Steam shows one game. When it starts, Carryover asks which emulator to use and, after a few seconds, starts the one you played last.")))
 		}
 		if o.HideMode {
 			// Only the direct shortcut exists here.
 		} else if g.Device.LaunchMode == "heroic" {
-			c.Add(kit.Muted(lang.L("Steam runs Carryover, which starts the game through Heroic Games Launcher, so it keeps Heroic's settings (and, on Linux, its Wine prefix). Don't force a Proton version on this shortcut.")))
+			c.Add(kit.Muted(i18n.L("Steam runs Carryover, which starts the game through Heroic Games Launcher, so it keeps Heroic's settings (and, on Linux, its Wine prefix). Don't force a Proton version on this shortcut.")))
 		} else if g.Device.LaunchMode == "lutris" {
-			c.Add(kit.Muted(lang.L("Steam runs Carryover, which starts the game through Lutris, so it keeps Lutris's runner and Wine prefix. Don't force a Proton version on this shortcut.")))
+			c.Add(kit.Muted(i18n.L("Steam runs Carryover, which starts the game through Lutris, so it keeps Lutris's runner and Wine prefix. Don't force a Proton version on this shortcut.")))
 		} else {
 			modes := &kit.Choice{}
-			modes.Add("direct", lang.L("Run Carryover (it starts the game)"))
+			modes.Add("direct", i18n.L("Run Carryover (it starts the game)"))
 			if runtime.GOOS == "darwin" { // no Proton on macOS
-				modes.Add("steamwrap", lang.L("Run the game, wrapped by Carryover"))
+				modes.Add("steamwrap", i18n.L("Run the game, wrapped by Carryover"))
 			} else {
-				modes.Add("steamwrap", lang.L("Run the game exe, wrapped by Carryover (pick Proton in Steam)"))
+				modes.Add("steamwrap", i18n.L("Run the game exe, wrapped by Carryover (pick Proton in Steam)"))
 			}
-			c.Add(kit.Field(lang.L("Shortcut type"), kit.Outlined(kit.SelectOf(modes, o.Mode, o.OnMode))))
+			c.Add(kit.Field(i18n.L("Shortcut type"), kit.Outlined(kit.SelectOf(modes, o.Mode, o.OnMode))))
 		}
 		if o.Mode == "steamwrap" && g.Device.LaunchMode != "heroic" && g.Device.LaunchMode != "lutris" && runtime.GOOS != "darwin" {
-			t := lang.L("After adding, open the shortcut's Properties → Compatibility in Steam and force a Proton version. Its save prefix is available as {{.Token}}.",
+			t := i18n.L("After adding, open the shortcut's Properties → Compatibility in Steam and force a Proton version. Its save prefix is available as {{.Token}}.",
 				map[string]any{"Token": "{proton:shortcut}"})
 			if g.Device.SteamAppID != "" {
-				t = lang.L("After adding, open the shortcut's Properties → Compatibility in Steam and force a Proton version. Its save prefix is available as {{.Token}} (app id {{.AppID}}).",
+				t = i18n.L("After adding, open the shortcut's Properties → Compatibility in Steam and force a Proton version. Its save prefix is available as {{.Token}} (app id {{.AppID}}).",
 					map[string]any{"Token": "{proton:shortcut}", "AppID": g.Device.SteamAppID})
 			}
 			c.Add(kit.Muted(t))
 		}
-		addLabel := lang.L("Add to Steam")
+		addLabel := i18n.L("Add to Steam")
 		if g.Device.SteamAppID != "" {
-			addLabel = lang.L("Update Steam shortcut")
+			addLabel = i18n.L("Update Steam shortcut")
 		}
 		add := kit.Primary(addLabel, o.OnAdd)
 		kit.SetEnabled(add, !o.Busy && o.User != "")
@@ -131,7 +132,7 @@ func newSteamForm(o steamFormOpts) *steamForm {
 		}
 		c.Add(row)
 		if o.Info.Running {
-			c.Add(kit.Colored(lang.L("Steam is running — restart it after adding so it picks up the change."), widget.WarningImportance))
+			c.Add(kit.Colored(i18n.L("Steam is running — restart it after adding so it picks up the change."), widget.WarningImportance))
 		}
 	}
 	f := &steamForm{}

@@ -3,9 +3,12 @@ package game
 import (
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/container"
-	"fyne.io/fyne/v2/lang"
 	"fyne.io/fyne/v2/theme"
 	"fyne.io/fyne/v2/widget"
+
+	"github.com/akfaiz/carryover/ui/textutil"
+
+	"github.com/akfaiz/carryover/ui/i18n"
 
 	"github.com/akfaiz/carryover/services"
 	"github.com/akfaiz/carryover/ui/components"
@@ -122,9 +125,9 @@ func (p *Page) render() {
 	}
 	orig, ok := u.Store().Game(p.vm.id)
 	if !ok {
-		msg := lang.L("Loading…")
+		msg := i18n.L("Loading…")
 		if u.Store().Loaded {
-			msg = lang.L("Game not found.")
+			msg = i18n.L("Game not found.")
 		}
 		kit.ReplaceScroll(p.scroll, kit.Stack(kit.PageHead(u.Back, ""), kit.Muted(msg)))
 		return
@@ -137,11 +140,11 @@ func (p *Page) render() {
 	canSync := canSync(profs)
 
 	// Hero.
-	p.backBtn = widget.NewButtonWithIcon(lang.L("Back"), theme.NavigateBackIcon(), u.Back)
+	p.backBtn = widget.NewButtonWithIcon(i18n.L("Back"), theme.NavigateBackIcon(), u.Back)
 	p.backBtn.Importance = widget.LowImportance
 	info := kit.VBox(
 		kit.WrapTitle(g.Name),
-		kit.HBox(components.StatusBadge(g), kit.Small(lang.L("Last sync: {{.When}}", map[string]any{"When": components.TimeAgo(g.Status.LastSyncAt)}))),
+		kit.HBox(components.StatusBadge(g), kit.Small(i18n.L("Last sync: {{.When}}", map[string]any{"When": components.TimeAgo(g.Status.LastSyncAt)}))),
 	)
 	devices := otherDevicesCard(g)
 	if devices == nil && len(g.OtherDevices) > 0 {
@@ -154,43 +157,43 @@ func (p *Page) render() {
 		info.Add(kit.Colored(g.Status.LastError, widget.DangerImportance))
 	}
 	if g.Status.LocalChanges && !g.Status.Running {
-		info.Add(kit.Colored(lang.L("The saves on this device changed after the last sync, so the game was probably played without Carryover. Use “Sync now” to upload them."), widget.WarningImportance))
+		info.Add(kit.Colored(i18n.L("The saves on this device changed after the last sync, so the game was probably played without Carryover. Use “Sync now” to upload them."), widget.WarningImportance))
 	}
 	actions := kit.HBox()
 	steamLaunched := g.Device.LaunchMode == "steamwrap"
 	switch {
 	case g.Status.Running:
-		b := kit.Primary(lang.L("● Running"), nil)
+		b := kit.Primary(i18n.L("● Running"), nil)
 		b.Disable()
 		actions.Add(b)
 	case g.Ready && steamLaunched:
-		b := kit.Primary(lang.L("Play in Steam"), func() { flows.OpenSteam(u, orig) })
+		b := kit.Primary(i18n.L("Play in Steam"), func() { flows.OpenSteam(u, orig) })
 		kit.SetEnabled(b, services.SteamRunURL(orig) != "")
 		actions.Add(b)
 	case g.Ready:
 		// A game that can be played in several ways asks which one first.
-		b := widget.NewButtonWithIcon(lang.L("Play"), theme.MediaPlayIcon(), func() { p.run("play", func() error { return p.vm.be.Play(p.vm.id) }, nil) })
+		b := widget.NewButtonWithIcon(i18n.L("Play"), theme.MediaPlayIcon(), func() { p.run("play", func() error { return p.vm.be.Play(p.vm.id) }, nil) })
 		b.Importance = widget.HighImportance
 		kit.SetEnabled(b, !busy)
 		actions.Add(b)
 	default:
-		actions.Add(kit.Primary(lang.L("Set up for this device"), func() { u.Navigate("/edit/" + p.vm.id) }))
+		actions.Add(kit.Primary(i18n.L("Set up for this device"), func() { u.Navigate("/edit/" + p.vm.id) }))
 	}
-	syncLabel := lang.L("Sync now")
+	syncLabel := i18n.L("Sync now")
 	if p.vm.busy == "sync" {
-		syncLabel = lang.L("Syncing…")
+		syncLabel = i18n.L("Syncing…")
 	}
 	syncBtn := widget.NewButtonWithIcon(syncLabel, theme.ViewRefreshIcon(), func() { p.syncAll(profs) })
 	kit.SetEnabled(syncBtn, !busy && canSync && hasRemote && !g.Status.Running)
 	actions.Add(syncBtn)
-	actions.Add(widget.NewButtonWithIcon(lang.L("Edit"), theme.DocumentCreateIcon(), func() { u.Navigate("/edit/" + p.vm.id) }))
+	actions.Add(widget.NewButtonWithIcon(i18n.L("Edit"), theme.DocumentCreateIcon(), func() { u.Navigate("/edit/" + p.vm.id) }))
 	actions.Add(p.moreButton(orig, busy))
 	info.Add(actions)
 	if steamLaunched && g.Ready && services.SteamRunURL(orig) == "" {
-		info.Add(kit.Muted(lang.L("This game is launched from Steam on this device (Proton). Use “Add to Steam” below, then start it from Steam.")))
+		info.Add(kit.Muted(i18n.L("This game is launched from Steam on this device (Proton). Use “Add to Steam” below, then start it from Steam.")))
 	}
 	if p.vm.busy == "delete" {
-		info.Add(kit.FixedWidth(480, kit.BusyLine(lang.L("Deleting…"))))
+		info.Add(kit.FixedWidth(480, kit.BusyLine(i18n.L("Deleting…"))))
 	}
 
 	sessKey := p.sessionKey()
@@ -205,9 +208,9 @@ func (p *Page) render() {
 		}
 		if st.Phase == "sync" {
 			// Before the game starts this cancels the launch; afterwards the upload.
-			label := lang.L("Cancel upload")
+			label := i18n.L("Cancel upload")
 			if st.BeforePlay {
-				label = lang.L("Cancel and don't play")
+				label = i18n.L("Cancel and don't play")
 			}
 			box.Add(kit.HBox(p.cancelButton(label, func() bool { return p.vm.be.CancelPlay(sessKey) })))
 		}
@@ -246,7 +249,7 @@ func (p *Page) profileSwitcher(profs []profileEntry, sel profileEntry) fyne.Canv
 	for _, pe := range profs {
 		opts = append(opts, kit.ChipOption{Value: pe.id, Label: tagOf(pe), Icon: components.StatusIcon(pe.view)})
 	}
-	return kit.VBox(kit.Small(lang.L("Saves of")), kit.Chips(opts, sel.id, func(id string) {
+	return kit.VBox(kit.Small(i18n.L("Saves of")), kit.Chips(opts, sel.id, func(id string) {
 		p.vm.selected, p.vm.chosen = id, true
 		p.render()
 	}))
@@ -268,9 +271,9 @@ func (p *Page) moreMenu(g services.GameView, busy bool) *fyne.Menu {
 	var items []*fyne.MenuItem
 	for _, sl := range g.Slots {
 		if dir := g.ResolvedPaths[sl.Key]; dir != "" && g.PathErrors[sl.Key] == "" {
-			label := lang.L("Open save folder")
+			label := i18n.L("Open save folder")
 			if len(g.Slots) > 1 {
-				label = lang.L("Open save folder: {{.Label}}", map[string]any{"Label": components.LabelOf(sl.Label, sl.Key)})
+				label = i18n.L("Open save folder: {{.Label}}", map[string]any{"Label": textutil.LabelOf(sl.Label, sl.Key)})
 			}
 			items = append(items, fyne.NewMenuItem(label, func() { p.u.OpenFolder(dir) }))
 		}
@@ -278,7 +281,7 @@ func (p *Page) moreMenu(g services.GameView, busy bool) *fyne.Menu {
 	if len(items) > 0 {
 		items = append(items, fyne.NewMenuItemSeparator())
 	}
-	del := fyne.NewMenuItem(lang.L("Delete from library…"), p.askDelete)
+	del := fyne.NewMenuItem(i18n.L("Delete from library…"), p.askDelete)
 	del.Icon = theme.DeleteIcon()
 	del.Disabled = busy || g.Overall.Running
 	return fyne.NewMenu("", append(items, del)...)
@@ -292,11 +295,11 @@ func (p *Page) askDelete() {
 		return
 	}
 	components.ConfirmDanger(p.u, components.ConfirmOpts{
-		Title:    lang.L("Delete game"),
-		Message:  lang.L("Move {{.Game}} to the trash on all devices? You can restore it from the Trash page. Cloud saves and backups are kept.", map[string]any{"Game": g.Name}),
-		Check:    lang.L("Also delete its cloud saves and backups"),
-		Checked:  lang.L("Delete {{.Game}} permanently on all devices, with its cloud saves and backups (for every emulator too)? It can't be restored.", map[string]any{"Game": g.Name}),
-		KeptHint: lang.L("The cloud saves stay until you delete them. Once it is gone for good, they are listed under Trash → Leftover cloud saves."),
+		Title:    i18n.L("Delete game"),
+		Message:  i18n.L("Move {{.Game}} to the trash on all devices? You can restore it from the Trash page. Cloud saves and backups are kept.", map[string]any{"Game": g.Name}),
+		Check:    i18n.L("Also delete its cloud saves and backups"),
+		Checked:  i18n.L("Delete {{.Game}} permanently on all devices, with its cloud saves and backups (for every emulator too)? It can't be restored.", map[string]any{"Game": g.Name}),
+		KeptHint: i18n.L("The cloud saves stay until you delete them. Once it is gone for good, they are listed under Trash → Leftover cloud saves."),
 		OnConfirm: func(saves bool) {
 			p.run("delete", func() error { return p.vm.be.Delete(p.vm.id, saves) }, func(err error) {
 				if err == nil {
@@ -313,7 +316,7 @@ func (p *Page) Redraw() { p.render() }
 // tagOf names a profile on the switcher: the emulator, or the game's own saves.
 func tagOf(pe profileEntry) string {
 	if pe.noEmu {
-		return lang.L("Without an emulator")
+		return i18n.L("Without an emulator")
 	}
 	return pe.tag
 }

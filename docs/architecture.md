@@ -103,10 +103,12 @@ flowchart LR
 
 | Package | Role |
 | --- | --- |
-| `ui/kit` | Reusable Fyne widgets, layouts, palette and theme, toaster, image cache, gamepad navigation. Pure Fyne: no `lang`, `services` or `core` imports and no user-visible text (callers pass labels in). |
-| `ui/i18n` | Translation catalogs (`translations/*.json`) and their loading. |
-| `ui/store` | The state every page shares (games, settings, session status, transfer progress, "Sync all"). The only listener of `services.Bus`; pages subscribe by topic. |
-| `ui/env` | What a page may use of the app: `env.Env` (window, services, store, navigation, toasts) and the page contracts (`Page`, `Stateful`, `Guarded`, `Searchable`, `Syncable`, `PadFocuser`, `Redrawable`). |
+| `ui/kit` | Reusable Fyne widgets, layouts, palette and theme, toaster, image cache, gamepad navigation. Pure Fyne: no `i18n`, `services` or `core` imports and no user-visible text (callers pass labels in). |
+| `ui/i18n` | Translation catalogs (`translations/*.json`) and `i18n.L`/`i18n.N`, on its own go-i18n localizer (no toolkit import). The root also hands the catalogs to Fyne's `lang` for Fyne's own dialogs. |
+| `ui/textutil` | Plain string helpers the ViewModels share (`Slug`, `SplitLines`, `LabelOf`). |
+| `ui/store` | The state every page shares (games, settings, session status, transfer progress, "Sync all"). The only listener of `services.Bus`; pages subscribe by topic. The shell hands it the UI-goroutine runner (`store.New(load, onUI)`). |
+| `ui/envcore` | `envcore.Services`: the services and the store, the part of `env.Env` a ViewModel's backend holds. |
+| `ui/env` | What a page may use of the app: `env.Env` (`envcore.Services` plus window, navigation, toasts) and the page contracts (`Page`, `Stateful`, `Guarded`, `Searchable`, `Syncable`, `PadFocuser`, `Redrawable`). |
 | `ui/components` | Shared widgets and dialogs that know about the app (help text, confirm dialogs, path input, status badges). `components/emulatorform` is the emulator form the Emulators page and the game editor share. |
 | `ui/flows` | Multi-step actions that open dialogs, call services and navigate: add a game, import from Steam, set the SteamGridDB key, open a game in Steam. |
 | `ui/prompts` | The session prompt dialogs (conflict, lock, error, which emulator). |
@@ -115,7 +117,7 @@ flowchart LR
 | `ui` (root) | Composition root: `Run`, the route table (`routes.go`), the sync-problems dialog and the embedded artwork. |
 | `ui/internal/uitest` | Headless test harness shared by the page tests. A page's view tests live in its package; the root `ui` package keeps only the tests that need several real pages at once. |
 
-Imports go one way: `kit`, `i18n` <- `store` <- `env` <- `components` <- `flows`, `prompts` <- `pages/*` <- `shell`
+Imports go one way: `kit`, `i18n`, `textutil` <- `store` <- `envcore` <- `env` <- `components` <- `flows`, `prompts` <- `pages/*` <- `shell`
 <- `ui`. A page never imports `shell` or another page; it opens one with `env.Navigate("/game/<id>")`. Under `ui/`
 only `shell` and the root import `internal/core`; the rest reaches it through `services` (`services/aliases.go`
 re-exports the types the UI needs).
@@ -125,7 +127,7 @@ When you add or change a page:
 - Put anything that can be decided without a widget (what shows, in which order, which empty state, what a
   button does) in the ViewModel and test it with fakes; keep widgets in the view.
 - The ViewModel exposes plain state (enums, counts, `[]services.GameView`); the view turns it into text with
-  `lang.L`.
+  `i18n.L`.
 - Touch widgets only on the UI goroutine; I/O goes through `kit.Async`.
 - Declare the page contracts a page implements (`var _ env.Guarded = (*Page)(nil)`): the shell finds them by
   type assertion, so a missing method would otherwise fail silently.
@@ -189,7 +191,7 @@ when they write it, and each device registers again).
 
 | Rule | Checked by |
 | --- | --- |
-| `ui/` reaches `internal/` only through `services` (except `shell` and the root); a ViewModel imports no widgets or `lang`; `kit` stays pure Fyne | `depguard` in `.golangci.yml` |
+| `ui/` reaches `internal/` only through `services` (except `shell` and the root); a ViewModel imports no widgets or `i18n`; `kit` stays pure Fyne; ViewModels, backends, `store`, `envcore`, `i18n` and `textutil` reach no GUI toolkit | `depguard` in `.golangci.yml`, `TestToolkitFree` (`ui/envcore`) |
 | `mobile` changes nothing through `internal/core` directly | `TestMobileWritesThroughServices` |
 | The Android app's layers (screens, view models, `core/`, `data/`, `session/`) | `LayeringTest` (Kotlin) |
 | Every desktop UI text has an English catalog entry; other languages match it | `TestTranslationCatalog`, `TestLanguageCatalogsMatchEnglish` |

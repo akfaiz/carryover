@@ -3,9 +3,10 @@ package settings
 import (
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/container"
-	"fyne.io/fyne/v2/lang"
 	"fyne.io/fyne/v2/theme"
 	"fyne.io/fyne/v2/widget"
+
+	"github.com/akfaiz/carryover/ui/i18n"
 
 	"github.com/akfaiz/carryover/services"
 	"github.com/akfaiz/carryover/ui/env"
@@ -43,7 +44,7 @@ func newSelfSteamCard(u env.Env, art func() map[string][]byte) fyne.CanvasObject
 		s.info, s.user, s.appID = &st.info, st.user, st.appID
 		s.render()
 	})
-	return kit.Card(lang.L("Steam"), s.box)
+	return kit.Card(i18n.L("Steam"), s.box)
 }
 
 func (s *selfSteamCard) render() {
@@ -54,40 +55,40 @@ func (s *selfSteamCard) render() {
 func (s *selfSteamCard) content() fyne.CanvasObject {
 	switch {
 	case s.info == nil:
-		return kit.Muted(lang.L("Detecting Steam…"))
+		return kit.Muted(i18n.L("Detecting Steam…"))
 	case !s.info.Found:
-		return kit.Muted(lang.L("Steam was not found on this device."))
+		return kit.Muted(i18n.L("Steam was not found on this device."))
 	}
-	c := kit.VBox(kit.Muted(lang.L("Add Carryover to Steam as a non-Steam game to open it from Steam Deck Game Mode and use it with a controller. Its library artwork is set too.")))
+	c := kit.VBox(kit.Muted(i18n.L("Add Carryover to Steam as a non-Steam game to open it from Steam Deck Game Mode and use it with a controller. Its library artwork is set too.")))
 	if len(s.info.Users) > 1 {
 		users := &kit.Choice{}
 		for _, us := range s.info.Users {
 			users.Add(us.ID, us.Name)
 		}
-		c.Add(kit.Field(lang.L("Steam account"), kit.Outlined(kit.SelectOf(users, s.user, s.selectUser))))
+		c.Add(kit.Field(i18n.L("Steam account"), kit.Outlined(kit.SelectOf(users, s.user, s.selectUser))))
 	}
 	if s.appID != "" {
 		c.Add(kit.HBox(widget.NewIcon(theme.NewSuccessThemedResource(theme.ConfirmIcon())),
-			widget.NewLabel(lang.L("In Steam on this device"))))
+			widget.NewLabel(i18n.L("In Steam on this device"))))
 	}
-	label := lang.L("Add Carryover to Steam")
+	label := i18n.L("Add Carryover to Steam")
 	if s.appID != "" {
-		label = lang.L("Update Steam shortcut")
+		label = i18n.L("Update Steam shortcut")
 	}
 	add := kit.Primary(label, s.add)
 	kit.SetEnabled(add, !s.busy && s.user != "")
 	row := kit.HBox(add)
 	if s.appID != "" {
-		rm := widget.NewButton(lang.L("Remove"), s.remove)
+		rm := widget.NewButton(i18n.L("Remove"), s.remove)
 		kit.SetEnabled(rm, !s.busy)
 		row.Add(rm)
 	}
 	c.Add(row)
 	if s.busy {
-		c.Add(kit.BusyLine(lang.L("Updating Steam…")))
+		c.Add(kit.BusyLine(i18n.L("Updating Steam…")))
 	}
 	if s.info.Running {
-		c.Add(kit.Colored(lang.L("Steam is running — restart it after adding so it picks up the change."), widget.WarningImportance))
+		c.Add(kit.Colored(i18n.L("Steam is running — restart it after adding so it picks up the change."), widget.WarningImportance))
 	}
 	return c
 }
@@ -118,9 +119,9 @@ func (s *selfSteamCard) add() {
 		} else {
 			s.appID = res.AppID
 			if res.SteamRunning {
-				s.u.Toast(lang.L("Added to Steam. Restart Steam to see it."), kit.ToastOK)
+				s.u.Toast(i18n.L("Added to Steam. Restart Steam to see it."), kit.ToastOK)
 			} else {
-				s.u.Toast(lang.L("Added to Steam"), kit.ToastOK)
+				s.u.Toast(i18n.L("Added to Steam"), kit.ToastOK)
 			}
 		}
 		s.render()
@@ -138,10 +139,10 @@ func (s *selfSteamCard) remove() {
 			s.u.ToastErr(err)
 		case n > 0:
 			s.appID = ""
-			s.u.Toast(lang.L("Removed from Steam"), kit.ToastOK)
+			s.u.Toast(i18n.L("Removed from Steam"), kit.ToastOK)
 		default:
 			s.appID = ""
-			s.u.Toast(lang.L("No shortcut found"), kit.ToastOK)
+			s.u.Toast(i18n.L("No shortcut found"), kit.ToastOK)
 		}
 		s.render()
 	})

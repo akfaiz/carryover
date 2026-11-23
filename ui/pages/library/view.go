@@ -3,10 +3,11 @@ package library
 import (
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/container"
-	"fyne.io/fyne/v2/lang"
 	"fyne.io/fyne/v2/layout"
 	"fyne.io/fyne/v2/theme"
 	"fyne.io/fyne/v2/widget"
+
+	"github.com/akfaiz/carryover/ui/i18n"
 
 	"github.com/akfaiz/carryover/ui/env"
 	"github.com/akfaiz/carryover/ui/kit"
@@ -62,18 +63,18 @@ func (p *Page) Tiles() map[string]*Tile { return p.tiles }
 
 func (p *Page) View() fyne.CanvasObject {
 	p.search = widget.NewEntry()
-	p.search.SetPlaceHolder(lang.L("Search…"))
+	p.search.SetPlaceHolder(i18n.L("Search…"))
 	p.search.OnChanged = func(s string) { p.vm.SetQuery(s); p.renderGrid() }
-	p.syncBtn = widget.NewButtonWithIcon(lang.L("Sync all"), theme.ViewRefreshIcon(), p.u.SyncAll)
-	p.head = kit.PageHead(nil, lang.L("Library"),
+	p.syncBtn = widget.NewButtonWithIcon(i18n.L("Sync all"), theme.ViewRefreshIcon(), p.u.SyncAll)
+	p.head = kit.PageHead(nil, i18n.L("Library"),
 		p.syncBtn,
-		kit.Primary(lang.L("＋ Add game"), p.u.AddGame),
+		kit.Primary(i18n.L("＋ Add game"), p.u.AddGame),
 	)
 	// Search and sort on one row, the filters on their own row under it: three
 	// kinds of control in one row ran together.
 	sorts := &kit.Choice{}
-	sorts.Add(string(SortName), lang.L("Sort by name"))
-	sorts.Add(string(SortRecent), lang.L("Sort by last sync"))
+	sorts.Add(string(SortName), i18n.L("Sort by name"))
+	sorts.Add(string(SortRecent), i18n.L("Sort by last sync"))
 	sortSel := kit.SelectOf(sorts, string(p.vm.Sort()), func(v string) {
 		p.vm.SetSort(Sort(v))
 		p.renderGrid()
@@ -134,13 +135,13 @@ func (p *Page) updateProgress() {
 	state, enabled := p.vm.SyncButton()
 	switch state {
 	case SyncCancelling:
-		p.syncBtn.SetText(lang.L("Cancelling…"))
+		p.syncBtn.SetText(i18n.L("Cancelling…"))
 		p.syncBtn.SetIcon(theme.CancelIcon())
 	case SyncRunning:
-		p.syncBtn.SetText(lang.L("Cancel sync"))
+		p.syncBtn.SetText(i18n.L("Cancel sync"))
 		p.syncBtn.SetIcon(theme.CancelIcon())
 	default:
-		p.syncBtn.SetText(lang.L("Sync all"))
+		p.syncBtn.SetText(i18n.L("Sync all"))
 		p.syncBtn.SetIcon(theme.ViewRefreshIcon())
 	}
 	kit.SetEnabled(p.syncBtn, enabled)
@@ -157,7 +158,7 @@ func (p *Page) updateProgress() {
 	}
 	p.bar.Max = float64(pr.Total)
 	p.bar.SetValue(float64(pr.Done))
-	text := lang.L("Synced {{.Done}} of {{.Total}}", map[string]any{"Done": pr.Done, "Total": pr.Total})
+	text := i18n.L("Synced {{.Done}} of {{.Total}}", map[string]any{"Done": pr.Done, "Total": pr.Total})
 	if pr.Name != "" {
 		text += " · " + pr.Name
 	}
@@ -188,9 +189,9 @@ func (p *Page) renderChips() {
 	if p.vm.ShowFilters() {
 		c := p.vm.Counts()
 		p.filterHost.Objects = []fyne.CanvasObject{kit.Chips([]kit.ChipOption{
-			{Value: string(FilterAll), Label: lang.L("All ({{.Count}})", map[string]any{"Count": c.All})},
-			{Value: string(FilterReady), Label: lang.L("Ready to play ({{.Count}})", map[string]any{"Count": c.Ready}), Icon: theme.MediaPlayIcon()},
-			{Value: string(FilterAttention), Label: lang.L("Needs attention ({{.Count}})", map[string]any{"Count": c.Attention}), Icon: theme.WarningIcon()},
+			{Value: string(FilterAll), Label: i18n.L("All ({{.Count}})", map[string]any{"Count": c.All})},
+			{Value: string(FilterReady), Label: i18n.L("Ready to play ({{.Count}})", map[string]any{"Count": c.Ready}), Icon: theme.MediaPlayIcon()},
+			{Value: string(FilterAttention), Label: i18n.L("Needs attention ({{.Count}})", map[string]any{"Count": c.Attention}), Icon: theme.WarningIcon()},
 		}, string(p.vm.Filter()), func(v string) {
 			p.vm.SetFilter(Filter(v))
 			p.renderGrid()
@@ -205,7 +206,7 @@ func (p *Page) renderChips() {
 // showAll is the "Show all games" button of the empty states that come from a
 // filter.
 func (p *Page) showAll() fyne.CanvasObject {
-	return kit.HBox(widget.NewButton(lang.L("Show all games"), func() { p.vm.SetFilter(FilterAll); p.renderGrid() }))
+	return kit.HBox(widget.NewButton(i18n.L("Show all games"), func() { p.vm.SetFilter(FilterAll); p.renderGrid() }))
 }
 
 func (p *Page) renderEmpty() {
@@ -213,24 +214,24 @@ func (p *Page) renderEmpty() {
 	p.emptyHost.Objects = nil
 	switch p.vm.Empty() {
 	case EmptyNoGames:
-		actions := kit.HBox(kit.Primary(lang.L("＋ Add your first game"), u.AddGame))
+		actions := kit.HBox(kit.Primary(i18n.L("＋ Add your first game"), u.AddGame))
 		if !p.vm.src.HasRemote() {
-			actions.Add(widget.NewButtonWithIcon(lang.L("Set up cloud storage"), theme.StorageIcon(), func() { u.Navigate("/cloud") }))
+			actions.Add(widget.NewButtonWithIcon(i18n.L("Set up cloud storage"), theme.StorageIcon(), func() { u.Navigate("/cloud") }))
 		}
-		p.emptyHost.Objects = []fyne.CanvasObject{kit.Card(lang.L("No games yet"),
-			kit.Muted(lang.L("Add a game, tell Carryover where its saves live on this device, and it will keep them in sync through your cloud storage every time you play — from here or from Steam.")),
+		p.emptyHost.Objects = []fyne.CanvasObject{kit.Card(i18n.L("No games yet"),
+			kit.Muted(i18n.L("Add a game, tell Carryover where its saves live on this device, and it will keep them in sync through your cloud storage every time you play — from here or from Steam.")),
 			actions)}
 	case EmptyNoMatch:
 		p.emptyHost.Objects = []fyne.CanvasObject{kit.Card("",
-			kit.Muted(lang.L("No games match “{{.Query}}”.", map[string]any{"Query": p.vm.Query()})),
-			kit.HBox(widget.NewButton(lang.L("Clear search"), func() { p.search.SetText("") })))}
+			kit.Muted(i18n.L("No games match “{{.Query}}”.", map[string]any{"Query": p.vm.Query()})),
+			kit.HBox(widget.NewButton(i18n.L("Clear search"), func() { p.search.SetText("") })))}
 	case EmptyNoReady:
 		p.emptyHost.Objects = []fyne.CanvasObject{kit.Card("",
-			kit.Muted(lang.L("No game can be played on this device yet. Set one up to play it here.")),
+			kit.Muted(i18n.L("No game can be played on this device yet. Set one up to play it here.")),
 			p.showAll())}
 	case EmptyNoAttention:
 		p.emptyHost.Objects = []fyne.CanvasObject{kit.Card("",
-			kit.Muted(lang.L("Nothing needs attention: every game is set up and synced.")),
+			kit.Muted(i18n.L("Nothing needs attention: every game is set up and synced.")),
 			p.showAll())}
 	}
 	p.emptyHost.Refresh()

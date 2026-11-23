@@ -2,7 +2,8 @@
 // the status and transfer progress of play sessions and syncs, and the progress
 // of "Sync all". It is the one place that listens to services.Bus for them.
 //
-// All of it is read and written on the Fyne UI goroutine only. The fields are
+// All of it is read and written on the UI goroutine only (the toolkit's, handed
+// in to New as onUI; the store itself imports no GUI toolkit). The fields are
 // exported for reading; change them through the methods, which tell the
 // subscribers what changed. Pages and view models subscribe to topics instead
 // of being called by whoever changed the state.
@@ -12,7 +13,6 @@ import (
 	"github.com/akfaiz/carryover/internal/app/appdir"
 	"github.com/akfaiz/carryover/internal/cloudsync/syncer"
 	"github.com/akfaiz/carryover/services"
-	"github.com/akfaiz/carryover/ui/kit"
 )
 
 // Topic says which part of the state changed.
@@ -54,6 +54,7 @@ type Store struct {
 	SyncAll  SyncAllState
 
 	load Loader
+	onUI func(func()) // runs work on the UI goroutine
 	// seq numbers the refreshes: only the newest one's result is stored, so a
 	// slow older one can't replace fresher data.
 	seq  int
@@ -66,21 +67,26 @@ type subscription struct {
 	fn func(Topic)
 }
 
-// New returns an empty store that refreshes through load.
-func New(load Loader) *Store {
+// New returns an empty store that refreshes through load. onUI runs work on
+// the UI goroutine (fyne.Do in the Fyne GUI); nil runs it in place, for tests.
+func New(load Loader, onUI func(func())) *Store {
+	if onUI == nil {
+		onUI = func(f func()) { f() }
+	}
 	return &Store{
 		Status:   map[string]services.Status{},
 		Progress: map[string]syncer.Event{},
 		load:     load,
+		onUI:     onUI,
 	}
 }
 
 // Attach feeds the store from the services' events. The callbacks come on any
 // goroutine; the store hops to the UI goroutine itself.
 func (s *Store) Attach(bus *services.Bus) {
-	bus.OnLibrary(func(string) { kit.OnUI(s.Refresh) })
+	bus.OnLibrary(func(string) { s.onUI(s.Refresh) })
 	bus.OnStatus(func(st services.Status) {
-		kit.OnUI(func() {
+		s.onUI(func() {
 			s.Status[st.GameID] = st
 			if st.Key != "" {
 				s.Status[st.Key] = st // the session of one emulator profile
@@ -89,13 +95,13 @@ func (s *Store) Attach(bus *services.Bus) {
 		})
 	})
 	bus.OnSync(func(ev syncer.Event) {
-		kit.OnUI(func() {
+		s.onUI(func() {
 			s.Progress[ev.GameID] = ev
 			s.Publish(Progress)
 		})
 	})
 	bus.OnSyncAll(func(p services.SyncAllProgress) {
-		kit.OnUI(func() {
+		s.onUI(func() {
 			s.SyncAll.Progress = p
 			s.Publish(SyncAll)
 		})
@@ -136,7 +142,7 @@ func (s *Store) Refresh() {
 		games := s.load.Games()
 		st := s.load.Settings()
 		trash := s.load.TrashCount()
-		kit.OnUI(func() {
+		s.onUI(func() {
 			if seq != s.seq {
 				return // a newer refresh is on its way; this result may be older
 			}

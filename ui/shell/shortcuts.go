@@ -5,7 +5,8 @@ import (
 
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/driver/desktop"
-	"fyne.io/fyne/v2/lang"
+
+	"github.com/akfaiz/carryover/ui/i18n"
 
 	"github.com/akfaiz/carryover/services"
 	"github.com/akfaiz/carryover/ui/env"
@@ -67,11 +68,11 @@ func (u *Shell) syncAll() {
 		u.store.EndSyncAll()
 		defer u.store.Refresh()
 		if errors.Is(err, services.ErrSyncCancelled) {
-			u.toast(lang.N("Sync cancelled after {{.Count}} game", len(res), map[string]any{"Count": len(res)}), kit.ToastInfo)
+			u.toast(i18n.N("Sync cancelled after {{.Count}} game", len(res), map[string]any{"Count": len(res)}), kit.ToastInfo)
 			return
 		}
 		if services.IsOffline(err) {
-			u.toast(lang.L("Offline — nothing synced"), kit.ToastInfo)
+			u.toast(i18n.L("Offline — nothing synced"), kit.ToastInfo)
 			return
 		}
 		if err != nil {
@@ -88,6 +89,6 @@ func (u *Shell) syncAll() {
 			u.cfg.SyncProblems(u, len(res), problems)
 			return
 		}
-		u.toast(lang.N("Synced {{.Count}} game", len(res), map[string]any{"Count": len(res)}), kit.ToastOK)
+		u.toast(i18n.N("Synced {{.Count}} game", len(res), map[string]any{"Count": len(res)}), kit.ToastOK)
 	})
 }

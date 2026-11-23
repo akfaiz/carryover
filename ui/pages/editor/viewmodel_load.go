@@ -4,9 +4,10 @@ import (
 	"slices"
 	"strings"
 
+	"github.com/akfaiz/carryover/ui/textutil"
+
 	"github.com/akfaiz/carryover/internal/saves/pathvar"
 	"github.com/akfaiz/carryover/services"
-	"github.com/akfaiz/carryover/ui/components"
 )
 
 // Backend is what the editor asks of the services; the ViewModel holds one, so
@@ -164,7 +165,7 @@ func (e *ViewModel) fillFrom(g *services.GameView) {
 	e.advanced = e.dev.WorkDir != "" || e.dev.WaitProcess != "" || e.envText != ""
 	for _, s := range g.Slots {
 		e.slots = append(e.slots, &slotForm{
-			key: s.Key, label: components.LabelOf(s.Label, s.Key),
+			key: s.Key, label: textutil.LabelOf(s.Label, s.Key),
 			include: strings.Join(s.Include, "\n"), exclude: strings.Join(s.Exclude, "\n"),
 			path: d.Paths[s.Key],
 		})

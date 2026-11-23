@@ -3,11 +3,11 @@ package game
 import (
 	"github.com/akfaiz/carryover/internal/cloudsync/syncer"
 	"github.com/akfaiz/carryover/services"
-	"github.com/akfaiz/carryover/ui/env"
+	"github.com/akfaiz/carryover/ui/envcore"
 )
 
-// serviceBackend is the Backend of the application: the services behind env.Env.
-type serviceBackend struct{ u env.Env }
+// serviceBackend is the Backend of the application: the services behind env.Env (envcore.Services).
+type serviceBackend struct{ u envcore.Services }
 
 func (b serviceBackend) Plan(key string) (services.PlanView, error) { return b.u.Sync().Plan(key) }
 func (b serviceBackend) Sync(key, resolution string) (string, error) {

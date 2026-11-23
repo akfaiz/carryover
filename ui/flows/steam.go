@@ -3,7 +3,7 @@ package flows
 import (
 	"net/url"
 
-	"fyne.io/fyne/v2/lang"
+	"github.com/akfaiz/carryover/ui/i18n"
 
 	"github.com/akfaiz/carryover/services"
 	"github.com/akfaiz/carryover/ui/env"
@@ -14,7 +14,7 @@ import (
 func OpenSteam(u env.Env, g services.GameView) {
 	link := services.SteamRunURL(g)
 	if link == "" {
-		u.Toast(lang.L("Steam can't start this game yet: add it to Steam on the game's page."), kit.ToastErr)
+		u.Toast(i18n.L("Steam can't start this game yet: add it to Steam on the game's page."), kit.ToastErr)
 		return
 	}
 	pu, err := url.Parse(link)
@@ -25,5 +25,5 @@ func OpenSteam(u env.Env, g services.GameView) {
 		u.ToastErr(err)
 		return
 	}
-	u.Toast(lang.L("Starting {{.Game}} in Steam…", map[string]any{"Game": g.Name}), kit.ToastInfo)
+	u.Toast(i18n.L("Starting {{.Game}} in Steam…", map[string]any{"Game": g.Name}), kit.ToastInfo)
 }

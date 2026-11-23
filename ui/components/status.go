@@ -2,8 +2,9 @@ package components
 
 import (
 	"fyne.io/fyne/v2"
-	"fyne.io/fyne/v2/lang"
 	"fyne.io/fyne/v2/theme"
+
+	"github.com/akfaiz/carryover/ui/i18n"
 
 	"github.com/akfaiz/carryover/services"
 	"github.com/akfaiz/carryover/ui/kit"
@@ -16,19 +17,19 @@ func StatusBadge(g services.GameView) fyne.CanvasObject { return kit.Badge(Statu
 func StatusOf(g services.GameView) (string, int) {
 	switch {
 	case g.Status.Running:
-		return lang.L("Running"), kit.BadgeInfo
+		return i18n.L("Running"), kit.BadgeInfo
 	case !g.Ready:
-		return lang.L("Needs setup"), kit.BadgeWarn
+		return i18n.L("Needs setup"), kit.BadgeWarn
 	case g.Status.Conflict:
-		return lang.L("Conflict"), kit.BadgeErr
+		return i18n.L("Conflict"), kit.BadgeErr
 	case g.Status.LastError != "":
-		return lang.L("Sync error"), kit.BadgeErr
+		return i18n.L("Sync error"), kit.BadgeErr
 	case g.Status.LocalChanges:
-		return lang.L("Not uploaded"), kit.BadgeWarn
+		return i18n.L("Not uploaded"), kit.BadgeWarn
 	case g.Status.LastSyncAt != "":
-		return lang.L("Synced"), kit.BadgeOK
+		return i18n.L("Synced"), kit.BadgeOK
 	}
-	return lang.L("Not synced"), kit.BadgeNone
+	return i18n.L("Not synced"), kit.BadgeNone
 }
 
 // StatusIcon is a small coloured icon for a game's sync state (nil when there

@@ -4,11 +4,14 @@ import (
 	"slices"
 	"strings"
 
+	"github.com/akfaiz/carryover/ui/textutil"
+
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/container"
-	"fyne.io/fyne/v2/lang"
 	"fyne.io/fyne/v2/theme"
 	"fyne.io/fyne/v2/widget"
+
+	"github.com/akfaiz/carryover/ui/i18n"
 
 	"github.com/akfaiz/carryover/internal/cloudsync/syncer"
 	"github.com/akfaiz/carryover/services"
@@ -30,7 +33,7 @@ func saveLocationRow(u env.Env, label, resolved, pathErr string) fyne.CanvasObje
 		// colour wrapped over three lines and outshouted the page.
 		val = kit.NewTappable(container.NewBorder(nil, nil, widget.NewIcon(theme.FolderOpenIcon()), nil, kit.NewPathLabel(resolved)), func() { u.OpenFolder(resolved) })
 	default:
-		val = kit.Colored(lang.L("not set on this device"), widget.WarningImportance)
+		val = kit.Colored(i18n.L("not set on this device"), widget.WarningImportance)
 	}
 	return kit.LabeledRow(110, name, val)
 }
@@ -41,20 +44,20 @@ func backupRow(b syncer.Backup, restoring, canRestore, canPin bool, onRestore, o
 	var desc string
 	switch {
 	case b.Local:
-		desc = lang.L("{{.Device}}'s saves (copy kept on this device)", map[string]any{"Device": b.DeviceName})
+		desc = i18n.L("{{.Device}}'s saves (copy kept on this device)", map[string]any{"Device": b.DeviceName})
 	case b.Kind == "local":
-		desc = lang.L("{{.Device}}'s local saves", map[string]any{"Device": b.DeviceName})
+		desc = i18n.L("{{.Device}}'s local saves", map[string]any{"Device": b.DeviceName})
 	case b.Kind == "manual":
-		desc = lang.L("{{.Device}}'s saves (manual backup)", map[string]any{"Device": b.DeviceName})
+		desc = i18n.L("{{.Device}}'s saves (manual backup)", map[string]any{"Device": b.DeviceName})
 	default:
-		desc = lang.L("cloud saves (replaced by {{.Device}})", map[string]any{"Device": b.DeviceName})
+		desc = i18n.L("cloud saves (replaced by {{.Device}})", map[string]any{"Device": b.DeviceName})
 	}
-	pinLabel := lang.L("Pin")
+	pinLabel := i18n.L("Pin")
 	if b.Pinned {
-		desc += " · " + lang.L("pinned")
-		pinLabel = lang.L("Unpin")
+		desc += " · " + i18n.L("pinned")
+		pinLabel = i18n.L("Unpin")
 	}
-	label := lang.L("Restore")
+	label := i18n.L("Restore")
 	if restoring {
 		label = "…"
 	}
@@ -83,14 +86,14 @@ func otherDevicesCard(g services.GameView) fyne.CanvasObject {
 		devs.Add(widget.NewLabelWithStyle(d.DeviceName, fyne.TextAlignLeading, fyne.TextStyle{Bold: true}))
 		for _, s := range g.Slots {
 			if v := d.Paths[s.Key]; v != "" {
-				l := kit.Mono(components.LabelOf(s.Label, s.Key) + ": " + v)
+				l := kit.Mono(textutil.LabelOf(s.Label, s.Key) + ": " + v)
 				l.Importance = widget.LowImportance
 				l.SizeName = theme.SizeNameCaptionText
 				devs.Add(l)
 			}
 		}
 	}
-	return kit.Card(lang.L("Other devices"), devs)
+	return kit.Card(i18n.L("Other devices"), devs)
 }
 
 // otherDevicesLine names the other devices that have the game, for the page
@@ -101,20 +104,20 @@ func otherDevicesLine(g services.GameView) fyne.CanvasObject {
 	for _, d := range g.OtherDevices {
 		names = append(names, d.DeviceName)
 	}
-	return kit.Small(lang.L("Also on {{.Devices}}", map[string]any{"Devices": strings.Join(names, ", ")}))
+	return kit.Small(i18n.L("Also on {{.Devices}}", map[string]any{"Devices": strings.Join(names, ", ")}))
 }
 
 // planText describes a sync plan action in words.
 func planText(action string) string {
 	switch action {
 	case "none":
-		return lang.L("Local and cloud saves are identical.")
+		return i18n.L("Local and cloud saves are identical.")
 	case "push":
-		return lang.L("Local saves are newer — they will be uploaded.")
+		return i18n.L("Local saves are newer — they will be uploaded.")
 	case "pull":
-		return lang.L("Cloud saves are newer — they will be downloaded.")
+		return i18n.L("Cloud saves are newer — they will be downloaded.")
 	case "conflict":
-		return lang.L("Both changed since the last sync. Choose which to keep.")
+		return i18n.L("Both changed since the last sync. Choose which to keep.")
 	}
 	return ""
 }

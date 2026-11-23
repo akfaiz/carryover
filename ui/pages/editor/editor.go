@@ -5,8 +5,9 @@ import (
 
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/container"
-	"fyne.io/fyne/v2/lang"
 	"fyne.io/fyne/v2/widget"
+
+	"github.com/akfaiz/carryover/ui/i18n"
 
 	"github.com/akfaiz/carryover/services"
 	"github.com/akfaiz/carryover/ui/components"
@@ -84,7 +85,7 @@ func (e *Page) EmulatorNames() []string {
 }
 
 func (e *Page) View() fyne.CanvasObject {
-	e.scroll = kit.ScrollPage(kit.Muted(lang.L("Loading…")))
+	e.scroll = kit.ScrollPage(kit.Muted(i18n.L("Loading…")))
 	e.bar = container.NewStack()
 	kit.Async(e.vm.Load, func(l Loaded, err error) {
 		e.vm.Apply(l, err)
@@ -156,12 +157,12 @@ func (e *Page) suggestSaves(autofill bool) {
 	kit.Async(func() (services.SuggestResult, error) { return e.vm.be.SuggestSaves(in) }, func(res services.SuggestResult, err error) {
 		e.vm.suggesting = false
 		if err != nil {
-			e.u.Toast(lang.L("Save suggestions: {{.Err}}", map[string]any{"Err": err}), kit.ToastErr)
+			e.u.Toast(i18n.L("Save suggestions: {{.Err}}", map[string]any{"Err": err}), kit.ToastErr)
 			e.render()
 			return
 		}
 		if e.vm.ApplySuggestions(res, autofill) {
-			e.u.Toast(lang.L("Found {{.Game}} saves on this device", map[string]any{"Game": res.Matched}), kit.ToastOK)
+			e.u.Toast(i18n.L("Found {{.Game}} saves on this device", map[string]any{"Game": res.Matched}), kit.ToastOK)
 		}
 		e.render()
 	})
@@ -181,7 +182,7 @@ func (e *Page) searchSteam() {
 	kit.Async(func() ([]services.StoreMatch, error) { return e.vm.be.SearchSteam(term) }, func(res []services.StoreMatch, err error) {
 		e.vm.searching = false
 		if err != nil {
-			e.u.Toast(lang.L("Steam search failed: {{.Err}}", map[string]any{"Err": err}), kit.ToastErr)
+			e.u.Toast(i18n.L("Steam search failed: {{.Err}}", map[string]any{"Err": err}), kit.ToastErr)
 			e.vm.showResults = false
 		} else {
 			e.vm.steamResults, e.vm.showResults = res, true
@@ -213,9 +214,9 @@ func (e *Page) render() {
 	for _, s := range e.vm.slots {
 		e.slotViewOf(s).rememberOpen()
 	}
-	head := lang.L("Add game")
+	head := i18n.L("Add game")
 	if e.vm.id != "" {
-		head = lang.L("Edit game")
+		head = i18n.L("Edit game")
 	}
 	var body fyne.CanvasObject
 	if e.vm.id == "" {
@@ -229,7 +230,7 @@ func (e *Page) render() {
 		if e.vm.kind != KindDirect {
 			col.Add(e.emulatorsCard())
 		}
-		e.artItem = kit.NewAccordionSection(lang.L("Steam artwork (optional)"), e.artworkCard(), e.vm.artOpen)
+		e.artItem = kit.NewAccordionSection(i18n.L("Steam artwork (optional)"), e.artworkCard(), e.vm.artOpen)
 		col.Add(e.artItem)
 		body = kit.MaxWidth(780, col)
 	} else {

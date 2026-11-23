@@ -51,11 +51,6 @@ func TestStatusIcon(t *testing.T) {
 	assert.Nil(t, StatusIcon(ready(services.GameStatus{})))
 }
 
-func TestLabelOf(t *testing.T) {
-	assert.Equal(t, "Saves", LabelOf("Saves", "key"))
-	assert.Equal(t, "key", LabelOf("", "key"))
-}
-
 func TestTimeFormatting(t *testing.T) {
 	test.NewApp()
 	assert.Equal(t, "—", FmtDate(time.Time{}))

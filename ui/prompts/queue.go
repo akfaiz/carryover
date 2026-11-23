@@ -3,8 +3,9 @@ package prompts
 import (
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/dialog"
-	"fyne.io/fyne/v2/lang"
 	"fyne.io/fyne/v2/widget"
+
+	"github.com/akfaiz/carryover/ui/i18n"
 
 	"github.com/akfaiz/carryover/services"
 	"github.com/akfaiz/carryover/ui/components"
@@ -99,10 +100,10 @@ func (q *Queue) next() {
 	var body fyne.CanvasObject
 	switch {
 	case p.Kind == "conflict" && p.Conflict != nil:
-		title = lang.L("Save conflict — {{.Game}}", map[string]any{"Game": p.GameName})
-		skip := lang.L("Decide later")
+		title = i18n.L("Save conflict — {{.Game}}", map[string]any{"Game": p.GameName})
+		skip := i18n.L("Decide later")
 		if p.BeforePlay {
-			skip = lang.L("Skip sync and play")
+			skip = i18n.L("Skip sync and play")
 		}
 		skipBtn := button(skip, widget.MediumImportance, "skip")
 		first, back = skipBtn, "skip"
@@ -112,40 +113,40 @@ func (q *Queue) next() {
 			kit.HBox(skipBtn),
 		)
 	case p.Kind == "emulator":
-		title = lang.L("Play {{.Game}}", map[string]any{"Game": p.GameName})
+		title = i18n.L("Play {{.Game}}", map[string]any{"Game": p.GameName})
 		body, first = q.emulatorChoice(p, answer, nav)
 		back = "cancel"
 	case p.Kind == "lock" && p.Lock != nil:
-		title = lang.L("{{.Game}} is being played elsewhere", map[string]any{"Game": p.GameName})
-		cancel := button(lang.L("Cancel"), widget.MediumImportance, "no")
+		title = i18n.L("{{.Game}} is being played elsewhere", map[string]any{"Game": p.GameName})
+		cancel := button(i18n.L("Cancel"), widget.MediumImportance, "no")
 		first, back = cancel, "no"
 		body = kit.VBox(
-			kit.Colored(lang.L("{{.Device}} started playing at {{.Time}}. If you play here too, you may get a save conflict when both devices upload.",
+			kit.Colored(i18n.L("{{.Device}} started playing at {{.Time}}. If you play here too, you may get a save conflict when both devices upload.",
 				map[string]any{"Device": p.Lock.DeviceName, "Time": components.FmtDate(p.Lock.Since)}), widget.MediumImportance),
-			kit.HBox(cancel, button(lang.L("Play anyway"), widget.HighImportance, "yes")),
+			kit.HBox(cancel, button(i18n.L("Play anyway"), widget.HighImportance, "yes")),
 		)
 	default:
 		errText := kit.Mono(p.Error)
 		errText.Importance = widget.DangerImportance
 		if p.BeforePlay {
-			title = lang.L("Could not sync before playing")
-			cancel := button(lang.L("Cancel"), widget.MediumImportance, "no")
+			title = i18n.L("Could not sync before playing")
+			cancel := button(i18n.L("Cancel"), widget.MediumImportance, "no")
 			first, back = cancel, "no"
 			body = kit.VBox(errText,
-				kit.Muted(lang.L("You can play offline; your saves will be uploaded next time sync succeeds.")),
-				kit.HBox(cancel, button(lang.L("Play offline"), widget.HighImportance, "yes")))
+				kit.Muted(i18n.L("You can play offline; your saves will be uploaded next time sync succeeds.")),
+				kit.HBox(cancel, button(i18n.L("Play offline"), widget.HighImportance, "yes")))
 		} else {
-			title = lang.L("Could not upload saves")
-			ok := button(lang.L("OK"), widget.HighImportance, "yes")
+			title = i18n.L("Could not upload saves")
+			ok := button(i18n.L("OK"), widget.HighImportance, "yes")
 			first, back = ok, "yes"
 			body = kit.VBox(errText,
-				kit.Muted(lang.L("Your saves are safe on this device and will upload on the next sync.")),
+				kit.Muted(i18n.L("Your saves are safe on this device and will upload on the next sync.")),
 				kit.HBox(ok))
 		}
 	}
 	if q.Wrapper {
 		// Opened by a Steam shortcut: likely driven with a controller.
-		body = kit.VBox(body, kit.Muted(lang.L("D-pad or arrow keys to choose, A or Enter to confirm, B or Esc to go back.")))
+		body = kit.VBox(body, kit.Muted(i18n.L("D-pad or arrow keys to choose, A or Enter to confirm, B or Esc to go back.")))
 	}
 	size := q.e.Window().Canvas().Size()
 	q.current = dialog.NewCustomWithoutButtons(title, body, q.e.Window())
@@ -161,7 +162,7 @@ func (q *Queue) next() {
 // "keep this device" would delete the cloud saves.
 func conflictIntro(c *services.ConflictInfo) string {
 	if c.Local.Files == 0 && c.Remote.Files > 0 {
-		return lang.L("There are no saves on this device any more, but the cloud still has them. If the save folder is missing or its path changed, keep the cloud saves to restore them. Keeping this device deletes the cloud copy.")
+		return i18n.L("There are no saves on this device any more, but the cloud still has them. If the save folder is missing or its path changed, keep the cloud saves to restore them. Keeping this device deletes the cloud copy.")
 	}
-	return lang.L("Saves changed both on this device and in the cloud since the last sync. Choose which to keep. The other version is stored as a backup, so nothing is lost.")
+	return i18n.L("Saves changed both on this device and in the cloud since the last sync. Choose which to keep. The other version is stored as a backup, so nothing is lost.")
 }

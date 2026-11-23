@@ -13,13 +13,12 @@ import (
 	"strings"
 	"testing"
 
-	"fyne.io/fyne/v2/lang"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
-// TestTranslationCatalog checks that every literal passed to lang.L / lang.N
-// in this package is listed in translations/en.json, the file translators
+// TestTranslationCatalog checks that every literal passed to i18n.L / i18n.N
+// under ui/ is listed in translations/en.json, the file translators
 // copy when adding a language.
 func TestTranslationCatalog(t *testing.T) {
 	data, err := translations.ReadFile("translations/en.json")
@@ -43,12 +42,12 @@ func TestTranslationCatalog(t *testing.T) {
 			if !ok {
 				return true
 			}
-			if pkg, ok := sel.X.(*ast.Ident); !ok || pkg.Name != "lang" || (sel.Sel.Name != "L" && sel.Sel.Name != "N") {
+			if pkg, ok := sel.X.(*ast.Ident); !ok || pkg.Name != "i18n" || (sel.Sel.Name != "L" && sel.Sel.Name != "N") {
 				return true
 			}
 			lit, ok := call.Args[0].(*ast.BasicLit)
 			if !ok {
-				assert.Fail(t, "lang call needs a string literal", "%s: lang.%s", fset.Position(call.Pos()), sel.Sel.Name)
+				assert.Fail(t, "i18n call needs a string literal", "%s: i18n.%s", fset.Position(call.Pos()), sel.Sel.Name)
 				return true
 			}
 			key, _ := strconv.Unquote(lit.Value)
@@ -63,11 +62,11 @@ func TestTranslationCatalog(t *testing.T) {
 func TestPluralForms(t *testing.T) {
 	Init("")
 	for n, want := range map[int]string{0: "Synced 0 games", 1: "Synced 1 game", 2: "Synced 2 games"} {
-		got := lang.N("Synced {{.Count}} game", n, map[string]any{"Count": n})
+		got := N("Synced {{.Count}} game", n, map[string]any{"Count": n})
 		assert.Equal(t, want, got, "N(%d)", n)
 	}
-	assert.Equal(t, "2 games need attention", lang.N("{{.Count}} game needs attention", 2, map[string]any{"Count": 2}))
-	assert.Equal(t, "1 game synced.", lang.N("{{.Count}} game synced.", 1, map[string]any{"Count": 1}))
+	assert.Equal(t, "2 games need attention", N("{{.Count}} game needs attention", 2, map[string]any{"Count": 2}))
+	assert.Equal(t, "1 game synced.", N("{{.Count}} game synced.", 1, map[string]any{"Count": 1}))
 }
 
 // Every language catalog has exactly the keys of en.json, the same
@@ -136,7 +135,33 @@ func TestLoadRemembersTheStartingLanguage(t *testing.T) {
 }
 
 func TestInitFallsBackToAllCatalogs(t *testing.T) {
-	Init("") // no language: every catalog is registered
+	Init("") // no language: the system's closest catalog
 	Init("xx")
 	Init("en")
+	assert.Equal(t, "Cancel", L("Cancel"))
+}
+
+// A chosen language applies whatever the system locale is.
+func TestInitChosenLanguage(t *testing.T) {
+	t.Cleanup(func() { Init("en") })
+	data, ok := Catalog("id")
+	require.True(t, ok)
+	var id map[string]json.RawMessage
+	require.NoError(t, json.Unmarshal(data, &id))
+	var want string
+	require.NoError(t, json.Unmarshal(id["Cancel"], &want))
+	require.NotEqual(t, "Cancel", want, "id.json should translate Cancel")
+
+	Init("id")
+	assert.Equal(t, want, L("Cancel"))
+	Init("en")
+	assert.Equal(t, "Cancel", L("Cancel"))
+}
+
+// A text with no catalog entry is its own English source, placeholders filled.
+func TestMissingKeyFallsBackToSource(t *testing.T) {
+	Init("id")
+	t.Cleanup(func() { Init("en") })
+	assert.Equal(t, "Hello Ada", L("Hello {{.Name}}", map[string]any{"Name": "Ada"}))
+	assert.Equal(t, "3 things", N("{{.Count}} things", 3, map[string]any{"Count": 3}))
 }

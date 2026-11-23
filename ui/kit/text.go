@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"math"
 	"net/url"
-	"regexp"
 	"strings"
 
 	"fyne.io/fyne/v2"
@@ -41,27 +40,6 @@ func pct(bytes, total int64) float64 {
 		return 0
 	}
 	return math.Min(1, float64(bytes)/float64(total))
-}
-
-var nonSlug = regexp.MustCompile(`[^a-z0-9]+`)
-
-func Slug(s string) string {
-	out := strings.Trim(nonSlug.ReplaceAllString(strings.ToLower(s), "-"), "-")
-	if out == "" {
-		return "saves"
-	}
-	return out
-}
-
-// splitLines splits on newlines and commas, trimming blanks.
-func SplitLines(t string) []string {
-	var out []string
-	for _, x := range strings.FieldsFunc(t, func(r rune) bool { return r == '\n' || r == ',' }) {
-		if x = strings.TrimSpace(x); x != "" {
-			out = append(out, x)
-		}
-	}
-	return out
 }
 
 func Heading(t string) *widget.Label {

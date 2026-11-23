@@ -3,7 +3,7 @@ package shell
 import (
 	"log"
 
-	"fyne.io/fyne/v2/lang"
+	"github.com/akfaiz/carryover/ui/i18n"
 
 	"github.com/akfaiz/carryover/internal/app/singleinstance"
 	"github.com/akfaiz/carryover/services"
@@ -41,9 +41,9 @@ func (u *Shell) RunMain(inst *singleinstance.Instance) {
 		}()
 		kit.Async0(u.sync.SyncLibrary, func(err error) {
 			if services.IsOffline(err) {
-				u.toast(lang.L("Offline — library not synced"), kit.ToastInfo)
+				u.toast(i18n.L("Offline — library not synced"), kit.ToastInfo)
 			} else if err != nil {
-				u.toast(lang.L("Library sync: {{.Err}}", map[string]any{"Err": err}), kit.ToastErr)
+				u.toast(i18n.L("Library sync: {{.Err}}", map[string]any{"Err": err}), kit.ToastErr)
 			}
 		})
 	})

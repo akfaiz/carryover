@@ -3,8 +3,9 @@ package components
 import (
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/container"
-	"fyne.io/fyne/v2/lang"
 	"fyne.io/fyne/v2/widget"
+
+	"github.com/akfaiz/carryover/ui/i18n"
 
 	"github.com/akfaiz/carryover/internal/cloudsync/syncer"
 	"github.com/akfaiz/carryover/ui/kit"
@@ -32,15 +33,15 @@ func SaveSidesNav(nav *kit.Nav, local, remote syncer.Summary, hasRemote bool, on
 	side := func(key, label, keepLabel string, s syncer.Summary, has bool) fyne.CanvasObject {
 		head := kit.HBox(widget.NewLabelWithStyle(label, fyne.TextAlignLeading, fyne.TextStyle{Bold: true}))
 		if newer == key {
-			head.Add(container.NewCenter(kit.Badge(lang.L("Newer"), kit.BadgeOK)))
+			head.Add(container.NewCenter(kit.Badge(i18n.L("Newer"), kit.BadgeOK)))
 		}
 		objs := []fyne.CanvasObject{head}
 		if s.DeviceName != "" && key == "cloud" {
-			objs = append(objs, kit.Muted(lang.L("from {{.Device}}", map[string]any{"Device": s.DeviceName})))
+			objs = append(objs, kit.Muted(i18n.L("from {{.Device}}", map[string]any{"Device": s.DeviceName})))
 		}
-		text := lang.L("no Carryover saves for this game yet")
+		text := i18n.L("no Carryover saves for this game yet")
 		if has {
-			text = lang.N("{{.Count}} file · {{.Size}}\nLast modified {{.Date}}", s.Files,
+			text = i18n.N("{{.Count}} file · {{.Size}}\nLast modified {{.Date}}", s.Files,
 				map[string]any{"Count": s.Files, "Size": kit.FormatBytes(s.Bytes), "Date": FmtDate(s.Newest)})
 		}
 		info := widget.NewLabel(text)
@@ -62,6 +63,6 @@ func SaveSidesNav(nav *kit.Nav, local, remote syncer.Summary, hasRemote bool, on
 		return kit.Card("", objs...)
 	}
 	return container.NewGridWithColumns(2,
-		side("local", lang.L("This device"), lang.L("Keep this device's saves"), local, true),
-		side("cloud", lang.L("Cloud"), lang.L("Keep cloud saves"), remote, hasRemote))
+		side("local", i18n.L("This device"), i18n.L("Keep this device's saves"), local, true),
+		side("cloud", i18n.L("Cloud"), i18n.L("Keep cloud saves"), remote, hasRemote))
 }

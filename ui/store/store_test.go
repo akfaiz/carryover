@@ -10,22 +10,17 @@ import (
 	"github.com/akfaiz/carryover/internal/app/appdir"
 	"github.com/akfaiz/carryover/internal/cloudsync/syncer"
 	"github.com/akfaiz/carryover/services"
-	"github.com/akfaiz/carryover/ui/kit"
 )
 
-// uiQueue stands in for the UI goroutine: work handed to kit.OnUI waits until
-// the test runs it.
-func uiQueue(t *testing.T) chan func() {
-	t.Helper()
+// uiQueue stands in for the UI goroutine: work handed to the store's onUI
+// waits until the test runs it.
+func uiQueue() (chan func(), func(func())) {
 	q := make(chan func(), 8)
-	old := kit.OnUI
-	kit.OnUI = func(f func()) { q <- f }
-	t.Cleanup(func() { kit.OnUI = old })
-	return q
+	return q, func(f func()) { q <- f }
 }
 
 func TestSubscribeAndUnsubscribe(t *testing.T) {
-	s := New(Loader{})
+	s := New(Loader{}, nil)
 	var got []Topic
 	stop := s.Subscribe(func(tp Topic) { got = append(got, tp) })
 	other := 0
@@ -42,7 +37,7 @@ func TestSubscribeAndUnsubscribe(t *testing.T) {
 }
 
 func TestUnsubscribeWhilePublishing(t *testing.T) {
-	s := New(Loader{})
+	s := New(Loader{}, nil)
 	var stop func()
 	calls := 0
 	stop = s.Subscribe(func(Topic) { calls++; stop() })
@@ -55,12 +50,12 @@ func TestUnsubscribeWhilePublishing(t *testing.T) {
 }
 
 func TestRefreshLoadsAndPublishes(t *testing.T) {
-	q := uiQueue(t)
+	q, onUI := uiQueue()
 	s := New(Loader{
 		Games:      func() []services.GameView { return []services.GameView{{ID: "a", Name: "A"}} },
 		Settings:   func() appdir.Settings { return appdir.Settings{Remote: "drive"} },
 		TrashCount: func() int { return 2 },
-	})
+	}, onUI)
 	var topics []Topic
 	s.Subscribe(func(tp Topic) { topics = append(topics, tp) })
 
@@ -81,7 +76,7 @@ func TestRefreshLoadsAndPublishes(t *testing.T) {
 // A refresh that finishes after a newer one was started must not replace what
 // the newer one stores.
 func TestRefreshKeepsTheNewestResult(t *testing.T) {
-	q := uiQueue(t)
+	q, onUI := uiQueue()
 	entered := make(chan struct{}, 2)
 	release := make(chan struct{})
 	var calls atomic.Int32
@@ -97,7 +92,7 @@ func TestRefreshKeepsTheNewestResult(t *testing.T) {
 		},
 		Settings:   func() appdir.Settings { return appdir.Settings{} },
 		TrashCount: func() int { return 0 },
-	})
+	}, onUI)
 	published := 0
 	s.Subscribe(func(Topic) { published++ })
 
@@ -119,7 +114,7 @@ func TestRefreshKeepsTheNewestResult(t *testing.T) {
 }
 
 func TestSyncAllLifecycle(t *testing.T) {
-	s := New(Loader{})
+	s := New(Loader{}, nil)
 	var topics []Topic
 	s.Subscribe(func(tp Topic) { topics = append(topics, tp) })
 	s.SyncAll.Progress = services.SyncAllProgress{Done: 5, Total: 9} // left over from a previous run
@@ -138,7 +133,7 @@ func TestSyncAllLifecycle(t *testing.T) {
 }
 
 func TestClearProgressAndTrashCount(t *testing.T) {
-	s := New(Loader{})
+	s := New(Loader{}, nil)
 	s.Progress["k"] = syncer.Event{}
 	s.ClearProgress("k")
 	assert.NotContains(t, s.Progress, "k")

@@ -12,10 +12,11 @@ import (
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/canvas"
 	"fyne.io/fyne/v2/container"
-	"fyne.io/fyne/v2/lang"
 	"fyne.io/fyne/v2/layout"
 	"fyne.io/fyne/v2/theme"
 	"fyne.io/fyne/v2/widget"
+
+	"github.com/akfaiz/carryover/ui/i18n"
 
 	"github.com/akfaiz/carryover/internal/core"
 	"github.com/akfaiz/carryover/services"
@@ -114,7 +115,8 @@ func New(c *core.Core, a fyne.App, bus *services.Bus, cfg Config) *Shell {
 			kit.OnUI(func() { u.toast(st.Message, kit.ToastErr) })
 		}
 	})
-	u.store = store.New(store.Loader{Games: u.lib.List, Settings: u.sync.GetSettings, TrashCount: u.lib.TrashCount})
+	u.store = store.New(store.Loader{Games: u.lib.List, Settings: u.sync.GetSettings, TrashCount: u.lib.TrashCount},
+		func(f func()) { kit.OnUI(f) }) // a closure: tests swap kit.OnUI
 	u.store.Attach(bus)
 	u.store.Subscribe(u.onStore)
 	bus.OnPrompt(func(p services.Prompt) { kit.OnUI(func() { u.prompts.Add(p) }) })
@@ -176,9 +178,9 @@ func (u *Shell) confirmClose() {
 		u.win.Close()
 		return
 	}
-	kit.ConfirmDiscard(u.win, lang.L("Close Carryover?"),
-		lang.L("A game is still running or a sync is in progress. If you close Carryover now, its saves won't be uploaded until the next sync, and your other devices may keep showing the game as being played."),
-		lang.L("Keep open"), lang.L("Close anyway"), u.win.Close)
+	kit.ConfirmDiscard(u.win, i18n.L("Close Carryover?"),
+		i18n.L("A game is still running or a sync is in progress. If you close Carryover now, its saves won't be uploaded until the next sync, and your other devices may keep showing the game as being played."),
+		i18n.L("Keep open"), i18n.L("Close anyway"), u.win.Close)
 }
 
 // buildLayout creates the window content (sidebar + page area); the palette
@@ -227,15 +229,15 @@ func (u *Shell) renderSidebar() {
 		u.navBtns[path] = b
 		objs = append(objs, b)
 	}
-	nav("/", lang.L("Library"), theme.GridIcon())
-	nav("/emulators", lang.L("Emulators"), theme.ComputerIcon())
-	nav("/cloud", lang.L("Cloud"), theme.StorageIcon())
+	nav("/", i18n.L("Library"), theme.GridIcon())
+	nav("/emulators", i18n.L("Emulators"), theme.ComputerIcon())
+	nav("/cloud", i18n.L("Cloud"), theme.StorageIcon())
 	objs = append(objs, layout.NewSpacer())
 	// Secondary places, out of the way of the main ones.
 	nav("/trash", u.trashLabel(), theme.DeleteIcon())
-	nav("/settings", lang.L("Settings"), theme.SettingsIcon())
+	nav("/settings", i18n.L("Settings"), theme.SettingsIcon())
 	if u.showExit() {
-		exit := widget.NewButtonWithIcon(lang.L("Exit"), theme.LogoutIcon(), u.confirmClose)
+		exit := widget.NewButtonWithIcon(i18n.L("Exit"), theme.LogoutIcon(), u.confirmClose)
 		exit.Alignment, exit.Importance = widget.ButtonAlignLeading, widget.LowImportance
 		objs = append(objs, exit)
 	}
@@ -247,7 +249,7 @@ func (u *Shell) renderSidebar() {
 	if u.store.Settings.Remote != "" {
 		objs = append(objs, kit.Muted(u.store.Settings.Remote+":"+u.store.Settings.RemoteRoot))
 	} else if u.store.Loaded {
-		b := widget.NewButtonWithIcon(lang.L("No cloud configured"), theme.WarningIcon(), func() { u.navigate("/cloud") })
+		b := widget.NewButtonWithIcon(i18n.L("No cloud configured"), theme.WarningIcon(), func() { u.navigate("/cloud") })
 		b.Importance = widget.WarningImportance
 		objs = append(objs, b)
 	}
@@ -329,9 +331,9 @@ func (u *Shell) show(path string) {
 // page itself: they are not something deleted from here.)
 func (u *Shell) trashLabel() string {
 	if n := u.store.TrashCount; n > 0 {
-		return fmt.Sprintf("%s (%d)", lang.L("Trash"), n)
+		return fmt.Sprintf("%s (%d)", i18n.L("Trash"), n)
 	}
-	return lang.L("Trash")
+	return i18n.L("Trash")
 }
 
 // renderActivity shows what runs in the background at the bottom of the
@@ -344,9 +346,9 @@ func (u *Shell) renderActivity() {
 	var objs []fyne.CanvasObject
 	// The library shows "Sync all" progress itself; elsewhere it shows here.
 	if u.store.SyncAll.Running && u.route != "/" {
-		text := lang.L("Syncing…")
+		text := i18n.L("Syncing…")
 		if p := u.store.SyncAll.Progress; p.Total > 0 {
-			text = lang.L("Syncing {{.Done}} of {{.Total}}", map[string]any{"Done": p.Done, "Total": p.Total})
+			text = i18n.L("Syncing {{.Done}} of {{.Total}}", map[string]any{"Done": p.Done, "Total": p.Total})
 		}
 		b := widget.NewButtonWithIcon(text, theme.ViewRefreshIcon(), func() { u.navigate("/") })
 		b.Alignment, b.Importance = widget.ButtonAlignLeading, widget.LowImportance
@@ -356,7 +358,7 @@ func (u *Shell) renderActivity() {
 		if st, ok := u.store.Status[g.ID]; ok && st.Running {
 			id := g.ID
 			// Truncated: a button would widen the sidebar to a long name.
-			objs = append(objs, kit.IconRow(theme.MediaPlayIcon(), lang.L("Playing {{.Game}}", map[string]any{"Game": g.Name}),
+			objs = append(objs, kit.IconRow(theme.MediaPlayIcon(), i18n.L("Playing {{.Game}}", map[string]any{"Game": g.Name}),
 				func() { u.navigate("/game/" + id) }))
 		}
 	}
