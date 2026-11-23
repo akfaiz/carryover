@@ -1,5 +1,6 @@
 package com.akfaiz.carryover.data
 
+import com.akfaiz.carryover.core.DeviceView
 import com.akfaiz.carryover.core.Remote
 import com.akfaiz.carryover.core.Settings
 import com.akfaiz.carryover.core.SettingsCore
@@ -81,6 +82,28 @@ internal class FakeSettingsCore : SettingsCore {
     override suspend fun syncLibrary() {
         calls += "syncLibrary"
         libraryError?.let { throw it }
+    }
+
+    var devices = listOf(DeviceView(id = "this", name = "Phone", isThis = true))
+    var deviceError: Exception? = null
+
+    override suspend fun devices(): List<DeviceView> {
+        calls += "devices"
+        return devices
+    }
+
+    override suspend fun forgetDevice(id: String) {
+        calls += "forget $id"
+        deviceError?.let { throw it }
+        devices = devices.filter { it.id != id }
+    }
+
+    /** As the core does: this device takes [id], and its own entry goes. */
+    override suspend fun reuseDevice(id: String) {
+        calls += "reuse $id"
+        deviceError?.let { throw it }
+        settings = settings.copy(deviceId = id)
+        devices = devices.filterNot { it.isThis }.map { if (it.id == id) it.copy(isThis = true, sameName = false) else it }
     }
 }
 

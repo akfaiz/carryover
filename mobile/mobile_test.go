@@ -570,6 +570,14 @@ func TestFlow(t *testing.T) {
 	_, err = ImportRcloneConfig("RCLONE_ENCRYPT_V0:\nabc")
 	require.ErrorContains(t, err, "encrypted")
 
+	// The devices the library knows: this one first.
+	devs := decode[[]services.DeviceView](t)(Devices())
+	require.NotEmpty(t, devs)
+	assert.True(t, devs[0].This)
+	assert.Equal(t, st.DeviceID, devs[0].ID)
+	require.ErrorIs(t, ForgetDevice(st.DeviceID), services.ErrThisDevice)
+	require.ErrorIs(t, ReuseDevice("no-such-device"), services.ErrUnknownDevice)
+
 	WaitBackground()
 	assert.FileExists(t, filepath.Join(root, "cloud", "library.json"), "catalog uploaded")
 	assert.False(t, Cancel(g.ID), "nothing running")

@@ -588,17 +588,23 @@ func (s *LibraryService) publish() { s.publishAfter(nil) }
 
 // publishAfter is publish that first runs before in the same background job.
 func (s *LibraryService) publishAfter(before func(context.Context)) {
+	publishLibrary(s.c, s.bus, before)
+}
+
+// publishLibrary runs before (if set), then syncs the library catalog, in the
+// background; see LibraryService.publish.
+func publishLibrary(c *core.Core, bus *Bus, before func(context.Context)) {
 	background.Go(func() {
 		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
 		defer cancel()
 		if before != nil {
 			before(ctx)
 		}
-		if err := s.c.SyncLibrary(ctx); err != nil {
+		if err := c.SyncLibrary(ctx); err != nil {
 			log.Printf("library sync: %v", err)
 			return
 		}
-		s.bus.libraryChanged("")
+		bus.libraryChanged("")
 	})
 }
 

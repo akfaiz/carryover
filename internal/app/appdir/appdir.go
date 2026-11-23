@@ -157,6 +157,23 @@ func (st *SettingsStore) Update(s Settings) error {
 	return st.save()
 }
 
+// SetDeviceID changes the device ID, for a device that takes over the
+// identity it had before (see library.Store.MoveDevice).
+func (st *SettingsStore) SetDeviceID(id string) error {
+	if strings.TrimSpace(id) == "" {
+		return errors.New("empty device id")
+	}
+	st.mu.Lock()
+	defer st.mu.Unlock()
+	old := st.s.DeviceID
+	st.s.DeviceID = id
+	if err := st.save(); err != nil {
+		st.s.DeviceID = old
+		return err
+	}
+	return nil
+}
+
 func (st *SettingsStore) save() error {
 	return WriteJSONAtomic(st.path, st.s)
 }

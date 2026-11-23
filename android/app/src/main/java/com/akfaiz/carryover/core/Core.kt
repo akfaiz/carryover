@@ -132,6 +132,10 @@ object Core : CoreApi {
         Mobile.saveSettings(JsonObject(current + changes).toString()).decode()
     }
 
+    override suspend fun devices(): List<DeviceView> = io { Mobile.devices().decode() }
+    override suspend fun forgetDevice(id: String) = io { Mobile.forgetDevice(id) }
+    override suspend fun reuseDevice(id: String) = io { Mobile.reuseDevice(id) }
+
     val logFile: String get() = runCatching { Mobile.logFile() }.getOrDefault("")
 
     // Cloud

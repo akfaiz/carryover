@@ -1,6 +1,7 @@
 package com.akfaiz.carryover.ui
 
 import com.akfaiz.carryover.R
+import com.akfaiz.carryover.core.DeviceView
 import com.akfaiz.carryover.core.ImportResult
 import com.akfaiz.carryover.core.Provider
 import com.akfaiz.carryover.core.Question
@@ -61,6 +62,43 @@ class SettingsAndCloudViewModelTest {
         h.core.settingsCore.updateError = IllegalStateException("no")
         settings().setDeviceName("X")
         assertEquals(listOf(error(h.text(R.string.err_save), "no")), h.said)
+    }
+
+    private val earlier = DeviceView(id = "old", name = "Phone", games = 3, sameName = true)
+    private val laptop = DeviceView(id = "laptop", name = "Laptop", games = 1)
+
+    @Test
+    fun anEarlierInstallIsTakenBack() {
+        h.core.settingsCore.devices += listOf(earlier, laptop)
+        val vm = settings()
+        vm.loadDevices()
+        assertEquals(listOf("this", "old", "laptop"), vm.devices.value.map { it.id })
+
+        vm.reuseDevice(earlier, "Phone")
+        assertEquals("old", vm.state.value.settings.deviceId)
+        assertEquals(listOf("old", "laptop"), vm.devices.value.map { it.id })
+        assertTrue(vm.devices.value.first().isThis)
+        assertEquals(listOf(h.text(R.string.msg_device_reused, "Phone")), h.said)
+    }
+
+    @Test
+    fun aDeviceIsForgotten() {
+        h.core.settingsCore.devices += listOf(earlier, laptop)
+        val vm = settings()
+        vm.forgetDevice(laptop)
+        assertEquals(listOf("this", "old"), vm.devices.value.map { it.id })
+        assertEquals(listOf(h.text(R.string.msg_device_forgotten)), h.said)
+    }
+
+    @Test
+    fun aDeviceChangeTheCoreRefusesIsSaid() {
+        h.core.settingsCore.devices += listOf(earlier)
+        h.core.settingsCore.deviceError = IllegalStateException("a game is being played")
+        val vm = settings()
+        vm.reuseDevice(earlier, "Phone")
+        assertEquals("", vm.state.value.settings.deviceId)
+        assertEquals(listOf(error(h.text(R.string.err_device_change), "a game is being played")), h.said)
+        assertEquals("the list is read again all the same", 2, vm.devices.value.size)
     }
 
     @Test

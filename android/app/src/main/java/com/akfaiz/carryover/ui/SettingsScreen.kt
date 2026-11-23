@@ -5,6 +5,9 @@ import androidx.compose.material.icons.outlined.Group
 import androidx.compose.material.icons.outlined.History
 import androidx.compose.material.icons.outlined.Image
 import androidx.compose.material.icons.outlined.Delete
+import androidx.compose.material.icons.outlined.Devices
+import androidx.compose.runtime.LaunchedEffect
+import com.akfaiz.carryover.core.DeviceView
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import android.app.Activity
@@ -96,6 +99,10 @@ fun SettingsScreen(nav: Nav, vm: SettingsViewModel = viewModel()) {
     var graceDialog by rememberSaveable { mutableStateOf(false) }
     var gridKey by rememberSaveable { mutableStateOf(false) }
     var backupsDialog by rememberSaveable { mutableStateOf(false) }
+    var devicesDialog by rememberSaveable { mutableStateOf(false) }
+    val devices by vm.devices.collectAsStateWithLifecycle()
+    // Read each time the page opens: another device may have changed the library meanwhile.
+    LaunchedEffect(Unit) { vm.loadDevices() }
     Scaffold(
         contentWindowInsets = LocalPageInsets.current,
         topBar = { TopAppBar(title = { Text(stringResource(R.string.nav_settings)) }, windowInsets = pageBarInsets()) },
@@ -240,6 +247,14 @@ fun SettingsScreen(nav: Nav, vm: SettingsViewModel = viewModel()) {
                         onClick = { naming = true },
                     )
                     SettingRow(
+                        Icons.Outlined.Devices,
+                        stringResource(R.string.setting_devices),
+                        stringResource(
+                            if (devices.any { it.sameName }) R.string.setting_devices_earlier else R.string.setting_devices_hint,
+                        ),
+                        onClick = { devicesDialog = true },
+                    )
+                    SettingRow(
                         Icons.AutoMirrored.Outlined.Launch,
                         stringResource(R.string.frontends_title),
                         stringResource(R.string.frontends_row_hint),
@@ -291,6 +306,109 @@ fun SettingsScreen(nav: Nav, vm: SettingsViewModel = viewModel()) {
             vm.setDeviceName(it)
         }
     }
+    if (devicesDialog) {
+        DevicesDialog(devices.filterNot { it.isThis }, vm, onDismiss = { devicesDialog = false })
+    }
+}
+
+/** A device's name, or a stand-in when it has none. */
+@Composable
+private fun deviceName(d: DeviceView): String = d.name.ifEmpty { stringResource(R.string.device_unnamed) }
+
+/**
+ * The other devices the library holds settings of: take back an earlier install's settings ("This is me", for a
+ * phone that was reinstalled) or forget a device that is gone. Each asks first.
+ */
+@Composable
+private fun DevicesDialog(others: List<DeviceView>, vm: SettingsViewModel, onDismiss: () -> Unit) {
+    var reuse by rememberSaveable { mutableStateOf<String?>(null) }
+    var forget by rememberSaveable { mutableStateOf<String?>(null) }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(stringResource(R.string.setting_devices)) },
+        text = {
+            Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Text(stringResource(R.string.devices_intro), style = MaterialTheme.typography.bodySmall)
+                if (others.isEmpty()) Text(stringResource(R.string.devices_none))
+                others.forEach { d -> DeviceItem(d, onReuse = { reuse = d.id }, onForget = { forget = d.id }) }
+            }
+        },
+        confirmButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.action_close)) } },
+    )
+    others.firstOrNull { it.id == reuse }?.let { d ->
+        val name = deviceName(d)
+        ConfirmDeviceDialog(
+            stringResource(R.string.dialog_reuse_device_title, name),
+            stringResource(R.string.dialog_reuse_device_text, name),
+            stringResource(R.string.action_this_is_me),
+            danger = false,
+            onConfirm = {
+                reuse = null
+                onDismiss()
+                vm.reuseDevice(d, name)
+            },
+            onDismiss = { reuse = null },
+        )
+    }
+    others.firstOrNull { it.id == forget }?.let { d ->
+        ConfirmDeviceDialog(
+            stringResource(R.string.dialog_forget_device_title, deviceName(d)),
+            stringResource(R.string.dialog_forget_device_text),
+            stringResource(R.string.action_forget),
+            danger = true,
+            onConfirm = {
+                forget = null
+                vm.forgetDevice(d)
+            },
+            onDismiss = { forget = null },
+        )
+    }
+}
+
+@Composable
+private fun DeviceItem(d: DeviceView, onReuse: () -> Unit, onForget: () -> Unit) {
+    Column {
+        Text(deviceName(d), style = MaterialTheme.typography.titleSmall)
+        if (d.sameName) {
+            Text(
+                stringResource(R.string.device_same_name),
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.primary,
+            )
+        }
+        Text(
+            stringResource(R.string.device_line, relativeTime(d.lastSeen), d.games, d.emulators),
+            style = MaterialTheme.typography.bodySmall,
+        )
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+            TextButton(onClick = onReuse) { Text(stringResource(R.string.action_this_is_me)) }
+            TextButton(onClick = onForget) {
+                Text(stringResource(R.string.action_forget), color = MaterialTheme.colorScheme.error)
+            }
+        }
+    }
+}
+
+@Composable
+private fun ConfirmDeviceDialog(
+    title: String,
+    text: String,
+    action: String,
+    danger: Boolean,
+    onConfirm: () -> Unit,
+    onDismiss: () -> Unit,
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(title) },
+        text = { Text(text) },
+        confirmButton = {
+            TextButton(onClick = onConfirm) {
+                Text(action, color = if (danger) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary)
+            }
+        },
+        dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.action_cancel)) } },
+    )
 }
 
 /**

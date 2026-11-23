@@ -11,6 +11,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/akfaiz/carryover/internal/library"
 	"github.com/akfaiz/carryover/internal/stores/steam"
 	"github.com/akfaiz/carryover/services"
 	"github.com/akfaiz/carryover/ui/env"
@@ -302,4 +303,50 @@ func TestSettingsAddsCarryoverToSteam(t *testing.T) {
 	list, _ = steam.ListShortcuts(root, user)
 	assert.Empty(t, list)
 	uitest.ButtonWith(t, uitest.PageWidgets[*widget.Button](h), "Add Carryover to Steam")
+}
+
+// An earlier install of this device shows under Other devices: "This is me"
+// takes its id back, and Forget removes a device that is gone.
+func TestSettingsDevices(t *testing.T) {
+	h := newHarness(t)
+	g := h.AddGame("Game A", t.TempDir())
+	for id, name := range map[string]string{"old-install": h.Core.Settings.Get().DeviceName, "gone": "Old laptop"} {
+		_, err := h.Core.Library.UpdateDevice(g.ID, id, func(d *library.DeviceConfig) { d.DeviceName = name })
+		require.NoError(t, err)
+	}
+	h.Open("/settings")
+	assert.True(t, uitest.HasText(h.Shell.Window().Content(), "Same name as this device"))
+
+	buttons := uitest.PageWidgets[*widget.Button](h)
+	forget := buttonsWith(buttons, "Forget…")
+	require.Len(t, forget, 2)
+	reuse := buttonsWith(buttons, "This is me…")
+	require.Len(t, reuse, 2)
+
+	// The device of the same name is listed first.
+	test.Tap(forget[1])
+	h.Settle()
+	uitest.TapOverlayButton(t, h, "Forget")
+	h.Settle()
+	assert.False(t, h.Core.Library.HasDevice("gone"))
+	assert.True(t, h.Core.Library.HasDevice("old-install"))
+
+	reuse = buttonsWith(uitest.PageWidgets[*widget.Button](h), "This is me…")
+	require.Len(t, reuse, 1)
+	test.Tap(reuse[0])
+	h.Settle()
+	uitest.TapOverlayButton(t, h, "This is me")
+	h.Settle()
+	assert.Equal(t, "old-install", h.Core.DeviceID())
+	assert.Contains(t, uitest.LabelTexts(h), "No other devices.")
+}
+
+func buttonsWith(buttons []*widget.Button, text string) []*widget.Button {
+	var out []*widget.Button
+	for _, b := range buttons {
+		if b.Text == text {
+			out = append(out, b)
+		}
+	}
+	return out
 }

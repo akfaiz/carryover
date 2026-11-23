@@ -66,6 +66,14 @@ The ⋮ item appears only after a first try.
 - A game started from the emulator or a frontend not set up for Carryover isn't synced around: open Carryover,
   where it shows "changed here", and sync it.
 
+## The same device is listed several times
+
+Reinstalling Carryover or clearing its data (on Android: uninstalling, clearing storage, or switching between a
+debug and a release build) gives the device a new ID, so the library lists it once more and its games have to be set
+up again. In **Settings → Other devices**, choose **This is me** on the earlier entry (marked "Same name as this
+device") to take its settings back, and **Forget** the entries of devices you no longer use. Forgetting removes them
+on every device; cloud saves and backups are not touched.
+
 ## Android: a game from my PC doesn't show up
 
 The Android app only shows what can be played there: games played with an emulator that has an Android app (not
