@@ -1,4 +1,7 @@
-// Package services is the API the GUI uses on top of internal/core.
+// Package services is the API on top of internal/core shared by both apps: the
+// desktop GUI (ui/) and the Android app (through mobile). Keep it free of
+// Fyne, Steam-only and Android-only assumptions; a platform choice is a
+// parameter (see defaultRootOn), so both can be tested from any host.
 package services
 
 import (

@@ -125,17 +125,32 @@ ES-DE or Daijisho, see [Android: start games from a frontend](docs/android-front
 
 ## How it works
 
-```mermaid
-flowchart LR
-    play(["▶ Play"]) --> check{"Compare local saves,<br/>cloud and last sync"}
-    check -->|cloud newer| pull["Pull saves"]
-    check -->|local newer| push["Push saves"]
-    check -->|both changed| ask["You choose<br/>which to keep"]
-    check -->|no change| game
-    pull --> game["Game runs"]
-    push --> game
-    ask --> game
-    game --> quit(["Quit"]) --> after["Push new saves"]
+```
+                           ┌───────┐
+                           │ Play  │
+                           └───┬───┘
+                               ▼
+                   ┌───────────────────────┐
+                   │ Compare local saves,  │
+                   │ cloud and last sync   │
+                   └───────────┬───────────┘
+       ┌───────────────┬───────┴───────┬───────────────┐
+  cloud newer     local newer    both changed      no change
+       ▼               ▼               ▼               │
+┌─────────────┐ ┌─────────────┐ ┌─────────────┐        │
+│ Pull saves  │ │ Push saves  │ │ You choose  │        │
+└──────┬──────┘ └──────┬──────┘ └──────┬──────┘        │
+       │               │               │               │
+       └───────────────┴───────┬───────┴───────────────┘
+                               ▼
+                         ┌───────────┐
+                         │ Game runs │
+                         └─────┬─────┘
+                               │ quit
+                               ▼
+                      ┌─────────────────┐
+                      │ Push new saves  │
+                      └─────────────────┘
 ```
 
 Each game has one copy of its saves in the cloud. Before you play, Carryover compares the local saves, the cloud
@@ -183,7 +198,8 @@ Carryover keeps one copy in your own cloud storage and syncs it around each play
 ## Building from source
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for build, test and Linux / Steam Deck, macOS and Android packaging
-instructions, and [Android architecture](docs/android-architecture.md) for how the Android app works.
+instructions, [Architecture](docs/architecture.md) for how the code is organised, and
+[Android architecture](docs/android-architecture.md) for how the Android app works.
 
 ## License
 

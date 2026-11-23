@@ -2,8 +2,8 @@
 
 The Android app shares the cloud layout, the library and the sync logic with the desktop app, so a
 game played on a PC and on an Android phone, handheld or TV uses the same cloud saves. It covers games played in
-emulators and Android games whose save folder the app can reach. Building and releasing:
-[CONTRIBUTING.md](../CONTRIBUTING.md#android).
+emulators and Android games whose save folder the app can reach. How the Go code both apps share is organised:
+[Architecture](architecture.md). Building and releasing: [CONTRIBUTING.md](../CONTRIBUTING.md#android).
 
 ## Why it differs from the desktop
 
@@ -26,13 +26,14 @@ leaving the screen to upload.
 └───────────────────────────────────────────────┬───────────────────────────────────────────────┘
                                                 │ gomobile bind → carryover-core.aar (JNI)
 ┌───────────────────────────────────────────────┴───────────────────────────────────────────────┐
-│ mobile/   the only package Kotlin sees: JSON strings in and out, Host and Storage callbacks    │
-│   └─ services · internal/core · cloudsync (syncer, cloud, localfs) · library · saves           │
+│ mobile/   the only package Kotlin sees: JSON strings in and out, Host and Storage callbacks   │
+│   └─ services · internal/core · cloudsync (syncer, cloud, localfs) · library · saves          │
 └───────────────────────────────────────────────────────────────────────────────────────────────┘
 ```
 
 - **`mobile`** wraps `services` for gomobile, which passes only basic types and interfaces: every call takes and
-  returns JSON. `Host` (implemented in Kotlin) receives what `services.Bus` reports on the desktop (library changes,
+  returns JSON. `services` is the same API the desktop GUI uses, so both apps follow the same rules; `mobile` may
+  read `internal/core` directly but every change goes through `services` (`TestMobileWritesThroughServices`). `Host` (implemented in Kotlin) receives what `services.Bus` reports on the desktop (library changes,
   sync progress, play-session status and questions) and opens rclone's OAuth page in the browser. `Init` sets `HOME`
   (shared storage, so `{home}` is `/storage/emulated/0`), `TMPDIR` and `XDG_*`, which an app process doesn't have;
   the data dir is the app's private `files/carryover`, laid out like the desktop's.
