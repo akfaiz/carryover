@@ -212,8 +212,6 @@
     <string name="edit_remove_text">On every device, %1$s no longer plays this game. Its cloud saves stay.</string>
     <string name="edit_remove_shared">%1$s uses its saves: remove %1$s first.</string>
     <string name="edit_remove_last">It is the only emulator of this game, so it stays.</string>
-    <string name="edit_slots_title">Save locations</string>
-    <string name="edit_slots_for">Save locations: %1$s</string>
     <string name="edit_slots_shared">%1$s uses %2$s\'s saves: change the locations there.</string>
     <string name="action_add_slot">Add a save location</string>
     <string name="edit_slot_new">New save location</string>
@@ -228,7 +226,6 @@
     <string name="err_edit_game">Couldn\'t change the game</string>
 
     <!-- Folders -->
-    <string name="folder_granted">Folder you allowed Carryover to use</string>
     <string name="folder_keep_failed">Carryover couldn\'t keep access to this folder; pick another</string>
     <string name="action_type_path">Type a path instead</string>
 
@@ -604,8 +601,11 @@
     <string name="edit_slot_filters_hint">Leave both empty to sync every file in the folder. * matches any part of a name and ** goes into subfolders too, for example *.sav or saves/**.</string>
     <string name="slot_filters_only">Only %1$s</string>
     <string name="slot_filters_except">Except %1$s</string>
-    <string name="slot_filters_none">All files in the folder</string>
     <string name="action_edit_filters">Filters</string>
     <string name="slot_include_example" translatable="false">*.sav</string>
     <string name="slot_exclude_example" translatable="false">*.log</string>
+    <string name="action_edit">Edit</string>
+    <string name="action_set_up">Set up</string>
+    <string name="game_folder_not_set">Not set on this device</string>
+    <string name="game_file_line">Game file: %1$s</string>
 </resources>

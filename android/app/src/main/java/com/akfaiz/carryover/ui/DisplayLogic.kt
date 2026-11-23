@@ -92,6 +92,19 @@ fun backupChoices(current: Int): List<Int> = (listOf(0, 3, 5, 10, 20) + current.
  */
 fun suggestionFilters(include: List<String>): List<String> = include.filter { !it.endsWith("/" + "**") }.distinct()
 
+/** Whether a game file is a document picked in the system file picker (a content:// URI). */
+fun isContentUri(value: String): Boolean = value.startsWith("content://")
+
+/**
+ * A picked document's name as its URI says it: the last part of its document id ("primary:Games/PSP/FIFA.iso" ->
+ * "FIFA.iso"). Providers whose ids aren't paths ("msf:1234") give a number; the screen asks the provider first.
+ */
+fun documentNameOf(uri: String): String {
+    val path = runCatching { java.net.URI(uri).path }.getOrNull() ?: return uri
+    val last = path.trimEnd('/').substringAfterLast('/')
+    return last.substringAfterLast(':').ifEmpty { uri }
+}
+
 /** Filter patterns as typed, one per line, as the core keeps them: trimmed, without empty lines. */
 fun parseFilters(text: String): List<String> = text.lines().map { it.trim() }.filter { it.isNotEmpty() }
 

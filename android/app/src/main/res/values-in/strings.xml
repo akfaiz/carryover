@@ -201,8 +201,6 @@
     <string name="edit_remove_text">Di semua perangkat, %1$s tidak lagi memainkan game ini. Save di cloud tetap ada.</string>
     <string name="edit_remove_shared">%1$s memakai save-nya: hapus %1$s terlebih dahulu.</string>
     <string name="edit_remove_last">Ini satu-satunya emulator game ini, jadi tetap ada.</string>
-    <string name="edit_slots_title">Lokasi save</string>
-    <string name="edit_slots_for">Lokasi save: %1$s</string>
     <string name="edit_slots_shared">%1$s memakai save %2$s: ubah lokasinya di sana.</string>
     <string name="action_add_slot">Tambah lokasi save</string>
     <string name="edit_slot_new">Lokasi save baru</string>
@@ -217,7 +215,6 @@
     <string name="err_edit_game">Tidak dapat mengubah game</string>
 
     <!-- Folders -->
-    <string name="folder_granted">Folder yang Anda izinkan dipakai Carryover</string>
     <string name="folder_keep_failed">Carryover tidak dapat mempertahankan akses ke folder ini; pilih folder lain</string>
     <string name="action_type_path">Ketik path saja</string>
 
@@ -577,6 +574,9 @@
     <string name="edit_slot_filters_hint">Kosongkan keduanya untuk menyinkronkan semua file di folder. * cocok dengan bagian mana pun dari nama dan ** juga masuk ke subfolder, misalnya *.sav atau saves/**.</string>
     <string name="slot_filters_only">Hanya %1$s</string>
     <string name="slot_filters_except">Kecuali %1$s</string>
-    <string name="slot_filters_none">Semua file di folder</string>
     <string name="action_edit_filters">Filter</string>
+    <string name="action_edit">Ubah</string>
+    <string name="action_set_up">Atur</string>
+    <string name="game_folder_not_set">Belum diatur di perangkat ini</string>
+    <string name="game_file_line">File game: %1$s</string>
 </resources>
