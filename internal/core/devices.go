@@ -15,7 +15,7 @@ import (
 var ErrThisDevice = errors.New("that is this device")
 
 // ErrSessionsOpen is returned by ReuseDevice while a play session hasn't
-// finished: its cloud lock is held under this device's current id.
+// finished: the settings it plays with could change under it.
 var ErrSessionsOpen = errors.New("a game is being played, or its saves are not uploaded yet; try again once that is done")
 
 // RegisterDevice writes this device's record in the library (its name and
@@ -42,12 +42,13 @@ func (c *Core) ForgetDevice(id string) error {
 	return c.Library.ForgetDevice(id, time.Now().UTC())
 }
 
-// ReuseDevice makes this device take over the identity of device id, which
+// ReuseDevice makes this device take over the settings of device id, which
 // the library knows from before (typically this device before the app was
-// reinstalled, which gave it a new id): this device's id becomes id, the
-// settings it has under its current id move there (the newer kept where both
-// have some), and the current id is forgotten. Refused while a play session
-// hasn't finished, since its cloud lock carries the current id.
+// reinstalled or its data cleared, which gave it a new id): they move to this
+// device's id (the newer kept where both have some), and id is forgotten.
+// This device keeps its own id, which on Android is derived from the system's
+// identifier of the device, so the next clean install finds them again.
+// Refused while a play session hasn't finished.
 func (c *Core) ReuseDevice(id string) error {
 	own := c.DeviceID()
 	if id == "" || id == own {
@@ -59,15 +60,7 @@ func (c *Core) ReuseDevice(id string) error {
 	if c.anySession() {
 		return ErrSessionsOpen
 	}
-	if err := c.Settings.SetDeviceID(id); err != nil {
-		return err
-	}
-	if err := c.Library.MoveDevice(own, id, time.Now().UTC()); err != nil {
-		_ = c.Settings.SetDeviceID(own) // nothing moved: stay who we were
-		return err
-	}
-	c.RegisterDevice() // under its new id, with this install's name
-	return nil
+	return c.Library.MoveDevice(id, own, time.Now().UTC())
 }
 
 // anySession reports whether a session marker exists: a game is being played

@@ -68,11 +68,13 @@ The ⋮ item appears only after a first try.
 
 ## The same device is listed several times
 
-Reinstalling Carryover or clearing its data (on Android: uninstalling, clearing storage, or switching between a
-debug and a release build) gives the device a new ID, so the library lists it once more and its games have to be set
+On the desktop, reinstalling Carryover with a new data folder gives the computer a new ID. On Android a clean
+install keeps the device's ID, except after a factory reset, when switching between a debug and a release build, and
+for installs made before this was added. The library then lists the device once more and its games have to be set
 up again. In **Settings → Other devices**, choose **This is me** on the earlier entry (marked "Same name as this
-device") to take its settings back, and **Forget** the entries of devices you no longer use. Forgetting removes them
-on every device; cloud saves and backups are not touched.
+device") to take its settings over, and **Forget** the entries of devices you no longer use. Forgetting removes them
+on every device; cloud saves and backups are not touched. On Android, folders picked in the system's file picker have
+to be picked again after a reinstall: the permission to them doesn't survive it.
 
 ## Android: a game from my PC doesn't show up
 

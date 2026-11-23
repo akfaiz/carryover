@@ -50,12 +50,12 @@ func TestForgetAndReuseDevice(t *testing.T) {
 	require.ErrorIs(t, e.svc.ForgetDevice("deck"), ErrUnknownDevice)
 
 	require.NoError(t, e.svc.ReuseDevice("old"))
-	assert.Equal(t, "old", e.c.DeviceID())
+	assert.Equal(t, own, e.c.DeviceID(), "this device keeps its own id")
 	devs := e.svc.Devices()
-	require.Len(t, devs, 1, "the earlier id is gone")
-	assert.Equal(t, "old", devs[0].ID)
+	require.Len(t, devs, 1, "the earlier install is gone")
+	assert.Equal(t, own, devs[0].ID)
 	assert.Equal(t, 1, devs[0].Games)
 	g, err := e.c.Library.Get(e.id)
 	require.NoError(t, err)
-	assert.Equal(t, "/elsewhere", g.Devices["old"].Paths["saves"], "the old install's settings were changed last")
+	assert.Equal(t, "/elsewhere", g.Devices[own].Paths["saves"], "the old install's settings were changed last")
 }

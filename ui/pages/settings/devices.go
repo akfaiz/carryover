@@ -44,12 +44,12 @@ func (p *Page) deviceRow(d services.DeviceView) fyne.CanvasObject {
 		map[string]any{"When": components.FmtDate(d.LastSeen), "Games": d.Games, "Emulators": d.Emulators}))
 	reuse := widget.NewButtonWithIcon(lang.L("This is me…"), theme.LoginIcon(), func() {
 		components.ConfirmDanger(p.u, components.ConfirmOpts{
-			Title: lang.L("Make this device {{.Name}}", map[string]any{"Name": name}),
-			Message: lang.L("This device takes back the ID and the game and emulator settings of {{.Name}} (where both have settings for a game, the newer ones stay). Its current ID is forgotten on every device. Saves are not touched.",
+			Title: lang.L("Use the settings of {{.Name}} here", map[string]any{"Name": name}),
+			Message: lang.L("This device takes over the game and emulator settings of {{.Name}} (where both have settings for a game, the newer ones stay), and {{.Name}} is removed from the list on every device. Saves are not touched.",
 				map[string]any{"Name": name}),
 			Action: lang.L("This is me"),
 			OnConfirm: func(bool) {
-				p.deviceAction(func() error { return p.u.Sync().ReuseDevice(d.ID) }, lang.L("This device is {{.Name}} again.", map[string]any{"Name": name}))
+				p.deviceAction(func() error { return p.u.Sync().ReuseDevice(d.ID) }, lang.L("This device now has the settings of {{.Name}}.", map[string]any{"Name": name}))
 			},
 		})
 	})

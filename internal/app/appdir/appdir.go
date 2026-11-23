@@ -157,8 +157,20 @@ func (st *SettingsStore) Update(s Settings) error {
 	return st.save()
 }
 
-// SetDeviceID changes the device ID, for a device that takes over the
-// identity it had before (see library.Store.MoveDevice).
+// deviceNamespace is the UUID namespace of the device IDs DeviceIDFrom makes.
+var deviceNamespace = uuid.MustParse("6f1c5d2e-3b7a-4c9e-8d21-5a0b4e7f9c13")
+
+// DeviceIDFrom is the device ID for a stable identifier the platform gives
+// the device (on Android its ANDROID_ID, which survives reinstalling the app
+// and clearing its data): a name-based UUID, so a clean install gets the ID
+// it had, and the identifier itself never reaches the library. key should
+// name the platform ("android:<id>").
+func DeviceIDFrom(key string) string {
+	return uuid.NewSHA1(deviceNamespace, []byte(key)).String()
+}
+
+// SetDeviceID changes the device ID: a first start that derives it from the
+// platform's own identifier of the device (DeviceIDFrom).
 func (st *SettingsStore) SetDeviceID(id string) error {
 	if strings.TrimSpace(id) == "" {
 		return errors.New("empty device id")

@@ -1,5 +1,6 @@
 package com.akfaiz.carryover.core
 
+import android.annotation.SuppressLint
 import android.content.ActivityNotFoundException
 import android.content.Context
 import android.content.Intent
@@ -7,6 +8,7 @@ import android.net.Uri
 import android.os.Build
 import android.os.Environment
 import android.os.SystemClock
+import android.provider.Settings.Secure
 import android.util.Log
 import com.akfaiz.carryover.bridge.mobile.Host
 import com.akfaiz.carryover.bridge.mobile.Mobile
@@ -61,6 +63,7 @@ object Core : CoreApi {
                 app.cacheDir.path,
                 Environment.getExternalStorageDirectory().path,
                 deviceName(),
+                deviceKey(),
                 host,
             )
             // Save folders granted through the Storage Access Framework.
@@ -73,6 +76,18 @@ object Core : CoreApi {
     }
 
     override val version: String get() = Mobile.version()
+
+    /**
+     * The system's identifier of this device for this app (ANDROID_ID): it stays the same when the app is reinstalled
+     * or its data cleared (it changes with a factory reset, and differs between builds signed with other keys), so a
+     * clean install gets its device ID back. The core stores only a hash of it. "" when there is none.
+     */
+    @SuppressLint("HardwareIds") // the point: a stable id, for this app only, never sent anywhere as it is
+    private fun deviceKey(): String {
+        val id = runCatching { Secure.getString(app.contentResolver, Secure.ANDROID_ID) }.getOrNull().orEmpty()
+        // The one value some old Android 2.2 devices share.
+        return if (id == "9774d56d682e549c") "" else id
+    }
 
     private fun deviceName(): String {
         val maker = Build.MANUFACTURER.orEmpty().replaceFirstChar { it.uppercase() }

@@ -337,7 +337,8 @@ func TestSettingsDevices(t *testing.T) {
 	h.Settle()
 	uitest.TapOverlayButton(t, h, "This is me")
 	h.Settle()
-	assert.Equal(t, "old-install", h.Core.DeviceID())
+	assert.NotEqual(t, "old-install", h.Core.DeviceID(), "this device keeps its own id")
+	assert.False(t, h.Core.Library.HasDevice("old-install"), "its settings moved here")
 	assert.Contains(t, uitest.LabelTexts(h), "No other devices.")
 }
 
