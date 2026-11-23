@@ -7,6 +7,8 @@ All notable changes to Carryover are listed here. The format follows
 
 ## [Unreleased]
 
+## [0.5.1] - 2026-11-23
+
 ### Added
 
 - Settings → Other devices lists every device the library holds settings of. **Forget** removes a device you no
@@ -356,7 +358,8 @@ First public pre-release.
 - Downloads: a Windows exe, a Linux AppImage with in-place updates through Gear Lever or AppImageUpdate, and a
   Linux tarball with an `install.sh`, plus `SHA256SUMS.txt`.
 
-[Unreleased]: https://github.com/akfaiz/carryover/compare/v0.5.0...HEAD
+[Unreleased]: https://github.com/akfaiz/carryover/compare/v0.5.1...HEAD
+[0.5.1]: https://github.com/akfaiz/carryover/compare/v0.5.0...v0.5.1
 [0.5.0]: https://github.com/akfaiz/carryover/compare/v0.4.0...v0.5.0
 [0.4.0]: https://github.com/akfaiz/carryover/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/akfaiz/carryover/compare/v0.2.1...v0.3.0

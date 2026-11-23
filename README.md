@@ -68,7 +68,7 @@ Cloud storage: Google Drive, Dropbox, OneDrive, WebDAV (Nextcloud, ownCloud, NAS
 
 Get the latest version from the [Releases page](https://github.com/akfaiz/carryover/releases/latest).
 
-Every file is named `carryover-<version>-<os>-<arch>`, for example `carryover-0.5.0-windows-amd64.zip`.
+Every file is named `carryover-<version>-<os>-<arch>`, for example `carryover-0.5.1-windows-amd64.zip`.
 On Windows, pick the installer or the portable zip; both hold the same program.
 
 | Platform | File | How to run |
