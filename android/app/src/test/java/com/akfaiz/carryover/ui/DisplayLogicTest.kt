@@ -258,6 +258,20 @@ class DisplayLogicTest {
     }
 
     @Test
+    fun aPickedGameFileShowsByItsName() {
+        val uri = "content://com.android.externalstorage.documents/document/primary%3AGames%2FPSP%2FGAME%2FFIFA%20Street%202.iso"
+        assertTrue(isContentUri(uri))
+        assertFalse(isContentUri("/sdcard/Games/fifa.iso"))
+        assertEquals("FIFA Street 2.iso", documentNameOf(uri))
+        assertEquals(
+            "x.iso",
+            documentNameOf("content://com.android.externalstorage.documents/tree/primary%3AGames/document/primary%3AGames%2Fx.iso"),
+        )
+        assertEquals("1234", documentNameOf("content://com.android.providers.downloads.documents/document/msf%3A1234"))
+        assertEquals("not a uri", documentNameOf("not a uri"))
+    }
+
+    @Test
     fun filtersAreEditedOnePerLine() {
         assertEquals(listOf("*.sav", "saves/" + "**"), parseFilters("  *.sav \n\n saves/" + "**\n"))
         assertEquals(emptyList<String>(), parseFilters("  \n"))

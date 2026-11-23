@@ -17,6 +17,8 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
@@ -35,7 +37,6 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.automirrored.outlined.AddToHomeScreen
-import androidx.compose.material.icons.outlined.Apps
 import androidx.compose.material.icons.outlined.Devices
 import androidx.compose.material.icons.outlined.Edit
 import androidx.compose.material.icons.outlined.ExpandLess
@@ -43,7 +44,6 @@ import androidx.compose.material.icons.outlined.ExpandMore
 import androidx.compose.material.icons.outlined.History
 import androidx.compose.material.icons.outlined.Image
 import androidx.compose.material.icons.outlined.MoreVert
-import androidx.compose.material.icons.outlined.FilterList
 import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material.icons.outlined.StopCircle
 import androidx.compose.material.icons.outlined.Sync
@@ -68,7 +68,6 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
@@ -82,16 +81,12 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalWindowInfo
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import androidx.lifecycle.viewmodel.compose.viewModel
 import com.akfaiz.carryover.R
 import com.akfaiz.carryover.core.SaveSlot
-import com.akfaiz.carryover.core.EmulatorPresets
 import com.akfaiz.carryover.core.GameView
 import com.akfaiz.carryover.core.Profile
 import com.akfaiz.carryover.core.Resolution
@@ -444,19 +439,15 @@ private fun ConflictCard(g: GameView, p: Profile, vm: AppViewModel) {
     }
 }
 
-/** One way the game is played here: its save folders, how it starts, and its own sync. */
+/**
+ * One way the game is played here, as it stands: its sync, where its saves are and which files of them sync, and
+ * how it starts. Changing any of it is on the game's edit page.
+ */
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun ProfileCard(g: GameView, p: Profile, state: UiState, vm: AppViewModel, nav: Nav, ending: Set<String>) {
-    // Edited paths by slot key, starting from the stored ones.
-    val edits = remember(p.key, p.paths) { mutableStateMapOf<String, String>().apply { putAll(p.paths) } }
-    val dirty = p.slots.any { (edits[it.key] ?: "") != (p.paths[it.key] ?: "") }
-    // The save location whose filters are being edited, null while no dialog is open.
-    var filtering by remember(p.key) { mutableStateOf<String?>(null) }
     val syncing = p.key in state.syncing
     val several = g.profiles.size > 1
-    val suggest: SuggestViewModel = viewModel()
-    val suggestState by suggest.state.collectAsStateWithLifecycle()
-    if (suggestState.key == p.key) SaveSuggestDialog(suggestState, onUse = suggest::use, onClose = suggest::close)
     SectionCard(
         title = p.emulator ?: stringResource(R.string.game_profile_own),
         // With one profile, the header already shows its status.
@@ -479,141 +470,66 @@ private fun ProfileCard(g: GameView, p: Profile, state: UiState, vm: AppViewMode
         if (several && p.canSync) {
             SyncButton(g, p, state, vm)
         }
-
         Text(stringResource(R.string.game_save_folders), style = MaterialTheme.typography.labelLarge, modifier = Modifier.padding(top = 4.dp))
-        // Some emulators keep saves where Carryover can't reach until the user picks a folder in them.
-        EmulatorPresets.savesNote(state.emulators.firstOrNull { it.id == p.emulatorId }).takeIf { it != 0 }?.let {
-            Text(stringResource(it), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-        }
         for (slot in p.slots) {
-            val err = p.pathErrors[slot.key]
-            val resolved = p.resolvedPaths[slot.key]
-            FolderField(
-                value = edits[slot.key] ?: "",
-                onChange = { edits[slot.key] = it },
-                label = slot.title,
-                supporting = err ?: resolved?.takeIf { it != edits[slot.key] }?.let { "→ $it" },
-                isError = err != null,
+            SaveFolderLine(slot, p)
+        }
+        Text(stringResource(R.string.game_launch), style = MaterialTheme.typography.labelLarge, modifier = Modifier.padding(top = 4.dp))
+        ProfileAppLine(p, state)
+        if (p.emulatorId != null && p.rom.isNotBlank()) {
+            Text(
+                stringResource(R.string.game_file_line, if (isContentUri(p.rom)) rememberDocumentName(p.rom) else p.rom),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
-            SlotFiltersRow(slot, editable = p.shareWith.isEmpty(), onEdit = { filtering = slot.key })
         }
-        filtering?.let { key ->
-            p.slots.firstOrNull { it.key == key }?.let { slot ->
-                SlotDialog(stringResource(R.string.edit_slot_rename), slot, onDismiss = { filtering = null }) { edited ->
-                    filtering = null
-                    vm.setSlots(p.key, p.slots.map { if (it.key == key) edited else it })
+        FlowRow(horizontalArrangement = Arrangement.spacedBy(4.dp), itemVerticalAlignment = Alignment.CenterVertically) {
+            // Not ready to play here yet: setting it up is the thing to do, so it is the button that stands out.
+            if (p.ready(state.emulators)) {
+                TextButton(onClick = { nav.go(Screen.EditGame(g.id)) }) {
+                    Icon(Icons.Outlined.Edit, null, Modifier.size(18.dp))
+                    Text(stringResource(R.string.action_edit), Modifier.padding(start = 6.dp))
                 }
-            }
-        }
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-            AnimatedVisibility(dirty) {
-                Button(onClick = { vm.setPaths(p.key, p.slots.associate { it.key to (edits[it.key] ?: "") }) }) {
-                    Text(stringResource(R.string.action_save))
-                }
-            }
-            // Where the emulator keeps this game's saves, from its manifest (needs its type and data folder).
-            if (state.emulators.firstOrNull { it.id == p.emulatorId }?.preset.orEmpty().isNotEmpty()) {
-                TextButton(onClick = { suggest.open(p.key) }) {
-                    Icon(Icons.Outlined.Search, null, Modifier.size(18.dp))
-                    Text(stringResource(R.string.game_suggest_saves), Modifier.padding(start = 6.dp))
-                }
-            }
-        }
-        if (state.cloudReady) {
-            TextButton(onClick = { nav.go(Screen.Backups(p.key)) }) {
-                Icon(Icons.Outlined.History, null, Modifier.size(18.dp))
-                Text(stringResource(R.string.game_backups), Modifier.padding(start = 6.dp))
-            }
-        }
-        HorizontalDivider(Modifier.padding(vertical = 4.dp), color = MaterialTheme.colorScheme.outlineVariant)
-        LaunchSection(g, p, state, vm, nav)
-    }
-}
-
-/**
- * Which files of a save folder sync: its filters, or that it takes them all, and (unless the profile uses another
- * emulator's save locations) a button that edits them.
- */
-@Composable
-private fun SlotFiltersRow(slot: SaveSlot, editable: Boolean, onEdit: () -> Unit) {
-    Row(verticalAlignment = Alignment.CenterVertically) {
-        Text(
-            filtersSummary(slot) ?: stringResource(R.string.slot_filters_none),
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.weight(1f),
-        )
-        if (editable) {
-            TextButton(onClick = onEdit) {
-                Icon(Icons.Outlined.FilterList, null, Modifier.size(18.dp))
-                Text(stringResource(R.string.action_edit_filters), Modifier.padding(start = 6.dp))
-            }
-        }
-    }
-}
-
-/** Which app plays the profile on this device, and its game file. */
-@Composable
-private fun LaunchSection(g: GameView, p: Profile, state: UiState, vm: AppViewModel, nav: Nav) {
-    val ctx = LocalContext.current
-    var picking by rememberSaveable { mutableStateOf(false) }
-    Text(stringResource(R.string.game_launch), style = MaterialTheme.typography.labelLarge)
-    if (p.emulatorId == null) {
-        AppLine(
-            p.app.substringBefore('/'),
-            if (p.app.isBlank()) stringResource(R.string.game_app_none) else stringResource(R.string.game_app, appLabel(ctx, p.app)),
-        )
-        OutlinedButton(onClick = { picking = true }) {
-            Text(stringResource(if (p.app.isBlank()) R.string.action_choose_game_app else R.string.action_change_app))
-        }
-    } else {
-        val emu = state.emulators.firstOrNull { it.id == p.emulatorId }
-        val exe = emu?.device?.exe.orEmpty()
-        AppLine(
-            exe.substringBefore('/'),
-            if (exe.isBlank()) {
-                stringResource(R.string.game_emulator_missing, p.emulator.orEmpty())
             } else {
-                stringResource(R.string.game_emulator_app, p.emulator.orEmpty(), appLabel(ctx, exe))
-            },
-        )
-        if (exe.isBlank() || emu == null) {
-            OutlinedButton(onClick = { nav.go(if (emu != null) Screen.Emulator(emu.id) else Screen.Emulators) }) {
-                Text(stringResource(R.string.action_set_up_emulators))
+                FilledTonalButton(onClick = { nav.go(Screen.EditGame(g.id)) }) {
+                    Icon(Icons.Outlined.Edit, null, Modifier.size(18.dp))
+                    Text(stringResource(R.string.action_set_up), Modifier.padding(start = 6.dp))
+                }
             }
-        } else if (emu.device.args.isNotBlank()) {
-            var rom by remember(p.key, p.rom) { mutableStateOf(p.rom) }
-            GameFileField(rom, { rom = it }, stringResource(R.string.game_file))
-            AnimatedVisibility(rom != p.rom) {
-                Button(onClick = { vm.setRom(p.key, rom) }) { Text(stringResource(R.string.action_save_game_file)) }
+            if (state.cloudReady) {
+                TextButton(onClick = { nav.go(Screen.Backups(p.key)) }) {
+                    Icon(Icons.Outlined.History, null, Modifier.size(18.dp))
+                    Text(stringResource(R.string.game_backups), Modifier.padding(start = 6.dp))
+                }
             }
-        }
-    }
-    if (vm.launchSetup(p) != null) {
-        TextButton(onClick = { vm.addShortcut(g, p) }) {
-            Icon(Icons.AutoMirrored.Outlined.AddToHomeScreen, null, Modifier.size(18.dp))
-            Text(stringResource(R.string.action_add_shortcut), Modifier.padding(start = 6.dp))
-        }
-    }
-    if (picking) {
-        AppPickerDialog(stringResource(R.string.game_choose_app_title, g.name), onDismiss = { picking = false }) { app ->
-            picking = false
-            vm.setNativeApp(g.id, app.pkg)
+            if (vm.launchSetup(p) != null) {
+                TextButton(onClick = { vm.addShortcut(g, p) }) {
+                    Icon(Icons.AutoMirrored.Outlined.AddToHomeScreen, null, Modifier.size(18.dp))
+                    Text(stringResource(R.string.action_add_shortcut), Modifier.padding(start = 6.dp))
+                }
+            }
         }
     }
 }
 
-/** An app's icon (when installed) and a line about it. */
+/** A save location: its name, this device's folder for it (or that there is none yet), and which files sync. */
 @Composable
-private fun AppLine(pkg: String, text: String) {
-    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-        val icon = rememberAppIcon(pkg)
-        if (icon != null) {
-            Image(icon, null, Modifier.size(28.dp))
-        } else {
-            Icon(Icons.Outlined.Apps, null, Modifier.size(28.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
+private fun SaveFolderLine(slot: SaveSlot, p: Profile) {
+    val value = p.paths[slot.key].orEmpty()
+    val err = p.pathErrors[slot.key]?.takeIf { value.isNotBlank() }
+    Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+        Text(slot.title, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Text(
+            if (value.isBlank()) stringResource(R.string.game_folder_not_set) else folderLocation(value, p.resolvedPaths[slot.key]),
+            style = MaterialTheme.typography.bodyMedium,
+            color = if (value.isBlank()) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.onSurface,
+            maxLines = 2,
+            overflow = TextOverflow.Ellipsis,
+        )
+        err?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error) }
+        filtersSummary(slot)?.let {
+            Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
-        Text(text, style = MaterialTheme.typography.bodyMedium)
     }
 }
 
