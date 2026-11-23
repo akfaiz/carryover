@@ -256,4 +256,19 @@ class DisplayLogicTest {
         assertEquals(listOf("a", "b"), suggestionFilters(listOf("a", "a/" + "**", "b", "b/" + "**", "a")))
         assertEquals(emptyList<String>(), suggestionFilters(emptyList()))
     }
+
+    @Test
+    fun filtersAreEditedOnePerLine() {
+        assertEquals(listOf("*.sav", "saves/" + "**"), parseFilters("  *.sav \n\n saves/" + "**\n"))
+        assertEquals(emptyList<String>(), parseFilters("  \n"))
+        assertEquals("a\nb", filtersText(listOf("a", "b")))
+        assertEquals(listOf("a", "b"), parseFilters(filtersText(listOf("a", "b"))))
+    }
+
+    @Test
+    fun aSummaryLeavesOutTheFolderTwinOfAPatternItShows() {
+        assertEquals(listOf("ULUS10067_*"), shownFilters(listOf("ULUS10067_*", "ULUS10067_*/" + "**")))
+        assertEquals("a twin alone is the pattern", listOf("saves/" + "**"), shownFilters(listOf("saves/" + "**")))
+        assertEquals(emptyList<String>(), shownFilters(emptyList()))
+    }
 }

@@ -43,6 +43,7 @@ import androidx.compose.material.icons.outlined.ExpandMore
 import androidx.compose.material.icons.outlined.History
 import androidx.compose.material.icons.outlined.Image
 import androidx.compose.material.icons.outlined.MoreVert
+import androidx.compose.material.icons.outlined.FilterList
 import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material.icons.outlined.StopCircle
 import androidx.compose.material.icons.outlined.Sync
@@ -89,6 +90,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.akfaiz.carryover.R
+import com.akfaiz.carryover.core.SaveSlot
 import com.akfaiz.carryover.core.EmulatorPresets
 import com.akfaiz.carryover.core.GameView
 import com.akfaiz.carryover.core.Profile
@@ -448,6 +450,8 @@ private fun ProfileCard(g: GameView, p: Profile, state: UiState, vm: AppViewMode
     // Edited paths by slot key, starting from the stored ones.
     val edits = remember(p.key, p.paths) { mutableStateMapOf<String, String>().apply { putAll(p.paths) } }
     val dirty = p.slots.any { (edits[it.key] ?: "") != (p.paths[it.key] ?: "") }
+    // The save location whose filters are being edited, null while no dialog is open.
+    var filtering by remember(p.key) { mutableStateOf<String?>(null) }
     val syncing = p.key in state.syncing
     val several = g.profiles.size > 1
     val suggest: SuggestViewModel = viewModel()
@@ -491,6 +495,15 @@ private fun ProfileCard(g: GameView, p: Profile, state: UiState, vm: AppViewMode
                 supporting = err ?: resolved?.takeIf { it != edits[slot.key] }?.let { "→ $it" },
                 isError = err != null,
             )
+            SlotFiltersRow(slot, editable = p.shareWith.isEmpty(), onEdit = { filtering = slot.key })
+        }
+        filtering?.let { key ->
+            p.slots.firstOrNull { it.key == key }?.let { slot ->
+                SlotDialog(stringResource(R.string.edit_slot_rename), slot, onDismiss = { filtering = null }) { edited ->
+                    filtering = null
+                    vm.setSlots(p.key, p.slots.map { if (it.key == key) edited else it })
+                }
+            }
         }
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
             AnimatedVisibility(dirty) {
@@ -514,6 +527,28 @@ private fun ProfileCard(g: GameView, p: Profile, state: UiState, vm: AppViewMode
         }
         HorizontalDivider(Modifier.padding(vertical = 4.dp), color = MaterialTheme.colorScheme.outlineVariant)
         LaunchSection(g, p, state, vm, nav)
+    }
+}
+
+/**
+ * Which files of a save folder sync: its filters, or that it takes them all, and (unless the profile uses another
+ * emulator's save locations) a button that edits them.
+ */
+@Composable
+private fun SlotFiltersRow(slot: SaveSlot, editable: Boolean, onEdit: () -> Unit) {
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Text(
+            filtersSummary(slot) ?: stringResource(R.string.slot_filters_none),
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.weight(1f),
+        )
+        if (editable) {
+            TextButton(onClick = onEdit) {
+                Icon(Icons.Outlined.FilterList, null, Modifier.size(18.dp))
+                Text(stringResource(R.string.action_edit_filters), Modifier.padding(start = 6.dp))
+            }
+        }
     }
 }
 

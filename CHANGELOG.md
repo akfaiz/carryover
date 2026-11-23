@@ -16,6 +16,8 @@ All notable changes to Carryover are listed here. The format follows
 - Forgetting a device writes the library in a newer format (version 3). Update Carryover on every device first:
   older versions refuse to change such a library.
 - The library keeps each device's name and platform once, so renaming a device shows the new name everywhere.
+- Android: a game's page shows which files each save folder syncs (its include and exclude filters), and they can
+  be edited there and on the game's edit page, as on the desktop.
 
 ### Fixed
 

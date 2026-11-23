@@ -237,7 +237,12 @@ data class GameView(
                 add(Profile(id, null, null, slots, device.paths, resolvedPaths, pathErrors, status, app = device.exe))
             }
             for (e in emulators) {
-                add(Profile(e.key, e.name, e.emulatorId, e.slots, e.paths, e.resolvedPaths, e.pathErrors, e.status, rom = e.rom))
+                add(
+                    Profile(
+                        e.key, e.name, e.emulatorId, e.slots, e.paths, e.resolvedPaths, e.pathErrors, e.status,
+                        rom = e.rom, shareWith = e.shareWith,
+                    ),
+                )
             }
         }
 }
@@ -259,6 +264,8 @@ data class Profile(
     val rom: String = "",
     /** The package of the game's own Android app (native profile). */
     val app: String = "",
+    /** The emulator whose saves (and save locations) this one uses, "" for its own. */
+    val shareWith: String = "",
 ) {
     val canSync: Boolean
         get() = slots.isNotEmpty() && pathErrors.isEmpty() && slots.all { resolvedPaths.containsKey(it.key) }
