@@ -35,7 +35,7 @@ Cloud storage: Google Drive, Dropbox, OneDrive, WebDAV (Nextcloud, ownCloud, NAS
 ## Screenshots
 
 <p align="center">
-  <img src="docs/images/screenshot_gamedetail.png" alt="Game details: sync status, Play and Sync now, save folder compared with the cloud, backups, Steam shortcut and the save path on another device" width="800">
+  <img src="docs/images/screenshot-gamedetail.png" alt="Game details: sync status, Play and Sync now, save folder compared with the cloud, backups, Steam shortcut and the save path on another device" width="800">
 </p>
 
 ## Features
