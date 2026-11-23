@@ -10,28 +10,24 @@ are in [CONTRIBUTING.md](../CONTRIBUTING.md).
 
 ## Layers
 
-```
-┌──────────────┐ ┌──────────────────────┐ ┌────────────────────────────────────┐
-│ main.go CLI  │ │ ui/  Fyne GUI        │ │ android/  Kotlin, Compose          │
-│ run, sync    │ │                      │ │                                    │
-└──────┬───────┘ └──────────┬───────────┘ └─────────────────┬──────────────────┘
-       │                    │                               │ JSON over gomobile
-       │                    │             ┌─────────────────┴──────────────────┐
-       │                    │             │ mobile/  the bridge Kotlin sees    │
-       │                    │             └─────────────────┬──────────────────┘
-       │                    │                               │
-       │         ┌──────────┴───────────────────────────────┴──────────────────┐
-       │         │ services/  the API both apps use: library, emulators,       │
-       │         │            sync, sessions, trash, ...                       │
-       │         └──────────────────────────────┬──────────────────────────────┘
-       │                                        │
-┌──────┴────────────────────────────────────────┴──────────────────────────────┐
-│ internal/core  play sessions, library sync, Steam shortcuts                  │
-├──────────────────────────────────────────────────────────────────────────────┤
-│ internal/library · internal/launcher                                         │
-├──────────────────────────────────────────────────────────────────────────────┤
-│ internal/cloudsync · internal/saves · internal/stores · internal/app         │
-└──────────────────────────────────────────────────────────────────────────────┘
+```mermaid
+flowchart TD
+    CLI["<b>main.go CLI</b><br/>run, sync"]
+    GUI["<b>ui/</b> Fyne GUI"]
+    And["<b>android/</b> Kotlin, Compose"]
+    Mobile["<b>mobile/</b><br/>the bridge Kotlin sees"]
+    Svc["<b>services/</b> the API both apps use:<br/>library, emulators, sync, sessions, trash, ..."]
+    And -->|JSON over gomobile| Mobile
+    Mobile --> Svc
+    GUI --> Svc
+    Svc --> Core
+    CLI --> Core
+    subgraph Internal [internal/]
+        Core["<b>core</b><br/>play sessions, library sync, Steam shortcuts"]
+        Mid["<b>library</b> · <b>launcher</b>"]
+        Low["<b>cloudsync</b> · <b>saves</b> · <b>stores</b> · <b>app</b>"]
+        Core --> Mid --> Low
+    end
 ```
 
 Dependencies only point down. The command line is small and calls `internal/core` directly; the two GUIs go
@@ -96,13 +92,13 @@ the game starts without syncing and the upload is retried later.
 
 The GUI is MVVM-lite with one-way data flow:
 
-```
-┌──────────────┐    ┌──────────────┐    ┌──────────────┐    ┌──────────────┐
-│ services.Bus ├───►│ ui/store     ├───►│ ViewModel    ├───►│ view         │
-│ events       │    │ shared state │    │ page rules   │    │ Fyne widgets │
-└───────┬──────┘    └──────────────┘    └───────┬──────┘    └──────────────┘
-        ▲                                       │ commands
-        └────────────── services ───────────────┘
+```mermaid
+flowchart LR
+    Bus["<b>services.Bus</b><br/>events"] --> Store["<b>ui/store</b><br/>shared state"]
+    Store --> VM["<b>ViewModel</b><br/>page rules"]
+    VM --> View["<b>view</b><br/>Fyne widgets"]
+    VM -->|commands| Svc[services]
+    Svc --> Bus
 ```
 
 | Package | Role |

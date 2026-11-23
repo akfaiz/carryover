@@ -125,32 +125,17 @@ ES-DE or Daijisho, see [Android: start games from a frontend](docs/android-front
 
 ## How it works
 
-```
-                           ┌───────┐
-                           │ Play  │
-                           └───┬───┘
-                               ▼
-                   ┌───────────────────────┐
-                   │ Compare local saves,  │
-                   │ cloud and last sync   │
-                   └───────────┬───────────┘
-       ┌───────────────┬───────┴───────┬───────────────┐
-  cloud newer     local newer    both changed      no change
-       ▼               ▼               ▼               │
-┌─────────────┐ ┌─────────────┐ ┌─────────────┐        │
-│ Pull saves  │ │ Push saves  │ │ You choose  │        │
-└──────┬──────┘ └──────┬──────┘ └──────┬──────┘        │
-       │               │               │               │
-       └───────────────┴───────┬───────┴───────────────┘
-                               ▼
-                         ┌───────────┐
-                         │ Game runs │
-                         └─────┬─────┘
-                               │ quit
-                               ▼
-                      ┌─────────────────┐
-                      │ Push new saves  │
-                      └─────────────────┘
+```mermaid
+flowchart LR
+    Play([Play]) --> Compare{"Compare local saves,<br/>cloud and last sync"}
+    Compare -->|cloud newer| Pull[Pull saves]
+    Compare -->|both changed| Choose[You choose]
+    Compare -->|local newer| Push[Push saves]
+    Compare -->|no change| Game
+    Pull --> Game([Game runs])
+    Choose --> Game
+    Push --> Game
+    Game -->|quit| Upload[Push new saves]
 ```
 
 Each game has one copy of its saves in the cloud. Before you play, Carryover compares the local saves, the cloud

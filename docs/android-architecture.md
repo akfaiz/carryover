@@ -17,18 +17,26 @@ leaving the screen to upload.
 
 ## Layers
 
-```
-┌─────────────────────────── Android app (Kotlin, Compose: android/) ───────────────────────────┐
-│ ui/        screens, AppViewModel             launch/   LaunchActivity: frontends, shortcuts   │
-│ session/   PlayFlow, SessionManager (rules)  core/     Core (Go calls: CoreApi), Models (JSON │
-│            SessionService, SessionNotifier,            types), SafStorage (SAF folders),      │
-│            BootReceiver (Android shell)                Launch, EmulatorPresets (templates)    │
-└───────────────────────────────────────────────┬───────────────────────────────────────────────┘
-                                                │ gomobile bind → carryover-core.aar (JNI)
-┌───────────────────────────────────────────────┴───────────────────────────────────────────────┐
-│ mobile/   the only package Kotlin sees: JSON strings in and out, Host and Storage callbacks   │
-│   └─ services · internal/core · cloudsync (syncer, cloud, localfs) · library · saves          │
-└───────────────────────────────────────────────────────────────────────────────────────────────┘
+```mermaid
+flowchart TD
+    subgraph App ["Android app (Kotlin, Compose: android/)"]
+        UI["<b>ui/</b><br/>screens, view models"]
+        Launch["<b>launch/</b><br/>LaunchActivity:<br/>frontends, shortcuts"]
+        Data["<b>data/</b><br/>SettingsRepository, Messenger,<br/>SyncController, AppServices"]
+        Session["<b>session/</b><br/>PlayFlow, SessionManager (rules),<br/>SessionService, SessionNotifier,<br/>BootReceiver (Android shell)"]
+        CoreK["<b>core/</b><br/>Core (Go calls: CoreApi), Models (JSON types),<br/>SafStorage (SAF folders), Launch,<br/>EmulatorPresets (templates)"]
+        UI --> Data
+        UI --> Session
+        Launch --> Data
+        Launch --> Session
+        Data --> CoreK
+        Session --> CoreK
+    end
+    CoreK -->|"gomobile bind → carryover-core.aar (JNI)"| Mobile
+    subgraph Go [Go]
+        Mobile["<b>mobile/</b><br/>the only package Kotlin sees:<br/>JSON strings in and out,<br/>Host and Storage callbacks"]
+        Mobile --> Rest["services · internal/core<br/>cloudsync (syncer, cloud, localfs)<br/>library · saves"]
+    end
 ```
 
 - **`mobile`** wraps `services` for gomobile, which passes only basic types and interfaces: every call takes and
