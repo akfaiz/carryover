@@ -7,6 +7,11 @@ All notable changes to Carryover are listed here. The format follows
 
 ## [Unreleased]
 
+### Changed
+
+- Carryover is now licensed under the GNU General Public License v3.0 or later (GPL-3.0-or-later) instead of MIT.
+  Releases up to 0.5.0 stay under the MIT License.
+
 ## [0.5.0] - 2026-11-23
 
 ### Added

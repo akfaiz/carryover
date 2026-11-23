@@ -14,7 +14,7 @@
   <a href="https://codecov.io/gh/akfaiz/carryover"><img src="https://codecov.io/gh/akfaiz/carryover/graph/badge.svg?token=D6m0uefsJn" alt="codecov"></a>
   <a href="https://github.com/akfaiz/carryover/releases"><img src="https://img.shields.io/github/downloads/akfaiz/carryover/total" alt="Downloads"></a>
   <a href="go.mod"><img src="https://img.shields.io/github/go-mod/go-version/akfaiz/carryover" alt="Go version"></a>
-  <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="License: MIT"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-GPL--3.0-blue.svg" alt="License: GPL-3.0"></a>
 </p>
 
 <p align="center">
@@ -203,7 +203,8 @@ instructions, [Architecture](docs/architecture.md) for how the code is organised
 
 ## License
 
-[MIT](LICENSE) © 2026 Ahmad Faiz Kamaludin
+Carryover is free software under the [GNU General Public License v3.0 or later](LICENSE) (GPL-3.0-or-later)
+© 2026 Ahmad Faiz. Releases up to 0.5.0 were published under the MIT License and stay under it.
 
 ## Credits
 

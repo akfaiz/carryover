@@ -7,9 +7,9 @@
   <name>Carryover</name>
   <summary>Game launcher that syncs your saves through your own cloud storage</summary>
   <metadata_license>CC0-1.0</metadata_license>
-  <project_license>MIT</project_license>
+  <project_license>GPL-3.0-or-later</project_license>
   <developer id="com.akfaiz">
-    <name>Ahmad Faiz Kamaludin</name>
+    <name>Ahmad Faiz</name>
   </developer>
   <description>
     <p>
