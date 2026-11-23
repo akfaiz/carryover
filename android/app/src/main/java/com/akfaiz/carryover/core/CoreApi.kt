@@ -40,6 +40,18 @@ interface SettingsCore {
 
     /** Checks a SteamGridDB API key without saving it; throws when SteamGridDB rejects it. */
     suspend fun testSteamGridKey(key: String)
+
+    /** The devices the library holds settings of: this one first. */
+    suspend fun devices(): List<DeviceView>
+
+    /** Removes another device's settings from the library on every device; its cloud saves stay. */
+    suspend fun forgetDevice(id: String)
+
+    /**
+     * Makes this device the device [id] again (an earlier install of the app here): it takes that id and its
+     * settings back, and this install's own id is forgotten. Refused while a sync or game session runs.
+     */
+    suspend fun reuseDevice(id: String)
 }
 
 /** What syncing a game (or all of them) needs of the Go core (see [com.akfaiz.carryover.data.SyncController]). */

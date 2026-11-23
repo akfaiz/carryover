@@ -7,6 +7,15 @@ All notable changes to Carryover are listed here. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- Settings → Other devices lists every device the library holds settings of. **Forget** removes a device you no
+  longer use from the library on every device (its cloud saves stay). **This is me** takes back the settings of an
+  earlier install: reinstalling Carryover or clearing its data (common on Android) made the device start over under
+  a new ID, so the library listed it once per install.
+- Forgetting a device writes the library in a newer format (version 3). Update Carryover on every device first:
+  older versions refuse to change such a library.
+
 ### Changed
 
 - Carryover is now licensed under the GNU General Public License v3.0 or later (GPL-3.0-or-later) instead of MIT.

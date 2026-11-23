@@ -1,5 +1,6 @@
 package com.akfaiz.carryover.data
 
+import com.akfaiz.carryover.core.DeviceView
 import com.akfaiz.carryover.core.Remote
 import com.akfaiz.carryover.core.Settings
 import com.akfaiz.carryover.core.SettingsCore
@@ -149,6 +150,22 @@ class SettingsRepository(
     /** Merges the library (and its images) with the cloud; the pages read the library again after it. */
     suspend fun refreshLibrary() {
         core.syncLibrary()
+        _libraryStale.tryEmit(Unit)
+    }
+
+    /** The devices the library holds settings of: this one first. */
+    suspend fun devices(): List<DeviceView> = core.devices()
+
+    /** Removes another device's settings from the library; the pages read the library again after it. */
+    suspend fun forgetDevice(id: String) {
+        core.forgetDevice(id)
+        _libraryStale.tryEmit(Unit)
+    }
+
+    /** Makes this device the earlier device [id] again: its id changes, and the library with it. */
+    suspend fun reuseDevice(id: String) {
+        core.reuseDevice(id)
+        refresh()
         _libraryStale.tryEmit(Unit)
     }
 

@@ -15,6 +15,7 @@ import (
 	"github.com/akfaiz/carryover/internal/app/appdir"
 	"github.com/akfaiz/carryover/internal/app/version"
 	"github.com/akfaiz/carryover/internal/cloudsync/syncer"
+	"github.com/akfaiz/carryover/services"
 	"github.com/akfaiz/carryover/ui/env"
 	"github.com/akfaiz/carryover/ui/flows"
 	"github.com/akfaiz/carryover/ui/i18n"
@@ -30,21 +31,33 @@ type Options struct {
 
 // Page is the Settings page.
 type Page struct {
-	u    env.Env
-	opts Options
-	vm   *ViewModel // of the form shown; set once the settings are loaded
+	u      env.Env
+	opts   Options
+	vm     *ViewModel // of the form shown; set once the settings are loaded
+	scroll *container.Scroll
 }
 
 // New returns the Settings page.
 func New(u env.Env, opts Options) *Page { return &Page{u: u, opts: opts} }
 
 func (p *Page) View() fyne.CanvasObject {
-	u := p.u
-	scroll := kit.ScrollPage(kit.Muted(lang.L("Loading…")))
-	kit.Async(func() (appdir.Settings, error) { return u.Sync().GetSettings(), nil }, func(st appdir.Settings, _ error) {
-		kit.ReplaceScroll(scroll, p.form(st))
+	p.scroll = kit.ScrollPage(kit.Muted(lang.L("Loading…")))
+	p.reload()
+	return p.scroll
+}
+
+// loaded is what the page shows: the settings and the devices the library knows.
+type loaded struct {
+	st   appdir.Settings
+	devs []services.DeviceView
+}
+
+// reload reads the settings and the devices again and draws the page anew.
+func (p *Page) reload() {
+	sync := p.u.Sync()
+	kit.Async(func() (loaded, error) { return loaded{sync.GetSettings(), sync.Devices()}, nil }, func(l loaded, _ error) {
+		kit.ReplaceScroll(p.scroll, p.form(l.st, l.devs))
 	})
-	return scroll
 }
 
 // AutosaveDelay is how long after the last keystroke a text setting is saved.
@@ -59,7 +72,7 @@ func words(err error) error {
 	return err
 }
 
-func (p *Page) form(st appdir.Settings) fyne.CanvasObject {
+func (p *Page) form(st appdir.Settings, devs []services.DeviceView) fyne.CanvasObject {
 	u := p.u
 	// A quiet note next to the title says a change was saved; a toast for
 	// every change would pile up while typing.
@@ -189,6 +202,7 @@ func (p *Page) form(st appdir.Settings) fyne.CanvasObject {
 		narrow(kit.Card(lang.L("This device"),
 			kit.Field(lang.L("Device name (shown on other devices and in backups)"), name),
 			kit.Field(lang.L("Device ID"), id))),
+		narrow(p.devicesCard(devs)),
 		narrow(kit.Card(lang.L("Sync"),
 			backups,
 			kit.Field(lang.L("Backups to keep per game (1–100)"), kit.FixedWidth(120, retention)),

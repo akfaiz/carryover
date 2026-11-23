@@ -581,4 +581,22 @@
     <string name="msg_import_skipped">Not supported here: %1$s.</string>
     <string name="err_import_config">Couldn\'t import the file</string>
     <string name="err_import_too_big">This is too big to be an rclone.conf</string>
+    <string name="setting_devices">Other devices</string>
+    <string name="setting_devices_hint">Forget devices you no longer use</string>
+    <string name="setting_devices_earlier">An earlier install of this device is listed: take its settings back</string>
+    <string name="devices_intro">Devices with games or emulators set up in your library. Reinstalling Carryover or clearing its data makes this phone start over as a new device: choose \"This is me\" on its earlier entry to take its settings back.</string>
+    <string name="devices_none">No other devices.</string>
+    <string name="device_unnamed">Unnamed device</string>
+    <string name="device_line">Last change %1$s · games: %2$d · emulators: %3$d</string>
+    <string name="device_same_name">Same name as this device</string>
+    <string name="action_this_is_me">This is me</string>
+    <string name="action_forget">Forget</string>
+    <string name="dialog_reuse_device_title">Make this device %1$s?</string>
+    <string name="dialog_reuse_device_text">This device takes back the ID and the game and emulator settings of %1$s (where both have settings for a game, the newer ones stay). Its current ID is forgotten on every device. Saves are not touched.</string>
+    <string name="dialog_forget_device_title">Forget %1$s?</string>
+    <string name="dialog_forget_device_text">Its game and emulator settings are removed from the library on every device. Its cloud saves and backups are kept. Only forget a device you no longer use: one still in use loses its setup too.</string>
+    <string name="msg_device_forgotten">Device forgotten</string>
+    <string name="msg_device_reused">This device is %1$s again</string>
+    <string name="err_devices">Couldn\'t read the devices</string>
+    <string name="err_device_change">Couldn\'t change the device</string>
 </resources>

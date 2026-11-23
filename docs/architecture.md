@@ -139,7 +139,7 @@ How a ViewModel reaches the app depends on its size: `library` takes small `Sour
 Everything lives in one folder on the remote (`<remote>:<folder>`, set on the Cloud storage page):
 
 ```
-library.json                                      the shared game list
+library.json                                      the shared game list (and the forgotten devices)
 covers/                                           cover and artwork images used by the library
 games/<id>/manifest.json                          revision + SHA-256 of every save file
 games/<id>/current/<slot>/…                       the saves
@@ -163,6 +163,14 @@ Safety copies taken before a download (when cloud backups are off) stay on the d
 - An emulator can opt in to another emulator's folder (`GameEmulator.ShareWith`; one level only, same slot
   layout). `Job.GameID` is then the other emulator's key (`core.CloudKey`), while `Job.StateKey` stays its own, so
   each keeps its own last-synced state.
+
+**Devices.** A device is the random ID in its `settings.json`, made on first run, so a reinstall makes a new one.
+Merges keep every device's entries, so removing one takes a marker: `Catalog.ForgottenDevices` (device ID -> when)
+drops that device's entries not newer than then, on every merge and when the store is written
+(`Store.ForgetDevice`). The marker stays, so a stale copy can't bring the entries back, and a device forgotten by
+mistake comes back with its next change. `Store.MoveDevice` + `SettingsStore.SetDeviceID` (`Core.ReuseDevice`) let an
+install take an earlier ID back; its own ID is then forgotten. A catalog with forgotten devices is version 3, one
+without stays version 2 so older clients keep working until a device is forgotten.
 
 ## Checks that keep the layers apart
 

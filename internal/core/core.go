@@ -227,8 +227,16 @@ func (c *Core) syncCatalog(ctx context.Context, cl *cloud.Client) error {
 }
 
 func catalogsEqual(a, b library.Catalog) bool {
-	if len(a.Games) != len(b.Games) || len(a.Emulators) != len(b.Emulators) {
+	if len(a.Games) != len(b.Games) || len(a.Emulators) != len(b.Emulators) || a.Version != b.Version {
 		return false
+	}
+	if len(a.ForgottenDevices) != len(b.ForgottenDevices) {
+		return false
+	}
+	for id, at := range a.ForgottenDevices {
+		if o, ok := b.ForgottenDevices[id]; !ok || !o.Equal(at) {
+			return false
+		}
 	}
 	eidx := map[string]library.Emulator{}
 	for _, e := range b.Emulators {

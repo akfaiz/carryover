@@ -4,9 +4,12 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.akfaiz.carryover.R
 import com.akfaiz.carryover.data.AppServices
+import com.akfaiz.carryover.core.DeviceView
 import com.akfaiz.carryover.data.SettingsState
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import java.io.File
 
@@ -89,6 +92,32 @@ class SettingsViewModel(private val services: AppServices = AppServices.shared) 
                 repo.setDeviceName(name)
                 m.say(m.str(R.string.msg_saved))
             }
+        }
+    }
+
+    // Other devices
+
+    private val _devices = MutableStateFlow<List<DeviceView>>(emptyList())
+
+    /** The devices the library holds settings of, this one first; read by [loadDevices]. */
+    val devices: StateFlow<List<DeviceView>> = _devices.asStateFlow()
+
+    /** Reads the devices the library knows (again). */
+    fun loadDevices() {
+        viewModelScope.launch { m.attempt(m.str(R.string.err_devices)) { _devices.value = repo.devices() } }
+    }
+
+    /** Removes [device] (another one, no longer used) from the library on every device. */
+    fun forgetDevice(device: DeviceView) = changeDevice(m.str(R.string.msg_device_forgotten)) { repo.forgetDevice(device.id) }
+
+    /** Makes this device [device] again: an earlier install of the app here, whose settings it takes back. */
+    fun reuseDevice(device: DeviceView, name: String) =
+        changeDevice(m.str(R.string.msg_device_reused, name)) { repo.reuseDevice(device.id) }
+
+    private fun changeDevice(done: String, change: suspend () -> Unit) {
+        viewModelScope.launch {
+            if (m.attempt(m.str(R.string.err_device_change)) { change() } != null) m.say(done)
+            m.attempt(m.str(R.string.err_devices)) { _devices.value = repo.devices() }
         }
     }
 

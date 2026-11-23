@@ -522,6 +522,25 @@ data class TrashEmulator(
     val expiresAt: String = "",
 )
 
+/**
+ * A device the library holds settings of (services.DeviceView). Reinstalling the app or clearing its data makes a
+ * device start over under a new id; its earlier entry ([sameName]) can be taken back with reuseDevice.
+ */
+@Serializable
+data class DeviceView(
+    val id: String = "",
+    /** "" when it set up only emulators. */
+    val name: String = "",
+    /** RFC 3339; when its settings last changed. */
+    val lastSeen: String = "",
+    val games: Int = 0,
+    val emulators: Int = 0,
+    /** This device. */
+    @SerialName("this") val isThis: Boolean = false,
+    /** Another device with this device's name: likely this one before a reinstall. */
+    val sameName: Boolean = false,
+)
+
 /** What was deleted and can still be restored (mobile.TrashView). */
 @Serializable
 data class TrashView(

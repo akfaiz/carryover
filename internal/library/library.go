@@ -162,7 +162,13 @@ func (g Game) Device(id string) (DeviceConfig, bool) {
 
 // CatalogVersion is the newest catalog format this build understands. A newer
 // catalog is never read or rewritten, so an old client can't drop its fields.
-const CatalogVersion = 2
+// Version 3 adds ForgottenDevices; a catalog without any is still written as
+// version 2 (catalogVersionBase), so older clients keep working until a
+// device is forgotten.
+const CatalogVersion = 3
+
+// catalogVersionBase is the version written while no device is forgotten.
+const catalogVersionBase = 2
 
 // ErrNewerCatalog is returned for a catalog written by a newer Carryover.
 var ErrNewerCatalog = errors.New("the library was written by a newer version of Carryover; update this device")
@@ -172,6 +178,11 @@ type Catalog struct {
 	Version   int        `json:"version"`
 	Games     []Game     `json:"games"`
 	Emulators []Emulator `json:"emulators,omitempty"`
+	// ForgottenDevices holds the devices removed from the library, by device
+	// id, with when: their settings changed before then are dropped from every
+	// game and emulator (see Store.ForgetDevice). Kept for good, so a copy of
+	// the catalog that still has them can't bring them back.
+	ForgottenDevices map[string]time.Time `json:"forgottenDevices,omitempty"`
 }
 
 // Store is a thread-safe library persisted to a JSON file.
@@ -180,11 +191,12 @@ type Store struct {
 	path      string
 	games     map[string]Game
 	emulators map[string]Emulator
+	forgotten map[string]time.Time // device id -> forgotten at
 }
 
 // Open loads the library file.
 func Open(path string) (*Store, error) {
-	s := &Store{path: path, games: map[string]Game{}, emulators: map[string]Emulator{}}
+	s := &Store{path: path, games: map[string]Game{}, emulators: map[string]Emulator{}, forgotten: map[string]time.Time{}}
 	var c Catalog
 	if _, err := appdir.ReadJSON(path, &c); err != nil {
 		return nil, fmt.Errorf("load library: %w", err)
@@ -198,6 +210,8 @@ func Open(path string) (*Store, error) {
 	for _, e := range c.Emulators {
 		s.emulators[e.ID] = normalizeEmulator(e)
 	}
+	s.mergeForgottenLocked(c.ForgottenDevices)
+	s.pruneForgottenLocked()
 	return s, nil
 }
 
@@ -563,7 +577,11 @@ func (s *Store) Catalog() Catalog {
 }
 
 func (s *Store) catalogLocked() Catalog {
-	c := Catalog{Version: CatalogVersion}
+	c := Catalog{Version: catalogVersionBase}
+	if len(s.forgotten) > 0 {
+		c.Version = CatalogVersion
+		c.ForgottenDevices = maps.Clone(s.forgotten)
+	}
 	for _, g := range s.games {
 		c.Games = append(c.Games, g)
 	}
@@ -582,7 +600,7 @@ func (s *Store) MergeCatalog(remote Catalog) (bool, error) {
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	changed := false
+	changed := s.mergeForgottenLocked(remote.ForgottenDevices)
 	for _, re := range remote.Emulators {
 		re = normalizeEmulator(re)
 		le, ok := s.emulators[re.ID]
@@ -609,6 +627,9 @@ func (s *Store) MergeCatalog(remote Catalog) (bool, error) {
 			s.games[rg.ID] = m
 			changed = true
 		}
+	}
+	if s.pruneForgottenLocked() {
+		changed = true
 	}
 	if !changed {
 		return false, nil
@@ -957,6 +978,9 @@ func (s *Store) persist() error {
 				s.games[dg.ID] = dg
 			}
 		}
+		s.mergeForgottenLocked(disk.ForgottenDevices)
 	}
+	// After the merge: what is on disk may still hold a forgotten device.
+	s.pruneForgottenLocked()
 	return appdir.WriteJSONAtomic(s.path, s.catalogLocked())
 }

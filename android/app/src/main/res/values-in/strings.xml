@@ -554,4 +554,22 @@
     <string name="msg_import_skipped">Tidak didukung di sini: %1$s.</string>
     <string name="err_import_config">Tidak dapat mengimpor file</string>
     <string name="err_import_too_big">File ini terlalu besar untuk rclone.conf</string>
+    <string name="setting_devices">Perangkat lain</string>
+    <string name="setting_devices_hint">Lupakan perangkat yang tidak lagi Anda pakai</string>
+    <string name="setting_devices_earlier">Pemasangan lama perangkat ini terdaftar: ambil kembali pengaturannya</string>
+    <string name="devices_intro">Perangkat yang punya game atau emulator yang diatur di pustaka Anda. Memasang ulang Carryover atau menghapus datanya membuat ponsel ini mulai lagi sebagai perangkat baru: pilih \"Ini saya\" pada entri lamanya untuk mengambil kembali pengaturannya.</string>
+    <string name="devices_none">Tidak ada perangkat lain.</string>
+    <string name="device_unnamed">Perangkat tanpa nama</string>
+    <string name="device_line">Perubahan terakhir %1$s · game: %2$d · emulator: %3$d</string>
+    <string name="device_same_name">Nama sama dengan perangkat ini</string>
+    <string name="action_this_is_me">Ini saya</string>
+    <string name="action_forget">Lupakan</string>
+    <string name="dialog_reuse_device_title">Jadikan perangkat ini %1$s?</string>
+    <string name="dialog_reuse_device_text">Perangkat ini mengambil kembali ID serta pengaturan game dan emulator milik %1$s (jika keduanya punya pengaturan untuk sebuah game, yang lebih baru dipertahankan). ID-nya saat ini dilupakan di semua perangkat. Save tidak diubah.</string>
+    <string name="dialog_forget_device_title">Lupakan %1$s?</string>
+    <string name="dialog_forget_device_text">Pengaturan game dan emulatornya dihapus dari pustaka di semua perangkat. Save cloud dan cadangannya tetap disimpan. Lupakan hanya perangkat yang tidak lagi Anda pakai: perangkat yang masih dipakai juga kehilangan pengaturannya.</string>
+    <string name="msg_device_forgotten">Perangkat dilupakan</string>
+    <string name="msg_device_reused">Perangkat ini kembali menjadi %1$s</string>
+    <string name="err_devices">Tidak dapat membaca daftar perangkat</string>
+    <string name="err_device_change">Tidak dapat mengubah perangkat</string>
 </resources>
