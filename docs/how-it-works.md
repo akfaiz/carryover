@@ -3,22 +3,52 @@
 Each game has one copy of its saves in the cloud. Every device keeps a record of the cloud state it saw at its
 last successful sync, and compares three things: its local save files, the cloud copy and that record.
 
-```mermaid
-flowchart TD
-    start(["▶ Play"]) --> scan["Scan local saves,<br/>read the cloud manifest"]
-    scan --> decide{"What changed since<br/>the last sync?"}
-    decide -->|nothing| lock
-    decide -->|cloud only| pull["Pull changed files<br/>(local saves backed up first)"]
-    decide -->|local only| push["Push changed files<br/>(cloud saves backed up first, if turned on)"]
-    decide -->|both| ask{"You choose"}
-    ask -->|keep cloud| pull
-    ask -->|keep local| push
-    pull --> lock["Lock the game in the cloud<br/>(asks first if another device holds it)"]
-    push --> lock
-    lock --> game["Game runs"]
-    game --> quit(["Quit"])
-    quit --> after["Push changed files"]
-    after --> unlock["Release the lock"]
+```
+                                  ┌───────┐
+                                  │ Play  │
+                                  └───┬───┘
+                                      ▼
+                         ┌─────────────────────────┐
+                         │ Scan local saves,       │
+                         │ read the cloud manifest │
+                         └────────────┬────────────┘
+                                      ▼
+                           ┌─────────────────────┐
+                           │ What changed since  │
+                           │ the last sync?      │
+                           └──────────┬──────────┘
+             ┌────────────────────────┼────────────────────────┬───────────────┐
+        cloud only                  both                  local only     nothing
+             │                        ▼                        │               │
+             │                 ┌─────────────┐                 │               │
+             ├── keep cloud ───┤ You choose  ├── keep local ───┤               │
+             │                 └─────────────┘                 │               │
+             │                                                 │               │
+             ▼                                                 ▼               │
+ ┌───────────────────────┐                         ┌───────────────────────┐   │
+ │ Pull changed files    │                         │ Push changed files    │   │
+ │ (local saves backed   │                         │ (cloud saves backed   │   │
+ │ up first)             │                         │ up first, if on)      │   │
+ └───────────┬───────────┘                         └───────────┬───────────┘   │
+             └────────────────────────┬────────────────────────┴───────────────┘
+                                      ▼
+                 ┌─────────────────────────────────────────┐
+                 │ Lock the game in the cloud              │
+                 │ (asks first if another device holds it) │
+                 └────────────────────┬────────────────────┘
+                                      ▼
+                                ┌───────────┐
+                                │ Game runs │
+                                └─────┬─────┘
+                                      │ quit
+                                      ▼
+                           ┌─────────────────────┐
+                           │ Push changed files  │
+                           └──────────┬──────────┘
+                                      ▼
+                            ┌───────────────────┐
+                            │ Release the lock  │
+                            └───────────────────┘
 ```
 
 1. **Before playing**, Carryover scans the local save folders and reads the cloud manifest (the file list with a
@@ -70,20 +100,29 @@ Carryover checks that the cloud answers before each sync of a play session (a fe
 
 Playing on a PC, then on a Steam Deck:
 
-```mermaid
-sequenceDiagram
-    participant PC
-    participant Cloud
-    participant Deck
-    Cloud-->>PC: Manifest: nothing new
-    PC->>Cloud: Lock: "being played on PC"
-    Note over PC: Game runs
-    PC->>Cloud: Push changed files, release the lock
-    Cloud-->>Deck: Manifest: cloud is newer
-    Cloud->>Deck: Pull changed files (Deck saves backed up first)
-    Deck->>Cloud: Lock: "being played on Deck"
-    Note over Deck: Game runs
-    Deck->>Cloud: Push changed files, release the lock
+```
+  ┌─────┐                           ┌───────┐                         ┌───────┐
+  │ PC  │                           │ Cloud │                         │ Deck  │
+  └──┬──┘                           └───┬───┘                         └───┬───┘
+     │  manifest: nothing new           │                                 │
+     │◄─────────────────────────────────┤                                 │
+     │  lock: "being played on PC"      │                                 │
+     ├─────────────────────────────────►│                                 │
+     │ game runs                        │                                 │
+     │                                  │                                 │
+     │  push changed files, unlock      │                                 │
+     ├─────────────────────────────────►│                                 │
+     │                                  │  manifest: cloud is newer       │
+     │                                  ├────────────────────────────────►│
+     │                                  │  pull (Deck saves backed up)    │
+     │                                  ├────────────────────────────────►│
+     │                                  │  lock: "being played on Deck"   │
+     │                                  │◄────────────────────────────────┤
+     │                                  │                      game runs  │
+     │                                  │                                 │
+     │                                  │  push changed files, unlock     │
+     │                                  │◄────────────────────────────────┤
+     │                                  │                                 │
 ```
 
 If the Deck had started the game while the PC still held the lock, Carryover would say the game is being played
@@ -110,4 +149,4 @@ directly isn't synced around it: the next time you open Carryover, it is marked 
 
 ## What is stored in the cloud
 
-See [Cloud layout](../CONTRIBUTING.md#cloud-layout) in CONTRIBUTING.md.
+See [Cloud layout](architecture.md#cloud-layout) in the architecture notes.
