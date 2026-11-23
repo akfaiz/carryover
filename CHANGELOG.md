@@ -15,9 +15,17 @@ All notable changes to Carryover are listed here. The format follows
   a new ID, so the library listed it once per install.
 - Forgetting a device writes the library in a newer format (version 3). Update Carryover on every device first:
   older versions refuse to change such a library.
+- The library keeps each device's name and platform once, so renaming a device shows the new name everywhere.
+
+### Fixed
+
+- Changing only this device's setup of a game or emulator no longer undoes a rename, slot change or other shared
+  change made on another device that this one hadn't merged yet.
 
 ### Changed
 
+- The library file is smaller: empty fields are left out, and an emulator that shares another's cloud save no longer
+  stores a copy of its save slots.
 - Carryover is now licensed under the GNU General Public License v3.0 or later (GPL-3.0-or-later) instead of MIT.
   Releases up to 0.5.0 stay under the MIT License.
 

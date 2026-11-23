@@ -2,7 +2,9 @@ package core
 
 import (
 	"errors"
+	"log"
 	"os"
+	"runtime"
 	"strings"
 	"time"
 
@@ -15,6 +17,18 @@ var ErrThisDevice = errors.New("that is this device")
 // ErrSessionsOpen is returned by ReuseDevice while a play session hasn't
 // finished: its cloud lock is held under this device's current id.
 var ErrSessionsOpen = errors.New("a game is being played, or its saves are not uploaded yet; try again once that is done")
+
+// RegisterDevice writes this device's record in the library (its name and
+// platform), when it doesn't say so already; it reports whether it changed.
+// It runs with every library sync, and after the name changes.
+func (c *Core) RegisterDevice() bool {
+	s := c.Settings.Get()
+	changed, err := c.Library.RegisterDevice(s.DeviceID, s.DeviceName, runtime.GOOS, time.Now().UTC())
+	if err != nil {
+		log.Printf("register device: %v", err)
+	}
+	return changed
+}
 
 // ForgetDevice removes another device's settings from the library, on every
 // device (library.Store.ForgetDevice). Its cloud saves and backups stay.
@@ -52,6 +66,7 @@ func (c *Core) ReuseDevice(id string) error {
 		_ = c.Settings.SetDeviceID(own) // nothing moved: stay who we were
 		return err
 	}
+	c.RegisterDevice() // under its new id, with this install's name
 	return nil
 }
 

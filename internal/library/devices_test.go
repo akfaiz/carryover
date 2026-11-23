@@ -67,7 +67,7 @@ func TestForgetDeviceSurvivesMerges(t *testing.T) {
 	assert.False(t, s.HasDevice("old"))
 	c := s.Catalog()
 	assert.Equal(t, CatalogVersion, c.Version, "a forgotten device needs the newer format")
-	assert.Contains(t, c.ForgottenDevices, "old")
+	assert.False(t, c.Devices["old"].ForgottenAt.IsZero())
 
 	// Merging the deck's stale copy doesn't bring it back.
 	_, err = s.MergeCatalog(deck.Catalog())
@@ -101,8 +101,66 @@ func TestForgottenDeviceComesBackWhenItChangesSomething(t *testing.T) {
 
 func TestCatalogWithoutForgottenDevicesStaysVersion2(t *testing.T) {
 	s, _, _ := twoPhones(t)
-	assert.Equal(t, 2, s.Catalog().Version, "older clients keep reading it")
-	assert.Empty(t, s.Catalog().ForgottenDevices)
+	_, err := s.RegisterDevice("pc", "PC", "windows", time.Now().UTC())
+	require.NoError(t, err)
+	c := s.Catalog()
+	assert.Equal(t, 2, c.Version, "older clients keep reading it")
+	assert.Equal(t, "PC", c.Devices["pc"].Name)
+}
+
+func TestRegisteredDevices(t *testing.T) {
+	s, gameID, _ := twoPhones(t)
+	now := time.Now().UTC()
+	changed, err := s.RegisterDevice("new", "Galaxy", "android", now)
+	require.NoError(t, err)
+	assert.True(t, changed)
+	changed, err = s.RegisterDevice("new", "Galaxy", "android", now.Add(time.Minute))
+	require.NoError(t, err)
+	assert.False(t, changed, "nothing to write when the record says so already")
+	_, err = s.RegisterDevice("deck", "Steam Deck", "linux", now)
+	require.NoError(t, err)
+
+	byID := map[string]DeviceInfo{}
+	for _, d := range s.Devices() {
+		byID[d.ID] = d
+	}
+	assert.Equal(t, "Galaxy", byID["new"].Name, "the record's name wins over the one in the game entries")
+	assert.Equal(t, "android", byID["new"].Platform)
+	assert.Equal(t, "Phone", byID["old"].Name, "without a record, the game entries name it")
+	assert.Equal(t, "Steam Deck", byID["deck"].Name, "a device with nothing set up is listed too")
+	assert.Equal(t, 0, byID["deck"].Games)
+	assert.Equal(t, "Galaxy", s.DeviceName("new", "x"))
+	assert.Equal(t, "x", s.DeviceName("old", "x"))
+
+	// A rename reaches other copies through the record.
+	other, err := Open(filepath.Join(t.TempDir(), "other.json"))
+	require.NoError(t, err)
+	_, err = other.MergeCatalog(s.Catalog())
+	require.NoError(t, err)
+	_, err = s.RegisterDevice("new", "Galaxy S23", "android", now.Add(2*time.Minute))
+	require.NoError(t, err)
+	_, err = other.MergeCatalog(s.Catalog())
+	require.NoError(t, err)
+	assert.Equal(t, "Galaxy S23", other.DeviceName("new", ""))
+
+	// An older client drops the records when it writes the catalog: merging
+	// that keeps them here.
+	stale := s.Catalog()
+	stale.Devices = nil
+	_, err = s.MergeCatalog(stale)
+	require.NoError(t, err)
+	assert.Equal(t, "Galaxy S23", s.DeviceName("new", ""))
+
+	// A forgotten device with nothing left is no longer listed, until it
+	// registers again.
+	require.NoError(t, s.ForgetDevice("deck", now.Add(3*time.Minute)))
+	assert.False(t, s.HasDevice("deck"))
+	_, err = s.Get(gameID)
+	require.NoError(t, err)
+	changed, err = s.RegisterDevice("deck", "Steam Deck", "linux", now.Add(4*time.Minute))
+	require.NoError(t, err)
+	assert.True(t, changed, "a forgotten device that syncs again registers again")
+	assert.True(t, s.HasDevice("deck"))
 }
 
 func TestMoveDevice(t *testing.T) {

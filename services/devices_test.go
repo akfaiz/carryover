@@ -25,6 +25,7 @@ func TestDevicesMarksEarlierInstalls(t *testing.T) {
 	st.DeviceName = "Phone"
 	_, err := e.svc.SaveSettings(st)
 	require.NoError(t, err)
+	assert.Equal(t, "Phone", e.c.Library.DeviceName(e.c.DeviceID(), ""), "a rename updates this device's record")
 	withDevice(t, e, "deck", "steamdeck")
 	withDevice(t, e, "old", "phone")
 

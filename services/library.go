@@ -202,7 +202,7 @@ func (s *LibraryService) view(g library.Game) GameView {
 		if id == devID {
 			continue
 		}
-		name := od.DeviceName
+		name := s.c.Library.DeviceName(id, od.DeviceName)
 		if name == "" {
 			name = id[:min(8, len(id))]
 		}

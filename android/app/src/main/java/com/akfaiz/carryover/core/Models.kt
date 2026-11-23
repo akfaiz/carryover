@@ -529,8 +529,10 @@ data class TrashEmulator(
 @Serializable
 data class DeviceView(
     val id: String = "",
-    /** "" when it set up only emulators. */
+    /** "" when unknown. */
     val name: String = "",
+    /** The GOOS its Carryover runs on: windows, linux, darwin or android ("" if unknown). */
+    val platform: String = "",
     /** RFC 3339; when its settings last changed. */
     val lastSeen: String = "",
     val games: Int = 0,
