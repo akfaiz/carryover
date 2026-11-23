@@ -68,16 +68,16 @@ class SettingsAndCloudViewModelTest {
     private val laptop = DeviceView(id = "laptop", name = "Laptop", games = 1)
 
     @Test
-    fun anEarlierInstallIsTakenBack() {
+    fun anEarlierInstallsSettingsAreTakenOver() {
         h.core.settingsCore.devices += listOf(earlier, laptop)
         val vm = settings()
         vm.loadDevices()
         assertEquals(listOf("this", "old", "laptop"), vm.devices.value.map { it.id })
 
         vm.reuseDevice(earlier, "Phone")
-        assertEquals("old", vm.state.value.settings.deviceId)
-        assertEquals(listOf("old", "laptop"), vm.devices.value.map { it.id })
-        assertTrue(vm.devices.value.first().isThis)
+        assertEquals("this device keeps its id", "", vm.state.value.settings.deviceId)
+        assertEquals(listOf("this", "laptop"), vm.devices.value.map { it.id })
+        assertEquals(3, vm.devices.value.first().games)
         assertEquals(listOf(h.text(R.string.msg_device_reused, "Phone")), h.said)
     }
 

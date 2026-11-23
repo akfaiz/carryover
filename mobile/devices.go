@@ -21,9 +21,9 @@ func ForgetDevice(id string) error {
 	return s.sync.ForgetDevice(id)
 }
 
-// ReuseDevice makes this device the device id again: it takes that id and its
-// settings back (an earlier install of the app on this phone), and this
-// install's own id is forgotten. Refused while a sync or game session runs.
+// ReuseDevice makes this device take over the settings of device id (an
+// earlier install of the app on this phone), and id is forgotten. Refused
+// while a sync or game session runs.
 func ReuseDevice(id string) error {
 	s, err := get()
 	if err != nil {

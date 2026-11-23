@@ -197,11 +197,11 @@ func (s *Store) forgetLocked(id string, now time.Time) {
 }
 
 // MoveDevice gives device to the settings of device from, for a device that
-// takes over the identity it had before (a reinstall made it a new device):
-// where only from has settings they move to to; where both have, the newer
-// one is kept (from's on a tie). from is then forgotten (see ForgetDevice).
-// The moved settings are stamped now, so they win over the copies of to
-// elsewhere. The caller registers to afterwards (RegisterDevice).
+// takes over the settings of an earlier install of itself (a reinstall made
+// it a new device): where only from has settings they move to to; where both
+// have, the newer one is kept (from's on a tie). from is then forgotten (see
+// ForgetDevice). The moved settings are stamped now, so they win over the
+// copies of to elsewhere.
 func (s *Store) MoveDevice(from, to string, now time.Time) error {
 	if from == "" || to == "" || from == to {
 		return ErrUnknownDevice

@@ -87,17 +87,17 @@ func TestFlow(t *testing.T) {
 	require.Error(t, err, "calls before Init")
 
 	host := &fakeHost{}
-	require.NoError(t, Init(data, cache, home, "Test Phone", host))
+	require.NoError(t, Init(data, cache, home, "Test Phone", "0123456789abcdef", host))
 	t.Cleanup(func() {
 		WaitBackground() // catalog uploads write into data
 		closeLog()       // Windows can't remove an open file
 	})
-	require.NoError(t, Init(data, cache, home, "Other", host), "Init again with the same dir")
-	require.Error(t, Init(filepath.Join(root, "other"), cache, home, "", host), "Init with another dir")
+	require.NoError(t, Init(data, cache, home, "Other", "other", host), "Init again with the same dir")
+	require.Error(t, Init(filepath.Join(root, "other"), cache, home, "", "", host), "Init with another dir")
 
 	st := decode[appdir.Settings](t)(Settings())
 	assert.Equal(t, "Test Phone", st.DeviceName, "first start names the device")
-	assert.NotEmpty(t, st.DeviceID)
+	assert.Equal(t, appdir.DeviceIDFrom("android:0123456789abcdef"), st.DeviceID, "a first start takes the ID from the device's key")
 	assert.DirExists(t, filepath.Join(cache, "tmp"))
 	if runtime.GOOS != "windows" { // Windows takes it from TMP
 		assert.Equal(t, filepath.Join(cache, "tmp"), os.TempDir())

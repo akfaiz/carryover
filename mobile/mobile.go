@@ -79,10 +79,14 @@ func closeLog() {
 // cacheDir is the app's cache folder, used for temporary files and rclone's
 // cache. homeDir is what {home} expands to (the device's shared storage).
 // deviceName names this device on a first start; later starts keep the name
-// in the settings. Calling Init again with the same dataDir only replaces the
-// host; the process can't switch to another dataDir (rclone's config is
-// global).
-func Init(dataDir, cacheDir, homeDir, deviceName string, host Host) error {
+// in the settings. deviceKey is the system's stable identifier of the device
+// for this app (ANDROID_ID, "" if unknown): a first start (a new install, or
+// one whose data was cleared) takes its device ID from it
+// (appdir.DeviceIDFrom), so the library knows the device again instead of
+// listing it once more; later starts keep the ID in the settings. Calling
+// Init again with the same dataDir only replaces the host; the process can't
+// switch to another dataDir (rclone's config is global).
+func Init(dataDir, cacheDir, homeDir, deviceName, deviceKey string, host Host) error {
 	mu.Lock()
 	defer mu.Unlock()
 	if host == nil {
@@ -128,6 +132,11 @@ func Init(dataDir, cacheDir, homeDir, deviceName string, host Host) error {
 	}
 	if logFile, err = applog.Open(c.Dirs.LogsDir(), "Carryover "+versionString()+" (Android) started"); err != nil {
 		log.Printf("log file: %v", err)
+	}
+	if key := strings.TrimSpace(deviceKey); firstRun && key != "" {
+		if err := c.Settings.SetDeviceID(appdir.DeviceIDFrom("android:" + key)); err != nil {
+			return err
+		}
 	}
 	if name := strings.TrimSpace(deviceName); firstRun && name != "" {
 		st := c.Settings.Get()

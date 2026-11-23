@@ -3,6 +3,7 @@ package shell_test
 import (
 	"errors"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -79,7 +80,11 @@ func TestShellSyncAll(t *testing.T) {
 	h.UseLocalCloud()
 	h.AddGame("Game A", t.TempDir())
 	h.Shell.SyncAll()
-	h.Settle()
+	// Settle stops after a short idle spell, which a sync can outlast on a
+	// busy machine (the whole suite in parallel): wait for it to say it ended.
+	for deadline := time.Now().Add(10 * time.Second); h.Shell.Store().SyncAll.Running && time.Now().Before(deadline); {
+		h.Settle()
+	}
 	assert.False(t, h.Shell.Store().SyncAll.Running, "finished")
 }
 

@@ -171,14 +171,17 @@ alone (`sameSharedGame`), or a device that hasn't merged a rename yet would undo
 fields, and the slots of an emulator that shares another's cloud save (`compactGame`; `withSharedSlots` fills them in
 on load).
 
-**Devices.** A device is the random ID in its `settings.json`, made on first run, so a reinstall makes a new one.
+**Devices.** A device is the ID in its `settings.json`, made on first run: random on the desktop, so a reinstall
+there makes a new one; on Android derived from the system's identifier of the device (`ANDROID_ID`, passed to
+`mobile.Init`, stored only as a name-based UUID, `appdir.DeviceIDFrom`), so a clean install gets the same ID back.
 `Catalog.Devices` holds each device's own record (name, platform), written by the device on every library sync and
 when it is renamed (`Core.RegisterDevice`); the `deviceName` in each game entry is still written for older clients
 and used where a device has no record. Merges keep every device's entries, so removing one takes a marker: a record's
 `forgottenAt` drops that device's entries not newer than then, on every merge and when the store is written
 (`Store.ForgetDevice`). The record stays, so a stale copy can't bring the entries back, and a device forgotten by
-mistake comes back with its next change or library sync. `Store.MoveDevice` + `SettingsStore.SetDeviceID`
-(`Core.ReuseDevice`) let an install take an earlier ID back; its own ID is then forgotten. A catalog where a device
+mistake comes back with its next change or library sync. `Store.MoveDevice` (`Core.ReuseDevice`) lets an install
+take over the settings of an earlier one; this device keeps its own ID and the earlier one is forgotten. A catalog
+where a device
 was forgotten is version 3; otherwise it stays version 2, so older clients keep working (they drop the device records
 when they write it, and each device registers again).
 

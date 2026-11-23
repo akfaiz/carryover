@@ -98,12 +98,12 @@ internal class FakeSettingsCore : SettingsCore {
         devices = devices.filter { it.id != id }
     }
 
-    /** As the core does: this device takes [id], and its own entry goes. */
+    /** As the core does: this device takes over [id]'s settings and keeps its own id, and [id] goes. */
     override suspend fun reuseDevice(id: String) {
         calls += "reuse $id"
         deviceError?.let { throw it }
-        settings = settings.copy(deviceId = id)
-        devices = devices.filterNot { it.isThis }.map { if (it.id == id) it.copy(isThis = true, sameName = false) else it }
+        val taken = devices.firstOrNull { it.id == id }
+        devices = devices.filter { it.id != id }.map { if (it.isThis && taken != null) it.copy(games = it.games + taken.games) else it }
     }
 }
 

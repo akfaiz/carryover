@@ -146,3 +146,21 @@ func TestJSONRoundTrip(t *testing.T) {
 	require.Error(t, err)
 	require.Error(t, WriteJSONAtomic(path, make(chan int)), "WriteJSONAtomic of an unmarshalable value")
 }
+
+// A clean install on the same device gets the same ID; another device another.
+func TestDeviceIDFrom(t *testing.T) {
+	a := DeviceIDFrom("android:0123456789abcdef")
+	assert.Equal(t, a, DeviceIDFrom("android:0123456789abcdef"))
+	assert.NotEqual(t, a, DeviceIDFrom("android:fedcba9876543210"))
+	assert.Len(t, a, 36, "a UUID, like the random IDs")
+	assert.NotContains(t, a, "0123456789abcdef", "the system's identifier itself isn't stored")
+
+	path := filepath.Join(t.TempDir(), "settings.json")
+	st, err := OpenSettings(path)
+	require.NoError(t, err)
+	require.NoError(t, st.SetDeviceID(a))
+	again, err := OpenSettings(path)
+	require.NoError(t, err)
+	assert.Equal(t, a, again.Get().DeviceID)
+	assert.Error(t, st.SetDeviceID(" "))
+}

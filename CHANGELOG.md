@@ -10,9 +10,12 @@ All notable changes to Carryover are listed here. The format follows
 ### Added
 
 - Settings → Other devices lists every device the library holds settings of. **Forget** removes a device you no
-  longer use from the library on every device (its cloud saves stay). **This is me** takes back the settings of an
-  earlier install: reinstalling Carryover or clearing its data (common on Android) made the device start over under
-  a new ID, so the library listed it once per install.
+  longer use from the library on every device (its cloud saves stay). **This is me** takes over the settings of an
+  earlier install: reinstalling Carryover or clearing its data made the device start over under a new ID, so the
+  library listed it once per install.
+- Android: a clean install (reinstalling, or clearing the app's data) keeps the device's ID, so the library knows the
+  phone again and its games stay set up. The ID comes from the system's identifier of the device, of which only a hash
+  is stored. Installs from before this version keep their ID: after their next reinstall, use **This is me** once.
 - Forgetting a device writes the library in a newer format (version 3). Update Carryover on every device first:
   older versions refuse to change such a library.
 - The library keeps each device's name and platform once, so renaming a device shows the new name everywhere.

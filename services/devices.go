@@ -78,10 +78,9 @@ func (s *SyncService) ForgetDevice(id string) error {
 	return nil
 }
 
-// ReuseDevice makes this device the device id again: it takes that id and
-// its game and emulator settings back, keeping the settings made on this
-// install where both have some, and this install's own id is forgotten. For
-// a device whose earlier install the library still lists (see
+// ReuseDevice makes this device take over the game and emulator settings of
+// device id (the newer kept where both have some), and id is forgotten. For a
+// device whose earlier install the library still lists (see
 // DeviceView.SameName). Refused while a sync or play session runs.
 func (s *SyncService) ReuseDevice(id string) error {
 	if s.Active() {

@@ -33,17 +33,14 @@ func TestReuseDevice(t *testing.T) {
 	require.NoError(t, err)
 
 	require.NoError(t, c.ReuseDevice("old-phone"))
-	assert.Equal(t, "old-phone", c.DeviceID())
+	assert.Equal(t, before, c.DeviceID(), "this device keeps its own id")
 	g := mustFind(t, c, id)
-	assert.Equal(t, saves, g.Devices["old-phone"].Paths["saves"], "this install's newer settings are kept")
-	assert.NotContains(t, g.Devices, before)
+	assert.Equal(t, saves, g.Devices[before].Paths["saves"], "this install's newer settings are kept")
+	assert.NotContains(t, g.Devices, "old-phone")
 
-	// It survives a restart and the library sync.
-	again, err := appdir.OpenSettings(c.Dirs.SettingsFile())
-	require.NoError(t, err)
-	assert.Equal(t, "old-phone", again.Get().DeviceID)
+	// It survives the library sync.
 	require.NoError(t, c.SyncLibrary(context.Background()))
-	assert.False(t, c.Library.HasDevice(before))
+	assert.False(t, c.Library.HasDevice("old-phone"))
 	job, err := c.Job(mustFind(t, c, id))
 	require.NoError(t, err)
 	assert.NotEmpty(t, job.Slots, "the game is still set up here")

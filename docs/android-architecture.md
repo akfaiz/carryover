@@ -219,6 +219,11 @@ through `mobile/suggest.go`:
   (`EmulatorPresets.onAndroid`), games through those emulators, and a game's own saves only once this device has a
   folder or an app for them, or has an entry for the game (`GameView.forAndroid`, `hasDevice`: a game recovered from
   the cloud is still to be set up), so PC games are left out.
+- The device's ID comes from the system's identifier of the device for this app (`ANDROID_ID`, which survives
+  reinstalling the app and clearing its data): a first start sets it to `appdir.DeviceIDFrom("android:" + id)`, a
+  name-based UUID, so the raw identifier never reaches the library. A clean install is then the same device as before
+  and its games are set up again at once, except its picked folders (the system drops those permissions on
+  uninstall). A factory reset or a build signed with another key (debug vs release) gives another ID.
 - Editing a game changes it for every device. An emulator can share another's cloud saves
   (`GameEmulator.ShareWith`): Lemon, Android-only, next to the PC's Eden plays the same Switch saves.
 - Settings → Cloud has two switches, the desktop's too: **Share the library between devices** (`Settings.SyncLibrary`,
