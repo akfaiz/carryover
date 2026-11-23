@@ -7,9 +7,10 @@ import (
 
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/dialog"
-	"fyne.io/fyne/v2/lang"
 	"fyne.io/fyne/v2/theme"
 	"fyne.io/fyne/v2/widget"
+
+	"github.com/akfaiz/carryover/ui/i18n"
 
 	"github.com/akfaiz/carryover/internal/saves/pathvar"
 	"github.com/akfaiz/carryover/ui/env"
@@ -48,7 +49,7 @@ func NewPathInput(u env.Env, gameID string, tokens []pathvar.Token, value, place
 		var tokBtn *widget.Button
 		// Named, not "{ }": the tokens are what it inserts, which the
 		// symbol alone didn't say.
-		tokBtn = widget.NewButtonWithIcon(lang.L("Tokens"), theme.MenuDropDownIcon(), func() {
+		tokBtn = widget.NewButtonWithIcon(i18n.L("Tokens"), theme.MenuDropDownIcon(), func() {
 			items := make([]*fyne.MenuItem, 0, len(tokens))
 			for _, t := range tokens {
 				desc := t.Value
@@ -63,7 +64,7 @@ func NewPathInput(u env.Env, gameID string, tokens []pathvar.Token, value, place
 		})
 		right = append(right, tokBtn)
 	}
-	right = append(right, widget.NewButton(lang.L("Browse…"), p.browse))
+	right = append(right, widget.NewButton(i18n.L("Browse…"), p.browse))
 	p.Init(p, kit.VBox(kit.RowFill(p.entry, right...), p.preview, p.previewE))
 	p.updatePreview()
 	return p

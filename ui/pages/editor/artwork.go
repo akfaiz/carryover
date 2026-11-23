@@ -5,8 +5,9 @@ import (
 
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/container"
-	"fyne.io/fyne/v2/lang"
 	"fyne.io/fyne/v2/widget"
+
+	"github.com/akfaiz/carryover/ui/i18n"
 
 	"github.com/akfaiz/carryover/services"
 	"github.com/akfaiz/carryover/ui/kit"
@@ -24,17 +25,17 @@ type artSpec struct {
 }
 
 // artSpecs returns the extra artwork kinds (the portrait cover has its own
-// section in the editor). Functions, not package vars: text goes through lang.
+// section in the editor). Functions, not package vars: text goes through i18n.
 func artSpecs() []artSpec {
 	return []artSpec{
-		{services.ArtWide, lang.L("Wide cover"), lang.L("Wide capsule, 460×215. Shown in Steam's recent games and some lists."),
-			lang.L("No wide covers for this game yet."), fyne.NewSize(230, 107), fyne.NewSize(184, 86), false},
-		{services.ArtHero, lang.L("Background"), lang.L("Library background (hero), 1920×620. Shown at the top of the game's page in Steam."),
-			lang.L("No backgrounds for this game yet."), fyne.NewSize(310, 100), fyne.NewSize(248, 80), false},
-		{services.ArtLogo, lang.L("Logo"), lang.L("Transparent title logo drawn over the background."),
-			lang.L("No logos for this game yet."), fyne.NewSize(240, 90), fyne.NewSize(160, 90), true},
-		{services.ArtIcon, lang.L("Icon"), lang.L("Small square icon for the game in Steam's library list."),
-			lang.L("No icons for this game yet."), fyne.NewSize(80, 80), fyne.NewSize(80, 80), true},
+		{services.ArtWide, i18n.L("Wide cover"), i18n.L("Wide capsule, 460×215. Shown in Steam's recent games and some lists."),
+			i18n.L("No wide covers for this game yet."), fyne.NewSize(230, 107), fyne.NewSize(184, 86), false},
+		{services.ArtHero, i18n.L("Background"), i18n.L("Library background (hero), 1920×620. Shown at the top of the game's page in Steam."),
+			i18n.L("No backgrounds for this game yet."), fyne.NewSize(310, 100), fyne.NewSize(248, 80), false},
+		{services.ArtLogo, i18n.L("Logo"), i18n.L("Transparent title logo drawn over the background."),
+			i18n.L("No logos for this game yet."), fyne.NewSize(240, 90), fyne.NewSize(160, 90), true},
+		{services.ArtIcon, i18n.L("Icon"), i18n.L("Small square icon for the game in Steam's library list."),
+			i18n.L("No icons for this game yet."), fyne.NewSize(80, 80), fyne.NewSize(80, 80), true},
 	}
 }
 
@@ -45,7 +46,7 @@ func artSpecFor(kind services.ArtKind) artSpec {
 			return s
 		}
 	}
-	return artSpec{kind: services.ArtCover, label: lang.L("Cover"), empty: lang.L("No portrait covers for this game yet."),
+	return artSpec{kind: services.ArtCover, label: i18n.L("Cover"), empty: i18n.L("No portrait covers for this game yet."),
 		preview: fyne.NewSize(80, 120), pick: fyne.NewSize(120, 180)}
 }
 
@@ -71,8 +72,8 @@ func (e *Page) openArtPicker(kind services.ArtKind) {
 // artworkCard lets the user pick the extra Steam artwork (wide cover,
 // background, logo, icon) so the game looks right once it is added to Steam.
 func (e *Page) artworkCard() fyne.CanvasObject {
-	c := kit.VBox(kit.Heading(lang.L("Steam artwork")),
-		kit.Muted(lang.L("Written to Steam's grid folder when you add the game to Steam (or press Update Steam shortcut), so it has its images ready. The portrait cover is chosen above.")))
+	c := kit.VBox(kit.Heading(i18n.L("Steam artwork")),
+		kit.Muted(i18n.L("Written to Steam's grid folder when you add the game to Steam (or press Update Steam shortcut), so it has its images ready. The portrait cover is chosen above.")))
 	for _, spec := range artSpecs() {
 		a := e.vm.artEdit(spec.kind)
 		var preview fyne.CanvasObject
@@ -93,19 +94,19 @@ func (e *Page) artworkCard() fyne.CanvasObject {
 		// cover shown 1100 px wide and 86 px high was a cropped strip.
 		preview = container.NewHBox(kit.FixedSize(spec.preview, kit.CoverView(src, spec.preview)))
 
-		btns := kit.HBox(widget.NewButton(lang.L("Choose file…"), func() {
-			e.pickFile(lang.L("Choose image"), []string{".png", ".jpg", ".jpeg", ".webp"}, "", func(p string) {
+		btns := kit.HBox(widget.NewButton(i18n.L("Choose file…"), func() {
+			e.pickFile(i18n.L("Choose image"), []string{".png", ".jpg", ".jpeg", ".webp"}, "", func(p string) {
 				a.src, a.pick, a.clear = p, nil, false
 				e.render()
 			})
 		}))
 		if e.vm.hasGridKey {
-			btns.Add(widget.NewButton(lang.L("Find…"), func() {
+			btns.Add(widget.NewButton(i18n.L("Find…"), func() {
 				e.openArtPicker(spec.kind)
 			}))
 		}
 		if a.has() {
-			btns.Add(kit.LowButton(lang.L("Clear"), func() {
+			btns.Add(kit.LowButton(i18n.L("Clear"), func() {
 				a.src, a.pick, a.clear = "", nil, a.path != ""
 				e.render()
 			}))
@@ -113,19 +114,19 @@ func (e *Page) artworkCard() fyne.CanvasObject {
 		status := spec.hint
 		switch {
 		case a.clear:
-			status = lang.L("Removed when you save.")
+			status = i18n.L("Removed when you save.")
 		case a.src != "":
-			status = lang.L("{{.File}} — copied when you save.", map[string]any{"File": filepath.Base(a.src)})
+			status = i18n.L("{{.File}} — copied when you save.", map[string]any{"File": filepath.Base(a.src)})
 		case a.pick != nil:
-			status = lang.L("SteamGridDB image — downloaded when you save.")
+			status = i18n.L("SteamGridDB image — downloaded when you save.")
 		}
 		c.Add(kit.VBox(widget.NewSeparator(),
 			widget.NewLabelWithStyle(spec.label, fyne.TextAlignLeading, fyne.TextStyle{Bold: true}),
 			preview, btns, kit.Muted(status)))
 	}
 	if !e.vm.hasGridKey {
-		c.Add(container.NewBorder(nil, nil, nil, kit.LowButton(lang.L("Add key…"), e.askGridKey),
-			kit.Muted(lang.L("Add a SteamGridDB API key to search community artwork."))))
+		c.Add(container.NewBorder(nil, nil, nil, kit.LowButton(i18n.L("Add key…"), e.askGridKey),
+			kit.Muted(i18n.L("Add a SteamGridDB API key to search community artwork."))))
 	}
 	return kit.Card("", c)
 }

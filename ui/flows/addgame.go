@@ -5,10 +5,11 @@ import (
 
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/container"
-	"fyne.io/fyne/v2/lang"
 	"fyne.io/fyne/v2/layout"
 	"fyne.io/fyne/v2/theme"
 	"fyne.io/fyne/v2/widget"
+
+	"github.com/akfaiz/carryover/ui/i18n"
 
 	"github.com/akfaiz/carryover/services"
 	"github.com/akfaiz/carryover/ui/components"
@@ -37,35 +38,35 @@ func showAddGame(u env.Env, l services.Launchers) {
 	}
 	heroic, lutris := l.Heroic, l.Lutris
 
-	add(lang.L("From Steam"), theme.DownloadIcon(), lang.L("From Steam: a game Steam installed on this device."),
+	add(i18n.L("From Steam"), theme.DownloadIcon(), i18n.L("From Steam: a game Steam installed on this device."),
 		func() { ShowSteamImport(u) })
 	if heroic {
-		add(lang.L("From Heroic"), theme.StorageIcon(), lang.L("From Heroic: a GOG, Epic or Amazon game Heroic installed."),
+		add(i18n.L("From Heroic"), theme.StorageIcon(), i18n.L("From Heroic: a GOG, Epic or Amazon game Heroic installed."),
 			func() { ShowHeroicImport(u) })
 	}
 	if lutris {
-		add(lang.L("From Lutris"), theme.FolderOpenIcon(), lang.L("From Lutris: a game Lutris installed."),
+		add(i18n.L("From Lutris"), theme.FolderOpenIcon(), i18n.L("From Lutris: a game Lutris installed."),
 			func() { ShowLutrisImport(u) })
 	}
-	pc := lang.L("PC game: any other game, started from its executable.")
+	pc := i18n.L("PC game: any other game, started from its executable.")
 	switch {
 	case heroic && lutris:
-		pc = lang.L("PC game: any other game, started from its executable or through Heroic or Lutris.")
+		pc = i18n.L("PC game: any other game, started from its executable or through Heroic or Lutris.")
 	case heroic:
-		pc = lang.L("PC game: any other game, started from its executable or through Heroic.")
+		pc = i18n.L("PC game: any other game, started from its executable or through Heroic.")
 	case lutris:
-		pc = lang.L("PC game: any other game, started from its executable or through Lutris.")
+		pc = i18n.L("PC game: any other game, started from its executable or through Lutris.")
 	}
-	add(lang.L("PC game"), theme.ComputerIcon(), pc, func() { u.Navigate("/new") })
-	add(lang.L("Emulated game"), theme.MediaPlayIcon(),
-		lang.L("Emulated game: a game file you play through an emulator such as Eden or Ryujinx."),
+	add(i18n.L("PC game"), theme.ComputerIcon(), pc, func() { u.Navigate("/new") })
+	add(i18n.L("Emulated game"), theme.MediaPlayIcon(),
+		i18n.L("Emulated game: a game file you play through an emulator such as Eden or Ryujinx."),
 		func() { u.Navigate("/new/emulator") })
 
 	body := kit.VBox(
 		kit.HBox(tiles...),
 		kit.Muted(strings.Join(help, " ")),
-		kit.HBox(layout.NewSpacer(), widget.NewButton(lang.L("Cancel"), func() { d.Hide() })),
+		kit.HBox(layout.NewSpacer(), widget.NewButton(i18n.L("Cancel"), func() { d.Hide() })),
 	)
 	width := float32(len(tiles))*(kit.ChoiceTileSize+16) + 80
-	d = components.ShowCustom(u, lang.L("Add a game"), body, width)
+	d = components.ShowCustom(u, i18n.L("Add a game"), body, width)
 }

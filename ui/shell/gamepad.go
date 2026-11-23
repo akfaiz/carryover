@@ -7,8 +7,9 @@ import (
 
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/container"
-	"fyne.io/fyne/v2/lang"
 	"fyne.io/fyne/v2/layout"
+
+	"github.com/akfaiz/carryover/ui/i18n"
 
 	"github.com/akfaiz/carryover/internal/app/gamemode"
 	"github.com/akfaiz/carryover/ui/env"
@@ -164,7 +165,7 @@ func (u *Shell) openKeyboard() {
 	if !gamemode.CanRequestKeyboard {
 		// Windows: asking would open Big Picture's keyboard, which takes the
 		// controller; Steam's own chord opens the overlay's.
-		u.toast(lang.L("Press the Steam or Xbox button + X for Steam's keyboard."), kit.ToastInfo)
+		u.toast(i18n.L("Press the Steam or Xbox button + X for Steam's keyboard."), kit.ToastInfo)
 		return
 	}
 	go func() {
@@ -200,15 +201,15 @@ func (u *Shell) padHintBar() *fyne.Container {
 	}
 	bar := container.NewHBox(
 		layout.NewSpacer(),
-		hint("A", lang.L("Select")),
-		hint("B", lang.L("Back")),
-		hint("LB / RB", lang.L("Section")),
-		hint("X", lang.L("Search")),
-		hint("Y", lang.L("Sync")),
-		hint("R", lang.L("Scroll")),
+		hint("A", i18n.L("Select")),
+		hint("B", i18n.L("Back")),
+		hint("LB / RB", i18n.L("Section")),
+		hint("X", i18n.L("Search")),
+		hint("Y", i18n.L("Sync")),
+		hint("R", i18n.L("Scroll")),
 	)
 	if !gamemode.Active() { // Game Mode is always full screen
-		bar.Add(hint("View", lang.L("Full screen")))
+		bar.Add(hint("View", i18n.L("Full screen")))
 	}
 	c := container.NewPadded(bar)
 	if u.nav == nil || !u.nav.PadPresent() {

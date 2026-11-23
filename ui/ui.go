@@ -10,6 +10,7 @@ import (
 
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/app"
+	"fyne.io/fyne/v2/lang"
 
 	"github.com/akfaiz/carryover/internal/app/singleinstance"
 	"github.com/akfaiz/carryover/internal/core"
@@ -49,7 +50,9 @@ func Run(c *core.Core, wrapGameID string, opts core.RunOptions) int {
 }
 
 func start(c *core.Core) *shell.Shell {
-	i18n.Load(c.Settings.Get().Language)
+	language := c.Settings.Get().Language
+	i18n.Load(language)
+	fyneTranslations(language)
 	a := app.NewWithID(AppID)
 	kit.SystemDark.Store(kit.InitialSystemDark(a))
 	kit.SetPalette(kit.PaletteFor(c.Settings.Get().Theme))
@@ -63,6 +66,24 @@ func start(c *core.Core) *shell.Shell {
 		kit.OnUI(func() { sh.ApplyTheme(c.Settings.Get().Theme) })
 	})
 	return sh
+}
+
+// fyneTranslations hands the catalogs to Fyne's lang package too, for the text
+// of Fyne's own widgets and dialogs ("Cancel", the file dialog). With a
+// language code only that catalog is registered, under the base locale "en":
+// Fyne has no way to force a locale, but whatever the system language is, the
+// base one is what it falls back to, so the chosen catalog always applies.
+func fyneTranslations(setting string) {
+	if data, ok := i18n.Catalog(setting); ok {
+		err := lang.AddTranslationsForLocale(data, fyne.Locale("en"))
+		if err == nil {
+			return
+		}
+		log.Printf("translations: %s: %v", setting, err)
+	}
+	if err := lang.AddTranslationsFS(i18n.FS(), i18n.Dir); err != nil {
+		log.Printf("translations: %v", err)
+	}
 }
 
 // appConfig plugs this application's pages and dialogs into the shell.

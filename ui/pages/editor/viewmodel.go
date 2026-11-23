@@ -7,9 +7,10 @@ import (
 	"slices"
 	"strings"
 
+	"github.com/akfaiz/carryover/ui/textutil"
+
 	"github.com/akfaiz/carryover/internal/saves/pathvar"
 	"github.com/akfaiz/carryover/services"
-	"github.com/akfaiz/carryover/ui/kit"
 )
 
 // ViewModel is the editor's form: what the user has typed and chosen, and the
@@ -137,7 +138,7 @@ func (e *ViewModel) addSuggestion(sg services.SaveSuggestion) {
 	if len(parts) > 0 {
 		label = parts[len(parts)-1]
 	}
-	e.slots = append(e.slots, &slotForm{key: e.uniqueKey(kit.Slug(label), nil), label: label,
+	e.slots = append(e.slots, &slotForm{key: e.uniqueKey(textutil.Slug(label), nil), label: label,
 		include: strings.Join(sg.Include, "\n"), path: sg.Path, isNew: true})
 }
 
@@ -207,7 +208,7 @@ func (e *ViewModel) Input() (services.GameInput, error) {
 	slots := make([]services.SaveSlot, 0, len(e.slots))
 	for _, s := range e.slots {
 		paths[s.key] = s.path
-		slots = append(slots, services.SaveSlot{Key: s.key, Label: s.label, Include: kit.SplitLines(s.include), Exclude: kit.SplitLines(s.exclude)})
+		slots = append(slots, services.SaveSlot{Key: s.key, Label: s.label, Include: textutil.SplitLines(s.include), Exclude: textutil.SplitLines(s.exclude)})
 	}
 	dev := e.dev
 	dev.Paths, dev.Env = paths, env

@@ -2,7 +2,8 @@ package game
 
 import (
 	"fyne.io/fyne/v2"
-	"fyne.io/fyne/v2/lang"
+
+	"github.com/akfaiz/carryover/ui/i18n"
 
 	"github.com/akfaiz/carryover/services"
 	"github.com/akfaiz/carryover/ui/components"
@@ -36,9 +37,9 @@ func (p *Page) steamCard(orig services.GameView, busy bool) fyne.CanvasObject {
 				}
 				p.vm.steamExpanded = false
 				if res.SteamRunning {
-					u.Toast(lang.L("Added to Steam. Restart Steam to see it."), kit.ToastOK)
+					u.Toast(i18n.L("Added to Steam. Restart Steam to see it."), kit.ToastOK)
 				} else {
-					u.Toast(lang.L("Added to Steam"), kit.ToastOK)
+					u.Toast(i18n.L("Added to Steam"), kit.ToastOK)
 				}
 			})
 		},
@@ -50,21 +51,21 @@ func (p *Page) steamCard(orig services.GameView, busy bool) fyne.CanvasObject {
 				return err
 			}, func(err error) {
 				if err == nil && n > 0 {
-					u.Toast(lang.L("Removed from Steam"), kit.ToastOK)
+					u.Toast(i18n.L("Removed from Steam"), kit.ToastOK)
 				} else if err == nil {
-					u.Toast(lang.L("No shortcut found"), kit.ToastOK)
+					u.Toast(i18n.L("No shortcut found"), kit.ToastOK)
 				}
 			})
 		},
 	}))
 	if p.vm.busy == "steam" {
-		c.Add(kit.BusyLine(lang.L("Updating Steam…")))
+		c.Add(kit.BusyLine(i18n.L("Updating Steam…")))
 	}
 	if p.vm.wrapOpts != "" {
-		p.wrapSection = kit.NewAccordionSection(lang.L("Already own it on Steam?"), kit.VBox(
-			kit.Muted(lang.L("Paste this into the game's Steam launch options to sync around Steam's own launch:")),
+		p.wrapSection = kit.NewAccordionSection(i18n.L("Already own it on Steam?"), kit.VBox(
+			kit.Muted(i18n.L("Paste this into the game's Steam launch options to sync around Steam's own launch:")),
 			components.CopyField(u, p.vm.wrapOpts)), p.vm.wrapOpen)
 		c.Add(p.wrapSection)
 	}
-	return kit.Card(lang.L("Steam"), c)
+	return kit.Card(i18n.L("Steam"), c)
 }

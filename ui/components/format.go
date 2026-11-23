@@ -4,7 +4,7 @@ import (
 	"math"
 	"time"
 
-	"fyne.io/fyne/v2/lang"
+	"github.com/akfaiz/carryover/ui/i18n"
 )
 
 // parseTime parses the RFC3339 strings the services return ("" → zero).
@@ -18,16 +18,16 @@ func parseTime(s string) time.Time {
 
 func timeAgoT(t time.Time) string {
 	if t.IsZero() || t.Year() <= 1 {
-		return lang.L("never")
+		return i18n.L("never")
 	}
 	s := time.Since(t).Seconds()
 	switch {
 	case s < 60:
-		return lang.L("just now")
+		return i18n.L("just now")
 	case s < 3600:
-		return lang.L("{{.N}}m ago", map[string]any{"N": int(math.Round(s / 60))})
+		return i18n.L("{{.N}}m ago", map[string]any{"N": int(math.Round(s / 60))})
 	case s < 86400:
-		return lang.L("{{.N}}h ago", map[string]any{"N": int(math.Round(s / 3600))})
+		return i18n.L("{{.N}}h ago", map[string]any{"N": int(math.Round(s / 3600))})
 	}
 	return t.Local().Format("2006-01-02")
 }

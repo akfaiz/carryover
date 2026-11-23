@@ -8,9 +8,10 @@ import (
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/container"
 	"fyne.io/fyne/v2/dialog"
-	"fyne.io/fyne/v2/lang"
 	"fyne.io/fyne/v2/storage"
 	"fyne.io/fyne/v2/widget"
+
+	"github.com/akfaiz/carryover/ui/i18n"
 
 	"github.com/akfaiz/carryover/internal/app/appdir"
 	"github.com/akfaiz/carryover/internal/cloudsync/cloud"
@@ -39,9 +40,9 @@ func New(u env.Env) *Page {
 		Changed:  p.render,
 		Refresh:  u.Store().Refresh,
 		Error:    u.ToastErr,
-		Saved:    func() { u.Toast(lang.L("Cloud location saved"), kit.ToastOK) },
+		Saved:    func() { u.Toast(i18n.L("Cloud location saved"), kit.ToastOK) },
 		SyncFailed: func(err error) {
-			u.Toast(lang.L("Library sync: {{.Err}}", map[string]any{"Err": err}), kit.ToastErr)
+			u.Toast(i18n.L("Library sync: {{.Err}}", map[string]any{"Err": err}), kit.ToastErr)
 		},
 		Imported: p.reportImport,
 	})
@@ -49,8 +50,8 @@ func New(u env.Env) *Page {
 }
 
 func (p *Page) View() fyne.CanvasObject {
-	p.scroll = kit.ScrollPage(kit.Muted(lang.L("Loading…")))
-	p.test = kit.NewTestButton(lang.L("Test connection"), lang.L("Connection works."), lang.L("Testing…"), func() func() error {
+	p.scroll = kit.ScrollPage(kit.Muted(i18n.L("Loading…")))
+	p.test = kit.NewTestButton(i18n.L("Test connection"), i18n.L("Connection works."), i18n.L("Testing…"), func() func() error {
 		remote, root := p.vm.Remote(), p.vm.Root()
 		return func() error { return p.u.Cloud().Test(remote, root) }
 	})
@@ -73,12 +74,12 @@ func (p *Page) Redraw() { p.render() }
 func (p *Page) reportImport(res cloud.ImportResult) {
 	u := p.u
 	if len(res.Imported) > 0 {
-		u.Toast(lang.L("Imported {{.Names}}", map[string]any{"Names": strings.Join(res.Imported, ", ")}), kit.ToastOK)
+		u.Toast(i18n.L("Imported {{.Names}}", map[string]any{"Names": strings.Join(res.Imported, ", ")}), kit.ToastOK)
 	}
 	if len(res.Skipped) > 0 {
-		u.Toast(lang.L("Skipped unsupported: {{.Names}}", map[string]any{"Names": strings.Join(res.Skipped, ", ")}), kit.ToastErr)
+		u.Toast(i18n.L("Skipped unsupported: {{.Names}}", map[string]any{"Names": strings.Join(res.Skipped, ", ")}), kit.ToastErr)
 	} else if len(res.Imported) == 0 {
-		u.Toast(lang.L("No remotes found in that file"), kit.ToastErr)
+		u.Toast(i18n.L("No remotes found in that file"), kit.ToastErr)
 	}
 }
 
@@ -86,18 +87,18 @@ func (p *Page) render() {
 	u := p.u
 	vm := p.vm
 	remotes := &kit.Choice{}
-	remotes.Add("", lang.L("— none (sync disabled) —"))
+	remotes.Add("", i18n.L("— none (sync disabled) —"))
 	for _, r := range vm.Remotes() {
 		l := fmt.Sprintf("%s (%s)", r.Name, r.Type)
 		if !r.Supported {
-			l = lang.L("{{.Name}} ({{.Type}}, unsupported)", map[string]any{"Name": r.Name, "Type": r.Type})
+			l = i18n.L("{{.Name}} ({{.Type}}, unsupported)", map[string]any{"Name": r.Name, "Type": r.Type})
 		}
 		remotes.Add(r.Name, l)
 	}
 	p.test.SetAllowed(vm.Remote() != "")
 	sel := kit.SelectOf(remotes, vm.Remote(), func(v string) {
 		if vm.Unsupported(v) {
-			u.Toast(lang.L("This provider isn't included in Carryover"), kit.ToastErr)
+			u.Toast(i18n.L("This provider isn't included in Carryover"), kit.ToastErr)
 		}
 		vm.SetRemote(v)
 		p.test.Reset()
@@ -105,33 +106,33 @@ func (p *Page) render() {
 	})
 	root := kit.MonoEntry("", vm.Root(), vm.SetRoot)
 
-	location := kit.Card(lang.L("Sync location"),
-		kit.Muted(lang.L("All devices must use the same remote storage and folder. Saves go to <folder>/games/<game>/.")),
-		container.NewGridWithColumns(2, kit.Field(lang.L("Remote"), kit.Outlined(sel)), kit.Field(lang.L("Folder"), root)),
-		kit.HBox(kit.Primary(lang.L("Use this location"), vm.SaveTarget), p.test.Button),
+	location := kit.Card(i18n.L("Sync location"),
+		kit.Muted(i18n.L("All devices must use the same remote storage and folder. Saves go to <folder>/games/<game>/.")),
+		container.NewGridWithColumns(2, kit.Field(i18n.L("Remote"), kit.Outlined(sel)), kit.Field(i18n.L("Folder"), root)),
+		kit.HBox(kit.Primary(i18n.L("Use this location"), vm.SaveTarget), p.test.Button),
 		p.test.Result,
 	)
 
 	actions := []fyne.CanvasObject{}
 	if vm.DefaultConfig() != "" {
-		actions = append(actions, widget.NewButton(lang.L("Import from rclone"), func() { vm.ImportConf(vm.DefaultConfig()) }))
+		actions = append(actions, widget.NewButton(i18n.L("Import from rclone"), func() { vm.ImportConf(vm.DefaultConfig()) }))
 	}
 	actions = append(actions,
-		widget.NewButton(lang.L("Import rclone.conf…"), p.pickConf),
-		kit.Primary(lang.L("＋ Add remote"), p.addRemote),
+		widget.NewButton(i18n.L("Import rclone.conf…"), p.pickConf),
+		kit.Primary(i18n.L("＋ Add remote"), p.addRemote),
 	)
-	list := kit.VBox(kit.CardHead(lang.L("Remotes"), actions...))
+	list := kit.VBox(kit.CardHead(i18n.L("Remotes"), actions...))
 	if len(vm.Remotes()) == 0 {
-		list.Add(kit.Muted(lang.L("No remotes yet. Add one (Google Drive, Dropbox, OneDrive, WebDAV/Nextcloud, SFTP or SMB) or import your existing rclone config.")))
+		list.Add(kit.Muted(i18n.L("No remotes yet. Add one (Google Drive, Dropbox, OneDrive, WebDAV/Nextcloud, SFTP or SMB) or import your existing rclone config.")))
 	}
 	for _, r := range vm.Remotes() {
 		list.Add(widget.NewSeparator())
 		list.Add(newRemoteRow(r, vm.IsActive(r.Name), func() {
-			msg := lang.L("Delete remote “{{.Name}}”? The files in it are not touched.", map[string]any{"Name": r.Name})
+			msg := i18n.L("Delete remote “{{.Name}}”? The files in it are not touched.", map[string]any{"Name": r.Name})
 			if vm.IsActive(r.Name) {
-				msg = lang.L("Delete remote “{{.Name}}”? It is the sync location, so syncing stops until you choose another one. The files in it are not touched.", map[string]any{"Name": r.Name})
+				msg = i18n.L("Delete remote “{{.Name}}”? It is the sync location, so syncing stops until you choose another one. The files in it are not touched.", map[string]any{"Name": r.Name})
 			}
-			components.ConfirmDanger(u, components.ConfirmOpts{Title: lang.L("Delete remote"), Message: msg, OnConfirm: func(bool) {
+			components.ConfirmDanger(u, components.ConfirmOpts{Title: i18n.L("Delete remote"), Message: msg, OnConfirm: func(bool) {
 				vm.DeleteRemote(r.Name)
 			}})
 		}))
@@ -139,11 +140,11 @@ func (p *Page) render() {
 	if !vm.HasRemote() {
 		// First run: the remote comes first; the first one added becomes the
 		// sync location by itself.
-		intro := kit.Muted(lang.L("Carryover keeps your saves in your own cloud storage. Add a remote (or import your rclone config) and it becomes the sync location; every device then uses the same one."))
-		kit.ReplaceScroll(p.scroll, kit.Stack(kit.PageHead(nil, lang.L("Cloud storage")), intro, kit.Card("", list), location))
+		intro := kit.Muted(i18n.L("Carryover keeps your saves in your own cloud storage. Add a remote (or import your rclone config) and it becomes the sync location; every device then uses the same one."))
+		kit.ReplaceScroll(p.scroll, kit.Stack(kit.PageHead(nil, i18n.L("Cloud storage")), intro, kit.Card("", list), location))
 		return
 	}
-	kit.ReplaceScroll(p.scroll, kit.Stack(kit.PageHead(nil, lang.L("Cloud storage")), location, kit.Card("", list)))
+	kit.ReplaceScroll(p.scroll, kit.Stack(kit.PageHead(nil, i18n.L("Cloud storage")), location, kit.Card("", list)))
 }
 
 func (p *Page) pickConf() {
@@ -155,7 +156,7 @@ func (p *Page) pickConf() {
 		_ = r.Close()
 		p.vm.ImportConf(path)
 	}, p.u.Window())
-	d.SetTitleText(lang.L("Select rclone.conf"))
+	d.SetTitleText(i18n.L("Select rclone.conf"))
 	d.SetFilter(storage.NewExtensionFileFilter([]string{".conf"}))
 	kit.ShowFilePicker(p.u.Window(), d)
 }

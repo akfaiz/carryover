@@ -9,9 +9,8 @@ package env
 import (
 	"fyne.io/fyne/v2"
 
-	"github.com/akfaiz/carryover/services"
+	"github.com/akfaiz/carryover/ui/envcore"
 	"github.com/akfaiz/carryover/ui/kit"
-	"github.com/akfaiz/carryover/ui/store"
 )
 
 // Env is the application as a page sees it.
@@ -21,15 +20,9 @@ type Env interface {
 	App() fyne.App
 	Navigator() *kit.Navigator
 
-	// Store is the state every page shares.
-	Store() *store.Store
-
-	Lib() *services.LibraryService
-	Sync() *services.SyncService
-	Cloud() *services.CloudService
-	Steam() *services.SteamService
-	Emus() *services.EmulatorService
-	Sess() *services.SessionService
+	// Services are the services and the shared state (Store), the part a
+	// ViewModel's backend may hold.
+	envcore.Services
 
 	// Navigate opens a page and keeps the current one in the history; Replace
 	// opens it in place of the current one; Back returns to the previous one.

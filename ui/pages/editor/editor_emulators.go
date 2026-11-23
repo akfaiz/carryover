@@ -3,10 +3,13 @@ package editor
 import (
 	"slices"
 
+	"github.com/akfaiz/carryover/ui/textutil"
+
 	"fyne.io/fyne/v2"
-	"fyne.io/fyne/v2/lang"
 	"fyne.io/fyne/v2/theme"
 	"fyne.io/fyne/v2/widget"
+
+	"github.com/akfaiz/carryover/ui/i18n"
 
 	"github.com/akfaiz/carryover/services"
 	"github.com/akfaiz/carryover/ui/components"
@@ -21,10 +24,10 @@ func (e *Page) shareField(m *emuForm) fyne.CanvasObject {
 	if len(targets) == 0 && m.share == "" {
 		return nil
 	}
-	own := lang.L("Its own saves (recommended)")
+	own := i18n.L("Its own saves (recommended)")
 	names, byName := []string{own}, map[string]*emuForm{}
 	for _, t := range targets {
-		n := lang.L("Share the saves of {{.Emulator}}", map[string]any{"Emulator": t.name})
+		n := i18n.L("Share the saves of {{.Emulator}}", map[string]any{"Emulator": t.name})
 		names, byName[n] = append(names, n), t
 	}
 	sel := widget.NewSelect(names, func(n string) {
@@ -41,14 +44,14 @@ func (e *Page) shareField(m *emuForm) fyne.CanvasObject {
 	sel.Selected = own
 	for _, t := range targets {
 		if t.id == m.share {
-			sel.Selected = lang.L("Share the saves of {{.Emulator}}", map[string]any{"Emulator": t.name})
+			sel.Selected = i18n.L("Share the saves of {{.Emulator}}", map[string]any{"Emulator": t.name})
 		}
 	}
 	box := kit.VBox(kit.Outlined(sel))
 	if m.share != "" {
-		box.Add(kit.Colored(lang.L("Both emulators now read and write one cloud save. Only do this if they use the same save format, otherwise one can overwrite the other's saves. They can't be played at the same time."), widget.WarningImportance))
+		box.Add(kit.Colored(i18n.L("Both emulators now read and write one cloud save. Only do this if they use the same save format, otherwise one can overwrite the other's saves. They can't be played at the same time."), widget.WarningImportance))
 	}
-	return kit.Field(lang.L("Cloud save"), box)
+	return kit.Field(i18n.L("Cloud save"), box)
 }
 
 // howCard asks first how the game is played, so the rest of the page only
@@ -56,9 +59,9 @@ func (e *Page) shareField(m *emuForm) fyne.CanvasObject {
 // emulated game needs an emulator, a ROM and the emulator's save folders.
 func (e *Page) howCard() fyne.CanvasObject {
 	kinds := &kit.Choice{}
-	kinds.Add(string(KindDirect), lang.L("PC or Steam game"))
-	kinds.Add(string(KindEmulator), lang.L("Emulator"))
-	kinds.Add(string(KindBoth), lang.L("Both"))
+	kinds.Add(string(KindDirect), i18n.L("PC or Steam game"))
+	kinds.Add(string(KindEmulator), i18n.L("Emulator"))
+	kinds.Add(string(KindBoth), i18n.L("Both"))
 	// All three in view: the choice decides which cards follow. Chips, like
 	// the app's other one-of-a-few choices; a horizontal radio group gave every
 	// option the widest one's width, so the gaps between them differed.
@@ -72,17 +75,17 @@ func (e *Page) howCard() fyne.CanvasObject {
 			e.render()
 		}
 	})
-	c := kit.VBox(kit.CardHead(lang.L("How do you play it?")), sel)
+	c := kit.VBox(kit.CardHead(i18n.L("How do you play it?")), sel)
 	switch e.vm.kind {
 	case KindEmulator:
-		c.Add(kit.Muted(lang.L("Carryover starts the emulator with your game file and syncs the emulator's save folder before and after.")))
+		c.Add(kit.Muted(i18n.L("Carryover starts the emulator with your game file and syncs the emulator's save folder before and after.")))
 	case KindBoth:
-		c.Add(kit.Muted(lang.L("Set up the game's own launch and saves below, and one entry per emulator you also use.")))
+		c.Add(kit.Muted(i18n.L("Set up the game's own launch and saves below, and one entry per emulator you also use.")))
 	default:
 		if len(e.vm.emus) > 0 {
-			c.Add(kit.Colored(lang.L("The emulators set up for this game are removed from it when you save. Their cloud saves are kept."), widget.WarningImportance))
+			c.Add(kit.Colored(i18n.L("The emulators set up for this game are removed from it when you save. Their cloud saves are kept."), widget.WarningImportance))
 		} else {
-			c.Add(kit.Muted(lang.L("Carryover starts the game and syncs its save folders before and after.")))
+			c.Add(kit.Muted(i18n.L("Carryover starts the game and syncs its save folders before and after.")))
 		}
 	}
 	return kit.Card("", c)
@@ -111,11 +114,11 @@ func (e *Page) emulatorsCard() fyne.CanvasObject {
 			byName[ev.Name] = ev
 		}
 	}
-	c := kit.VBox(kit.CardHead(lang.L("Emulators")))
-	c.Add(components.Help(e.u, lang.L("Add each emulator you use for this game. Each keeps its own saves in the cloud."),
-		lang.L("Every emulator keeps its own save locations and its own cloud save, so progress is never mixed between emulators. The same emulator on another device shares it. The game file is asked for each emulator because its format or folder can differ; it is filled in from the first one.")))
+	c := kit.VBox(kit.CardHead(i18n.L("Emulators")))
+	c.Add(components.Help(e.u, i18n.L("Add each emulator you use for this game. Each keeps its own saves in the cloud."),
+		i18n.L("Every emulator keeps its own save locations and its own cloud save, so progress is never mixed between emulators. The same emulator on another device shares it. The game file is asked for each emulator because its format or folder can differ; it is filled in from the first one.")))
 	// A new emulator is set up in a dialog, so nothing typed here is lost.
-	newEmu := widget.NewButtonWithIcon(lang.L("New emulator…"), theme.ContentAddIcon(), func() {
+	newEmu := widget.NewButtonWithIcon(i18n.L("New emulator…"), theme.ContentAddIcon(), func() {
 		emulatorform.ShowDialog(e.u, func(ev services.EmulatorView) {
 			e.vm.emuList = append(e.vm.emuList, ev)
 			e.addEmulator(ev)
@@ -123,7 +126,7 @@ func (e *Page) emulatorsCard() fyne.CanvasObject {
 	})
 	switch {
 	case len(e.vm.emuList) == 0:
-		c.Add(kit.Muted(lang.L("No emulators are set up on this device yet. Add the one you play this game with:")))
+		c.Add(kit.Muted(i18n.L("No emulators are set up on this device yet. Add the one you play this game with:")))
 		newEmu.Importance = widget.HighImportance
 		c.Add(kit.HBox(newEmu))
 	case len(names) > 0:
@@ -132,7 +135,7 @@ func (e *Page) emulatorsCard() fyne.CanvasObject {
 				e.addEmulator(ev)
 			}
 		})
-		sel.PlaceHolder = lang.L("Add an emulator…")
+		sel.PlaceHolder = i18n.L("Add an emulator…")
 		c.Add(kit.RowFill(kit.Outlined(sel), newEmu))
 	default:
 		c.Add(kit.HBox(newEmu))
@@ -159,14 +162,14 @@ func (e *Page) emulatorPanel(m *emuForm, onRemove func()) fyne.CanvasObject {
 	c.Add(kit.RowFill(kit.Heading(m.name), kit.Tonal(rm)))
 	{
 		rom := kit.MonoEntry("", m.rom, func(s string) { m.rom = s })
-		browse := widget.NewButton(lang.L("Browse…"), func() {
-			e.pickFile(lang.L("Choose the game file"), nil, m.rom, func(p string) {
+		browse := widget.NewButton(i18n.L("Browse…"), func() {
+			e.pickFile(i18n.L("Choose the game file"), nil, m.rom, func(p string) {
 				m.rom = p
 				rom.SetText(p)
 				e.romPicked(m)
 			})
 		})
-		c.Add(kit.Field(lang.L("Game file / ID passed to the emulator ({rom})"), kit.RowFill(rom, browse)))
+		c.Add(kit.Field(i18n.L("Game file / ID passed to the emulator ({rom})"), kit.RowFill(rom, browse)))
 	}
 	if share := e.shareField(m); share != nil {
 		c.Add(share)
@@ -176,19 +179,19 @@ func (e *Page) emulatorPanel(m *emuForm, onRemove func()) fyne.CanvasObject {
 	suggest, found := e.emuSuggestUI(m)
 	actions := []fyne.CanvasObject{suggest}
 	if m.share == "" {
-		actions = append(actions, widget.NewButtonWithIcon(lang.L("Add"), theme.ContentAddIcon(), func() {
+		actions = append(actions, widget.NewButtonWithIcon(i18n.L("Add"), theme.ContentAddIcon(), func() {
 			m.addSlot()
 			e.render()
 		}))
 	}
 	c.Add(widget.NewSeparator())
-	c.Add(kit.RowFill(widget.NewLabelWithStyle(lang.L("Save locations"), fyne.TextAlignLeading, fyne.TextStyle{Bold: true}), actions...))
+	c.Add(kit.RowFill(widget.NewLabelWithStyle(i18n.L("Save locations"), fyne.TextAlignLeading, fyne.TextStyle{Bold: true}), actions...))
 	c.Add(found)
 	if m.share != "" {
 		// The save locations are the other emulator's; only the paths here are
 		// this emulator's ("Suggest" fills in its own path for each of them).
 		for _, s := range m.slots {
-			c.Add(kit.Field(lang.L("Path on this device: {{.Label}}", map[string]any{"Label": components.LabelOf(s.label, s.key)}),
+			c.Add(kit.Field(i18n.L("Path on this device: {{.Label}}", map[string]any{"Label": textutil.LabelOf(s.label, s.key)}),
 				components.NewPathInput(e.u, e.vm.id, e.vm.tokens, s.path, "{appdata}/Game/Saves", func(v string) { s.path = v })))
 		}
 		return kit.Panel(c)

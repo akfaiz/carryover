@@ -4,9 +4,9 @@ import (
 	"slices"
 	"strings"
 
+	"github.com/akfaiz/carryover/ui/textutil"
+
 	"github.com/akfaiz/carryover/services"
-	"github.com/akfaiz/carryover/ui/components"
-	"github.com/akfaiz/carryover/ui/kit"
 )
 
 // emuForm is the editable state of one emulator a game is set up with: the
@@ -68,7 +68,7 @@ func (e *ViewModel) loadEmulators(g *services.GameView) {
 		m := &emuForm{id: pv.EmulatorID, name: pv.Name, rom: pv.Rom, share: pv.ShareWith}
 		for _, s := range pv.Slots {
 			m.slots = append(m.slots, &slotForm{
-				key: s.Key, label: components.LabelOf(s.Label, s.Key),
+				key: s.Key, label: textutil.LabelOf(s.Label, s.Key),
 				include: strings.Join(s.Include, "\n"), exclude: strings.Join(s.Exclude, "\n"),
 				path: pv.Paths[s.Key],
 			})
@@ -84,7 +84,7 @@ func (e *ViewModel) emulatorInputs() []services.GameEmulatorInput {
 		in := services.GameEmulatorInput{EmulatorID: m.id, Rom: m.rom, ShareWith: m.share, Paths: map[string]string{}}
 		for _, s := range m.slots {
 			in.Paths[s.key] = s.path
-			in.Slots = append(in.Slots, services.SaveSlot{Key: s.key, Label: s.label, Include: kit.SplitLines(s.include), Exclude: kit.SplitLines(s.exclude)})
+			in.Slots = append(in.Slots, services.SaveSlot{Key: s.key, Label: s.label, Include: textutil.SplitLines(s.include), Exclude: textutil.SplitLines(s.exclude)})
 		}
 		out = append(out, in)
 	}

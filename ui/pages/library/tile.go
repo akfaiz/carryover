@@ -5,9 +5,10 @@ import (
 
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/container"
-	"fyne.io/fyne/v2/lang"
 	"fyne.io/fyne/v2/theme"
 	"fyne.io/fyne/v2/widget"
+
+	"github.com/akfaiz/carryover/ui/i18n"
 
 	"github.com/akfaiz/carryover/services"
 	"github.com/akfaiz/carryover/ui/components"
@@ -68,15 +69,15 @@ func (t *Tile) set(g services.GameView) {
 	t.status.Objects = []fyne.CanvasObject{components.StatusBadge(g), kit.Small(when)}
 	t.status.Refresh()
 
-	label, icon, imp, enabled := lang.L("Play"), theme.MediaPlayIcon(), widget.HighImportance, true
+	label, icon, imp, enabled := i18n.L("Play"), theme.MediaPlayIcon(), widget.HighImportance, true
 	switch {
 	case g.Status.Running:
-		label, icon, imp, enabled = lang.L("Running"), nil, widget.MediumImportance, false
+		label, icon, imp, enabled = i18n.L("Running"), nil, widget.MediumImportance, false
 	case !g.Ready:
-		label, icon, imp = lang.L("Set up"), nil, widget.MediumImportance
+		label, icon, imp = i18n.L("Set up"), nil, widget.MediumImportance
 	case g.Device.LaunchMode == "steamwrap":
 		// Steam starts it (and Carryover through its launch options).
-		label, imp, enabled = lang.L("Play in Steam"), widget.MediumImportance, services.SteamRunURL(g) != ""
+		label, imp, enabled = i18n.L("Play in Steam"), widget.MediumImportance, services.SteamRunURL(g) != ""
 	}
 	t.play.SetText(label)
 	t.play.SetIcon(icon)

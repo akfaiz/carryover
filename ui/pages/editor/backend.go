@@ -3,11 +3,11 @@ package editor
 import (
 	"github.com/akfaiz/carryover/internal/saves/pathvar"
 	"github.com/akfaiz/carryover/services"
-	"github.com/akfaiz/carryover/ui/env"
+	"github.com/akfaiz/carryover/ui/envcore"
 )
 
-// serviceBackend is the Backend of the application: the services behind env.Env.
-type serviceBackend struct{ u env.Env }
+// serviceBackend is the Backend of the application: the services behind env.Env (envcore.Services).
+type serviceBackend struct{ u envcore.Services }
 
 func (b serviceBackend) Tokens(gameID string) []pathvar.Token { return b.u.Lib().Tokens(gameID) }
 func (b serviceBackend) HasSteamGridKey() bool                { return b.u.Lib().HasSteamGridKey() }

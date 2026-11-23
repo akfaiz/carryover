@@ -2,7 +2,8 @@ package components
 
 import (
 	"fyne.io/fyne/v2"
-	"fyne.io/fyne/v2/lang"
+
+	"github.com/akfaiz/carryover/ui/i18n"
 
 	"github.com/akfaiz/carryover/ui/env"
 	"github.com/akfaiz/carryover/ui/kit"
@@ -14,7 +15,7 @@ import (
 func Help(u env.Env, summary string, details ...string) fyne.CanvasObject {
 	// Draw the page again, so what follows moves down (or up): Fyne doesn't
 	// reliably lay out the parents of something that changed height.
-	return kit.Collapsible(summary, details, lang.L("More"), lang.L("Less"), u.HelpOpen(), u.Redraw)
+	return kit.Collapsible(summary, details, i18n.L("More"), i18n.L("Less"), u.HelpOpen(), u.Redraw)
 }
 
 // ConfirmOpts configures ConfirmDanger.
@@ -32,18 +33,18 @@ type ConfirmOpts struct {
 func ConfirmDanger(u env.Env, o ConfirmOpts) {
 	action := o.Action
 	if action == "" {
-		action = lang.L("Delete")
+		action = i18n.L("Delete")
 	}
 	kit.ConfirmDanger(u.Window(), kit.ConfirmOptions{
 		Title: o.Title, Message: o.Message, Check: o.Check, Checked: o.Checked, KeptHint: o.KeptHint,
-		Action: action, CancelLabel: lang.L("Cancel"), OnConfirm: o.OnConfirm,
+		Action: action, CancelLabel: i18n.L("Cancel"), OnConfirm: o.OnConfirm,
 	})
 }
 
 // ConfirmDiscard asks whether to leave a form with unsaved changes.
 func ConfirmDiscard(u env.Env, leave func()) {
-	kit.ConfirmDiscard(u.Window(), lang.L("Discard changes?"), lang.L("Your changes on this page haven't been saved."),
-		lang.L("Keep editing"), lang.L("Discard changes"), leave)
+	kit.ConfirmDiscard(u.Window(), i18n.L("Discard changes?"), i18n.L("Your changes on this page haven't been saved."),
+		i18n.L("Keep editing"), i18n.L("Discard changes"), leave)
 }
 
 // DialogHider is a dialog that can be closed.
@@ -57,5 +58,5 @@ func ShowCustom(u env.Env, title string, body fyne.CanvasObject, width float32) 
 
 // CopyField is a read-only text with a Copy button that tells it copied.
 func CopyField(u env.Env, text string) fyne.CanvasObject {
-	return kit.NewCopyField(lang.L("Copy"), text, u.App().Clipboard(), func() { u.Toast(lang.L("Copied"), kit.ToastOK) })
+	return kit.NewCopyField(i18n.L("Copy"), text, u.App().Clipboard(), func() { u.Toast(i18n.L("Copied"), kit.ToastOK) })
 }

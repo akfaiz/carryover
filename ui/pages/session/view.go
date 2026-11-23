@@ -7,9 +7,10 @@ import (
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/canvas"
 	"fyne.io/fyne/v2/container"
-	"fyne.io/fyne/v2/lang"
 	"fyne.io/fyne/v2/theme"
 	"fyne.io/fyne/v2/widget"
+
+	"github.com/akfaiz/carryover/ui/i18n"
 
 	"github.com/akfaiz/carryover/services"
 	"github.com/akfaiz/carryover/ui/env"
@@ -39,13 +40,13 @@ func (p *Page) View() fyne.CanvasObject {
 	if p.w.GameName == "" {
 		name.SetText(p.w.GameID)
 	}
-	p.msg = widget.NewLabel(lang.L("Starting…"))
+	p.msg = widget.NewLabel(i18n.L("Starting…"))
 	p.msg.Wrapping = fyne.TextWrapWord
 	p.prog = kit.NewProgress()
 	p.prog.Set("", 0, 0)
-	p.cancel = widget.NewButtonWithIcon(lang.L("Cancel"), theme.CancelIcon(), func() {
+	p.cancel = widget.NewButtonWithIcon(i18n.L("Cancel"), theme.CancelIcon(), func() {
 		if p.u.Sess().Cancel(p.w.GameID) {
-			p.cancel.SetText(lang.L("Cancelling…"))
+			p.cancel.SetText(i18n.L("Cancelling…"))
 			p.cancel.Disable()
 		}
 	})
@@ -124,9 +125,9 @@ func (p *Page) StateChanged(store.Topic) {
 		p.cancel.Hide()
 	}
 	if up.OfferCancel != nil {
-		p.cancel.SetText(lang.L("Cancel upload"))
+		p.cancel.SetText(i18n.L("Cancel upload"))
 		if up.OfferCancel.BeforePlay {
-			p.cancel.SetText(lang.L("Cancel and don't play"))
+			p.cancel.SetText(i18n.L("Cancel and don't play"))
 		}
 		p.cancel.Enable()
 		p.cancel.Show()

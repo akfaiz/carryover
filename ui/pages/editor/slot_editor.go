@@ -3,9 +3,12 @@ package editor
 import (
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/container"
-	"fyne.io/fyne/v2/lang"
 	"fyne.io/fyne/v2/theme"
 	"fyne.io/fyne/v2/widget"
+
+	"github.com/akfaiz/carryover/ui/textutil"
+
+	"github.com/akfaiz/carryover/ui/i18n"
 
 	"github.com/akfaiz/carryover/internal/saves/pathvar"
 	"github.com/akfaiz/carryover/services"
@@ -24,14 +27,14 @@ type slotEditor struct{ kit.Composite }
 func newSlotEditor(u env.Env, gameID string, tokens []pathvar.Token, s *slotForm, view *slotView, others []services.DevicePaths,
 	uniqueKey func(base string, self *slotForm) string, onRemove, pathChanged func()) *slotEditor {
 	label := widget.NewEntry()
-	label.SetPlaceHolder(lang.L("Label"))
+	label.SetPlaceHolder(i18n.L("Label"))
 	label.SetText(s.label)
 	// The key (the location's cloud folder) follows a new location's label;
 	// it isn't shown: next to the label it only repeated it in grey.
 	label.OnChanged = func(v string) {
 		s.label = v
 		if s.isNew {
-			s.key = uniqueKey(kit.Slug(v), s)
+			s.key = uniqueKey(textutil.Slug(v), s)
 		}
 	}
 	var right []fyne.CanvasObject
@@ -41,7 +44,7 @@ func newSlotEditor(u env.Env, gameID string, tokens []pathvar.Token, s *slotForm
 
 	c := kit.VBox(
 		kit.RowFill(label, right...),
-		kit.Field(lang.L("Path on this device"), components.NewPathInput(u, gameID, tokens, s.path, "{appdata}/Game/Saves", func(v string) {
+		kit.Field(i18n.L("Path on this device"), components.NewPathInput(u, gameID, tokens, s.path, "{appdata}/Game/Saves", func(v string) {
 			s.path = v
 			if pathChanged != nil {
 				pathChanged()
@@ -50,7 +53,7 @@ func newSlotEditor(u env.Env, gameID string, tokens []pathvar.Token, s *slotForm
 	)
 	for _, o := range others {
 		if p := o.Paths[s.key]; p != "" {
-			l := kit.Mono(lang.L("On {{.Device}}: {{.Path}}", map[string]any{"Device": o.DeviceName, "Path": p}))
+			l := kit.Mono(i18n.L("On {{.Device}}: {{.Path}}", map[string]any{"Device": o.DeviceName, "Path": p}))
 			l.Importance = widget.LowImportance
 			l.SizeName = theme.SizeNameCaptionText
 			c.Add(l)
@@ -59,8 +62,8 @@ func newSlotEditor(u env.Env, gameID string, tokens []pathvar.Token, s *slotForm
 
 	inc := kit.MonoMultiLine("*.sav", s.include, 2, func(v string) { s.include = v })
 	exc := kit.MonoMultiLine("*.log\nshadercache/**", s.exclude, 2, func(v string) { s.exclude = v })
-	view.filters = kit.NewAccordionSection(lang.L("Filters"), container.NewGridWithColumns(2,
-		kit.Field(lang.L("Include only (globs, one per line)"), inc), kit.Field(lang.L("Exclude (globs)"), exc)), view.open)
+	view.filters = kit.NewAccordionSection(i18n.L("Filters"), container.NewGridWithColumns(2,
+		kit.Field(i18n.L("Include only (globs, one per line)"), inc), kit.Field(i18n.L("Exclude (globs)"), exc)), view.open)
 	c.Add(view.filters)
 
 	e := &slotEditor{}

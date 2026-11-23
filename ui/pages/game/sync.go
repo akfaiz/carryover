@@ -3,11 +3,14 @@ package game
 import (
 	"errors"
 
+	"github.com/akfaiz/carryover/ui/textutil"
+
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/container"
-	"fyne.io/fyne/v2/lang"
 	"fyne.io/fyne/v2/theme"
 	"fyne.io/fyne/v2/widget"
+
+	"github.com/akfaiz/carryover/ui/i18n"
 
 	"github.com/akfaiz/carryover/services"
 	"github.com/akfaiz/carryover/ui/components"
@@ -27,12 +30,12 @@ func (p *Page) updateProgress() {
 		ev := p.u.Store().Progress[p.vm.key()]
 		msg := ev.Message
 		if msg == "" {
-			msg = lang.L("Syncing…")
+			msg = i18n.L("Syncing…")
 			switch p.vm.busy {
 			case "restore":
-				msg = lang.L("Restoring backup…")
+				msg = i18n.L("Restoring backup…")
 			case "backup":
-				msg = lang.L("Backing up…")
+				msg = i18n.L("Backing up…")
 			}
 		}
 		p.prog.Set(msg, ev.Bytes, ev.TotalBytes)
@@ -51,7 +54,7 @@ func (p *Page) run(label string, work func() error, done func(error)) {
 		p.vm.cancelling = false
 		switch {
 		case errors.Is(err, services.ErrSyncCancelled):
-			p.u.Toast(lang.L("Sync cancelled. Files already transferred are kept; the next sync continues."), kit.ToastInfo)
+			p.u.Toast(i18n.L("Sync cancelled. Files already transferred are kept; the next sync continues."), kit.ToastInfo)
 			err = nil
 			for _, st := range p.vm.states {
 				st.plan = nil
@@ -71,13 +74,13 @@ func (p *Page) run(label string, work func() error, done func(error)) {
 func (p *Page) transferCard() fyne.CanvasObject {
 	p.prog, p.progOf = kit.NewProgress(), "busy"
 	p.updateProgress()
-	return kit.Card("", kit.VBox(p.prog, kit.HBox(p.cancelButton(lang.L("Cancel"), func() bool { return p.vm.be.CancelSync(p.vm.key()) }))))
+	return kit.Card("", kit.VBox(p.prog, kit.HBox(p.cancelButton(i18n.L("Cancel"), func() bool { return p.vm.be.CancelSync(p.vm.key()) }))))
 }
 
 // cancelButton stops a running sync; it shows "Cancelling…" until it stops.
 func (p *Page) cancelButton(label string, cancel func() bool) *widget.Button {
 	if p.vm.cancelling {
-		b := widget.NewButton(lang.L("Cancelling…"), nil)
+		b := widget.NewButton(i18n.L("Cancelling…"), nil)
 		b.Disable()
 		return b
 	}
@@ -96,22 +99,22 @@ func (p *Page) savesCard(pe profileEntry, busy, hasRemote, several bool, whole s
 	u := p.u
 	g := pe.view
 	st := p.vm.state(pe.id)
-	cmpLabel := lang.L("Compare with cloud")
+	cmpLabel := i18n.L("Compare with cloud")
 	if p.vm.busyFor("plan", pe.id) {
-		cmpLabel = lang.L("Checking…")
+		cmpLabel = i18n.L("Checking…")
 	}
 	cmp := widget.NewButton(cmpLabel, func() { p.check(pe.id) })
 	kit.SetEnabled(cmp, !busy && g.Ready && hasRemote)
 	rows := container.NewVBox()
 	for _, sl := range g.Slots {
-		rows.Add(saveLocationRow(u, components.LabelOf(sl.Label, sl.Key), g.ResolvedPaths[sl.Key], g.PathErrors[sl.Key]))
+		rows.Add(saveLocationRow(u, textutil.LabelOf(sl.Label, sl.Key), g.ResolvedPaths[sl.Key], g.PathErrors[sl.Key]))
 	}
-	c := kit.VBox(kit.CardHead(lang.L("Saves"), cmp))
+	c := kit.VBox(kit.CardHead(i18n.L("Saves"), cmp))
 	if several {
 		text, _ := components.StatusOf(g)
 		wholeText, _ := components.StatusOf(whole)
 		if text != wholeText || components.TimeAgo(g.Status.LastSyncAt) != components.TimeAgo(whole.Status.LastSyncAt) {
-			c.Add(kit.HBox(components.StatusBadge(g), kit.Small(lang.L("Last sync: {{.When}}", map[string]any{"When": components.TimeAgo(g.Status.LastSyncAt)}))))
+			c.Add(kit.HBox(components.StatusBadge(g), kit.Small(i18n.L("Last sync: {{.When}}", map[string]any{"When": components.TimeAgo(g.Status.LastSyncAt)}))))
 		}
 		if !g.Ready {
 			c.Add(kit.Colored(g.SetupHint, widget.WarningImportance))
@@ -120,19 +123,19 @@ func (p *Page) savesCard(pe profileEntry, busy, hasRemote, several bool, whole s
 			c.Add(kit.Colored(g.Status.LastError, widget.DangerImportance))
 		}
 		if g.Status.LocalChanges && !g.Status.Running {
-			c.Add(kit.Colored(lang.L("These saves changed on this device after the last sync. Use “Sync now” to upload them."), widget.WarningImportance))
+			c.Add(kit.Colored(i18n.L("These saves changed on this device after the last sync. Use “Sync now” to upload them."), widget.WarningImportance))
 		}
 	}
 	c.Add(rows)
 	if p.vm.busyFor("plan", pe.id) {
-		c.Add(kit.BusyLine(lang.L("Comparing with the cloud…")))
+		c.Add(kit.BusyLine(i18n.L("Comparing with the cloud…")))
 	}
 	if pl := st.plan; pl != nil {
 		c.Add(widget.NewSeparator())
 		c.Add(newPlanView(pl, pl.Action == "conflict" || g.Status.Conflict, func(resolution string) { p.doSync(pe.id, resolution) }))
 	} else if g.Status.Conflict {
 		c.Add(widget.NewSeparator())
-		c.Add(kit.Colored(lang.L("Unresolved save conflict. Compare with cloud to choose a version."), widget.WarningImportance))
+		c.Add(kit.Colored(i18n.L("Unresolved save conflict. Compare with cloud to choose a version."), widget.WarningImportance))
 	}
 	return kit.Card("", c)
 }
@@ -195,15 +198,15 @@ func (p *Page) synced(profs, actions []string) {
 	kind, conflict := classifySync(actions)
 	switch kind {
 	case syncConflict:
-		p.u.Toast(lang.L("Save conflict: choose which version to keep below"), kit.ToastErr)
+		p.u.Toast(i18n.L("Save conflict: choose which version to keep below"), kit.ToastErr)
 	case syncBoth:
-		p.u.Toast(lang.L("Synced saves"), kit.ToastOK)
+		p.u.Toast(i18n.L("Synced saves"), kit.ToastOK)
 	case syncPushed:
-		p.u.Toast(lang.L("Uploaded saves"), kit.ToastOK)
+		p.u.Toast(i18n.L("Uploaded saves"), kit.ToastOK)
 	case syncPulled:
-		p.u.Toast(lang.L("Downloaded saves"), kit.ToastOK)
+		p.u.Toast(i18n.L("Downloaded saves"), kit.ToastOK)
 	default:
-		p.u.Toast(lang.L("Already up to date"), kit.ToastOK)
+		p.u.Toast(i18n.L("Already up to date"), kit.ToastOK)
 	}
 	for _, prof := range profs {
 		p.vm.state(prof).plan = nil

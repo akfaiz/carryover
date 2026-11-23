@@ -32,10 +32,40 @@ linters:
               desc: a ViewModel opens no dialog; the view does
             - pkg: fyne.io/fyne/v2/app
               desc: a ViewModel does not touch the app
-            - pkg: fyne.io/fyne/v2/lang
+            - pkg: github.com/akfaiz/carryover/ui/i18n
               desc: a ViewModel holds no translated text; the view translates
             - pkg: github.com/akfaiz/carryover/ui/shell
               desc: pages do not know the shell
+        toolkit-free:
+          list-mode: lax
+          files:
+            - "**/ui/pages/**/viewmodel*.go"
+            - "**/ui/pages/**/backend.go"
+            - "**/ui/pages/cloud/wizard.go"
+            - "**/ui/components/emulatorform/viewmodel.go"
+            - "**/ui/store/**"
+            - "**/ui/envcore/**"
+            - "**/ui/i18n/**"
+            - "**/ui/textutil/**"
+            - "!$test"
+          deny:
+            - pkg: fyne.io
+              desc: ViewModels, backends, store, envcore, i18n and textutil import no GUI toolkit (see ui/envcore TestToolkitFree)
+            - pkg: github.com/akfaiz/carryover/ui/kit
+              desc: kit is Fyne; use ui/textutil for plain helpers
+            - pkg: github.com/akfaiz/carryover/ui/env$
+              desc: env is Fyne; hold envcore.Services instead
+            - pkg: github.com/akfaiz/carryover/ui/components
+              desc: components are Fyne; use ui/textutil for plain helpers
+        no-fyne-lang:
+          list-mode: lax
+          files:
+            - "**/ui/**"
+            - "!**/ui/ui.go"
+            - "!$test"
+          deny:
+            - pkg: fyne.io/fyne/v2/lang
+              desc: translate with ui/i18n (i18n.L, i18n.N); ui.go alone hands the catalogs to Fyne
         pages:
           list-mode: lax
           files:

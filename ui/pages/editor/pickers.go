@@ -9,8 +9,9 @@ import (
 	"fyne.io/fyne/v2/canvas"
 	"fyne.io/fyne/v2/container"
 	"fyne.io/fyne/v2/dialog"
-	"fyne.io/fyne/v2/lang"
 	"fyne.io/fyne/v2/widget"
+
+	"github.com/akfaiz/carryover/ui/i18n"
 
 	"github.com/akfaiz/carryover/services"
 	"github.com/akfaiz/carryover/ui/env"
@@ -63,15 +64,15 @@ func showArtPicker(u env.Env, o artPickerOpts) {
 	p := &artPicker{u: u, be: o.be, steamAppID: o.steamAppID, start: o.kind, onPick: o.onPick, onGame: o.onGame,
 		picked: map[services.ArtKind]int{}}
 	p.query = widget.NewEntry()
-	p.query.SetPlaceHolder(lang.L("Game name"))
+	p.query.SetPlaceHolder(i18n.L("Game name"))
 	p.query.SetText(o.term)
 	p.query.OnSubmitted = func(string) { p.search() }
 	p.body = container.NewStack()
 	p.errLabel = kit.Colored("", widget.DangerImportance)
 	p.errLabel.Hide()
 
-	top := kit.VBox(kit.RowFill(p.query, widget.NewButton(lang.L("Search"), p.search)), p.errLabel)
-	p.d = dialog.NewCustom(lang.L("Find artwork on SteamGridDB"), lang.L("Done"), container.NewBorder(top, nil, nil, nil, p.body), u.Window())
+	top := kit.VBox(kit.RowFill(p.query, widget.NewButton(i18n.L("Search"), p.search)), p.errLabel)
+	p.d = dialog.NewCustom(i18n.L("Find artwork on SteamGridDB"), i18n.L("Done"), container.NewBorder(top, nil, nil, nil, p.body), u.Window())
 	if o.onClosed != nil {
 		p.d.SetOnClosed(o.onClosed)
 	}
@@ -84,7 +85,7 @@ func showArtPicker(u env.Env, o artPickerOpts) {
 		p.loadGame(o.gameID, o.gameName)
 	case o.steamAppID != "":
 		// A Steam-linked game can show its art straight away.
-		p.loadGame(0, lang.L("Steam app {{.ID}}", map[string]any{"ID": o.steamAppID}))
+		p.loadGame(0, i18n.L("Steam app {{.ID}}", map[string]any{"ID": o.steamAppID}))
 	case strings.TrimSpace(o.term) != "":
 		p.search()
 	}
@@ -110,7 +111,7 @@ func (p *artPicker) search() {
 	}
 	p.gen++
 	p.showErr(nil)
-	p.setBody(kit.Muted(lang.L("Searching…")))
+	p.setBody(kit.Muted(i18n.L("Searching…")))
 	term := p.query.Text
 	kit.Async(func() ([]services.ArtGame, error) { return p.be.SearchGridGames(term) }, func(list []services.ArtGame, err error) {
 		p.showErr(err)
@@ -141,7 +142,7 @@ func (p *artPicker) loadGame(id int, name string) {
 	p.grids = map[services.ArtKind][]services.ArtGrid{}
 	p.loaded = map[services.ArtKind]bool{}
 
-	back := kit.LowButton(lang.L("← Change game"), func() {
+	back := kit.LowButton(i18n.L("← Change game"), func() {
 		if p.games == nil && strings.TrimSpace(p.query.Text) != "" {
 			p.search()
 			return
@@ -156,7 +157,7 @@ func (p *artPicker) loadGame(id int, name string) {
 	byTab := map[*container.TabItem]services.ArtKind{}
 	var startItem *container.TabItem
 	for _, k := range kinds {
-		host := container.NewStack(kit.Muted(lang.L("Loading…")))
+		host := container.NewStack(kit.Muted(i18n.L("Loading…")))
 		p.hosts[k] = host
 		item := container.NewTabItem(artSpecFor(k).label, host)
 		byTab[item] = k
@@ -166,7 +167,7 @@ func (p *artPicker) loadGame(id int, name string) {
 		}
 	}
 	tabs.OnSelected = func(ti *container.TabItem) { p.ensure(byTab[ti]) }
-	p.setBody(container.NewBorder(crumbs, kit.Muted(lang.L("Pick an image in each tab you want, then press Done. Art by the SteamGridDB community.")), nil, nil, tabs))
+	p.setBody(container.NewBorder(crumbs, kit.Muted(i18n.L("Pick an image in each tab you want, then press Done. Art by the SteamGridDB community.")), nil, nil, tabs))
 	if startItem != nil {
 		tabs.Select(startItem)
 	}
@@ -226,7 +227,7 @@ func (p *artPicker) render(kind services.ArtKind) {
 func showGames(body *fyne.Container, list []services.ArtGame, onPick func(services.ArtGame)) {
 	items := kit.VBox()
 	if len(list) == 0 {
-		items.Add(kit.Muted(lang.L("No games found.")))
+		items.Add(kit.Muted(i18n.L("No games found.")))
 	}
 	for _, g := range list {
 		info := ""
