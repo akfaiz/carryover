@@ -204,7 +204,7 @@ instructions, [Architecture](docs/architecture.md) for how the code is organised
 ## License
 
 Carryover is free software under the [GNU General Public License v3.0 or later](LICENSE) (GPL-3.0-or-later)
-© 2026 Ahmad Faiz. Releases up to 0.5.0 were published under the MIT License and stay under it.
+© 2026 Ahmad Faiz.
 
 ## Credits
 
