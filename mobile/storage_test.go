@@ -19,9 +19,18 @@ import (
 // fakeStorage is the app's Storage over a folder: ":saf:<rest>" is
 // <dir>/<rest>. Like the app, it hands out file descriptors that Go closes.
 type fakeStorage struct {
-	dir  string
-	mu   sync.Mutex
-	open []*os.File // kept from the garbage collector, which would close their descriptors
+	dir string
+}
+
+// detached holds every *os.File whose descriptor a fakeStorage handed out, for
+// the whole test process, like ParcelFileDescriptor.detachFd: Go now owns the
+// descriptor and closes it, so the *os.File must never close it too. Kept per
+// fake, a fake dropped mid-test let the garbage collector close the numbers,
+// by then reused by other files ("bad file descriptor", or a manifest read
+// failing and the real one downloaded instead).
+var detached struct {
+	sync.Mutex
+	files []*os.File
 }
 
 func (s *fakeStorage) real(p string) string {
@@ -62,9 +71,9 @@ func (s *fakeStorage) List(p string) (string, error) {
 }
 
 func (s *fakeStorage) keep(f *os.File) int64 {
-	s.mu.Lock()
-	s.open = append(s.open, f)
-	s.mu.Unlock()
+	detached.Lock()
+	detached.files = append(detached.files, f)
+	detached.Unlock()
 	return int64(f.Fd())
 }
 
