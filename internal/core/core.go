@@ -188,6 +188,7 @@ func (c *Core) syncLibrary(ctx context.Context, withImages bool) error {
 	c.libMu.Lock()
 	defer c.libMu.Unlock()
 	c.ExpireTrash(ctx)
+	c.RegisterDevice()
 	s := c.Settings.Get()
 	if !s.SyncLibrary || s.CloudBase() == "" {
 		return nil
@@ -230,11 +231,12 @@ func catalogsEqual(a, b library.Catalog) bool {
 	if len(a.Games) != len(b.Games) || len(a.Emulators) != len(b.Emulators) || a.Version != b.Version {
 		return false
 	}
-	if len(a.ForgottenDevices) != len(b.ForgottenDevices) {
+	if len(a.Devices) != len(b.Devices) {
 		return false
 	}
-	for id, at := range a.ForgottenDevices {
-		if o, ok := b.ForgottenDevices[id]; !ok || !o.Equal(at) {
+	for id, d := range a.Devices {
+		o, ok := b.Devices[id]
+		if !ok || o.Name != d.Name || o.Platform != d.Platform || !o.UpdatedAt.Equal(d.UpdatedAt) || !o.ForgottenAt.Equal(d.ForgottenAt) {
 			return false
 		}
 	}

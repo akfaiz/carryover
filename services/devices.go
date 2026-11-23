@@ -25,8 +25,12 @@ var (
 // DeviceView is a device the library holds settings of.
 type DeviceView struct {
 	ID string `json:"id"`
-	// Name is the device's name; "" when it set up only emulators.
+	// Name is the device's name; "" when unknown (a device that set up only
+	// emulators, in a catalog written before devices registered).
 	Name string `json:"name"`
+	// Platform is the GOOS its Carryover runs on: windows, linux, darwin or
+	// android ("" if unknown).
+	Platform string `json:"platform,omitempty"`
 	// LastSeen is when its settings last changed (zero for this device when
 	// it has none yet).
 	LastSeen time.Time `json:"lastSeen"`
@@ -50,11 +54,11 @@ func (s *SyncService) Devices() []DeviceView {
 	var others []DeviceView
 	for _, d := range s.c.Library.Devices() {
 		if d.ID == st.DeviceID {
-			this.LastSeen, this.Games, this.Emulators = d.LastSeen, d.Games, d.Emulators
+			this.LastSeen, this.Games, this.Emulators, this.Platform = d.LastSeen, d.Games, d.Emulators, d.Platform
 			continue
 		}
 		others = append(others, DeviceView{
-			ID: d.ID, Name: d.Name, LastSeen: d.LastSeen, Games: d.Games, Emulators: d.Emulators,
+			ID: d.ID, Name: d.Name, Platform: d.Platform, LastSeen: d.LastSeen, Games: d.Games, Emulators: d.Emulators,
 			SameName: name != "" && strings.EqualFold(strings.TrimSpace(d.Name), name),
 		})
 	}

@@ -86,6 +86,9 @@ func (s *SyncService) SaveSettings(st appdir.Settings) (appdir.Settings, error) 
 	if err := s.c.Settings.Update(st); err != nil {
 		return appdir.Settings{}, err
 	}
+	if s.c.RegisterDevice() {
+		publishLibrary(s.c, s.bus, nil) // the other devices show the new name
+	}
 	s.bus.libraryChanged("")
 	return s.c.Settings.Get(), nil
 }

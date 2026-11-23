@@ -139,7 +139,7 @@ How a ViewModel reaches the app depends on its size: `library` takes small `Sour
 Everything lives in one folder on the remote (`<remote>:<folder>`, set on the Cloud storage page):
 
 ```
-library.json                                      the shared game list (and the forgotten devices)
+library.json                                      the shared game list, emulators and device records
 covers/                                           cover and artwork images used by the library
 games/<id>/manifest.json                          revision + SHA-256 of every save file
 games/<id>/current/<slot>/…                       the saves
@@ -164,13 +164,23 @@ Safety copies taken before a download (when cloud backups are off) stay on the d
   layout). `Job.GameID` is then the other emulator's key (`core.CloudKey`), while `Job.StateKey` stays its own, so
   each keeps its own last-synced state.
 
+**Merging.** `library.json` is merged, never replaced. Each game and emulator has its own `updatedAt`, which decides
+whose shared settings (name, slots, emulators, art) win, and each device's entry in it has its own, so a device's
+setup merges apart from everyone else's. A save that changes only this device's entry leaves the shared `updatedAt`
+alone (`sameSharedGame`), or a device that hasn't merged a rename yet would undo it. The catalog leaves out empty
+fields, and the slots of an emulator that shares another's cloud save (`compactGame`; `withSharedSlots` fills them in
+on load).
+
 **Devices.** A device is the random ID in its `settings.json`, made on first run, so a reinstall makes a new one.
-Merges keep every device's entries, so removing one takes a marker: `Catalog.ForgottenDevices` (device ID -> when)
-drops that device's entries not newer than then, on every merge and when the store is written
-(`Store.ForgetDevice`). The marker stays, so a stale copy can't bring the entries back, and a device forgotten by
-mistake comes back with its next change. `Store.MoveDevice` + `SettingsStore.SetDeviceID` (`Core.ReuseDevice`) let an
-install take an earlier ID back; its own ID is then forgotten. A catalog with forgotten devices is version 3, one
-without stays version 2 so older clients keep working until a device is forgotten.
+`Catalog.Devices` holds each device's own record (name, platform), written by the device on every library sync and
+when it is renamed (`Core.RegisterDevice`); the `deviceName` in each game entry is still written for older clients
+and used where a device has no record. Merges keep every device's entries, so removing one takes a marker: a record's
+`forgottenAt` drops that device's entries not newer than then, on every merge and when the store is written
+(`Store.ForgetDevice`). The record stays, so a stale copy can't bring the entries back, and a device forgotten by
+mistake comes back with its next change or library sync. `Store.MoveDevice` + `SettingsStore.SetDeviceID`
+(`Core.ReuseDevice`) let an install take an earlier ID back; its own ID is then forgotten. A catalog where a device
+was forgotten is version 3; otherwise it stays version 2, so older clients keep working (they drop the device records
+when they write it, and each device registers again).
 
 ## Checks that keep the layers apart
 
