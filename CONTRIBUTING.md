@@ -15,28 +15,26 @@ threading, rclone and platform rules.
 ## Requirements
 
 - Go (see `go.mod` for the version).
-- A C compiler, because Fyne needs cgo:
-  - **Windows:** MSYS2 MinGW. Run `pacman -S mingw-w64-ucrt-x86_64-gcc` and add `C:\msys64\ucrt64\bin` to `PATH`.
-  - **Linux:** a C compiler plus the GL/X11 development packages (see
-    [Fyne's prerequisites](https://docs.fyne.io/started/)).
-  - **macOS:** the Xcode command line tools (`xcode-select --install`).
+- Nothing else to build the app: the GUI ([MyGo](https://mygo.run)) needs no cgo, no C compiler and no GUI
+  development packages, and cross-compiles from any OS. At run time Linux needs GTK 3 (the Steam Deck has it).
 - Optional: [Docker](https://docs.docker.com/get-docker/), to build and test the Linux version from any OS.
 - For Android: the Android SDK with an NDK (Android Studio installs both) and Java 17+.
 
 ## Build and run
 
 ```
-CGO_ENABLED=1 go build -trimpath -ldflags "-s -w -H windowsgui" -o dist/carryover.exe .  # Windows
-CGO_ENABLED=1 go build -trimpath -ldflags "-s -w" -o dist/carryover .                     # Linux, macOS
-CARRYOVER_HOME=/tmp/pr go run .                                                           # run against an isolated data dir
+go build -trimpath -ldflags "-s -w -H windowsgui" -o dist/carryover.exe .  # Windows
+go build -trimpath -ldflags "-s -w" -o dist/carryover .                     # Linux, macOS
+CARRYOVER_HOME=/tmp/pr go run .                                             # run against an isolated data dir
+GOOS=linux go build -trimpath -ldflags "-s -w" -o dist/linux/carryover .    # any OS to any OS: no cgo
 ```
 
 - **Always set `CARRYOVER_HOME` when testing**, so you never touch your real settings, library or rclone config.
-- Every build writes to `dist/` (git-ignored); only fyne-cross keeps its own `fyne-cross/` folder.
-- `-s -w` strips debug info (about 84 MB down to 46 MB); leave it out to debug. `-H windowsgui` hides the console
+- Every build writes to `dist/` (git-ignored).
+- `-s -w` strips debug info (about 80 MB down to 37 MB); leave it out to debug. `-H windowsgui` hides the console
   window; the CLI subcommands re-attach it.
-- The Windows exe with its icon: `go tool fyne package --os windows --release --name carryover`. It bumps `Build`
-  in `FyneApp.toml`; don't commit that (`git checkout FyneApp.toml`).
+- The Windows exe with its icon, manifest and version info, and the macOS `.app`: `go tool mygo build` (configured by
+  `mygo.json`); the packaging scripts below call it.
 - Logs go to `<data>/logs/carryover.log` and to stderr. `CARRYOVER_DEBUG=1` adds rclone's INFO lines. Log ids,
   counts and file base names, never full save paths, remote names or launch arguments.
 
@@ -78,10 +76,6 @@ The GUI opens through WSLg (Windows), your X11/XWayland session (Linux) or XQuar
 `.docker-data/` (git-ignored). On Linux itself the `go build` command above works too, and
 `packaging/appimage/build.sh` builds the AppImage with [appimagetool](https://github.com/AppImage/appimagetool/releases)
 on `PATH` (set `UPDATE_INFO` to embed update information; it then also needs `zsyncmake`).
-
-[fyne-cross](https://github.com/fyne-io/fyne-cross) is an alternative, also in Docker:
-`go run github.com/fyne-io/fyne-cross@latest linux -arch=amd64 -app-id com.akfaiz.carryover -name carryover`
-writes `fyne-cross/bin/linux-amd64/carryover`.
 
 ## Android
 
@@ -139,12 +133,12 @@ Each file is named `carryover-<version>-<os>-<arch>.<ext>`, `<version>` being th
 
 - `…-windows-amd64.zip` (portable, `carryover.exe` inside) and `…-windows-amd64-setup.exe` (per-user NSIS installer into
   `%LOCALAPPDATA%\Programs\Carryover`): from `.\scripts\windows-package.ps1 [-Version x.y.z]`, which needs NSIS
-  (`winget install NSIS.NSIS`) and restores `FyneApp.toml`. Not code-signed, so SmartScreen warns on first run.
+  (`winget install NSIS.NSIS`) and restores `mygo.json`. Not code-signed, so SmartScreen warns on first run.
 - `…-linux-amd64.AppImage` and its `.zsync`: built with the Dockerfile, like `linux-docker appimage`.
 - `…-linux-amd64.tar.gz` (`packaging/linux/tarball.sh`): an install prefix plus `install.sh` (into `~/.local`).
 - `…-macos-universal.zip`: a universal `Carryover.app` from `scripts/macos-package.sh [x.y.z]` on a Mac, zipped with
-  `ditto` (keeps the bundle's symlinks and signature), signed ad hoc and not notarized. The program inside stays named `carryover`, which is how Steam shortcuts to Carryover
-  itself are recognised.
+  `ditto` (keeps the bundle's symlinks and signature), signed ad hoc and not notarized. The program inside is named `Carryover`; Steam shortcuts to Carryover itself are recognised by a name that starts
+  with "carryover", whatever its case.
 - `…-android-arm64-v8a.apk` and `…-android-x86_64.apk`: signed with the key in the repository secrets
   `CARRYOVER_KEYSTORE_BASE64` (`base64 -w0 carryover.jks`), `CARRYOVER_KEYSTORE_PASSWORD`, `CARRYOVER_KEY_ALIAS`
   and, if it differs, `CARRYOVER_KEY_PASSWORD`. Without them the release fails rather than publish unsigned APKs.
@@ -158,8 +152,8 @@ delete `internal/app/version/zz_release.go` afterwards.
 
 The git tag is the only version number. Release jobs run `scripts/stamp-version.sh <tag> <sha>`, which writes the
 git-ignored `internal/app/version/zz_release.go`; local builds report "dev" plus the git commit. It is a generated
-file rather than `-ldflags -X` because `fyne package` drops `-ldflags` from `GOFLAGS` when it rebuilds the Windows
-exe. `Version` in `FyneApp.toml` is not used.
+file rather than `-ldflags -X` so `go build` and `mygo build` pick it up the same way. `version` in `mygo.json` is
+only the number in the Windows file properties and the macOS `Info.plist`; the packaging scripts set it from the tag.
 
 ### CI
 

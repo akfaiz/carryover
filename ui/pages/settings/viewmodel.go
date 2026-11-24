@@ -4,7 +4,7 @@
 // a pasted key is worthless.
 //
 // ViewModel turns what the form shows into settings and saves them one at a
-// time; it is tested without Fyne. Page builds the form.
+// time; it is tested without the toolkit. Page builds the form.
 package settings
 
 import (

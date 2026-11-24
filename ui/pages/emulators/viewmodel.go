@@ -2,7 +2,7 @@
 // them, where each is installed on this device and how it is started. A game
 // then picks its emulators.
 //
-// ViewModel holds the list and the commands and is tested without Fyne; Page
+// ViewModel holds the list and the commands and is tested without the toolkit; Page
 // draws it and hosts the shared emulator form.
 package emulators
 

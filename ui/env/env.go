@@ -3,11 +3,11 @@
 // show a toast). Pages depend on this interface, never on the window code that
 // implements it, so they can be built and tested with a stand-in.
 //
-// Everything here is used on the Fyne UI goroutine only.
+// Everything here is used on the MyGo UI goroutine only.
 package env
 
 import (
-	"fyne.io/fyne/v2"
+	"github.com/egoist/mygo"
 
 	"github.com/akfaiz/carryover/ui/envcore"
 	"github.com/akfaiz/carryover/ui/kit"
@@ -15,10 +15,11 @@ import (
 
 // Env is the application as a page sees it.
 type Env interface {
-	// Window is the window the page is shown in; dialogs open on it.
-	Window() fyne.Window
-	App() fyne.App
+	// Window is the window the page is shown in.
+	Window() *mygo.Window
 	Navigator() *kit.Navigator
+	// Dialogs is the stack of dialogs the window shows over the page.
+	Dialogs() *kit.Dialogs
 
 	// Services are the services and the shared state (Store), the part a
 	// ViewModel's backend may hold.
@@ -33,7 +34,13 @@ type Env interface {
 
 	Toast(text string, kind kit.ToastKind)
 	ToastErr(err error) // nil is ignored
+	// Confirm asks a yes/no question in a dialog; ok runs on yes.
+	Confirm(c kit.ConfirmOptions, ok func())
 	OpenFolder(path string)
+	// OpenURL opens an address in the system browser (or the app registered for it).
+	OpenURL(url string) error
+	// Prefs keeps the user's small choices.
+	Prefs() Prefs
 
 	// AddGame opens the "add a game" dialog.
 	AddGame()
@@ -44,12 +51,7 @@ type Env interface {
 	ToggleFullScreen()
 	// FocusForPad puts the gamepad's focus where the open page starts.
 	FocusForPad()
-	// RefreshSidebar draws the sidebar again (its Trash count, Exit button).
-	RefreshSidebar()
 	ShowNotices()
-
 	// HelpOpen holds which help texts are unfolded this session, by summary.
 	HelpOpen() map[string]bool
-	// Redraw draws the open page again from its state, if it supports that.
-	Redraw()
 }

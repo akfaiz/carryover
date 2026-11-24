@@ -3,17 +3,11 @@ package flows
 import (
 	"strings"
 
-	"fyne.io/fyne/v2"
-	"fyne.io/fyne/v2/container"
-	"fyne.io/fyne/v2/layout"
-	"fyne.io/fyne/v2/theme"
-	"fyne.io/fyne/v2/widget"
-
-	"github.com/akfaiz/carryover/ui/i18n"
+	"github.com/egoist/mygo/ui"
 
 	"github.com/akfaiz/carryover/services"
-	"github.com/akfaiz/carryover/ui/components"
 	"github.com/akfaiz/carryover/ui/env"
+	"github.com/akfaiz/carryover/ui/i18n"
 	"github.com/akfaiz/carryover/ui/kit"
 )
 
@@ -26,27 +20,25 @@ func ShowAddGame(u env.Env) {
 	})
 }
 
-func showAddGame(u env.Env, l services.Launchers) {
-	var d components.DialogHider
-	pick := func(f func()) func() { return func() { d.Hide(); f() } }
-	var tiles []fyne.CanvasObject
-	var help []string
-	add := func(name string, icon fyne.Resource, about string, f func()) {
-		tiles = append(tiles, container.New(layout.NewGridWrapLayout(fyne.NewSize(kit.ChoiceTileSize+16, kit.ChoiceTileSize)),
-			kit.NewChoiceTile(name, icon, false, pick(f))))
-		help = append(help, about)
-	}
-	heroic, lutris := l.Heroic, l.Lutris
+type addTile struct {
+	name  string
+	icon  *ui.SVG
+	about string
+	do    func()
+}
 
-	add(i18n.L("From Steam"), theme.DownloadIcon(), i18n.L("From Steam: a game Steam installed on this device."),
-		func() { ShowSteamImport(u) })
+func showAddGame(u env.Env, l services.Launchers) {
+	var d *kit.Dialog
+	heroic, lutris := l.Heroic, l.Lutris
+	tiles := []addTile{{i18n.L("From Steam"), kit.IconDownload, i18n.L("From Steam: a game Steam installed on this device."),
+		func() { ShowSteamImport(u) }}}
 	if heroic {
-		add(i18n.L("From Heroic"), theme.StorageIcon(), i18n.L("From Heroic: a GOG, Epic or Amazon game Heroic installed."),
-			func() { ShowHeroicImport(u) })
+		tiles = append(tiles, addTile{i18n.L("From Heroic"), kit.IconStorage, i18n.L("From Heroic: a GOG, Epic or Amazon game Heroic installed."),
+			func() { ShowHeroicImport(u) }})
 	}
 	if lutris {
-		add(i18n.L("From Lutris"), theme.FolderOpenIcon(), i18n.L("From Lutris: a game Lutris installed."),
-			func() { ShowLutrisImport(u) })
+		tiles = append(tiles, addTile{i18n.L("From Lutris"), kit.IconFolder, i18n.L("From Lutris: a game Lutris installed."),
+			func() { ShowLutrisImport(u) }})
 	}
 	pc := i18n.L("PC game: any other game, started from its executable.")
 	switch {
@@ -57,16 +49,29 @@ func showAddGame(u env.Env, l services.Launchers) {
 	case lutris:
 		pc = i18n.L("PC game: any other game, started from its executable or through Lutris.")
 	}
-	add(i18n.L("PC game"), theme.ComputerIcon(), pc, func() { u.Navigate("/new") })
-	add(i18n.L("Emulated game"), theme.MediaPlayIcon(),
-		i18n.L("Emulated game: a game file you play through an emulator such as Eden or Ryujinx."),
-		func() { u.Navigate("/new/emulator") })
-
-	body := kit.VBox(
-		kit.HBox(tiles...),
-		kit.Muted(strings.Join(help, " ")),
-		kit.HBox(layout.NewSpacer(), widget.NewButton(i18n.L("Cancel"), func() { d.Hide() })),
-	)
-	width := float32(len(tiles))*(kit.ChoiceTileSize+16) + 80
-	d = components.ShowCustom(u, i18n.L("Add a game"), body, width)
+	tiles = append(tiles,
+		addTile{i18n.L("PC game"), kit.IconComputer, pc, func() { u.Navigate("/new") }},
+		addTile{i18n.L("Emulated game"), kit.IconPlay,
+			i18n.L("Emulated game: a game file you play through an emulator such as Eden or Ryujinx."),
+			func() { u.Navigate("/new/emulator") }})
+	var help []string
+	for _, t := range tiles {
+		help = append(help, t.about)
+	}
+	d = u.Dialogs().Show(&kit.Dialog{
+		Title: i18n.L("Add a game"),
+		Width: float32(len(tiles))*(kit.ChoiceTileSize+16) + 80,
+		Body: func(c *ui.Context, nav *kit.Navigator) {
+			ui.Row(c).Gap(8).Wrap().Children(func() {
+				for _, t := range tiles {
+					kit.ChoiceTile(c, nav, "add:"+t.name, t.name, t.icon, false, func() { d.Close(); t.do() })
+				}
+			})
+			kit.Muted(c, strings.Join(help, " "))
+			cancel := func() { d.Close() }
+			if nav.Item(nav.Handle("add-cancel"), ui.Button(c.Key("add-cancel"), i18n.L("Cancel")), cancel, kit.FocusSafe).Clicked() {
+				cancel()
+			}
+		},
+	})
 }

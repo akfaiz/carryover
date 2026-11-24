@@ -4,14 +4,10 @@ import (
 	"net/url"
 	"strings"
 
-	"fyne.io/fyne/v2"
-	"fyne.io/fyne/v2/container"
-	"fyne.io/fyne/v2/dialog"
-	"fyne.io/fyne/v2/widget"
-
-	"github.com/akfaiz/carryover/ui/i18n"
+	"github.com/egoist/mygo/ui"
 
 	"github.com/akfaiz/carryover/ui/env"
+	"github.com/akfaiz/carryover/ui/i18n"
 	"github.com/akfaiz/carryover/ui/kit"
 )
 
@@ -31,48 +27,57 @@ type importText struct {
 // picking one opens the editor pre-filled from it, or the game already in the
 // library.
 func showImport(u env.Env, t importText, load func() []importRow) {
-	filter := widget.NewEntry()
-	filter.SetPlaceHolder(i18n.L("Filter…"))
-	list := container.NewVBox(kit.Muted(t.reading))
 	var games []importRow
-	var d *dialog.CustomDialog
-
-	render := func() {
-		f := strings.ToLower(filter.Text)
-		list.Objects = nil
-		if len(games) == 0 {
-			list.Add(kit.Muted(t.empty))
-		}
-		for _, g := range games {
-			if !strings.Contains(strings.ToLower(g.name), f) {
-				continue
-			}
-			var right fyne.CanvasObject
-			if g.gameID != "" {
-				right = container.NewCenter(kit.Badge(i18n.L("In library"), kit.BadgeOK))
-			}
-			lead := kit.CoverView(kit.CoverSource{Name: g.name}, fyne.NewSize(36, 54))
-			list.Add(kit.MediaRow(lead, g.name, right, func() {
-				d.Hide()
-				if g.gameID != "" {
-					u.Navigate("/game/" + g.gameID)
-				} else {
-					u.Navigate(g.route)
+	loaded := false
+	filter := ""
+	var d *kit.Dialog
+	d = u.Dialogs().Show(&kit.Dialog{Title: t.title, Wide: true, Body: func(c *ui.Context, nav *kit.Navigator) {
+		kit.Muted(c, t.intro)
+		nav.Item(nav.Handle("import-filter"), ui.TextInput(c.Key("import-filter"), &filter).Placeholder(i18n.L("Filter…")).Label(i18n.L("Filter…")), nil, kit.TextField)
+		ui.Scroll(c).MaxHeight(380).Children(func() {
+			ui.Column(c).Gap(4).Children(func() {
+				switch {
+				case !loaded:
+					kit.Muted(c, t.reading)
+				case len(games) == 0:
+					kit.Muted(c, t.empty)
 				}
-			}))
+				f := strings.ToLower(filter)
+				for i, g := range games {
+					if !strings.Contains(strings.ToLower(g.name), f) {
+						continue
+					}
+					k := [2]any{"import-row", i}
+					open := func() {
+						d.Close()
+						if g.gameID != "" {
+							u.Navigate("/game/" + g.gameID)
+						} else {
+							u.Navigate(g.route)
+						}
+					}
+					b := ui.ButtonBase(c.Key(k)).Label(g.name).Radius(8).Children(func() {
+						ui.Row(c).Gap(10).Padding(6, 8).AlignItems(ui.Center).Children(func() {
+							kit.CoverView(c, kit.CoverSource{Name: g.name}, 36, 54)
+							ui.Text(c, g.name).Grow(1)
+							if g.gameID != "" {
+								kit.Badge(c, i18n.L("In library"), kit.BadgeOK)
+							}
+						})
+					})
+					if nav.Item(nav.Handle(k), b.AlignSelf(ui.Stretch), open).Clicked() {
+						open()
+					}
+				}
+			})
+		})
+		close := func() { d.Close() }
+		if nav.Item(nav.Handle("import-close"), ui.Button(c.Key("import-close"), i18n.L("Close")), close, kit.FocusSafe).Clicked() {
+			close()
 		}
-		list.Refresh()
-	}
-	filter.OnChanged = func(string) { render() }
-
-	top := kit.VBox(kit.Muted(t.intro), kit.FullHeight(filter))
-	d = dialog.NewCustom(t.title, i18n.L("Close"), container.NewBorder(top, nil, nil, nil, container.NewVScroll(list)), u.Window())
-	d.Resize(kit.DialogSize(u.Window()))
-	d.Show()
-	kit.OnBack(u.Window(), d.Hide)
+	}})
 	kit.Async(func() ([]importRow, error) { return load(), nil }, func(rows []importRow, _ error) {
-		games = rows
-		render()
+		games, loaded = rows, true
 	})
 }
 

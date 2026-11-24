@@ -1,17 +1,16 @@
 package library_test
 
 import (
+	"slices"
 	"testing"
 
-	"fyne.io/fyne/v2"
-	"fyne.io/fyne/v2/test"
-	"fyne.io/fyne/v2/widget"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/akfaiz/carryover/services"
 	"github.com/akfaiz/carryover/ui/env"
 	"github.com/akfaiz/carryover/ui/internal/uitest"
+	"github.com/akfaiz/carryover/ui/kit"
 	page "github.com/akfaiz/carryover/ui/pages/library"
 	"github.com/akfaiz/carryover/ui/shell"
 )
@@ -40,27 +39,38 @@ func addGame(t *testing.T, h *uitest.Harness, name string) services.GameView {
 	})
 	require.NoError(t, err)
 	h.Shell.Store().Refresh()
+	h.Settle()
 	return g
 }
 
-func tileNames(h *uitest.Harness) []string {
+// order returns the names among texts in the order they are drawn, once each
+// (a tile's name is its text and its accessible name).
+func order(h *uitest.Harness, names ...string) []string {
 	var out []string
-	for _, tile := range uitest.PageWidgets[*page.Tile](h) {
-		out = append(out, tile.Game().Name)
+	for _, tx := range h.Texts() {
+		for _, n := range names {
+			if tx == n && !slices.Contains(out, n) {
+				out = append(out, n)
+			}
+		}
 	}
 	return out
 }
 
-func search(t *testing.T, h *uitest.Harness, text string) {
+func typeSearch(t *testing.T, h *uitest.Harness, text string) {
 	t.Helper()
-	for _, e := range uitest.PageWidgets[*widget.Entry](h) {
-		if e.PlaceHolder == "Search…" {
-			e.SetText(text)
-			h.Settle()
-			return
-		}
-	}
-	require.Fail(t, "search field not found")
+	require.NoError(t, h.Tester.Click("Search…"))
+	h.Tester.Type(text)
+	h.Settle()
+}
+
+func TestEmptyLibraryOffersTheFirstGame(t *testing.T) {
+	h := newHarness(t)
+	assert.Contains(t, h.Texts(), "No games yet")
+	assert.Contains(t, h.Texts(), "＋ Add your first game")
+	assert.Contains(t, h.Texts(), "Set up cloud storage", "no cloud yet")
+	h.Click("Set up cloud storage")
+	assert.Equal(t, "/cloud", h.Shell.Route())
 }
 
 // The grid follows the library, the search and the order.
@@ -68,60 +78,58 @@ func TestPageShowsSearchesAndSortsGames(t *testing.T) {
 	h := newHarness(t)
 	addGame(t, h, "Hades")
 	addGame(t, h, "Celeste")
-	h.Settle()
-	assert.Equal(t, []string{"Celeste", "Hades"}, tileNames(h), "sorted by name")
+	assert.Equal(t, []string{"Celeste", "Hades"}, order(h, "Hades", "Celeste"), "sorted by name")
 
-	search(t, h, "hades")
-	assert.Equal(t, []string{"Hades"}, tileNames(h))
+	typeSearch(t, h, "hades")
+	assert.Equal(t, []string{"Hades"}, order(h, "Hades", "Celeste"))
 
-	search(t, h, "zelda")
-	assert.Empty(t, tileNames(h))
-	assert.NotEmpty(t, uitest.PageWidgets[*widget.Button](h), "a Clear search button explains the empty grid")
+	typeSearch(t, h, "zelda")
+	assert.Empty(t, order(h, "Hades", "Celeste"))
+	assert.Contains(t, h.Texts(), "No games match “zelda”.")
+	h.Click("Clear search")
+	assert.Len(t, order(h, "Hades", "Celeste"), 2, "Clear search shows the games again")
 }
 
-// Tiles are kept and updated in place: a refresh doesn't build them again, so
-// covers aren't reloaded and focus survives.
-func TestPageKeepsItsTiles(t *testing.T) {
-	h := newHarness(t)
-	addGame(t, h, "Game A")
-	h.Settle()
-	before := uitest.PageWidgets[*page.Tile](h)
-	require.Len(t, before, 1)
-
-	h.Shell.Store().Refresh()
-	h.Settle()
-	after := uitest.PageWidgets[*page.Tile](h)
-	require.Len(t, after, 1)
-	assert.Same(t, before[0], after[0])
-}
-
-// A tile opens its game.
+// A tile opens its game; Play on a game that isn't set up here sets it up.
 func TestPageTileOpensTheGame(t *testing.T) {
 	h := newHarness(t)
 	g := addGame(t, h, "Game A")
-	h.Settle()
-	tiles := uitest.PageWidgets[*page.Tile](h)
-	require.Len(t, tiles, 1)
-	test.Tap(tiles[0].Open())
-	h.Settle()
+	h.Click("Game A")
 	assert.Equal(t, "/game/"+g.ID, h.Shell.Route())
 }
 
-// The filter row gets its height when the games load after the page was first
-// drawn (on startup the page is drawn before the library is read), so it
-// doesn't overlap the header or the grid.
-func TestPageRowsGetTheirHeightWhenGamesLoad(t *testing.T) {
+func TestPageSetUpGoesToTheEditor(t *testing.T) {
 	h := newHarness(t)
-	h.Open("/")
-	p, ok := h.Shell.Page().(*page.Page)
-	require.True(t, ok)
-	require.Zero(t, p.ChipsHost().MinSize().Height, "no games yet: no row")
-
-	addGame(t, h, "Game A")
+	g, err := h.Shell.Lib().Save(services.GameInput{Name: "Needs setup", Slots: []services.SaveSlot{{Key: "saves", Label: "Saves"}}})
+	require.NoError(t, err)
+	h.Shell.Store().Refresh()
 	h.Settle()
-	h.Shell.Window().Resize(fyne.NewSize(1000, 700))
-	row := p.ChipsHost()
-	require.Positive(t, row.MinSize().Height)
-	assert.Equal(t, row.MinSize().Height, row.Size().Height, "laid out with its height")
-	assert.GreaterOrEqual(t, p.GridHost().Position().Y, row.Position().Y+row.Size().Height, "the grid starts below it")
+	assert.Contains(t, h.Texts(), "Needs setup")
+	h.Click("Set up")
+	assert.Equal(t, "/edit/"+g.ID, h.Shell.Route())
+}
+
+// Sorting and filtering are remembered in the preferences.
+func TestPageSortChoiceIsRemembered(t *testing.T) {
+	h := newHarness(t)
+	addGame(t, h, "Hades")
+	addGame(t, h, "Celeste")
+	h.Click("Sort by name")
+	h.Click("Sort by last sync")
+	assert.Equal(t, "recent", h.Shell.Prefs().StringWithFallback("library.sort", ""))
+}
+
+// The pad: the first press starts on the first game, and A on a tile opens it.
+func TestPadStartsOnTheFirstGameAndOpensIt(t *testing.T) {
+	h := newHarness(t)
+	g := addGame(t, h, "Celeste")
+	addGame(t, h, "Hades")
+
+	nav := h.Shell.Navigator()
+	nav.Press(kit.PadDown)
+	h.Settle()
+	assert.True(t, h.Tester.Focused("Celeste"), "the page's default is its first game, not the sidebar")
+	nav.Press(kit.PadAccept)
+	h.Settle()
+	assert.Equal(t, "/game/"+g.ID, h.Shell.Route())
 }

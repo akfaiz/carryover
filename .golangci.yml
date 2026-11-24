@@ -22,16 +22,8 @@ linters:
             - "**/ui/components/emulatorform/viewmodel.go"
             - "!$test"
           deny:
-            - pkg: fyne.io/fyne/v2/widget
-              desc: a ViewModel holds no widget
-            - pkg: fyne.io/fyne/v2/container
-              desc: a ViewModel holds no widget
-            - pkg: fyne.io/fyne/v2/canvas
-              desc: a ViewModel holds no widget
-            - pkg: fyne.io/fyne/v2/dialog
-              desc: a ViewModel opens no dialog; the view does
-            - pkg: fyne.io/fyne/v2/app
-              desc: a ViewModel does not touch the app
+            - pkg: github.com/egoist/mygo
+              desc: a ViewModel holds no widgets, dialogs or windows; the view draws them
             - pkg: github.com/akfaiz/carryover/ui/i18n
               desc: a ViewModel holds no translated text; the view translates
             - pkg: github.com/akfaiz/carryover/ui/shell
@@ -49,23 +41,14 @@ linters:
             - "**/ui/textutil/**"
             - "!$test"
           deny:
-            - pkg: fyne.io
+            - pkg: github.com/egoist/mygo
               desc: ViewModels, backends, store, envcore, i18n and textutil import no GUI toolkit (see ui/envcore TestToolkitFree)
             - pkg: github.com/akfaiz/carryover/ui/kit
-              desc: kit is Fyne; use ui/textutil for plain helpers
+              desc: kit draws with the toolkit; use ui/textutil for plain helpers
             - pkg: github.com/akfaiz/carryover/ui/env$
-              desc: env is Fyne; hold envcore.Services instead
+              desc: env names the window and the toolkit; hold envcore.Services instead
             - pkg: github.com/akfaiz/carryover/ui/components
-              desc: components are Fyne; use ui/textutil for plain helpers
-        no-fyne-lang:
-          list-mode: lax
-          files:
-            - "**/ui/**"
-            - "!**/ui/ui.go"
-            - "!$test"
-          deny:
-            - pkg: fyne.io/fyne/v2/lang
-              desc: translate with ui/i18n (i18n.L, i18n.N); ui.go alone hands the catalogs to Fyne
+              desc: components draw with the toolkit; use ui/textutil for plain helpers
         pages:
           list-mode: lax
           files:
@@ -82,12 +65,12 @@ linters:
             - "**/ui/kit/**"
             - "!$test"
           deny:
-            - pkg: fyne.io/fyne/v2/lang
+            - pkg: github.com/akfaiz/carryover/ui/i18n
               desc: kit has no user-visible text; callers pass labels in
             - pkg: github.com/akfaiz/carryover/services
-              desc: kit is pure Fyne
+              desc: kit is the toolkit layer only
             - pkg: github.com/akfaiz/carryover/internal/core
-              desc: kit is pure Fyne
+              desc: kit is the toolkit layer only
             - pkg: github.com/akfaiz/carryover/ui
               desc: kit is the bottom layer
         services-only:

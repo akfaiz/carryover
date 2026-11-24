@@ -14,19 +14,11 @@ permissions:
 jobs:
   windows:
     runs-on: windows-latest
-    env:
-      CGO_ENABLED: "1"
     steps:
       - uses: actions/checkout@v5
       - uses: actions/setup-go@v6
         with:
           go-version-file: go.mod
-      - uses: msys2/setup-msys2@v2
-        id: msys2
-        with:
-          msystem: UCRT64
-          install: mingw-w64-ucrt-x86_64-gcc
-          path-type: inherit # keep setup-go's Go on PATH
       - name: Install NSIS
         shell: pwsh
         run: |
@@ -42,8 +34,7 @@ jobs:
       - name: Package
         shell: pwsh
         run: |
-          $env:PATH = "${{ steps.msys2.outputs.msys2-location }}\ucrt64\bin;$env:PATH"
-          ./scripts/windows-package.ps1 -Version ($env:GITHUB_REF_NAME -replace '^v', '') -Build $env:GITHUB_RUN_NUMBER
+          ./scripts/windows-package.ps1 -Version ($env:GITHUB_REF_NAME -replace '^v', '')
       - uses: actions/upload-artifact@v7
         with:
           name: windows
@@ -106,7 +97,7 @@ jobs:
         run: scripts/stamp-version.sh "$GITHUB_REF_NAME" "$GITHUB_SHA"
       # A universal Carryover.app in a zip, the same way as a local build.
       - name: Package
-        run: scripts/macos-package.sh "${GITHUB_REF_NAME#v}" "$GITHUB_RUN_NUMBER"
+        run: scripts/macos-package.sh "${GITHUB_REF_NAME#v}"
       - uses: actions/upload-artifact@v7
         with:
           name: macos

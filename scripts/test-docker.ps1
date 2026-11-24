@@ -27,7 +27,7 @@ function Invoke-In([string]$script, [string[]]$more) {
 
 if ($Target -in 'linux', 'all') {
     Write-Host "== linux: go test $GoArgs"
-    Invoke-In 'CGO_ENABLED=1 go test "$@"' $GoArgs
+    Invoke-In 'CGO_ENABLED=0 go test "$@"' $GoArgs
 }
 if ($Target -in 'windows', 'all') {
     Write-Host '== windows: cross-compile + vet (not executed)'

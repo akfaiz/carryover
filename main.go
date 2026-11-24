@@ -169,7 +169,7 @@ func cmdRun(args []string) int {
 // SIGHUP, e.g. Steam's "Stop" button signals the whole process tree). The game
 // receives the same signal and exits by itself; the wrapper must outlive it to
 // run the post-play sync. Steam may still SIGKILL the tree after a grace period.
-// This is enough for --headless; with a window, Fyne quits on SIGTERM too, so
+// This is enough for --headless; with a window, MyGo quits on SIGTERM too, so
 // the session window takes the signals over once the game runs (holdSignals).
 func survivePolite() {
 	ch := make(chan os.Signal, 4)
@@ -467,6 +467,7 @@ func cmdList() int {
 }
 
 func runGUI(wrapGameID string, opts core.RunOptions) int {
+	gamemode.QuietInputMethod()
 	c := openCore()
 	watchSessions(c)
 	if wrapGameID != "" { // the launcher recovers on its own start

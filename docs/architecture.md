@@ -1,6 +1,6 @@
 # Architecture
 
-Carryover is one Go core with two apps on top: the desktop app (a Fyne GUI and a command line, for Windows,
+Carryover is one Go core with two apps on top: the desktop app (a MyGo GUI and a command line, for Windows,
 Linux and macOS) and the Android app (Kotlin, over the same core built with gomobile). Both read and write the
 same library and cloud layout, so a game's saves follow it from a PC to a Steam Deck to a phone.
 
@@ -13,7 +13,7 @@ are in [CONTRIBUTING.md](../CONTRIBUTING.md).
 ```mermaid
 flowchart TD
     CLI["<b>main.go CLI</b><br/>run, sync"]
-    GUI["<b>ui/</b> Fyne GUI"]
+    GUI["<b>ui/</b> MyGo GUI"]
     And["<b>android/</b> Kotlin, Compose"]
     Mobile["<b>mobile/</b><br/>the bridge Kotlin sees"]
     Svc["<b>services/</b> the API both apps use:<br/>library, emulators, sync, sessions, trash, ..."]
@@ -59,7 +59,7 @@ one above (`core` is the top). Put a new package in the group that matches what 
 - **Changes go through `services`.** It takes the game's locks, refuses to touch saves while a session is open
   (`core.ErrPlaying`) and tells the app through `services.Bus`. `mobile` may read `internal/core` directly, but
   never changes anything through it; `TestMobileWritesThroughServices` lists the reads it may make.
-- **No platform assumptions.** `services` knows nothing of Fyne, Steam-only or Android-only behaviour. A platform
+- **No platform assumptions.** `services` knows nothing of the GUI toolkit, Steam-only or Android-only behaviour. A platform
   choice is passed in as a parameter (`defaultRootOn(goos, ...)`), so both apps can be tested from any host.
 - **Events.** `services.Bus` reports library changes, play-session status, prompts and sync progress, on any
   goroutine. On the desktop `ui/store` is its only listener; on Android `mobile` forwards them to `Host`.
@@ -96,15 +96,15 @@ The GUI is MVVM-lite with one-way data flow:
 flowchart LR
     Bus["<b>services.Bus</b><br/>events"] --> Store["<b>ui/store</b><br/>shared state"]
     Store --> VM["<b>ViewModel</b><br/>page rules"]
-    VM --> View["<b>view</b><br/>Fyne widgets"]
+    VM --> View["<b>view</b><br/>MyGo, drawn each frame"]
     VM -->|commands| Svc[services]
     Svc --> Bus
 ```
 
 | Package | Role |
 | --- | --- |
-| `ui/kit` | Reusable Fyne widgets, layouts, palette and theme, toaster, image cache, gamepad navigation. Pure Fyne: no `i18n`, `services` or `core` imports and no user-visible text (callers pass labels in). |
-| `ui/i18n` | Translation catalogs (`translations/*.json`) and `i18n.L`/`i18n.N`, on its own go-i18n localizer (no toolkit import). The root also hands the catalogs to Fyne's `lang` for Fyne's own dialogs. |
+| `ui/kit` | Reusable MyGo building blocks: the palette and theme, cards, badges, text styles, the dialog host, the gamepad Navigator, image cache, progress line. Pure toolkit: no `i18n`, `services` or `core` imports and no user-visible text (callers pass labels in). |
+| `ui/i18n` | Translation catalogs (`translations/*.json`) and `i18n.L`/`i18n.N`, on its own go-i18n localizer (no toolkit import). |
 | `ui/textutil` | Plain string helpers the ViewModels share (`Slug`, `SplitLines`, `LabelOf`). |
 | `ui/store` | The state every page shares (games, settings, session status, transfer progress, "Sync all"). The only listener of `services.Bus`; pages subscribe by topic. The shell hands it the UI-goroutine runner (`store.New(load, onUI)`). |
 | `ui/envcore` | `envcore.Services`: the services and the store, the part of `env.Env` a ViewModel's backend holds. |
@@ -121,6 +121,19 @@ Imports go one way: `kit`, `i18n`, `textutil` <- `store` <- `envcore` <- `env` <
 <- `ui`. A page never imports `shell` or another page; it opens one with `env.Navigate("/game/<id>")`. Under `ui/`
 only `shell` and the root import `internal/core`; the rest reaches it through `services` (`services/aliases.go`
 re-exports the types the UI needs).
+
+### Immediate mode
+
+MyGo draws the window again from Go code every frame, so a page is `View(c *ui.Context)`: it keeps its ViewModel plus
+the little UI state it needs (`ui.Handle`s, scroll positions) and declares its controls each frame. Pages register the
+controls the D-pad should reach with `env.Navigator().Item(&handle, element, action)` (MyGo cannot list a window's
+focusable controls), and `Navigator.Overlay` scopes a dialog. MyGo rings only keyboard focus, so the Navigator draws
+the pad's ring itself. State changes reach the page through `StateChanged`; `kit.OnUI` runs work on the UI goroutine
+and redraws. Two elements under one parent must not share a key: create each element once.
+
+Every page, the shared components, the prompts and the flows have tests on `ui.Tester` (`ui/internal/uitest`);
+`ui/pages/session` is the smallest reference. `TestToolkitFree` (`ui/envcore`) fails if a ViewModel, backend, `store`,
+`envcore`, `i18n` or `textutil` reaches MyGo.
 
 When you add or change a page:
 
@@ -191,7 +204,7 @@ when they write it, and each device registers again).
 
 | Rule | Checked by |
 | --- | --- |
-| `ui/` reaches `internal/` only through `services` (except `shell` and the root); a ViewModel imports no widgets or `i18n`; `kit` stays pure Fyne; ViewModels, backends, `store`, `envcore`, `i18n` and `textutil` reach no GUI toolkit | `depguard` in `.golangci.yml`, `TestToolkitFree` (`ui/envcore`) |
+| `ui/` reaches `internal/` only through `services` (except `shell` and the root); a ViewModel imports no widgets or `i18n`; `kit` stays toolkit-only; ViewModels, backends, `store`, `envcore`, `i18n` and `textutil` reach no GUI toolkit | `depguard` in `.golangci.yml`, `TestToolkitFree` (`ui/envcore`) |
 | `mobile` changes nothing through `internal/core` directly | `TestMobileWritesThroughServices` |
 | The Android app's layers (screens, view models, `core/`, `data/`, `session/`) | `LayeringTest` (Kotlin) |
 | Every desktop UI text has an English catalog entry; other languages match it | `TestTranslationCatalog`, `TestLanguageCatalogsMatchEnglish` |

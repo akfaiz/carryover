@@ -1,8 +1,6 @@
-//go:build cgo
-
 package kit
 
-import "github.com/go-gl/glfw/v3.4/glfw"
+import "github.com/egoist/mygo/plugins/game/gamepad"
 
 // stickThreshold is how far the left stick must be pushed to count as a
 // direction; scrollDeadZone is how far the right stick must be pushed to
@@ -12,38 +10,35 @@ const (
 	scrollDeadZone = 0.25
 )
 
-// glfwPad reads the first connected gamepad through GLFW, which Fyne already
-// runs: Steam Input presents its virtual controller to the app as one. It
-// must be called on the main thread (see Navigator.poll and Nav.startPad).
-func glfwPad() (PadState, bool) {
-	for j := glfw.Joystick1; j <= glfw.JoystickLast; j++ {
-		if !j.Present() || !j.IsGamepad() {
-			continue
-		}
-		gs := j.GetGamepadState()
-		if gs == nil {
-			continue
-		}
-		pressed := func(b glfw.GamepadButton) bool { return gs.Buttons[b] == glfw.Press }
-		x, y := gs.Axes[glfw.AxisLeftX], gs.Axes[glfw.AxisLeftY]
-		scroll := gs.Axes[glfw.AxisRightY]
-		if scroll > -scrollDeadZone && scroll < scrollDeadZone {
-			scroll = 0
-		}
-		return PadState{
-			Up:     pressed(glfw.ButtonDpadUp) || y < -stickThreshold,
-			Down:   pressed(glfw.ButtonDpadDown) || y > stickThreshold,
-			Left:   pressed(glfw.ButtonDpadLeft) || x < -stickThreshold,
-			Right:  pressed(glfw.ButtonDpadRight) || x > stickThreshold,
-			Accept: pressed(glfw.ButtonA),
-			Back:   pressed(glfw.ButtonB),
-			X:      pressed(glfw.ButtonX),
-			Y:      pressed(glfw.ButtonY),
-			View:   pressed(glfw.ButtonBack),
-			LB:     pressed(glfw.ButtonLeftBumper),
-			RB:     pressed(glfw.ButtonRightBumper),
-			Scroll: scroll,
-		}, true
+// MygoPad reads the first connected gamepad through MyGo's gamepad package
+// (XInput on Windows, evdev on Linux, GameController on macOS; Steam Input's
+// virtual pad shows up as one of them). It may be called from any goroutine.
+func MygoPad() (PadState, bool) {
+	pads := gamepad.Pads()
+	if len(pads) == 0 {
+		return PadState{}, false
 	}
-	return PadState{}, false
+	return padStateOf(pads[0].State()), true
+}
+
+func padStateOf(s gamepad.State) PadState {
+	x, y := s.Axis(gamepad.LeftX), s.Axis(gamepad.LeftY)
+	scroll := s.Axis(gamepad.RightY)
+	if scroll > -scrollDeadZone && scroll < scrollDeadZone {
+		scroll = 0
+	}
+	return PadState{
+		Up:     s.Pressed(gamepad.Up) || y < -stickThreshold,
+		Down:   s.Pressed(gamepad.Down) || y > stickThreshold,
+		Left:   s.Pressed(gamepad.Left) || x < -stickThreshold,
+		Right:  s.Pressed(gamepad.Right) || x > stickThreshold,
+		Accept: s.Pressed(gamepad.South),
+		Back:   s.Pressed(gamepad.East),
+		X:      s.Pressed(gamepad.West),
+		Y:      s.Pressed(gamepad.North),
+		View:   s.Pressed(gamepad.Back),
+		LB:     s.Pressed(gamepad.LeftShoulder),
+		RB:     s.Pressed(gamepad.RightShoulder),
+		Scroll: scroll,
+	}
 }

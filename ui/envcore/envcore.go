@@ -1,7 +1,7 @@
 // Package envcore is the part of the application a page's ViewModel and
 // backend see that does not depend on the GUI toolkit: the services and the
 // shared state. env.Env embeds it and adds the window and the actions of the
-// Fyne GUI.
+// MyGo GUI.
 //
 // Everything here is used on the UI goroutine only.
 package envcore

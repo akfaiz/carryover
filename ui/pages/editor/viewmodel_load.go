@@ -11,7 +11,7 @@ import (
 )
 
 // Backend is what the editor asks of the services; the ViewModel holds one, so
-// loading and saving can be tested without Fyne or a library.
+// loading and saving can be tested without the toolkit or a library.
 type Backend interface {
 	Tokens(gameID string) []pathvar.Token
 	HasSteamGridKey() bool

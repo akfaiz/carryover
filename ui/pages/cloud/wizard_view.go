@@ -3,66 +3,116 @@ package cloud
 import (
 	"strings"
 
-	"fyne.io/fyne/v2"
-	"fyne.io/fyne/v2/container"
-	"fyne.io/fyne/v2/dialog"
-	"fyne.io/fyne/v2/widget"
-
-	"github.com/akfaiz/carryover/ui/i18n"
+	"github.com/egoist/mygo/ui"
 
 	"github.com/akfaiz/carryover/internal/cloudsync/cloud"
+	"github.com/akfaiz/carryover/ui/i18n"
 	"github.com/akfaiz/carryover/ui/kit"
 )
 
+// wizardStage is the screen of the wizard's dialog.
+type wizardStage int
+
+const (
+	stagePick     wizardStage = iota // choose a provider
+	stageForm                        // its options
+	stageWorking                     // rclone is configuring (a browser may be open)
+	stageQuestion                    // one of rclone's follow-up questions
+)
+
 // wizardView is the dialog that adds a remote: pick provider → options form →
-// rclone's follow-up questions (OAuth etc.).
+// rclone's follow-up questions (OAuth etc.). It keeps the text of each field
+// and copies it into the Wizard when it changes.
 type wizardView struct {
-	p    *Page
-	vm   *Wizard
-	d    *dialog.CustomDialog
-	body *fyne.Container
+	p     *Page
+	vm    *Wizard
+	d     *kit.Dialog
+	stage wizardStage
+	err   string
+
+	name   string
+	params map[string]*string // the option fields, by option name
+	answer string             // the answer to the question on screen
+	foot   func()             // the buttons under the scrolling content, set by the stage
 }
 
 func newWizardView(p *Page, vm *Wizard) *wizardView {
-	return &wizardView{p: p, vm: vm, body: container.NewStack()}
+	return &wizardView{p: p, vm: vm, params: map[string]*string{}}
 }
 
 func (w *wizardView) show() {
-	win := w.p.u.Window()
-	w.d = dialog.NewCustomWithoutButtons(i18n.L("Add remote"), container.NewVScroll(w.body), win)
-	w.d.Resize(fyne.NewSize(min(640, win.Canvas().Size().Width-40), min(560, win.Canvas().Size().Height-40)))
-	w.pick()
-	w.d.Show()
-	kit.OnBack(win, w.close)
+	w.d = w.p.u.Dialogs().Show(&kit.Dialog{Title: i18n.L("Add remote"), Wide: true, Back: w.close, Body: w.body})
 }
 
-func (w *wizardView) set(objs ...fyne.CanvasObject) {
-	w.body.Objects = []fyne.CanvasObject{kit.VBox(objs...)}
-	w.body.Refresh()
-}
+func (w *wizardView) close() { w.d.Close() }
 
-func (w *wizardView) close() { w.d.Hide() }
-
-func (w *wizardView) pick() {
-	grid := container.NewGridWrap(fyne.NewSize(190, 96))
-	for _, pr := range w.vm.Providers() {
-		name := widget.NewLabelWithStyle(pr.Description, fyne.TextAlignLeading, fyne.TextStyle{Bold: true})
-		name.Wrapping = fyne.TextWrapWord
-		b := kit.NewTappable(kit.Card("", name, kit.Small(pr.Type)), func() { w.vm.Choose(pr); w.renderForm("") })
-		grid.Add(b)
+func (w *wizardView) body(c *ui.Context, nav *kit.Navigator) {
+	w.foot = nil
+	ui.Scroll(c).MaxHeight(480).Children(func() {
+		ui.Column(c).Gap(10).Children(func() {
+			switch w.stage {
+			case stagePick:
+				w.pick(c, nav)
+			case stageForm:
+				w.form(c, nav)
+			case stageWorking:
+				w.working(c, nav)
+			case stageQuestion:
+				w.question(c, nav)
+			}
+		})
+	})
+	// The buttons stay in sight however long the form is.
+	if w.foot != nil {
+		w.foot()
 	}
-	w.set(kit.Heading(i18n.L("Choose storage provider")), grid, kit.HBox(widget.NewButton(i18n.L("Cancel"), w.close)))
 }
 
-func (w *wizardView) renderForm(errText string) {
+// button draws a button that registers with the gamepad.
+func (w *wizardView) button(c *ui.Context, nav *kit.Navigator, key, label string, primary bool, disabled bool, action func(), opts ...kit.ItemOption) {
+	k := [2]any{"wizard", key}
+	var b ui.Element
+	if primary {
+		b = ui.PrimaryButton(c.Key(k), label)
+	} else {
+		b = ui.Button(c.Key(k), label)
+	}
+	if nav.Item(nav.Handle(k), b.Disabled(disabled), action, opts...).Clicked() && !disabled {
+		action()
+	}
+}
+
+func (w *wizardView) pick(c *ui.Context, nav *kit.Navigator) {
+	kit.Heading(c, i18n.L("Choose storage provider"))
+	ui.Row(c).Wrap().Gap(10).Children(func() {
+		for _, pr := range w.vm.Providers() {
+			k := [2]any{"provider", pr.Type}
+			choose := func() { w.vm.Choose(pr); w.name = w.vm.Name(); w.stage, w.err = stageForm, "" }
+			b := ui.ButtonBase(c.Key(k)).Label(pr.Description).Width(190).Height(96).Radius(10).
+				Background(c.Theme().Surface).Border(1, c.Theme().Border).Children(func() {
+				ui.Column(c).Padding(12).Gap(4).Children(func() {
+					ui.Text(c, pr.Description).Bold().Wrap()
+					kit.Small(c, pr.Type)
+				})
+			})
+			if nav.Item(nav.Handle(k), b, choose).Clicked() {
+				choose()
+			}
+		}
+	})
+	w.foot = func() { w.button(c, nav, "cancel", i18n.L("Cancel"), false, false, w.close, kit.FocusSafe) }
+}
+
+func (w *wizardView) form(c *ui.Context, nav *kit.Navigator) {
 	vm := w.vm
 	pr := vm.Provider()
-	name := widget.NewEntry()
-	name.SetText(vm.Name())
-	cont := kit.Primary(i18n.L("Continue"), w.create)
-	name.OnChanged = func(s string) { vm.SetName(s); kit.SetEnabled(cont, vm.NameOK()) }
-	kit.SetEnabled(cont, vm.NameOK())
-	objs := []fyne.CanvasObject{kit.Heading(i18n.L("New {{.Provider}} remote", map[string]any{"Provider": pr.Description})), kit.Field(i18n.L("Name"), name)}
+	if w.name != vm.Name() {
+		vm.SetName(w.name)
+	}
+	kit.Heading(c, i18n.L("New {{.Provider}} remote", map[string]any{"Provider": pr.Description}))
+	kit.Labeled(c, i18n.L("Name"), func() {
+		nav.Item(nav.Handle("wiz-name"), ui.TextInput(c.Key("wiz-name"), &w.name).Label(i18n.L("Name")), nil, kit.TextField)
+	})
 	opts, more := vm.VisibleOptions()
 	for _, o := range opts {
 		label := o.Name
@@ -70,19 +120,23 @@ func (w *wizardView) renderForm(errText string) {
 			label += " *"
 		}
 		label += " — " + firstLine(o.Help)
-		objs = append(objs, kit.Field(label, w.optionInput(o)))
+		kit.Labeled(c, label, func() { w.optionInput(c, nav, o) })
 	}
 	if more {
-		objs = append(objs, kit.HBox(kit.LowButton(i18n.L("Show all options"), func() { vm.ShowAll(); w.renderForm(errText) })))
+		w.button(c, nav, "all", i18n.L("Show all options"), false, false, vm.ShowAll)
 	}
 	if pr.OAuth {
-		objs = append(objs, kit.Muted(i18n.L("After you continue, your browser opens to sign in. Come back here when done.")))
+		kit.Muted(c, i18n.L("After you continue, your browser opens to sign in. Come back here when done."))
 	}
-	if errText != "" {
-		objs = append(objs, kit.Colored(errText, widget.DangerImportance))
+	if w.err != "" {
+		kit.Danger(c, w.err)
 	}
-	objs = append(objs, kit.HBox(widget.NewButton(i18n.L("Back"), w.pick), cont))
-	w.set(objs...)
+	w.foot = func() {
+		ui.Row(c).Gap(8).Children(func() {
+			w.button(c, nav, "back", i18n.L("Back"), false, false, func() { w.stage, w.err = stagePick, "" }, kit.FocusSafe)
+			w.button(c, nav, "continue", i18n.L("Continue"), true, !vm.NameOK(), w.create)
+		})
+	}
 }
 
 func firstLine(s string) string {
@@ -90,52 +144,67 @@ func firstLine(s string) string {
 	return first
 }
 
-func (w *wizardView) optionInput(o cloud.ProviderOption) fyne.CanvasObject {
-	set := func(v string) { w.vm.SetParam(o.Name, v) }
-	cur := w.vm.Param(o.Name)
+// field is the text of an option, kept across frames.
+func (w *wizardView) field(name string) *string {
+	if w.params[name] == nil {
+		v := w.vm.Param(name)
+		w.params[name] = &v
+	}
+	return w.params[name]
+}
+
+func (w *wizardView) optionInput(c *ui.Context, nav *kit.Navigator, o cloud.ProviderOption) {
+	cur := w.field(o.Name)
+	defer func() {
+		if *cur != w.vm.Param(o.Name) {
+			w.vm.SetParam(o.Name, *cur)
+		}
+	}()
+	k := [2]any{"wiz-opt", o.Name}
 	if len(o.Examples) > 0 && o.Exclusive {
-		c := &kit.Choice{}
+		ch := &kit.Choice{}
 		def := i18n.L("(default)")
 		if o.Default != "" && o.Default != "<nil>" {
 			def = i18n.L("(default: {{.Value}})", map[string]any{"Value": o.Default})
 		}
-		c.Add("", def)
+		ch.Add("", def)
 		for _, ex := range o.Examples {
-			c.Add(ex.Value, ex.Value+" — "+ex.Help)
+			ch.Add(ex.Value, ex.Value+" — "+ex.Help)
 		}
-		return kit.Outlined(kit.SelectOf(c, cur, set))
+		kit.SelectOf(c, nav, w.p.u.Dialogs(), k, o.Name, ch, *cur, func(v string) { *cur = v })
+		return
 	}
+	in := ui.TextInput(c.Key(k), cur)
 	if o.IsPassword {
-		e := widget.NewPasswordEntry()
-		e.SetText(cur)
-		e.OnChanged = set
-		return e
+		in = in.Password()
+	} else if o.Default != "<nil>" {
+		in = in.Placeholder(o.Default)
 	}
-	if len(o.Examples) > 0 {
-		var opts []string
-		for _, ex := range o.Examples {
-			opts = append(opts, ex.Value)
-		}
-		e := widget.NewSelectEntry(opts)
-		e.SetPlaceHolder(o.Default)
-		e.SetText(cur)
-		e.OnChanged = set
-		return e
+	nav.Item(nav.Handle(k), in, nil, kit.TextField)
+	if !o.IsPassword && len(o.Examples) > 0 {
+		w.examples(c, nav, k, o, cur)
 	}
-	e := widget.NewEntry()
-	if o.Default != "<nil>" {
-		e.SetPlaceHolder(o.Default)
-	}
-	e.SetText(cur)
-	e.OnChanged = set
-	return e
 }
 
-func (w *wizardView) working() {
-	bar := widget.NewProgressBarInfinite()
-	w.set(kit.Heading(i18n.L("Configuring…")), kit.Muted(i18n.L("If a browser window opened, finish signing in there.")), bar,
-		// rclone keeps waiting in the background until its own timeout.
-		kit.HBox(widget.NewButton(i18n.L("Cancel"), w.close)))
+// examples offers the example values of an option that also takes any text.
+func (w *wizardView) examples(c *ui.Context, nav *kit.Navigator, k [2]any, o cloud.ProviderOption, cur *string) {
+	ui.Row(c).Wrap().Gap(6).Children(func() {
+		for i, ex := range o.Examples {
+			ek := [3]any{k[0], k[1], i}
+			set := func() { *cur = ex.Value }
+			if nav.Item(nav.Handle(ek), ui.Button(c.Key(ek), ex.Value), set).Clicked() {
+				set()
+			}
+		}
+	})
+}
+
+func (w *wizardView) working(c *ui.Context, nav *kit.Navigator) {
+	kit.Heading(c, i18n.L("Configuring…"))
+	kit.Muted(c, i18n.L("If a browser window opened, finish signing in there."))
+	ui.Progress(c, -1)
+	// rclone keeps waiting in the background until its own timeout.
+	w.foot = func() { w.button(c, nav, "cancel", i18n.L("Cancel"), false, false, w.close, kit.FocusSafe) }
 }
 
 // run is how the wizard's steps run: off the UI thread, then back on it.
@@ -147,9 +216,10 @@ func (w *wizardView) run(work func() (*cloud.Question, error), done func(*cloud.
 func (w *wizardView) next(r Result) {
 	switch r.Kind {
 	case ResultForm:
-		w.renderForm(r.Err)
+		w.stage, w.err = stageForm, r.Err
 	case ResultQuestion:
-		w.renderQuestion(r.Err)
+		w.stage, w.err = stageQuestion, r.Err
+		w.answer = w.vm.Question().Default
 	case ResultCreated:
 		w.close()
 		w.p.u.Toast(i18n.L("Remote “{{.Name}}” created", map[string]any{"Name": r.Name}), kit.ToastOK)
@@ -158,62 +228,61 @@ func (w *wizardView) next(r Result) {
 }
 
 func (w *wizardView) create() {
-	w.working()
+	w.stage = stageWorking
 	w.vm.Create(w.run, w.next)
 }
 
 func (w *wizardView) reply(v string) {
-	w.working()
+	w.stage = stageWorking
 	w.vm.Reply(v, w.run, w.next)
 }
 
-func (w *wizardView) renderQuestion(errText string) {
+func (w *wizardView) question(c *ui.Context, nav *kit.Navigator) {
 	q := w.vm.Question()
-	help := widget.NewLabel(q.Help)
-	help.Wrapping = fyne.TextWrapWord
-	objs := []fyne.CanvasObject{kit.Heading(w.vm.Provider().Description), help}
-	errLabel := func() {
-		if errText != "" {
-			objs = append(objs, kit.Colored(errText, widget.DangerImportance))
-		}
+	kit.Heading(c, w.vm.Provider().Description)
+	ui.Text(c, q.Help).Wrap()
+	if w.err != "" {
+		kit.Danger(c, w.err)
 	}
 	if q.IsBool {
-		errLabel()
-		objs = append(objs, kit.HBox(widget.NewButton(i18n.L("No"), func() { w.reply("false") }), kit.Primary(i18n.L("Yes"), func() { w.reply("true") })))
-		w.set(objs...)
+		w.foot = func() {
+			ui.Row(c).Gap(8).Children(func() {
+				w.button(c, nav, "no", i18n.L("No"), false, false, func() { w.reply("false") }, kit.FocusSafe)
+				w.button(c, nav, "yes", i18n.L("Yes"), true, false, func() { w.reply("true") })
+			})
+		}
 		return
 	}
-	answer := q.Default
-	var input fyne.CanvasObject
+	k := "wiz-answer"
 	switch {
 	case len(q.Examples) > 0 && q.Exclusive:
-		c := &kit.Choice{}
+		ch := &kit.Choice{}
 		for _, ex := range q.Examples {
-			c.Add(ex.Value, ex.Value+" — "+ex.Help)
+			ch.Add(ex.Value, ex.Value+" — "+ex.Help)
 		}
-		input = kit.Outlined(kit.SelectOf(c, answer, func(v string) { answer = v }))
-	case q.IsPassword:
-		e := widget.NewPasswordEntry()
-		e.SetText(answer)
-		e.OnChanged = func(s string) { answer = s }
-		input = e
-	case len(q.Examples) > 0:
-		var opts []string
-		for _, ex := range q.Examples {
-			opts = append(opts, ex.Value)
-		}
-		e := widget.NewSelectEntry(opts)
-		e.SetText(answer)
-		e.OnChanged = func(s string) { answer = s }
-		input = e
+		kit.SelectOf(c, nav, w.p.u.Dialogs(), k, w.vm.Provider().Description, ch, w.answer, func(v string) { w.answer = v })
 	default:
-		e := widget.NewEntry()
-		e.SetText(answer)
-		e.OnChanged = func(s string) { answer = s }
-		input = e
+		in := ui.TextInput(c.Key(k), &w.answer)
+		if q.IsPassword {
+			in = in.Password()
+		}
+		nav.Item(nav.Handle(k), in, nil, kit.TextField)
+		if len(q.Examples) > 0 && !q.IsPassword {
+			ui.Row(c).Wrap().Gap(6).Children(func() {
+				for i, ex := range q.Examples {
+					ek := [2]any{k, i}
+					set := func() { w.answer = ex.Value }
+					if nav.Item(nav.Handle(ek), ui.Button(c.Key(ek), ex.Value), set).Clicked() {
+						set()
+					}
+				}
+			})
+		}
 	}
-	objs = append(objs, kit.FullHeight(input))
-	errLabel()
-	objs = append(objs, kit.HBox(widget.NewButton(i18n.L("Cancel"), w.close), kit.Primary(i18n.L("Continue"), func() { w.reply(answer) })))
-	w.set(objs...)
+	w.foot = func() {
+		ui.Row(c).Gap(8).Children(func() {
+			w.button(c, nav, "qcancel", i18n.L("Cancel"), false, false, w.close, kit.FocusSafe)
+			w.button(c, nav, "qcontinue", i18n.L("Continue"), true, false, func() { w.reply(w.answer) })
+		})
+	}
 }

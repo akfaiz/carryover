@@ -2,16 +2,17 @@
 # Builds the macOS release file: a universal (Apple Silicon + Intel) app bundle
 # in a zip.
 #
-#   scripts/macos-package.sh [version] [build]
+#   scripts/macos-package.sh [version]
 #     version  release version without the "v" (default: from `git describe`)
-#     build    CFBundleVersion's build number (default 1; the workflow run number in CI)
 #
 # Writes to dist/:
 #   Carryover.app                                   the bundle
 #   carryover-<version>-macos-universal.zip         the bundle, zipped with ditto
 #
-# The release workflow runs this too, so a local build matches the release. It
-# does not stamp the version into the program: run scripts/stamp-version.sh first
+# The bundle comes from `mygo build` (go tool mygo), which compiles both halves
+# without cgo, makes the Info.plist and the icon, and signs it ad hoc. The
+# release workflow runs this too, so a local build matches the release. It does
+# not stamp the version into the program: run scripts/stamp-version.sh first
 # for that (and delete internal/app/version/zz_release.go afterwards), otherwise
 # the app reports "dev".
 #
@@ -25,7 +26,6 @@ cd "$(dirname "$0")/.."
 root=$(pwd)
 
 version="${1:-}"
-build="${2:-1}"
 if [ -z "$version" ]; then
   version=$(git describe --tags 2>/dev/null || echo 0.0.0-dev)
   version="${version#v}"
@@ -36,9 +36,6 @@ if [ -z "$numeric" ]; then
   echo "version must start with x.y.z: $version" >&2
   exit 1
 fi
-case "$build" in
-  '' | *[!0-9]*) echo "build must be a number: $build" >&2; exit 1 ;;
-esac
 
 name="carryover-$version-macos-universal"
 dist="$root/dist"
@@ -47,30 +44,17 @@ app="$dist/Carryover.app"
 rm -rf "$work" "$app" "$dist/$name.zip"
 mkdir -p "$work"
 
-# `fyne package` bumps Build in FyneApp.toml; put the file back as it was.
-cp FyneApp.toml "$work/FyneApp.toml"
-restore() {
-  cp "$work/FyneApp.toml" "$root/FyneApp.toml"
-  rm -rf "$root/Carryover.app" "$work"
-}
+# mygo.json holds the app's name, identifier and icon; the version is put in
+# for this build and the file put back as it was.
+cp mygo.json "$work/mygo.json"
+restore() { cp "$work/mygo.json" "$root/mygo.json"; rm -rf "$work"; }
 trap restore EXIT
+sed -E -i.bak "s/\"version\": \"[^\"]*\"/\"version\": \"$numeric\"/" mygo.json && rm -f mygo.json.bak
 
-export CGO_ENABLED=1
 export MACOSX_DEPLOYMENT_TARGET=12.0 # what Go itself supports
-for arch in arm64 amd64; do
-  echo "Building $arch"
-  GOARCH=$arch go build -trimpath -ldflags "-s -w" -o "$work/$arch/carryover" .
-done
-
-# The program must stay named "carryover": Steam shortcuts to Carryover itself
-# are recognised by that name.
-mkdir -p "$work/universal"
-lipo -create -output "$work/universal/carryover" "$work/arm64/carryover" "$work/amd64/carryover"
-
-echo "Packaging Carryover.app"
-go tool fyne package --os darwin --release --exe "$work/universal/carryover" \
-  --name Carryover --app-id com.akfaiz.carryover --app-version "$numeric" --app-build "$build"
-mv Carryover.app "$app"
+echo "Building Carryover.app"
+go tool mygo build -platform darwin/universal -skip-dmg -skip-notarize -skip-installer -o "$work/out"
+mv "$work/out/darwin-universal/Carryover.app" "$app"
 
 # Apple Silicon only runs signed code: sign the whole bundle ad hoc.
 codesign --force --deep --sign - "$app"

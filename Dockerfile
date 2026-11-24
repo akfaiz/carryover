@@ -4,16 +4,13 @@
 # packages it into an image that can display its window on a Windows host
 # through WSLg. Use scripts/linux-docker.ps1 rather than calling this directly.
 
-FROM golang:1.26-bookworm AS build
-RUN apt-get update && apt-get install -y --no-install-recommends \
-        gcc libgl1-mesa-dev xorg-dev libxkbcommon-dev libwayland-dev wayland-protocols \
-    && rm -rf /var/lib/apt/lists/*
+FROM golang:1.27-bookworm AS build
 WORKDIR /src
 COPY go.mod go.sum ./
 RUN --mount=type=cache,target=/go/pkg/mod go mod download
 COPY . .
 RUN --mount=type=cache,target=/go/pkg/mod --mount=type=cache,target=/root/.cache/go-build \
-    CGO_ENABLED=1 go build -trimpath -ldflags "-s -w" -o /out/carryover .
+    CGO_ENABLED=0 go build -trimpath -ldflags "-s -w" -o /out/carryover .
 
 # AppImage packaging (see packaging/appimage/build.sh). Built on demand:
 #   docker build --target appimage-out --output type=local,dest=dist .
@@ -47,9 +44,9 @@ FROM scratch AS binary-out
 COPY --from=build /out/carryover /carryover
 
 FROM debian:bookworm-slim
+# MyGo loads GTK 3 and OpenGL at run time (no cgo): the packages the window needs.
 RUN apt-get update && apt-get install -y --no-install-recommends \
-        libgl1 libgl1-mesa-dri libegl1 libx11-6 libxcursor1 libxrandr2 libxinerama1 libxi6 libxxf86vm1 \
-        libxkbcommon0 libwayland-client0 libwayland-cursor0 libwayland-egl1 fontconfig fonts-dejavu-core ca-certificates xdg-utils \
+        libgtk-3-0 libgl1 libgl1-mesa-dri libegl1 fontconfig fonts-dejavu-core ca-certificates xdg-utils \
     && rm -rf /var/lib/apt/lists/*
 COPY --from=build /out/carryover /usr/local/bin/carryover
 # Keep settings, library, rclone.conf and state in a volume, away from any real config.

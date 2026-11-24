@@ -1,12 +1,12 @@
+// Package flows holds the multi-step actions that open dialogs, call services
+// and navigate: add a game, import from Steam, set the SteamGridDB key, open a
+// game in Steam. This is the MyGo build.
 package flows
 
 import (
-	"net/url"
-
-	"github.com/akfaiz/carryover/ui/i18n"
-
 	"github.com/akfaiz/carryover/services"
 	"github.com/akfaiz/carryover/ui/env"
+	"github.com/akfaiz/carryover/ui/i18n"
 	"github.com/akfaiz/carryover/ui/kit"
 )
 
@@ -17,11 +17,7 @@ func OpenSteam(u env.Env, g services.GameView) {
 		u.Toast(i18n.L("Steam can't start this game yet: add it to Steam on the game's page."), kit.ToastErr)
 		return
 	}
-	pu, err := url.Parse(link)
-	if err == nil {
-		err = u.App().OpenURL(pu)
-	}
-	if err != nil {
+	if err := u.OpenURL(link); err != nil {
 		u.ToastErr(err)
 		return
 	}

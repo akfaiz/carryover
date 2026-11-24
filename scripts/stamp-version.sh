@@ -5,9 +5,8 @@
 #   scripts/stamp-version.sh <tag> [commit]      e.g. scripts/stamp-version.sh v0.2.0 "$GITHUB_SHA"
 #
 # The release workflow runs it before every build. A generated file is used
-# instead of -ldflags -X because `fyne package` drops -ldflags from GOFLAGS
-# when it rebuilds the Windows exe with its icon and version info. The file is
-# git-ignored; delete it to go back to a "dev" build.
+# instead of -ldflags -X so every build path (go build, mygo build) picks it up
+# the same way. The file is git-ignored; delete it to go back to a "dev" build.
 set -euo pipefail
 
 cd "$(dirname "$0")/.."

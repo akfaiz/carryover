@@ -3,7 +3,7 @@
 // and syncs after.
 //
 // ViewModel decides what a status update changes (the message, the progress
-// bar, the Cancel button) and is tested without Fyne; Page draws it.
+// bar, the Cancel button) and is tested without the toolkit; Page draws it.
 package session
 
 import (

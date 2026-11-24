@@ -16,7 +16,7 @@ import (
 // ViewModel is the editor's form: what the user has typed and chosen, and the
 // rules that act on it (which save locations exist, how emulators share saves,
 // what a suggestion fills in, what the form amounts to when saved). It holds no
-// widget and is tested without Fyne; Page draws it and embeds it, so the page's
+// widget and is tested without the toolkit; Page draws it and embeds it, so the page's
 // code reads the form's fields directly.
 type ViewModel struct {
 	be         Backend

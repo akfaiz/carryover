@@ -7,6 +7,15 @@ All notable changes to Carryover are listed here. The format follows
 
 ## [Unreleased]
 
+### Changed
+
+- The desktop app has a new interface toolkit, [MyGo](https://mygo.run), in place of Fyne. It looks the same where it
+  can, builds without a C compiler or GUI libraries, and the downloads are smaller (the macOS app zip is about 30 MB,
+  the Windows exe about 38 MB). Linux needs GTK 3 installed, which the Steam Deck has. Choosing an option from a list
+  (sort order, language, launch mode) now opens a small window of choices, so it works with a controller;
+  pressing A on a text field in Game Mode opens Steam's keyboard as before.
+- Carryover on macOS is now named `Carryover` inside its app bundle.
+
 ## [0.5.1] - 2026-11-23
 
 ### Added

@@ -3,61 +3,62 @@ package flows
 import (
 	"strings"
 
-	"fyne.io/fyne/v2/layout"
-	"fyne.io/fyne/v2/widget"
-
-	"github.com/akfaiz/carryover/ui/i18n"
+	"github.com/egoist/mygo/ui"
 
 	"github.com/akfaiz/carryover/internal/app/appdir"
-	"github.com/akfaiz/carryover/ui/components"
 	"github.com/akfaiz/carryover/ui/env"
+	"github.com/akfaiz/carryover/ui/i18n"
 	"github.com/akfaiz/carryover/ui/kit"
 )
-
-// GridKeyHelp explains what the SteamGridDB API key is for and where to get one.
-func GridKeyHelp() string {
-	return i18n.L("Lets you search community covers and artwork for any game, including ones not on Steam. Get a free key at steamgriddb.com/profile/preferences/api (log in with Steam). The key is stored only on this device.")
-}
 
 // ShowGridKeyDialog asks for the SteamGridDB key in a dialog, for pages that
 // shouldn't be left to go to Settings (the game editor). onSaved runs once it
 // is stored.
 func ShowGridKeyDialog(u env.Env, onSaved func()) {
-	key := widget.NewPasswordEntry()
-	key.SetPlaceHolder(i18n.L("Paste your key"))
-	keyTest := kit.NewTestButton(i18n.L("Test"), i18n.L("Key works."), i18n.L("Testing…"), func() func() error {
-		k := strings.TrimSpace(key.Text)
+	var key string
+	saving := false
+	test := kit.NewTestButton(i18n.L("Test"), i18n.L("Key works."), i18n.L("Testing…"), func() func() error {
+		k := strings.TrimSpace(key)
 		return func() error { return u.Lib().TestSteamGridKey(k) }
 	})
-	keyTest.SetAllowed(false)
-	var d components.DialogHider
-	save := kit.Primary(i18n.L("Save"), nil)
-	save.Disable()
-	save.OnTapped = func() {
-		k := strings.TrimSpace(key.Text)
-		save.Disable()
+	var d *kit.Dialog
+	save := func() {
+		k := strings.TrimSpace(key)
+		saving = true
 		kit.Async(func() (appdir.Settings, error) {
 			st := u.Sync().GetSettings()
 			st.SteamGridDBKey = k
 			return u.Sync().SaveSettings(st)
 		}, func(_ appdir.Settings, err error) {
+			saving = false
 			if err != nil {
 				u.ToastErr(err)
-				save.Enable()
 				return
 			}
-			d.Hide()
+			d.Close()
 			u.Store().Refresh()
 			u.Toast(i18n.L("SteamGridDB key saved"), kit.ToastOK)
 			onSaved()
 		})
 	}
-	key.OnChanged = func(s string) {
-		ok := strings.TrimSpace(s) != ""
-		keyTest.SetAllowed(ok)
-		kit.SetEnabled(save, ok)
-	}
-	body := kit.VBox(kit.Muted(GridKeyHelp()), kit.RowFill(key, keyTest.Button), keyTest.Result,
-		kit.HBox(layout.NewSpacer(), widget.NewButton(i18n.L("Cancel"), func() { d.Hide() }), save))
-	d = components.ShowCustom(u, i18n.L("SteamGridDB API key"), body, 540)
+	d = u.Dialogs().Show(&kit.Dialog{Title: i18n.L("SteamGridDB API key"), Width: 540, Body: func(c *ui.Context, nav *kit.Navigator) {
+		ok := strings.TrimSpace(key) != ""
+		test.SetAllowed(ok)
+		kit.Muted(c, GridKeyHelp())
+		ui.Row(c).Gap(8).Children(func() {
+			in := ui.TextInput(c.Key("grid-key"), &key).Password().Placeholder(i18n.L("Paste your key")).Label(i18n.L("Paste your key")).Grow(1)
+			nav.Item(nav.Handle("grid-key"), in, nil, kit.TextField)
+			test.Button(c, nav, "gridkey")
+		})
+		test.Result(c)
+		ui.Row(c).Gap(8).Justify(ui.End).Children(func() {
+			cancel := func() { d.Close() }
+			if nav.Item(nav.Handle("grid-cancel"), ui.Button(c.Key("grid-cancel"), i18n.L("Cancel")), cancel, kit.FocusSafe).Clicked() {
+				cancel()
+			}
+			if nav.Item(nav.Handle("grid-save"), ui.PrimaryButton(c.Key("grid-save"), i18n.L("Save")).Disabled(!ok || saving), save).Clicked() {
+				save()
+			}
+		})
+	}})
 }
