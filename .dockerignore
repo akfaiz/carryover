@@ -4,3 +4,16 @@ bin
 carryover.exe
 *.exe
 .docker-data
+
+# Not part of the Linux build. Sending them made the context ~700 MB for a few
+# MB of Go, and a change in any of them (a build written to dist/, a doc edit)
+# invalidated `COPY . .` and every stage after it. The Go embeds live inside
+# their packages; packaging/appimage/build.sh reads packaging/ and ui/assets/.
+dist
+android
+docs
+.github
+*.md
+*.AppImage
+*.zsync
+*.out
