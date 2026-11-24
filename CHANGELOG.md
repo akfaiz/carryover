@@ -51,6 +51,8 @@ All notable changes to Carryover are listed here. The format follows
 ### Fixed
 
 - A long save path of another device (a folder named by a long id, as an emulator's) ran past the edge of its card.
+- Picking a SteamGridDB icon that is an `.ico` file failed with "downloaded file is not a PNG, JPEG or WebP image".
+  The icon's largest image is now saved as a PNG.
 - On Linux under X11, the window's title bar showed no Carryover icon when run as an AppImage (the taskbar had it).
   Both the main window and the one a Steam shortcut shows now set their icon themselves. Under Wayland the title bar's
   icon is still chosen by the desktop, which may not find it for an AppImage.
