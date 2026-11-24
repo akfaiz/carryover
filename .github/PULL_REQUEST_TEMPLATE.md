@@ -11,5 +11,5 @@
 - [ ] The title follows [Conventional Commits](https://www.conventionalcommits.org/) (`feat:`, `fix:`, `docs:`, ...).
 - [ ] `go test ./...` and `golangci-lint run ./...` pass.
 - [ ] Works on Windows, Linux and macOS, or the change only affects some of them.
-- [ ] New UI text goes through `lang.L` and is in `ui/i18n/translations/en.json`.
+- [ ] New UI text goes through `i18n.L` and is in `ui/i18n/translations/en.json`.
 - [ ] User-visible changes are listed under "Unreleased" in `CHANGELOG.md`.

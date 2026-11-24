@@ -204,38 +204,24 @@ func (e *Page) pathInput(ptr *string, gameID, placeholder string, withTokens boo
 	return pi
 }
 
-// button is a button that registers with the gamepad. key tells it from the
-// others on the page.
-func (e *Page) button(c *ui.Context, key any, label string, primary, disabled bool, action func()) {
-	nav := e.u.Navigator()
-	k := [2]any{"editor", key}
-	var b ui.Element
-	if primary {
-		b = ui.PrimaryButton(c.Key(k), label)
-	} else {
-		b = ui.Button(c.Key(k), label)
-	}
-	if nav.Item(nav.Handle(k), b.Disabled(disabled), action).Clicked() && !disabled {
-		action()
-	}
+// btn is a button with an optional icon that registers with the gamepad. key
+// tells it from the others on the page.
+func (e *Page) btn(c *ui.Context, key any, kind kit.BtnKind, icon *ui.SVG, label string, disabled bool, action func()) ui.Element {
+	return kit.Btn(c, e.u.Navigator(), [2]any{"editor", key}, kind, icon, label, action, kit.BtnDisabled(disabled))
 }
 
 // field is a single-line text input bound to *v.
 func (e *Page) field(c *ui.Context, key any, v *string, placeholder string, mono bool) ui.Element {
-	nav := e.u.Navigator()
-	k := [2]any{"editor-field", key}
-	in := ui.TextInput(c.Key(k), v).Placeholder(placeholder).Label(placeholder)
+	in := kit.Field(c, e.u.Navigator(), [2]any{"editor-field", key}, v, placeholder)
 	if mono {
-		in = in.Font("monospace")
+		in.Font("monospace")
 	}
-	return nav.Item(nav.Handle(k), in, nil, kit.TextField)
+	return in
 }
 
 // area is a multi-line text input bound to *v.
 func (e *Page) area(c *ui.Context, key any, v *string, placeholder string, height float32) {
-	nav := e.u.Navigator()
-	k := [2]any{"editor-area", key}
-	nav.Item(nav.Handle(k), ui.TextArea(c.Key(k), v).Placeholder(placeholder).Label(placeholder).Font("monospace").Height(height), nil, kit.TextField)
+	kit.TextArea(c, e.u.Navigator(), [2]any{"editor-area", key}, v, placeholder, height)
 }
 
 // View draws the page: the scrolling form over the Save / Cancel bar.
@@ -245,16 +231,18 @@ func (e *Page) View(c *ui.Context) {
 	if e.vm.id != "" {
 		head = i18n.L("Edit game")
 	}
+	width := kit.PageWide
+	if e.vm.id == "" {
+		width = kit.PageForm
+	}
 	ui.Column(c).Grow(1).Children(func() {
-		ui.Scroll(c).Grow(1).TrackScroll(&e.scroll).Children(func() {
-			ui.Column(c).Gap(10).Padding(0, 20, 20, 20).Children(func() {
-				kit.PageHead(c, nav, nav.Handle("editor-back"), e.u.Back, head, nil)
-				if e.vm.loading {
-					kit.Muted(c, i18n.L("Loading…"))
-					return
-				}
-				e.form(c)
-			})
+		kit.Page(c, width, &e.scroll, func() {
+			kit.PageHead(c, nav, e.u.Back, i18n.L("Back"), head, nil)
+			if e.vm.loading {
+				kit.Muted(c, i18n.L("Loading…"))
+				return
+			}
+			e.form(c)
 		})
 		if !e.vm.loading {
 			e.bar(c)
@@ -266,7 +254,7 @@ func (e *Page) form(c *ui.Context) {
 	if e.vm.id == "" {
 		// A new game is filled in from top to bottom, one card after the other;
 		// the artwork is optional, so it starts folded.
-		ui.Column(c).MaxWidth(780).Gap(10).Children(func() {
+		ui.Column(c).Gap(kit.S4).Children(func() {
 			e.gameCard(c)
 			e.howCard(c)
 			if e.vm.kind != KindEmulator {
@@ -276,7 +264,7 @@ func (e *Page) form(c *ui.Context) {
 			if e.vm.kind != KindDirect {
 				e.emulatorsCard(c)
 			}
-			ui.Collapsible(c.Key("art-open"), i18n.L("Steam artwork (optional)"), &e.vm.artOpen, func() { e.artworkCard(c) })
+			kit.Disclosure(c, e.u.Navigator(), "art-open", i18n.L("Steam artwork (optional)"), &e.vm.artOpen, func() { e.artworkCard(c) })
 		})
 		return
 	}
@@ -287,8 +275,8 @@ func (e *Page) form(c *ui.Context) {
 	if e.vm.kind == KindEmulator {
 		left, right = 3, 2
 	}
-	ui.Row(c).MaxWidth(1400).Gap(16).Wrap().AlignItems(ui.Start).Children(func() {
-		ui.Column(c).Grow(left).MinWidth(440).Gap(10).Children(func() {
+	ui.Row(c).Gap(kit.S4).Wrap().AlignItems(ui.Start).Children(func() {
+		ui.Column(c).Grow(left).MinWidth(440).Gap(kit.S4).Children(func() {
 			e.gameCard(c)
 			e.howCard(c)
 			if e.vm.kind != KindEmulator {
@@ -298,7 +286,7 @@ func (e *Page) form(c *ui.Context) {
 				e.emulatorsCard(c)
 			}
 		})
-		ui.Column(c).Grow(right).MinWidth(440).Gap(10).Children(func() {
+		ui.Column(c).Grow(right).MinWidth(440).Gap(kit.S4).Children(func() {
 			if e.vm.kind != KindEmulator {
 				e.savesCard(c)
 			}
@@ -313,7 +301,7 @@ func (e *Page) bar(c *ui.Context) {
 	t := c.Theme()
 	ui.Column(c).Background(t.Surface).Children(func() {
 		ui.Divider(c)
-		ui.Row(c).Gap(10).Padding(10, 28).AlignItems(ui.Center).Children(func() {
+		ui.Row(c).Gap(kit.S3).Padding(kit.S3, kit.S8).AlignItems(ui.Center).Children(func() {
 			var note ui.Element
 			switch e.vm.BarNote() {
 			case NoteError:
@@ -328,12 +316,12 @@ func (e *Page) bar(c *ui.Context) {
 				note = ui.Spacer(c)
 			}
 			note.Grow(1)
-			e.button(c, "cancel", i18n.L("Cancel"), false, false, e.u.Back)
+			e.btn(c, "cancel", kit.BtnSecondary, nil, i18n.L("Cancel"), false, e.u.Back)
 			label := i18n.L("Save")
 			if e.vm.saving {
 				label = i18n.L("Saving…")
 			}
-			e.button(c, "save", label, true, !e.vm.CanSave(), e.save)
+			e.btn(c, "save", kit.BtnPrimary, nil, label, !e.vm.CanSave(), e.save)
 		})
 	})
 }

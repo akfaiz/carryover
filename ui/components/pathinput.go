@@ -64,20 +64,13 @@ func (p *PathInput) View(c *ui.Context, key any) ui.Element {
 	}
 	return ui.Column(c).Gap(4).Children(func() {
 		ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
-			in := ui.TextInput(c.Key(k), &p.Text).Placeholder(p.Placeholder).Label(p.Placeholder).Font("monospace").Grow(1)
-			nav.Item(nav.Handle(k), in, nil, kit.TextField)
+			kit.Field(c, nav, k, &p.Text, p.Placeholder).Font("monospace").Grow(1)
 			if len(p.tokens) > 0 {
 				// Named, not "{ }": the tokens are what it inserts, which the
 				// symbol alone didn't say.
-				tk := [2]any{"path-tokens", key}
-				if nav.Item(nav.Handle(tk), ui.Button(c.Key(tk), i18n.L("Tokens")+" ▾"), p.showTokens).Clicked() {
-					p.showTokens()
-				}
+				kit.Btn(c, nav, [2]any{"path-tokens", key}, kit.BtnSecondary, nil, i18n.L("Tokens"), p.showTokens)
 			}
-			bk := [2]any{"path-browse", key}
-			if nav.Item(nav.Handle(bk), ui.Button(c.Key(bk), i18n.L("Browse…")), p.browse).Clicked() {
-				p.browse()
-			}
+			kit.Btn(c, nav, [2]any{"path-browse", key}, kit.BtnSecondary, kit.IconFolderOpen, i18n.L("Browse…"), p.browse)
 		})
 		if p.preview != "" {
 			kit.Small(c, "→ "+p.preview).Font("monospace").TextColor(c.Theme().TextMuted)
@@ -97,11 +90,8 @@ func (p *PathInput) showTokens() {
 			if desc == "" {
 				desc = t.Description
 			}
-			k := [3]any{"path-token", p.gameID, i}
-			pick := func() { d.Close(); p.insert(t.Token) }
-			if nav.Item(nav.Handle(k), ui.Button(c.Key(k), t.Token+"   "+desc).AlignSelf(ui.Stretch), pick).Clicked() {
-				pick()
-			}
+			kit.Btn(c, nav, [3]any{"path-token", p.gameID, i}, kit.BtnSecondary, nil, t.Token+"   "+desc, func() { d.Close(); p.insert(t.Token) }).
+				AlignSelf(ui.Stretch).Justify(ui.Start)
 		}
 	}})
 }

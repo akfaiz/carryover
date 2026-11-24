@@ -34,12 +34,7 @@ func (t *TestButton) Button(c *ui.Context, nav *Navigator, key any) ui.Element {
 	if t.running {
 		label = t.runningText
 	}
-	k := [2]any{"test", key}
-	b := ui.Button(c.Key(k), label).Disabled(!t.allowed || t.running)
-	if nav.Item(nav.Handle(k), b, t.run).Clicked() {
-		t.run()
-	}
-	return b
+	return Btn(c, nav, [2]any{"test", key}, BtnSecondary, nil, label, t.run, BtnDisabled(!t.allowed), BtnBusy(t.running))
 }
 
 // Result draws the outcome of the last check, if there is one.

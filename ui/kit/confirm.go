@@ -44,8 +44,8 @@ func (d *Confirm) View(c *ui.Context, nav *Navigator) {
 	nav.Overlay("confirm", d.open, d.Close, func() {
 		ui.Modal(c, &d.open, func() {
 			t := c.Theme()
-			ui.Column(c).Gap(12).Padding(20).Width(420).Children(func() {
-				ui.Text(c, d.opts.Title).FontSize(16).Bold()
+			ui.Column(c).Gap(S3).Padding(S6).Width(420).Children(func() {
+				Heading(c, d.opts.Title)
 				body := d.opts.Body
 				if d.ticked && d.opts.Checked != "" {
 					body = d.opts.Checked
@@ -54,14 +54,12 @@ func (d *Confirm) View(c *ui.Context, nav *Navigator) {
 				if d.opts.Check != "" {
 					nav.Item(&d.h[2], ui.Checkbox(c.Key("confirm-check"), &d.ticked, d.opts.Check), func() { d.ticked = !d.ticked })
 					if !d.ticked && d.opts.KeptHint != "" {
-						ui.Text(c, d.opts.KeptHint).Wrap().FontSize(12).TextColor(t.TextMuted)
+						ui.Text(c, d.opts.KeptHint).Wrap().FontSize(TextSM).TextColor(t.TextMuted)
 					}
 				}
-				ui.Row(c).Gap(8).Justify(ui.End).Children(func() {
+				Footer(c, func() {
 					cancel := func() { d.open = false }
-					if nav.Item(&d.h[0], ui.Button(c.Key("confirm-cancel"), d.opts.Cancel), cancel, FocusSafe).Clicked() {
-						cancel()
-					}
+					Btn(c, nav, "confirm-cancel", BtnSecondary, nil, d.opts.Cancel, cancel, BtnItem(FocusSafe))
 					ok := func() {
 						d.open = false
 						if d.ok != nil {
@@ -71,15 +69,11 @@ func (d *Confirm) View(c *ui.Context, nav *Navigator) {
 							d.opts.OnConfirm(d.ticked)
 						}
 					}
-					var btn ui.Element
+					kind := BtnPrimary
 					if d.opts.Danger {
-						btn = ui.Button(c.Key("confirm-ok"), d.opts.OK).TextColor(t.Danger)
-					} else {
-						btn = ui.PrimaryButton(c.Key("confirm-ok"), d.opts.OK)
+						kind = BtnDanger
 					}
-					if nav.Item(&d.h[1], btn, ok).Clicked() {
-						ok()
-					}
+					Btn(c, nav, "confirm-ok", kind, nil, d.opts.OK, ok)
 				})
 			})
 		})

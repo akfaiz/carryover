@@ -86,36 +86,25 @@ func (p *Page) syncRoot() {
 // View draws the page.
 func (p *Page) View(c *ui.Context) {
 	nav := p.u.Navigator()
-	ui.Scroll(c).Grow(1).TrackScroll(&p.scroll).Children(func() {
-		ui.Column(c).Gap(10).Padding(0, 20, 20, 20).Children(func() {
-			kit.PageHead(c, nav, nil, nil, i18n.L("Cloud storage"), nil)
-			p.syncRoot()
-			if !p.vm.HasRemote() {
-				// First run: the remote comes first; the first one added becomes the
-				// sync location by itself.
-				kit.Muted(c, i18n.L("Carryover keeps your saves in your own cloud storage. Add a remote (or import your rclone config) and it becomes the sync location; every device then uses the same one."))
-				p.remotes(c)
-				p.location(c)
-				return
-			}
-			p.location(c)
+	kit.Page(c, kit.PageForm, &p.scroll, func() {
+		kit.PageHead(c, nav, nil, "", i18n.L("Cloud storage"), nil)
+		p.syncRoot()
+		if !p.vm.HasRemote() {
+			// First run: the remote comes first; the first one added becomes the
+			// sync location by itself.
+			kit.Muted(c, i18n.L("Carryover keeps your saves in your own cloud storage. Add a remote (or import your rclone config) and it becomes the sync location; every device then uses the same one."))
 			p.remotes(c)
-		})
+			p.location(c)
+			return
+		}
+		p.location(c)
+		p.remotes(c)
 	})
 }
 
-func (p *Page) button(c *ui.Context, key, label string, primary bool, action func()) {
-	nav := p.u.Navigator()
-	k := [2]any{"cloud", key}
-	var b ui.Element
-	if primary {
-		b = ui.PrimaryButton(c.Key(k), label)
-	} else {
-		b = ui.Button(c.Key(k), label)
-	}
-	if nav.Item(nav.Handle(k), b, action).Clicked() {
-		action()
-	}
+// btn draws a button that registers with the gamepad.
+func (p *Page) btn(c *ui.Context, key string, kind kit.BtnKind, icon *ui.SVG, label string, action func()) {
+	kit.Btn(c, p.u.Navigator(), [2]any{"cloud", key}, kind, icon, label, action)
 }
 
 func (p *Page) location(c *ui.Context) {
@@ -132,10 +121,10 @@ func (p *Page) location(c *ui.Context) {
 	p.test.SetAllowed(vm.Remote() != "")
 	kit.Card(c, i18n.L("Sync location"), func() {
 		kit.Muted(c, i18n.L("All devices must use the same remote storage and folder. Saves go to <folder>/games/<game>/."))
-		ui.Row(c).Gap(12).Children(func() {
+		ui.Row(c).Gap(kit.S3).Children(func() {
 			ui.Column(c).Grow(1).Children(func() {
 				kit.Labeled(c, i18n.L("Remote"), func() {
-					kit.SelectOf(c, nav, u.Dialogs(), "remote", i18n.L("Remote"), remotes, vm.Remote(), func(v string) {
+					kit.SelectOf(c, nav, "remote", i18n.L("Remote"), remotes, vm.Remote(), func(v string) {
 						if vm.Unsupported(v) {
 							u.Toast(i18n.L("This provider isn't included in Carryover"), kit.ToastErr)
 						}
@@ -146,12 +135,12 @@ func (p *Page) location(c *ui.Context) {
 			})
 			ui.Column(c).Grow(1).Children(func() {
 				kit.Labeled(c, i18n.L("Folder"), func() {
-					nav.Item(nav.Handle("cloud-root"), ui.TextInput(c.Key("cloud-root"), &p.root).Font("monospace").Label(i18n.L("Folder")), nil, kit.TextField)
+					kit.Field(c, nav, "cloud-root", &p.root, "").Label(i18n.L("Folder")).Font("monospace")
 				})
 			})
 		})
-		ui.Row(c).Gap(8).Children(func() {
-			p.button(c, "use", i18n.L("Use this location"), true, vm.SaveTarget)
+		ui.Row(c).Gap(kit.S2).Children(func() {
+			p.btn(c, "use", kit.BtnPrimary, nil, i18n.L("Use this location"), vm.SaveTarget)
 			p.test.Button(c, nav, "cloud")
 		})
 		p.test.Result(c)
@@ -160,20 +149,25 @@ func (p *Page) location(c *ui.Context) {
 
 func (p *Page) remotes(c *ui.Context) {
 	u, vm := p.u, p.vm
-	kit.Card(c, "", func() {
-		kit.CardHead(c, i18n.L("Remotes"), func() {
-			if vm.DefaultConfig() != "" {
-				p.button(c, "import-default", i18n.L("Import from rclone"), false, func() { vm.ImportConf(vm.DefaultConfig()) })
-			}
-			p.button(c, "import-file", i18n.L("Import rclone.conf…"), false, p.pickConf)
-			p.button(c, "add", i18n.L("＋ Add remote"), true, p.addRemote)
-		})
-		if len(vm.Remotes()) == 0 {
-			kit.Muted(c, i18n.L("No remotes yet. Add one (Google Drive, Dropbox, OneDrive, WebDAV/Nextcloud, SFTP or SMB) or import your existing rclone config."))
+	actions := func() {
+		if vm.DefaultConfig() != "" {
+			p.btn(c, "import-default", kit.BtnSecondary, kit.IconDownload, i18n.L("Import from rclone"), func() { vm.ImportConf(vm.DefaultConfig()) })
 		}
-		for _, r := range vm.Remotes() {
-			ui.Divider(c)
-			p.remoteRow(c, r, vm.IsActive(r.Name), func() {
+		p.btn(c, "import-file", kit.BtnSecondary, kit.IconFolderOpen, i18n.L("Import rclone.conf…"), p.pickConf)
+		p.btn(c, "add", kit.BtnPrimary, kit.IconPlus, i18n.L("Add remote"), p.addRemote)
+	}
+	if len(vm.Remotes()) == 0 {
+		// The first step of the setup: one empty state with every way to start.
+		kit.Card(c, "", func() {
+			kit.EmptyState(c, kit.IconCloud, i18n.L("No remotes yet"),
+				i18n.L("Add one (Google Drive, Dropbox, OneDrive, WebDAV/Nextcloud, SFTP or SMB) or import your existing rclone config."), actions)
+		})
+		return
+	}
+	kit.Card(c, "", func() {
+		kit.CardHead(c, i18n.L("Remotes"), actions)
+		for i, r := range vm.Remotes() {
+			p.remoteRow(c, i == 0, r, vm.IsActive(r.Name), func() {
 				msg := i18n.L("Delete remote “{{.Name}}”? The files in it are not touched.", map[string]any{"Name": r.Name})
 				if vm.IsActive(r.Name) {
 					msg = i18n.L("Delete remote “{{.Name}}”? It is the sync location, so syncing stops until you choose another one. The files in it are not touched.", map[string]any{"Name": r.Name})
@@ -188,25 +182,19 @@ func (p *Page) remotes(c *ui.Context) {
 
 // remoteRow is one configured rclone remote: name (with an "active" badge),
 // type (with an "unsupported" badge) and a delete button.
-func (p *Page) remoteRow(c *ui.Context, r cloud.Remote, active bool, onDelete func()) {
-	nav := p.u.Navigator()
-	ui.Row(c).Gap(12).AlignItems(ui.Center).Children(func() {
-		ui.Row(c).Gap(8).AlignItems(ui.Center).Grow(1).Children(func() {
-			ui.Text(c, r.Name).Bold()
+func (p *Page) remoteRow(c *ui.Context, first bool, r cloud.Remote, active bool, onDelete func()) {
+	kit.ListRow(c, first, r.Name, func() {
+		ui.Row(c).Gap(kit.S2).AlignItems(ui.Center).Children(func() {
+			kit.Small(c, r.Type)
 			if active {
 				kit.Badge(c, i18n.L("Active"), kit.BadgeOK)
 			}
-		})
-		ui.Row(c).Gap(8).AlignItems(ui.Center).Grow(1).Children(func() {
-			kit.Small(c, r.Type)
 			if !r.Supported {
 				kit.Badge(c, i18n.L("Unsupported"), kit.BadgeWarn)
 			}
 		})
-		k := [2]any{"remote-delete", r.Name}
-		if nav.Item(nav.Handle(k), ui.Button(c.Key(k), i18n.L("Delete")).TextColor(c.Theme().Danger), onDelete).Clicked() {
-			onDelete()
-		}
+	}, func() {
+		p.btn(c, "remote-delete:"+r.Name, kit.BtnDanger, kit.IconTrash, i18n.L("Delete"), onDelete)
 	})
 }
 

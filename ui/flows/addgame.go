@@ -62,16 +62,14 @@ func showAddGame(u env.Env, l services.Launchers) {
 		Title: i18n.L("Add a game"),
 		Width: float32(len(tiles))*(kit.ChoiceTileSize+16) + 80,
 		Body: func(c *ui.Context, nav *kit.Navigator) {
-			ui.Row(c).Gap(8).Wrap().Children(func() {
-				for _, t := range tiles {
-					kit.ChoiceTile(c, nav, "add:"+t.name, t.name, t.icon, false, func() { d.Close(); t.do() })
-				}
+			kit.ChoiceGrid(c, d.ContentWidth(c), len(tiles), func(i int) {
+				t := tiles[i]
+				kit.ChoiceTile(c, nav, "add:"+t.name, t.name, t.icon, false, func() { d.Close(); t.do() })
 			})
 			kit.Muted(c, strings.Join(help, " "))
-			cancel := func() { d.Close() }
-			if nav.Item(nav.Handle("add-cancel"), ui.Button(c.Key("add-cancel"), i18n.L("Cancel")), cancel, kit.FocusSafe).Clicked() {
-				cancel()
-			}
+			kit.Footer(c, func() {
+				kit.Btn(c, nav, "add-cancel", kit.BtnSecondary, nil, i18n.L("Cancel"), func() { d.Close() }, kit.BtnItem(kit.FocusSafe))
+			})
 		},
 	})
 }

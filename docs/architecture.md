@@ -103,16 +103,16 @@ flowchart LR
 
 | Package | Role |
 | --- | --- |
-| `ui/kit` | Reusable MyGo building blocks: the palette and theme, cards, badges, text styles, the dialog host, the gamepad Navigator, image cache, progress line. Pure toolkit: no `i18n`, `services` or `core` imports and no user-visible text (callers pass labels in). |
+| `ui/kit` | Reusable MyGo building blocks: design tokens (`tokens.go`: type, spacing, radii, page widths), the palette and theme, icons, buttons (`Btn`, `IconBtn`, `Toggle`, `ToggleRow`), inputs (`Field`, `TextArea`, `SearchField`, `SelectOf`, `Chips`), page layout (`Page`, `PageHead`, `Card`, `ListRow`, `Footer`), blocks (`Callout`, `EmptyState`, `ArtBackdrop`), badges, text styles, the dialog host, the toaster, the gamepad Navigator and its hints, image cache, progress line. Pure toolkit: no `i18n`, `services` or `core` imports and no user-visible text (callers pass labels in). |
 | `ui/i18n` | Translation catalogs (`translations/*.json`) and `i18n.L`/`i18n.N`, on its own go-i18n localizer (no toolkit import). |
 | `ui/textutil` | Plain string helpers the ViewModels share (`Slug`, `SplitLines`, `LabelOf`). |
 | `ui/store` | The state every page shares (games, settings, session status, transfer progress, "Sync all"). The only listener of `services.Bus`; pages subscribe by topic. The shell hands it the UI-goroutine runner (`store.New(load, onUI)`). |
 | `ui/envcore` | `envcore.Services`: the services and the store, the part of `env.Env` a ViewModel's backend holds. |
 | `ui/env` | What a page may use of the app: `env.Env` (`envcore.Services` plus window, navigation, toasts) and the page contracts (`Page`, `Stateful`, `Guarded`, `Searchable`, `Syncable`, `PadFocuser`, `Redrawable`). |
-| `ui/components` | Shared widgets and dialogs that know about the app (help text, confirm dialogs, path input, status badges). `components/emulatorform` is the emulator form the Emulators page and the game editor share. |
+| `ui/components` | Shared widgets and dialogs that know about the app (help text, confirm dialogs, the action menu, path input, status badges). `components/emulatorform` is the emulator form the Emulators page and the game editor share. |
 | `ui/flows` | Multi-step actions that open dialogs, call services and navigate: add a game, import from Steam, set the SteamGridDB key, open a game in Steam. |
 | `ui/prompts` | The session prompt dialogs (conflict, lock, error, which emulator). |
-| `ui/pages/<name>` | One page: `viewmodel.go` (state and rules, no widgets) and `view.go` (builds the widgets once, redraws from the ViewModel). The pages are `library`, `trash`, `settings`, `emulators`, `cloud`, `session`, `editor` and `game`; `library` is the reference. |
+| `ui/pages/<name>` | One page: `viewmodel.go` (state and rules, no widgets) and `view.go` (reads the ViewModel and draws it in every frame). The pages are `library`, `trash`, `settings`, `emulators`, `cloud`, `session`, `editor` and `game`; `library` is the reference. |
 | `ui/shell` | The main window: sidebar, router, shortcuts, gamepad, toasts, notices and the session wrapper window. Implements `env.Env` and knows no page: the root plugs them in through `shell.Config`. |
 | `ui` (root) | Composition root: `Run`, the route table (`routes.go`), the sync-problems dialog and the embedded artwork. |
 | `ui/internal/uitest` | Headless test harness shared by the page tests. A page's view tests live in its package; the root `ui` package keeps only the tests that need several real pages at once. |
@@ -121,6 +121,32 @@ Imports go one way: `kit`, `i18n`, `textutil` <- `store` <- `envcore` <- `env` <
 <- `ui`. A page never imports `shell` or another page; it opens one with `env.Navigate("/game/<id>")`. Under `ui/`
 only `shell` and the root import `internal/core`; the rest reaches it through `services` (`services/aliases.go`
 re-exports the types the UI needs).
+
+### Look and feel
+
+One look for every page, set in `ui/kit`: a page draws its content in `kit.Page` (padding, gap and a width limit),
+starts with `kit.PageHead` (a ghost Back button on its own line, then the title and actions), groups content in
+`kit.Card`/`kit.SubCard`, lists rows with `kit.ListRow` and ends a dialog or form with `kit.Footer`. Buttons are
+`kit.Btn` (primary, secondary, danger or ghost, with an optional icon; `kit.BtnLarge()` for a page's one main action
+such as Play, `kit.BtnSmall()` for inline actions) and `kit.IconBtn`; they register with the Navigator themselves and
+run their action on a click or A. Text is typed into `kit.Field`/`kit.TextArea` (registered as text fields, so A opens
+Steam's keyboard), searched with `kit.SearchField`, and settings switch with `kit.ToggleRow` (title, one-line
+description, switch). Sizes, spacing and radii are the `kit.Text*`, `kit.S*` and `kit.Radius*` tokens, icons the
+`kit.Icon*` SVGs. `kit.SelectOf` is a drawn select (a field with a popover list) that behaves the same with the mouse,
+the keyboard and a gamepad; `kit.Chips` is a row of filter pills (`Warn` tints one that needs a look).
+
+What the user should notice goes in a `kit.Callout` (a tinted box with an icon, by badge kind), never a bare colored
+line. A page or list with nothing in it shows `kit.EmptyState` (icon, title, text and the buttons that fill it).
+Optional explanations fold behind `components.Help` (a summary and a small "More"). A row's or page's secondary
+actions sit behind a `kit.IconMore` button that opens `components.ActionMenu`. `kit.ArtPage` is `kit.Page` with a
+game's hero artwork faded behind its top, across the whole window. A page's content is `kit.PageFull` (a grid that
+fills any window), `kit.PageWide` or `kit.PageForm` wide, and centered in a wider window. Toasts are drawn by `kit.Toaster` (bottom right, kind by icon, a countdown bar); a
+controller's buttons are shown with `kit.PadHints`.
+
+`TestPagesUseTheKitStyle` (`ui`) fails when a page, component, flow or prompt uses `ui.Button`, `ui.PrimaryButton`,
+`ui.Checkbox`, `ui.TextInput`, `ui.TextArea`, a literal font size or a glyph in place of an icon. A long page view is
+split by topic into files of its package (`pages/game`: `hero.go`, `saves.go`, `backups.go`, `steam.go`;
+`pages/editor`: `cards.go`, `artwork.go`, `emulators.go`).
 
 ### Immediate mode
 
@@ -141,7 +167,7 @@ When you add or change a page:
   button does) in the ViewModel and test it with fakes; keep widgets in the view.
 - The ViewModel exposes plain state (enums, counts, `[]services.GameView`); the view turns it into text with
   `i18n.L`.
-- Touch widgets only on the UI goroutine; I/O goes through `kit.Async`.
+- Use MyGo state only on the UI goroutine (`kit.OnUI` hops back to it); I/O goes through `kit.Async`.
 - Declare the page contracts a page implements (`var _ env.Guarded = (*Page)(nil)`): the shell finds them by
   type assertion, so a missing method would otherwise fail silently.
 

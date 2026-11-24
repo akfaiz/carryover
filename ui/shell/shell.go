@@ -10,7 +10,6 @@ package shell
 
 import (
 	"errors"
-	"fmt"
 	"log"
 	"time"
 
@@ -74,7 +73,10 @@ type Shell struct {
 	themeDirty bool
 	closing    bool
 	wrapper    bool // the window is the wrapper of `carryover run`
-	stopPad    func()
+	// wrapFull: the wrapper window is full screen (Game Mode, Big Picture);
+	// wrapGrown: the desktop wrapper window is grown for a prompt.
+	wrapFull, wrapGrown bool
+	stopPad             func()
 
 	sideH     [5]ui.Handle // the places of the sidebar
 	exitH     ui.Handle
@@ -154,12 +156,22 @@ func (u *Shell) BuildMain() {
 			u.ApplyTheme(u.store.Settings.Theme)
 		})
 	})
+	// The window comes back where it was left, from the state dir (so that
+	// CARRYOVER_HOME applies); the store must be set before the first window
+	// with a StateKey.
+	mygo.App.SetWindowStateStore(newWindowStates(u.c.Dirs.StateDir()))
 	u.win = mygo.NewWindow(mygo.WindowOptions{
-		Title:   "Carryover",
-		Width:   1180,
-		Height:  760,
-		Content: ui.View(u.view),
+		Title:    "Carryover",
+		StateKey: mainWindowKey,
+		Width:    1180,
+		Height:   760,
+		// Small enough for any laptop; below it the sidebar squeezes the
+		// pages to nothing.
+		MinWidth:  mainMinW,
+		MinHeight: mainMinH,
+		Content:   ui.View(u.view),
 	})
+	u.setWindowIcon()
 	u.win.OnClose(u.onClose)
 	u.applyFullScreen()
 	u.Init()
@@ -238,7 +250,9 @@ func (u *Shell) view(c *ui.Context) {
 		ui.Column(c).Fill().Children(func() {
 			ui.Row(c).Grow(1).AlignItems(ui.Stretch).Children(func() {
 				u.sidebar(c)
-				ui.Column(c).Grow(1).Padding(0, 0, 0, 16).Children(func() {
+				ui.Box(c).Width(1).Background(c.Theme().Border)
+				// No padding: a page's artwork reaches the divider; kit.Page pads the content.
+				ui.Column(c).Grow(1).Children(func() {
 					if u.page != nil {
 						u.nav.MarkPage()
 						u.page.View(c)
@@ -258,6 +272,7 @@ func (u *Shell) wrapperView(c *ui.Context) {
 			u.page.View(c)
 		})
 	})
+	u.fitWrapper()
 }
 
 // kitTheme is the palette as a theme (a func so tests can stand in).
@@ -286,58 +301,68 @@ func (u *Shell) shortcuts(c *ui.Context) {
 	}
 }
 
-// showToasts hands the toasts asked for since the last frame to MyGo.
+// showToasts hands the toasts asked for since the last frame to MyGo and
+// draws them in the bottom right corner, above the gamepad hints.
 func (u *Shell) showToasts(c *ui.Context) {
 	for _, t := range u.toastQ {
-		typ := "info"
-		switch t.kind {
-		case kit.ToastOK:
-			typ = "success"
-		case kit.ToastErr:
-			typ = "error"
-		}
-		c.AddToast(ui.Toast{Description: t.text, Type: typ})
+		c.AddToast(kit.Toast(t.text, t.kind))
 	}
 	u.toastQ = u.toastQ[:0]
+	bottom := kit.S6
+	if u.nav.PadPresent() {
+		bottom += padHintsHeight
+	}
+	kit.Toaster(c, bottom, i18n.L("Close"))
 }
 
-// sidebarPlaces are the sidebar's entries in order; the labels are looked up
-// when drawn, since text goes through i18n.
-func (u *Shell) sidebarPlaces() []struct{ path, label string } {
-	return []struct{ path, label string }{
-		{"/", i18n.L("Library")},
-		{"/emulators", i18n.L("Emulators")},
-		{"/cloud", i18n.L("Cloud")},
-		{"/trash", u.trashLabel()},
-		{"/settings", i18n.L("Settings")},
+// The main window's smallest size: the sidebar and three library covers in a
+// row; pages with two columns stack them.
+const (
+	mainMinW = 900
+	mainMinH = 600
+)
+
+// padHintsHeight is about the height of the gamepad hint bar.
+const padHintsHeight float32 = 40
+
+// sidebarPlace is one entry of the sidebar; the label is looked up when drawn,
+// since text goes through i18n.
+type sidebarPlace struct {
+	path, label string
+	icon        *ui.SVG
+	count       int
+}
+
+// sidebarPlaces are the sidebar's entries in order. Trash counts the games and
+// emulators that can be restored. (Leftover cloud saves are counted on the page
+// itself: they are not something deleted from here.)
+func (u *Shell) sidebarPlaces() []sidebarPlace {
+	return []sidebarPlace{
+		{"/", i18n.L("Library"), kit.IconLibrary, 0},
+		{"/emulators", i18n.L("Emulators"), kit.IconGamepad, 0},
+		{"/cloud", i18n.L("Cloud"), kit.IconCloud, 0},
+		{"/trash", i18n.L("Trash"), kit.IconTrash, u.store.TrashCount},
+		{"/settings", i18n.L("Settings"), kit.IconSettings, 0},
 	}
 }
 
 func (u *Shell) sidebar(c *ui.Context) {
 	t := c.Theme()
-	ui.Column(c).Width(216).Padding(12).Gap(4).Background(t.Surface).Children(func() {
-		ui.Row(c).Gap(8).AlignItems(ui.Center).Padding(0, 0, 8, 0).Children(func() {
+	ui.Column(c).Width(224).Padding(kit.S3).Gap(kit.S1).Background(t.Surface).Children(func() {
+		ui.Row(c).Gap(kit.S3).AlignItems(ui.Center).Padding(kit.S1, kit.S2, kit.S3, kit.S2).Children(func() {
 			if u.logo != nil {
-				ui.Image(c, u.logo).Size(30, 30)
+				ui.Image(c, u.logo).Size(32, 32)
 			}
-			ui.Text(c, "Carryover").FontSize(16).Bold()
+			ui.Text(c, "Carryover").FontSize(kit.TextCard).Bold()
 		})
 		ui.Divider(c)
 		places := u.sidebarPlaces()
 		section := sectionOf(u.route)
 		item := func(i int) {
 			p := places[i]
-			var b ui.Element
-			if p.path == section {
-				b = ui.PrimaryButton(c.Key([2]any{"side", i}), p.label)
-			} else {
-				b = ui.Button(c.Key([2]any{"side", i}), p.label)
-			}
-			go1 := func() { u.navigate(p.path) }
-			if u.nav.Item(&u.sideH[i], b.AlignSelf(ui.Stretch), go1).Clicked() {
-				go1()
-			}
+			kit.NavItem(c, u.nav, &u.sideH[i], i, p.icon, p.label, p.path == section, p.count, func() { u.navigate(p.path) })
 		}
+		ui.Box(c).Height(kit.S1)
 		for i := range 3 {
 			item(i)
 		}
@@ -346,23 +371,20 @@ func (u *Shell) sidebar(c *ui.Context) {
 			item(i)
 		}
 		if u.showExit() {
-			exit := u.askClose
-			if u.nav.Item(&u.exitH, ui.Button(c.Key("exit"), i18n.L("Exit")).AlignSelf(ui.Stretch), exit).Clicked() {
-				exit()
-			}
+			kit.NavItem(c, u.nav, &u.exitH, "exit", kit.IconExit, i18n.L("Exit"), false, 0, u.askClose)
 		}
 		ui.Divider(c)
 		u.activity(c)
 		s := &u.store.Settings
-		ui.Text(c, s.DeviceName).FontSize(12).TextColor(t.TextMuted)
-		switch {
-		case s.Remote != "":
-			ui.Text(c, s.Remote+":"+s.RemoteRoot).FontSize(12).TextColor(t.TextMuted)
-		case u.store.Loaded:
-			cloud := func() { u.navigate("/cloud") }
-			if u.nav.Item(&u.cloudH, ui.Button(c.Key("nocloud"), i18n.L("No cloud configured")).TextColor(t.Warning).AlignSelf(ui.Stretch), cloud).Clicked() {
-				cloud()
+		ui.Column(c).Gap(2).Padding(kit.S1, kit.S2, 0, kit.S2).Children(func() {
+			ui.Text(c, s.DeviceName).FontSize(kit.TextSM).TextColor(t.TextMuted).SingleLine()
+			if s.Remote != "" {
+				ui.Text(c, s.Remote+":"+s.RemoteRoot).FontSize(kit.TextSM).TextColor(t.TextMuted).SingleLine()
 			}
+		})
+		if s.Remote == "" && u.store.Loaded {
+			kit.NavItem(c, u.nav, &u.cloudH, "nocloud", kit.IconAlert, i18n.L("No cloud configured"), false, 0,
+				func() { u.navigate("/cloud") }, t.Warning)
 		}
 	})
 }
@@ -372,16 +394,13 @@ func (u *Shell) sidebar(c *ui.Context) {
 // opens the page it belongs to.
 func (u *Shell) activity(c *ui.Context) {
 	n := 0
-	entry := func(label string, to string) {
+	entry := func(label string, to string, icon *ui.SVG) {
 		if n >= len(u.activityH) {
 			return
 		}
 		h := &u.activityH[n]
 		n++
-		open := func() { u.navigate(to) }
-		if u.nav.Item(h, ui.Button(c.Key([2]any{"act", n}), label).AlignSelf(ui.Stretch), open).Clicked() {
-			open()
-		}
+		kit.NavItem(c, u.nav, h, [2]any{"act", n}, icon, label, false, 0, func() { u.navigate(to) })
 	}
 	// The library shows "Sync all" progress itself; elsewhere it shows here.
 	if u.store.SyncAll.Running && u.route != "/" {
@@ -389,11 +408,11 @@ func (u *Shell) activity(c *ui.Context) {
 		if p := u.store.SyncAll.Progress; p.Total > 0 {
 			text = i18n.L("Syncing {{.Done}} of {{.Total}}", map[string]any{"Done": p.Done, "Total": p.Total})
 		}
-		entry(text, "/")
+		entry(text, "/", kit.IconRefresh)
 	}
 	for _, g := range u.store.Games {
 		if st, ok := u.store.Status[g.ID]; ok && st.Running {
-			entry(i18n.L("Playing {{.Game}}", map[string]any{"Game": g.Name}), "/game/"+g.ID)
+			entry(i18n.L("Playing {{.Game}}", map[string]any{"Game": g.Name}), "/game/"+g.ID, kit.IconDot)
 		}
 	}
 }
@@ -403,21 +422,15 @@ func (u *Shell) padHints(c *ui.Context) {
 	if !u.nav.PadPresent() {
 		return
 	}
-	t := c.Theme()
-	hints := []struct{ button, what string }{
-		{"A", i18n.L("Select")}, {"B", i18n.L("Back")}, {"LB / RB", i18n.L("Section")},
-		{"X", i18n.L("Search")}, {"Y", i18n.L("Sync")}, {"R", i18n.L("Scroll")},
+	hints := []kit.PadHint{
+		{Button: "A", Label: i18n.L("Select")}, {Button: "B", Label: i18n.L("Back")}, {Button: "LB / RB", Label: i18n.L("Section")},
+		{Button: "X", Label: i18n.L("Search")}, {Button: "Y", Label: i18n.L("Sync")}, {Button: "R", Label: i18n.L("Scroll")},
 	}
 	if !gamemode.Active() { // Game Mode is always full screen
-		hints = append(hints, struct{ button, what string }{"View", i18n.L("Full screen")})
+		hints = append(hints, kit.PadHint{Button: "View", Label: i18n.L("Full screen")})
 	}
-	ui.Row(c).Gap(14).Padding(8, 16).Justify(ui.End).Children(func() {
-		for _, h := range hints {
-			ui.Row(c).Gap(4).AlignItems(ui.Center).Children(func() {
-				ui.Badge(c, h.button)
-				ui.Text(c, h.what).FontSize(12).TextColor(t.TextMuted)
-			})
-		}
+	ui.Row(c).Padding(8, 16).Justify(ui.End).Children(func() {
+		kit.PadHints(c, hints)
 	})
 }
 
@@ -491,16 +504,6 @@ func (u *Shell) show(path string) {
 		u.nav.SetScroll(nil)
 	}
 	kit.Redraw()
-}
-
-// trashLabel is the sidebar text of the Trash entry: it counts the games and
-// emulators that can be restored. (Leftover cloud saves are counted on the
-// page itself: they are not something deleted from here.)
-func (u *Shell) trashLabel() string {
-	if n := u.store.TrashCount; n > 0 {
-		return fmt.Sprintf("%s (%d)", i18n.L("Trash"), n)
-	}
-	return i18n.L("Trash")
 }
 
 func (u *Shell) toast(text string, kind kit.ToastKind) {

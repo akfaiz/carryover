@@ -10,6 +10,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/akfaiz/carryover/internal/library"
 	"github.com/akfaiz/carryover/services"
 	"github.com/akfaiz/carryover/ui/env"
 	"github.com/akfaiz/carryover/ui/internal/uitest"
@@ -42,7 +43,7 @@ func newHarness(t *testing.T) *uitest.Harness {
 
 func askDelete(t *testing.T, h *uitest.Harness) {
 	t.Helper()
-	h.Click("⋯")
+	h.Click("More")
 	h.Click("Delete from library…")
 }
 
@@ -167,4 +168,126 @@ func TestGamePagePadStartsOnBack(t *testing.T) {
 	h.Shell.Navigator().Press(kit.PadAccept)
 	h.Settle()
 	assert.Equal(t, "/", h.Shell.Route(), "A on Back goes back")
+}
+
+// A game not set up on this device offers the setup where the saves would be,
+// and no actions that can't run yet; its setup hint shows once.
+func TestGamePageNotSetUp(t *testing.T) {
+	h := newHarness(t)
+	h.UseLocalCloud()
+	g, err := h.Shell.Lib().Save(services.GameInput{
+		Name:   "Game B",
+		Slots:  []services.SaveSlot{{Key: "saves", Label: "Saves"}},
+		Device: services.DeviceInput{Paths: map[string]string{}, LaunchMode: services.LaunchDirect},
+	})
+	require.NoError(t, err)
+	h.Shell.Store().Refresh()
+	h.Settle()
+	h.Open("/game/" + g.ID)
+
+	view := uitest.MustGame(t, h, g.ID)
+	require.False(t, view.Ready)
+	assert.Contains(t, h.Texts(), "Set up saves for this device")
+	assert.NotContains(t, h.Texts(), "Compare with cloud")
+	assert.NotContains(t, h.Texts(), "Back up now")
+	n := 0
+	for _, s := range h.Texts() {
+		if s == view.SetupHint {
+			n++
+		}
+	}
+	assert.Equal(t, 1, n, "the setup hint shows once")
+
+	h.Click("Set up saves for this device")
+	assert.Equal(t, "/edit/"+g.ID, h.Shell.Route())
+}
+
+// With emulators, the Saves card doesn't repeat the header's setup hint.
+func TestGamePageSetupHintNotRepeated(t *testing.T) {
+	h := newHarness(t)
+	eden, err := h.Shell.Emus().Save(services.EmulatorSetup{Name: "Eden", Exe: "eden"})
+	require.NoError(t, err)
+	slots := []services.SaveSlot{{Key: "saves", Label: "Saves"}}
+	g, err := h.Shell.Lib().Save(services.GameInput{
+		Name: "Game C", Slots: slots,
+		Device:    services.DeviceInput{Paths: map[string]string{}, LaunchMode: services.LaunchDirect},
+		Emulators: []services.GameEmulatorInput{{EmulatorID: eden.ID, Slots: slots}},
+	})
+	require.NoError(t, err)
+	h.Shell.Store().Refresh()
+	h.Settle()
+	h.Open("/game/" + g.ID)
+
+	view := uitest.MustGame(t, h, g.ID)
+	require.False(t, view.Ready)
+	require.NotEmpty(t, view.SetupHint)
+	n := 0
+	for _, s := range h.Texts() {
+		if s == view.SetupHint {
+			n++
+		}
+	}
+	assert.Equal(t, 1, n, "the hint shows in the header only")
+}
+
+// A save location's filters show under its folder, the first few of each; a
+// location without filters shows none.
+func TestGamePageShowsSlotFilters(t *testing.T) {
+	h := newHarness(t)
+	g, err := h.Shell.Lib().Save(services.GameInput{
+		Name: "Game F",
+		Slots: []services.SaveSlot{
+			{Key: "saves", Label: "Saves", Include: []string{"*.sav"}, Exclude: []string{"*.log", "*.tmp", "cache/**", "shaders/**"}},
+			{Key: "config", Label: "Config"},
+		},
+		Device: services.DeviceInput{
+			Paths: map[string]string{"saves": t.TempDir(), "config": t.TempDir()}, Exe: "/x/game.exe", LaunchMode: services.LaunchDirect,
+		},
+	})
+	require.NoError(t, err)
+	h.Shell.Store().Refresh()
+	h.Settle()
+	h.Open("/game/" + g.ID)
+
+	assert.Contains(t, h.Texts(), "Only *.sav · Skips *.log, *.tmp, cache/** +1 more")
+	n := 0
+	for _, s := range h.Texts() {
+		if strings.HasPrefix(s, "Only ") || strings.HasPrefix(s, "Skips ") {
+			n++
+		}
+	}
+	assert.Equal(t, 1, n, "only the location with filters says which files sync")
+}
+
+// An emulator game lists other devices as a PC game does: in the Other devices
+// card, with the shown emulator's save paths there.
+func TestGamePageOtherDevicesOfAnEmulator(t *testing.T) {
+	h := newHarness(t)
+	me := h.Core.DeviceID()
+	eden, err := h.Shell.Emus().Save(services.EmulatorSetup{Name: "Eden", Exe: "eden"})
+	require.NoError(t, err)
+	g, err := h.Core.Library.Save(library.Game{
+		Name:      "Game E",
+		Emulators: []library.GameEmulator{{EmulatorID: eden.ID, Slots: []library.SaveSlot{{Key: "account", Label: "Account save"}}}},
+		Devices: map[string]library.DeviceConfig{
+			me:      {Emulators: map[string]library.EmulatorConfig{eden.ID: {Rom: "g.nsp", Paths: map[string]string{"account": t.TempDir()}}}},
+			"deck1": {DeviceName: "Deck", Emulators: map[string]library.EmulatorConfig{eden.ID: {Paths: map[string]string{"account": "/deck/eden"}}}},
+			"pc2":   {DeviceName: "Laptop"},
+		},
+	}, me)
+	require.NoError(t, err)
+	h.Shell.Store().Refresh()
+	h.Settle()
+	h.Open("/game/" + g.ID)
+
+	assert.Contains(t, h.Texts(), "Other devices")
+	var shown []string // without the invisible break points of a path
+	for _, s := range h.Texts() {
+		shown = append(shown, strings.ReplaceAll(s, "\u200b", ""))
+	}
+	assert.Contains(t, shown, "Account save: /deck/eden")
+	assert.Contains(t, h.Texts(), "No save location set there", "Laptop doesn't play it with Eden")
+	for _, s := range h.Texts() {
+		assert.False(t, strings.HasPrefix(s, "Also on"), "no second way of saying it in the header")
+	}
 }

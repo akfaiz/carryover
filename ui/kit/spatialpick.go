@@ -2,7 +2,7 @@ package kit
 
 import "math"
 
-// The geometry of directional navigation, shared by every GUI toolkit.
+// The geometry of directional navigation.
 
 // navRect is an object's place on the canvas.
 type navRect struct{ X, Y, W, H float32 }

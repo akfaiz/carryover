@@ -11,10 +11,26 @@ import (
 	"github.com/akfaiz/carryover/services"
 )
 
+// Step is where the session is: syncing before the game, playing, uploading
+// after it, or over.
+type Step int
+
+const (
+	StepSync Step = iota
+	StepPlay
+	StepUpload
+	StepDone
+)
+
 // Update is what the window shows after a status change.
 type Update struct {
 	Message string
 	Failed  bool // the message is an error
+
+	// Step is the step the session is at (on a failure, the one that failed).
+	// Ended is set once nothing runs any more: done, cancelled or failed.
+	Step  Step
+	Ended bool
 
 	// Sync is set during a sync phase: the progress bar shows Progress.
 	Sync     bool
@@ -32,18 +48,44 @@ type CancelOffer struct {
 	BeforePlay bool
 }
 
-// ViewModel tracks which sync phase the Cancel button belongs to.
+// ViewModel tracks which sync phase the Cancel button belongs to, and the step
+// the session has reached.
 type ViewModel struct {
 	phase string
+	step  Step
 }
 
 // NewViewModel returns a view model for a window that has seen no status yet.
 func NewViewModel() *ViewModel { return &ViewModel{} }
 
+// Step is the step the session has reached.
+func (vm *ViewModel) Step() Step { return vm.step }
+
+// advance moves the step on with a status. A failure or a cancel stays at the
+// step it happened in; a session that ends after the game has run is done.
+func (vm *ViewModel) advance(st services.Status) {
+	switch st.Phase {
+	case "sync":
+		if st.BeforePlay {
+			vm.step = StepSync
+		} else {
+			vm.step = StepUpload
+		}
+	case "playing":
+		vm.step = StepPlay
+	case "done":
+		if vm.step >= StepPlay {
+			vm.step = StepDone
+		}
+	}
+}
+
 // Apply turns a status (and the transfer progress of the same game) into what
 // the window shows.
 func (vm *ViewModel) Apply(st services.Status, ev syncer.Event) Update {
-	u := Update{Message: st.Message, Failed: st.Phase == "error"}
+	vm.advance(st)
+	u := Update{Message: st.Message, Failed: st.Phase == "error", Step: vm.step}
+	u.Ended = st.Phase == "done" || st.Phase == "error"
 	if st.Phase != "sync" {
 		vm.phase = ""
 		u.HideCancel = true

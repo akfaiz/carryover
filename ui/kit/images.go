@@ -18,6 +18,7 @@ import (
 type ImageCache struct {
 	mu     sync.Mutex
 	items  map[string]*ui.Bitmap
+	seen   map[string]int // times a bitmap was handed to a view, up to 2
 	order  []string
 	loads  map[string]bool // loads on their way
 	failed map[string]bool
@@ -29,6 +30,7 @@ const imageCacheMax = 300
 // Images is the application's cover cache.
 var Images = &ImageCache{
 	items:  map[string]*ui.Bitmap{},
+	seen:   map[string]int{},
 	loads:  map[string]bool{},
 	failed: map[string]bool{},
 	client: &http.Client{Timeout: 30 * time.Second},
@@ -66,6 +68,17 @@ func (c *ImageCache) get(key string, maxSide int, fetch func() ([]byte, error)) 
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	if bm, ok := c.items[key]; ok {
+		// A bitmap keeps its pixels on the CPU as well as on the GPU. The
+		// second time a view asks for it, the first frame has drawn it, so
+		// the CPU copy can go (MyGo makes it again if something needs it).
+		// Views run on the UI goroutine, as ReleasePixels requires.
+		switch c.seen[key] {
+		case 0:
+			c.seen[key] = 1
+		case 1:
+			c.seen[key] = 2
+			bm.ReleasePixels()
+		}
 		return bm
 	}
 	if c.failed[key] || c.loads[key] {
@@ -91,6 +104,7 @@ func (c *ImageCache) get(key string, maxSide int, fetch func() ([]byte, error)) 
 			c.order = append(c.order, key)
 			for len(c.order) > imageCacheMax {
 				delete(c.items, c.order[0])
+				delete(c.seen, c.order[0])
 				c.order = c.order[1:]
 			}
 		}

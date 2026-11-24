@@ -2,7 +2,7 @@ package kit
 
 import "time"
 
-// Gamepad and keyboard actions, shared by every GUI toolkit's Navigator.
+// Gamepad and keyboard actions, as the Navigator reads them.
 
 // PadAction is what a key or gamepad press does in a dialog.
 type PadAction int

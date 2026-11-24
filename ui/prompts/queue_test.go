@@ -210,5 +210,7 @@ func TestPromptWrapperHint(t *testing.T) {
 	h := newHarness(t)
 	h.Shell.Prompts().Wrapper = true
 	add(h, services.Prompt{ID: "x", Kind: "syncError", GameName: "A", Error: "e"})
-	assert.Contains(t, h.Texts(), "D-pad or arrow keys to choose, A or Enter to confirm, B or Esc to go back.")
+	for _, s := range []string{"D-pad", "Choose", "A / Enter", "Confirm", "B / Esc", "Back"} {
+		assert.Contains(t, h.Texts(), s)
+	}
 }

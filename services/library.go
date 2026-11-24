@@ -136,6 +136,9 @@ type ProfileView struct {
 	SteamAppID    string             `json:"steamAppId"`
 	Status        GameStatus         `json:"status"`
 	SafetyDir     string             `json:"safetyDir"`
+	// OtherDevices are the other devices that have the game, with this
+	// emulator's save paths there (none where it isn't set up).
+	OtherDevices []DevicePaths `json:"otherDevices"`
 }
 
 // ArtFile is a stored artwork image.
@@ -198,16 +201,9 @@ func (s *LibraryService) view(g library.Game) GameView {
 	if len(missing) > 0 {
 		v.SetupHint = "Missing " + strings.Join(missing, ", ")
 	}
-	for id, od := range g.Devices {
-		if id == devID {
-			continue
-		}
-		name := s.c.Library.DeviceName(id, od.DeviceName)
-		if name == "" {
-			name = id[:min(8, len(id))]
-		}
-		v.OtherDevices = append(v.OtherDevices, DevicePaths{DeviceName: name, Paths: od.Paths, Exe: od.Exe})
-	}
+	v.OtherDevices = s.otherDevices(g, devID, func(od library.DeviceConfig) DevicePaths {
+		return DevicePaths{Paths: od.Paths, Exe: od.Exe}
+	})
 	v.Status, v.SafetyDir = s.statusOf(g.ID)
 	v.LastEmulator = d.LastEmulator
 	v.Emulators = s.profiles(g, d)
@@ -307,12 +303,37 @@ func (s *LibraryService) statusOf(key string) (GameStatus, string) {
 }
 
 // profiles builds the emulator profiles of a game.
+// otherDevices lists the devices other than devID that have the game, sorted by
+// name, each with the paths pick takes from its settings (the game's own, or
+// one emulator's).
+func (s *LibraryService) otherDevices(g library.Game, devID string, pick func(library.DeviceConfig) DevicePaths) []DevicePaths {
+	var out []DevicePaths
+	for id, od := range g.Devices {
+		if id == devID {
+			continue
+		}
+		dp := pick(od)
+		dp.DeviceName = s.c.Library.DeviceName(id, od.DeviceName)
+		if dp.DeviceName == "" {
+			dp.DeviceName = id[:min(8, len(id))]
+		}
+		out = append(out, dp)
+	}
+	// Map order changes from one call to the next: the list must not.
+	slices.SortFunc(out, func(a, b DevicePaths) int { return strings.Compare(a.DeviceName, b.DeviceName) })
+	return out
+}
+
 func (s *LibraryService) profiles(g library.Game, d library.DeviceConfig) []ProfileView {
 	out := make([]ProfileView, 0, len(g.Emulators))
+	devID := s.c.DeviceID()
 	for _, ge := range g.Emulators {
 		pv := ProfileView{
 			EmulatorID: ge.EmulatorID, Name: s.c.ProfileName(ge.EmulatorID), Key: core.SyncKey(g.ID, ge.EmulatorID), ShareWith: ge.ShareWith,
 			Slots: ge.Slots, Paths: map[string]string{}, ResolvedPaths: map[string]string{}, PathErrors: map[string]string{},
+			OtherDevices: s.otherDevices(g, devID, func(od library.DeviceConfig) DevicePaths {
+				return DevicePaths{Paths: od.Emulators[ge.EmulatorID].Paths}
+			}),
 		}
 		if pv.Slots == nil {
 			pv.Slots = []library.SaveSlot{}

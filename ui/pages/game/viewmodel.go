@@ -224,6 +224,7 @@ func profileView(g services.GameView, emuID string) services.GameView {
 		}
 		g.Slots, g.ResolvedPaths, g.PathErrors = pv.Slots, pv.ResolvedPaths, pv.PathErrors
 		g.Ready, g.SetupHint, g.Status, g.SafetyDir = pv.Ready, pv.SetupHint, pv.Status, pv.SafetyDir
+		g.OtherDevices = pv.OtherDevices // with this emulator's paths there
 		g.Device.LaunchMode, g.Device.SteamAppID = "direct", pv.SteamAppID
 	}
 	return g

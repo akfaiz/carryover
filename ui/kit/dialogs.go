@@ -22,6 +22,35 @@ type Dialog struct {
 	host *Dialogs
 }
 
+// Dialog widths: the default, a Wide one's, and the room kept between a
+// dialog's content and each side of a window too narrow for it (MyGo's modal
+// keeps 20 DIPs from the window's edge and pads its panel by 20 more).
+const (
+	dialogWidth     float32 = 480
+	dialogWideWidth float32 = 860
+	dialogMargin    float32 = 40
+)
+
+// width is how wide the dialog is in a window windowW wide: what it asks for,
+// at most the window less a margin on each side.
+func (d *Dialog) width(windowW float32) float32 {
+	w := d.Width
+	if w == 0 {
+		w = dialogWidth
+	}
+	if d.Wide {
+		w = dialogWideWidth
+	}
+	return max(min(w, windowW-2*dialogMargin), 0)
+}
+
+// ContentWidth is the width the dialog's Body has in this window, for content
+// laid out by hand to fit it (ChoiceGrid).
+func (d *Dialog) ContentWidth(c *ui.Context) float32 {
+	w, _ := c.Size()
+	return max(d.width(w)-2*S6, ChoiceTileSize)
+}
+
 // Close takes the dialog down.
 func (d *Dialog) Close() {
 	if d.host != nil {
@@ -81,16 +110,11 @@ func (h *Dialogs) View(c *ui.Context, nav *Navigator) {
 		nav.Overlay(h.ids[d], true, back, func() {
 			open := true
 			m := ui.Modal(c, &open, func() {
-				w := d.Width
-				if w == 0 {
-					w = 480
-				}
-				if d.Wide {
-					w = 860
-				}
-				ui.Column(c).Width(w).MaxWidth(w).Padding(20).Gap(12).Children(func() {
+				ww, _ := c.Size()
+				w := d.width(ww) // never wider than the window
+				ui.Column(c).Width(w).MaxWidth(w).Padding(S6).Gap(S3).Children(func() {
 					if d.Title != "" {
-						ui.Text(c, d.Title).FontSize(17).Bold().Wrap()
+						Heading(c, d.Title).Wrap()
 					}
 					d.Body(c, nav)
 				})

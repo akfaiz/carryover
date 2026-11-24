@@ -65,8 +65,7 @@ func (e *Page) openArtPicker(kind services.ArtKind) {
 }
 
 func (e *Page) artworkCard(c *ui.Context) {
-	kit.Card(c, "", func() {
-		kit.Heading(c, i18n.L("Steam artwork"))
+	kit.Card(c, i18n.L("Steam artwork"), func() {
 		kit.Muted(c, i18n.L("Written to Steam's grid folder when you add the game to Steam (or press Update Steam shortcut), so it has its images ready. The portrait cover is chosen above."))
 		for _, spec := range artSpecs() {
 			a := e.vm.artEdit(spec.kind)
@@ -93,20 +92,20 @@ func (e *Page) artworkCard(c *ui.Context) {
 				status = i18n.L("SteamGridDB image — downloaded when you save.")
 			}
 			ui.Divider(c)
-			ui.Column(c).Gap(6).Children(func() {
-				ui.Text(c, spec.label).Bold()
+			ui.Column(c).Gap(kit.S2).Children(func() {
+				ui.Text(c, spec.label).FontWeight(600)
 				kit.CoverView(c, src, spec.preview[0], spec.preview[1])
-				ui.Row(c).Gap(8).Children(func() {
-					e.button(c, [2]any{"art-file", spec.kind}, i18n.L("Choose file…"), false, false, func() {
+				ui.Row(c).Gap(kit.S2).Children(func() {
+					e.btn(c, [2]any{"art-file", spec.kind}, kit.BtnSecondary, kit.IconFolderOpen, i18n.L("Choose file…"), false, func() {
 						e.pickFile(i18n.L("Choose image"), []string{".png", ".jpg", ".jpeg", ".webp"}, "", func(p string) {
 							a.src, a.pick, a.clear = p, nil, false
 						})
 					})
 					if e.vm.hasGridKey {
-						e.button(c, [2]any{"art-find", spec.kind}, i18n.L("Find…"), false, false, func() { e.openArtPicker(spec.kind) })
+						e.btn(c, [2]any{"art-find", spec.kind}, kit.BtnSecondary, kit.IconSearch, i18n.L("Find…"), false, func() { e.openArtPicker(spec.kind) })
 					}
 					if a.has() {
-						e.button(c, [2]any{"art-clear", spec.kind}, i18n.L("Clear"), false, false, func() {
+						e.btn(c, [2]any{"art-clear", spec.kind}, kit.BtnGhost, kit.IconX, i18n.L("Clear"), false, func() {
 							a.src, a.pick, a.clear = "", nil, a.path != ""
 						})
 					}
@@ -115,9 +114,9 @@ func (e *Page) artworkCard(c *ui.Context) {
 			})
 		}
 		if !e.vm.hasGridKey {
-			ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
+			ui.Row(c).Gap(kit.S2).AlignItems(ui.Center).Children(func() {
 				kit.Muted(c, i18n.L("Add a SteamGridDB API key to search community artwork.")).Grow(1)
-				e.button(c, "art-key", i18n.L("Add key…"), false, false, e.askGridKey)
+				e.btn(c, "art-key", kit.BtnSecondary, nil, i18n.L("Add key…"), false, e.askGridKey)
 			})
 		}
 	})
@@ -176,38 +175,27 @@ func showArtPicker(u env.Env, o artPickerOpts) {
 
 func (p *artPicker) body(c *ui.Context, nav *kit.Navigator) {
 	ui.Row(c).Gap(8).Children(func() {
-		nav.Item(nav.Handle("art-query"), ui.TextInput(c.Key("art-query"), &p.query).Placeholder(i18n.L("Game name")).Label(i18n.L("Game name")).Grow(1), nil, kit.TextField)
-		p.button(c, nav, "art-search", i18n.L("Search"), false, p.search)
+		kit.Field(c, nav, "art-query", &p.query, i18n.L("Game name")).Grow(1)
+		p.button(c, nav, "art-search", i18n.L("Search"), kit.BtnSecondary, p.search)
 	})
 	if p.errText != "" {
 		kit.Danger(c, p.errText)
 	}
-	ui.Scroll(c).MaxHeight(420).Children(func() {
-		ui.Column(c).Gap(6).Children(func() {
-			switch {
-			case p.inGame:
-				p.game(c, nav)
-			case p.searching:
-				kit.Muted(c, i18n.L("Searching…"))
-			case p.games != nil:
-				p.gameList(c, nav)
-			}
-		})
+	kit.ScrollBox(c, 420, 6, func() {
+		switch {
+		case p.inGame:
+			p.game(c, nav)
+		case p.searching:
+			kit.Muted(c, i18n.L("Searching…"))
+		case p.games != nil:
+			p.gameList(c, nav)
+		}
 	})
-	p.button(c, nav, "art-done", i18n.L("Done"), true, func() { p.d.Close() })
+	p.button(c, nav, "art-done", i18n.L("Done"), kit.BtnPrimary, func() { p.d.Close() })
 }
 
-func (p *artPicker) button(c *ui.Context, nav *kit.Navigator, key, label string, primary bool, action func()) {
-	k := [2]any{"artpicker", key}
-	var b ui.Element
-	if primary {
-		b = ui.PrimaryButton(c.Key(k), label)
-	} else {
-		b = ui.Button(c.Key(k), label)
-	}
-	if nav.Item(nav.Handle(k), b, action).Clicked() {
-		action()
-	}
+func (p *artPicker) button(c *ui.Context, nav *kit.Navigator, key, label string, kind kit.BtnKind, action func()) {
+	kit.Btn(c, nav, [2]any{"artpicker", key}, kind, nil, label, action)
 }
 
 func (p *artPicker) search() {
@@ -238,25 +226,21 @@ func (p *artPicker) gameList(c *ui.Context, nav *kit.Navigator) {
 		if g.Year > 0 {
 			info = fmt.Sprint(g.Year)
 		}
-		if g.Verified {
-			info += " ✓"
-		}
-		k := [2]any{"art-game", g.ID}
 		pick := func() {
 			if p.onGame != nil {
 				p.onGame(g.ID, g.Name)
 			}
 			p.loadGame(g.ID, g.Name)
 		}
-		b := ui.ButtonBase(c.Key(k)).Label(g.Name).Radius(6).Children(func() {
-			ui.Row(c).Gap(10).Padding(6, 8).Children(func() {
+		kit.ListButton(c, nav, [2]any{"art-game", g.ID}, g.Name, pick, func() {
+			ui.Row(c).Gap(kit.S3).Padding(kit.S2, kit.S3).AlignItems(ui.Center).Children(func() {
 				ui.Text(c, g.Name).Grow(1)
 				kit.Small(c, info)
+				if g.Verified {
+					ui.Icon(c, kit.IconCheck).FontSize(kit.IconSM).TextColor(c.Theme().Success)
+				}
 			})
 		})
-		if nav.Item(nav.Handle(k), b.AlignSelf(ui.Stretch), pick).Clicked() {
-			pick()
-		}
 	}
 }
 
@@ -273,7 +257,7 @@ func (p *artPicker) loadGame(id int, name string) {
 // game is a game's artwork: tabs by kind, each a grid of images to pick from.
 func (p *artPicker) game(c *ui.Context, nav *kit.Navigator) {
 	ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
-		p.button(c, nav, "art-change", i18n.L("← Change game"), false, func() {
+		kit.Btn(c, nav, "art-change", kit.BtnGhost, kit.IconArrowLeft, i18n.L("Change game"), func() {
 			if p.games == nil && strings.TrimSpace(p.query) != "" {
 				p.search()
 				return
@@ -281,7 +265,7 @@ func (p *artPicker) game(c *ui.Context, nav *kit.Navigator) {
 			p.gen++
 			p.inGame = false
 		})
-		ui.Text(c, p.gameName).Bold()
+		ui.Text(c, p.gameName).FontWeight(600)
 	})
 	var tabs []kit.ChipOption
 	for _, k := range append([]services.ArtKind{services.ArtCover}, services.ArtKinds...) {
@@ -306,11 +290,15 @@ func (p *artPicker) game(c *ui.Context, nav *kit.Navigator) {
 				}
 				k := [3]any{"art-grid", p.kind, g.ID}
 				pick := func() { p.picked[p.kind] = g.ID; p.onPick(p.kind, g) }
+				b := ui.ButtonBase(c.Key(k))
 				border, width := c.Theme().Border, float32(1)
-				if p.picked[p.kind] == g.ID {
+				switch {
+				case p.picked[p.kind] == g.ID:
 					border, width = c.Theme().Accent, 3
+				case b.Hovered():
+					border = c.Theme().TextMuted
 				}
-				b := ui.ButtonBase(c.Key(k)).Label(spec.label).Radius(8).Border(width, border).Padding(4).Children(func() {
+				b = b.Label(spec.label).Radius(8).Border(width, border).Padding(4).Children(func() {
 					kit.CoverView(c, kit.CoverSource{URL: src, Contain: spec.contain}, spec.pick[0], spec.pick[1])
 				})
 				if nav.Item(nav.Handle(k), b, pick).Clicked() {

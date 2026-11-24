@@ -58,31 +58,24 @@ func (s *selfSteamCard) view(c *ui.Context) {
 				users.Add(us.ID, us.Name)
 			}
 			kit.Labeled(c, i18n.L("Steam account"), func() {
-				kit.SelectOf(c, nav, s.u.Dialogs(), "steam-user", i18n.L("Steam account"), users, s.user, s.selectUser)
+				kit.SelectOf(c, nav, "steam-user", i18n.L("Steam account"), users, s.user, s.selectUser)
 			})
 		}
 		if s.appID != "" {
-			kit.Colored(c, "✓ "+i18n.L("In Steam on this device"), c.Theme().Success)
+			kit.IconLine(c, kit.IconCheck, i18n.L("In Steam on this device"), c.Theme().Success)
 		}
 		label := i18n.L("Add Carryover to Steam")
 		if s.appID != "" {
 			label = i18n.L("Update Steam shortcut")
 		}
-		ui.Row(c).Gap(8).Children(func() {
-			if nav.Item(nav.Handle("self-steam-add"), ui.PrimaryButton(c.Key("self-steam-add"), label).Disabled(s.busy || s.user == ""), s.add).Clicked() {
-				s.add()
-			}
+		ui.Row(c).Gap(kit.S2).Children(func() {
+			kit.Btn(c, nav, "self-steam-add", kit.BtnPrimary, nil, label, s.add, kit.BtnDisabled(s.busy || s.user == ""))
 			if s.appID != "" {
-				if nav.Item(nav.Handle("self-steam-rm"), ui.Button(c.Key("self-steam-rm"), i18n.L("Remove")).Disabled(s.busy), s.remove).Clicked() {
-					s.remove()
-				}
+				kit.Btn(c, nav, "self-steam-rm", kit.BtnDanger, kit.IconTrash, i18n.L("Remove"), s.remove, kit.BtnDisabled(s.busy))
 			}
 		})
 		if s.busy {
-			ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
-				ui.Spinner(c)
-				kit.Muted(c, i18n.L("Updating Steam…"))
-			})
+			kit.BusyLine(c, i18n.L("Updating Steam…"))
 		}
 		if s.info.Running {
 			kit.Colored(c, i18n.L("Steam is running — restart it after adding so it picks up the change."), c.Theme().Warning)

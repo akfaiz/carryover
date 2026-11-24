@@ -68,3 +68,38 @@ func TestAnErrorIsShownAsOne(t *testing.T) {
 
 	assert.False(t, NewViewModel().Apply(services.Status{Phase: "done", Message: "ok"}, syncer.Event{}).Failed)
 }
+
+// The tracker follows the session: sync, play, upload, done.
+func TestStepsFollowTheSession(t *testing.T) {
+	vm := NewViewModel()
+	assert.Equal(t, StepSync, vm.Apply(syncing("Checking the cloud…", true), syncer.Event{}).Step)
+	assert.Equal(t, StepPlay, vm.Apply(services.Status{Phase: "playing", Message: "Playing"}, syncer.Event{}).Step)
+	assert.Equal(t, StepUpload, vm.Apply(syncing("Uploading saves", false), syncer.Event{}).Step)
+
+	u := vm.Apply(services.Status{Phase: "done", Message: "Game closed, saves synced"}, syncer.Event{})
+	assert.Equal(t, StepDone, u.Step)
+	assert.True(t, u.Ended)
+}
+
+// Cancelled before the game started: the session ends at the sync, not done.
+func TestACancelBeforePlayingStaysAtTheSync(t *testing.T) {
+	vm := NewViewModel()
+	vm.Apply(syncing("Checking the cloud…", true), syncer.Event{})
+
+	u := vm.Apply(services.Status{Phase: "done", Message: "Cancelled"}, syncer.Event{})
+	assert.Equal(t, StepSync, u.Step)
+	assert.True(t, u.Ended)
+	assert.False(t, u.Failed)
+}
+
+// A failed upload is marked on the upload step.
+func TestAFailureStaysAtItsStep(t *testing.T) {
+	vm := NewViewModel()
+	vm.Apply(services.Status{Phase: "playing", Message: "Playing"}, syncer.Event{})
+	vm.Apply(syncing("Uploading saves", false), syncer.Event{})
+
+	u := vm.Apply(services.Status{Phase: "error", Message: "Game closed, but upload failed: offline"}, syncer.Event{})
+	assert.Equal(t, StepUpload, u.Step)
+	assert.True(t, u.Failed)
+	assert.True(t, u.Ended)
+}
