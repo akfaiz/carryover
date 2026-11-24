@@ -441,6 +441,8 @@ data class EmulatorSetup(
     val args: String,
     val preset: String,
     val dataDir: String,
+    /** The platforms it has a version for (see [EmulatorPreset.platforms]); null keeps the ones it has. */
+    val platforms: List<String>? = null,
 )
 
 @Serializable

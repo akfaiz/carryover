@@ -24,6 +24,11 @@ data class EmulatorPreset(
     val savesNote: Int = 0,
     /** The game files it opens, by extension (empty: depends, any file); for a frontend's file filter. */
     val extensions: List<String> = emptyList(),
+    /**
+     * The platforms the emulator has a version for (GOOS values), stored with it in the library so the
+     * desktop doesn't ask to set up an Android-only one; empty: it has a desktop version too.
+     */
+    val platforms: List<String> = emptyList(),
 )
 
 object EmulatorPresets {
@@ -74,6 +79,7 @@ object EmulatorPresets {
             manifestPreset = "switch",
             note = R.string.preset_note_lemon,
             extensions = listOf("nsp", "xci", "nca", "nro", "nso"),
+            platforms = listOf("android"),
         ),
         EmulatorPreset(
             "yuzu / Citron",

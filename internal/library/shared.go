@@ -2,6 +2,7 @@ package library
 
 import (
 	"reflect"
+	"slices"
 	"time"
 )
 
@@ -59,5 +60,6 @@ func sharedSlots(in []SaveSlot) []SaveSlot {
 
 // sameSharedEmulator is sameSharedGame for an emulator.
 func sameSharedEmulator(a, b Emulator) bool {
-	return a.Name == b.Name && a.Preset == b.Preset && a.Deleted == b.Deleted && a.DeletedAt.Equal(b.DeletedAt)
+	return a.Name == b.Name && a.Preset == b.Preset && slices.Equal(a.Platforms, b.Platforms) &&
+		a.Deleted == b.Deleted && a.DeletedAt.Equal(b.DeletedAt)
 }

@@ -308,3 +308,42 @@ func TestEmulatorGoneLeavesNoDanglingGames(t *testing.T) {
 	g, _ = s.Get(live.ID)
 	assert.Empty(t, g.Emulators, "dropped once it expired")
 }
+
+// An emulator runs on the platforms it lists, any when it lists none; Lemon,
+// stored without them, is Android only by its name.
+func TestEmulatorRunsOn(t *testing.T) {
+	assert.True(t, Emulator{Name: "Eden"}.RunsOn("windows"))
+	assert.True(t, Emulator{Name: "Eden"}.RunsOn("android"))
+
+	lemon := Emulator{Name: "Lemon"}
+	assert.False(t, lemon.RunsOn("windows"), "by its name")
+	assert.True(t, lemon.RunsOn("android"))
+	assert.Equal(t, []string{"android"}, lemon.PlatformList())
+
+	marked := Emulator{Name: "My phone emu", Platforms: []string{"android"}}
+	assert.False(t, marked.RunsOn("linux"))
+	assert.True(t, marked.RunsOn("android"))
+}
+
+// The platforms are a shared setting: changing them stamps the emulator, so
+// they win a merge, and the store keeps them through a save and a reload.
+func TestEmulatorPlatformsAreShared(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "l.json")
+	s, err := Open(path)
+	require.NoError(t, err)
+	e, err := s.SaveEmulator(Emulator{Name: "Lemon"}, "phone")
+	require.NoError(t, err)
+	before := e.UpdatedAt
+	time.Sleep(2 * time.Millisecond)
+
+	e.Platforms = []string{"android"}
+	e, err = s.SaveEmulator(e, "phone")
+	require.NoError(t, err)
+	assert.True(t, e.UpdatedAt.After(before), "a shared change")
+
+	s2, err := Open(path)
+	require.NoError(t, err)
+	got, err := s2.Emulator(e.ID)
+	require.NoError(t, err)
+	assert.Equal(t, []string{"android"}, got.Platforms)
+}

@@ -148,3 +148,15 @@ func TestPadReachesTheForm(t *testing.T) {
 	h.Settle()
 	assert.False(t, h.Tester.Focused("Library"), "the first press starts on the page")
 }
+
+// An Android-only emulator is listed as such, with nothing to set up here.
+func TestAndroidOnlyEmulatorIsLabelled(t *testing.T) {
+	h := newHarness(t)
+	_, err := h.Shell.Emus().Save(services.EmulatorSetup{Name: "Lemon"})
+	require.NoError(t, err)
+	h.Open("/emulators")
+	assert.Contains(t, h.Texts(), "Android only")
+	assert.NotContains(t, h.Texts(), "Not set up on this device")
+	assert.NotContains(t, h.Texts(), "Edit", "its setup is on Android")
+	assert.Contains(t, h.Texts(), "More", "it can still be deleted")
+}

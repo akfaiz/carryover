@@ -23,4 +23,12 @@ object AndroidLibrary {
     fun presetFor(known: EmulatorView?, exe: String): String =
         known?.preset?.ifEmpty { null }
             ?: EmulatorPresets.forPackage(exe.substringBefore('/'))?.manifestPreset.orEmpty()
+
+    /**
+     * The platforms to store for an emulator being set up with the app [exe]: those of its preset
+     * when it is known to have one platform only (Lemon: Android), else null, which keeps what the
+     * library has.
+     */
+    fun platformsFor(exe: String): List<String>? =
+        EmulatorPresets.forPackage(exe.substringBefore('/'))?.platforms?.ifEmpty { null }
 }

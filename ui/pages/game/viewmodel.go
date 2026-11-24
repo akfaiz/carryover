@@ -200,16 +200,33 @@ type profileEntry struct {
 }
 
 // profiles lists the profiles the page shows: the game's own saves (if it has
-// any) and each emulator, every one with a tag naming it when the game has
-// emulators.
+// any) and each emulator that runs on this device, every one with a tag naming
+// it when the game has emulators. An emulator without a version for this
+// device (Lemon on a PC) is played elsewhere, so it isn't shown, unless it is
+// all the game has.
 func (p *ViewModel) profiles(g services.GameView) []profileEntry {
-	var out []profileEntry
-	if len(g.Slots) > 0 || len(g.Emulators) == 0 {
-		out = append(out, profileEntry{id: "", noEmu: len(g.Emulators) > 0, view: g, ready: g.Ready})
+	emus := runnable(g.Emulators)
+	if len(emus) == 0 && len(g.Slots) == 0 {
+		emus = g.Emulators
 	}
-	for _, pv := range g.Emulators {
+	var out []profileEntry
+	if len(g.Slots) > 0 || len(emus) == 0 {
+		out = append(out, profileEntry{id: "", noEmu: len(emus) > 0, view: g, ready: g.Ready})
+	}
+	for _, pv := range emus {
 		v := profileView(g, pv.EmulatorID)
 		out = append(out, profileEntry{id: pv.EmulatorID, tag: pv.Name, view: v, ready: pv.Ready})
+	}
+	return out
+}
+
+// runnable keeps the emulators that have a version for this device.
+func runnable(emus []services.ProfileView) []services.ProfileView {
+	var out []services.ProfileView
+	for _, pv := range emus {
+		if !pv.NoVersionHere {
+			out = append(out, pv)
+		}
 	}
 	return out
 }
@@ -330,10 +347,11 @@ type steamChoice struct {
 // back to the whole game.
 func (p *ViewModel) steamChoice(orig services.GameView) steamChoice {
 	c := steamChoice{key: p.id, form: orig, target: "game"}
-	if len(orig.Emulators) == 0 {
+	emus := runnable(orig.Emulators) // a shortcut starts an emulator here
+	if len(emus) == 0 {
 		return c
 	}
-	if !slices.ContainsFunc(orig.Emulators, func(pv services.ProfileView) bool { return pv.EmulatorID == p.steamTarget }) {
+	if !slices.ContainsFunc(emus, func(pv services.ProfileView) bool { return pv.EmulatorID == p.steamTarget }) {
 		p.steamTarget = "game"
 	}
 	if p.steamTarget == "game" {

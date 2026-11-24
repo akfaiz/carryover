@@ -8,6 +8,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/akfaiz/carryover/internal/library"
 	"github.com/akfaiz/carryover/services"
 	"github.com/akfaiz/carryover/ui/env"
 	"github.com/akfaiz/carryover/ui/internal/uitest"
@@ -178,4 +179,40 @@ func TestEditorAddsANewEmulatorInADialog(t *testing.T) {
 	assert.Equal(t, "Zelda", e.Name())
 	assert.Equal(t, []string{"Eden"}, e.EmulatorNames())
 	require.Len(t, h.Shell.Emus().List(), 1)
+}
+
+// An Android-only emulator of the game is shown, not set up here, and saving
+// the game on the desktop keeps it as it was (sharing Eden's saves).
+func TestEditorKeepsAnAndroidOnlyEmulator(t *testing.T) {
+	h := newHarness(t)
+	me := h.Core.DeviceID()
+	eden, err := h.Shell.Emus().Save(services.EmulatorSetup{Name: "Eden", Exe: "eden"})
+	require.NoError(t, err)
+	lemon, err := h.Shell.Emus().Save(services.EmulatorSetup{Name: "Lemon"})
+	require.NoError(t, err)
+	slots := []library.SaveSlot{{Key: "saves", Label: "Saves"}}
+	g, err := h.Core.Library.Save(library.Game{
+		Name:      "Game L",
+		Emulators: []library.GameEmulator{{EmulatorID: eden.ID, Slots: slots}, {EmulatorID: lemon.ID, ShareWith: eden.ID}},
+		Devices: map[string]library.DeviceConfig{
+			me:      {Emulators: map[string]library.EmulatorConfig{eden.ID: {Rom: "g.nsp", Paths: map[string]string{"saves": t.TempDir()}}}},
+			"phone": {Emulators: map[string]library.EmulatorConfig{lemon.ID: {Rom: "content://g", Paths: map[string]string{"saves": ":saf:x/y"}}}},
+		},
+	}, me)
+	require.NoError(t, err)
+	h.Shell.Store().Refresh()
+	h.Settle()
+	h.Open("/edit/" + g.ID)
+
+	assert.Contains(t, h.Texts(), "Android only")
+	assert.Contains(t, h.Texts(), "It doesn't run on this device: its game file and save locations are set up on a device it runs on.")
+	h.Click("Save")
+	h.Settle()
+
+	saved, err := h.Core.Library.Get(g.ID)
+	require.NoError(t, err)
+	ge, ok := saved.Emulator(lemon.ID)
+	require.True(t, ok, "still one of the game's emulators")
+	assert.Equal(t, eden.ID, ge.ShareWith)
+	assert.Equal(t, "content://g", saved.Devices["phone"].Emulators[lemon.ID].Rom, "the phone's setup is untouched")
 }

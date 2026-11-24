@@ -139,6 +139,10 @@ type ProfileView struct {
 	// OtherDevices are the other devices that have the game, with this
 	// emulator's save paths there (none where it isn't set up).
 	OtherDevices []DevicePaths `json:"otherDevices"`
+	// NoVersionHere: the emulator has no version for this device's platform
+	// (Lemon on a PC), so it is played on other devices only: it is not
+	// offered here and its missing setup doesn't make the game need setup.
+	NoVersionHere bool `json:"noVersionHere"`
 }
 
 // ArtFile is a stored artwork image.
@@ -210,14 +214,24 @@ func (s *LibraryService) view(g library.Game) GameView {
 	v.Overall = overallStatus(g, v)
 	if len(g.Emulators) > 0 && len(g.Slots) == 0 {
 		// A game played only through emulators is ready when one of them is.
+		// One that has no version for this device (Lemon on a PC) doesn't say
+		// what's missing here.
 		v.Ready, v.SetupHint = false, ""
+		var elsewhere []string
 		for _, pv := range v.Emulators {
+			if pv.NoVersionHere {
+				elsewhere = append(elsewhere, pv.Name)
+				continue
+			}
 			if pv.Ready {
 				v.Ready = true
 			}
 			if v.SetupHint == "" {
 				v.SetupHint = pv.SetupHint
 			}
+		}
+		if v.SetupHint == "" && len(elsewhere) == len(v.Emulators) {
+			v.SetupHint = "Played with " + strings.Join(elsewhere, ", ") + ", which doesn't run on this device"
 		}
 		if v.Ready {
 			v.SetupHint = ""
@@ -358,6 +372,7 @@ func (s *LibraryService) profiles(g library.Game, d library.DeviceConfig) []Prof
 			missing = append(missing, "setup on this device")
 		}
 		emu, err := s.c.Library.Emulator(ge.EmulatorID)
+		pv.NoVersionHere = err == nil && !emu.RunsOn(s.c.Platform())
 		if err != nil {
 			missing = append(missing, "emulator (deleted)")
 		} else if ed := emu.Devices[s.c.DeviceID()]; ed.Exe == "" {

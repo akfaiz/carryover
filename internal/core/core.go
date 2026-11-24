@@ -107,6 +107,10 @@ func New() (*Core, error) {
 // DeviceID returns this device's id.
 func (c *Core) DeviceID() string { return c.Settings.Get().DeviceID }
 
+// Platform is this device's platform as its record in the library says
+// (RegisterDevice): its GOOS, "android" on Android.
+func (c *Core) Platform() string { return runtime.GOOS }
+
 // SetEventHandler sets the receiver of sync progress events.
 func (c *Core) SetEventHandler(fn func(syncer.Event)) {
 	c.evMu.Lock()

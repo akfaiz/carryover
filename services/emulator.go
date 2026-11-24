@@ -36,6 +36,12 @@ type EmulatorView struct {
 	SetUp bool `json:"setUp"`
 	// Games is how many games use it.
 	Games int `json:"games"`
+	// Platforms are the platforms it has a version for (empty: any), and
+	// NoVersionHere is set when this device's isn't one of them: such an
+	// emulator isn't offered for setup here (Lemon on a PC). False, the zero
+	// value, is the usual case.
+	Platforms     []string `json:"platforms"`
+	NoVersionHere bool     `json:"noVersionHere"`
 }
 
 // EmulatorSetup is the editable part of an emulator: its name and this
@@ -52,11 +58,18 @@ type EmulatorSetup struct {
 	// on this device; together they let Carryover suggest save locations.
 	Preset  string `json:"preset"`
 	DataDir string `json:"dataDir"`
+	// Platforms, when not nil, are the platforms it has a version for (see
+	// library.Emulator.Platforms); nil keeps the ones it has.
+	Platforms []string `json:"platforms,omitempty"`
 }
 
 func (s *EmulatorService) view(e library.Emulator, games []library.Game) EmulatorView {
 	d := e.Devices[s.c.DeviceID()]
-	v := EmulatorView{ID: e.ID, Name: e.Name, Preset: e.Preset, Device: d, SetUp: d.Exe != ""}
+	v := EmulatorView{ID: e.ID, Name: e.Name, Preset: e.Preset, Device: d, SetUp: d.Exe != "",
+		Platforms: e.PlatformList(), NoVersionHere: !e.RunsOn(s.c.Platform())}
+	if v.Platforms == nil {
+		v.Platforms = []string{}
+	}
 	for _, g := range games {
 		if _, ok := g.Emulator(e.ID); ok {
 			v.Games++
@@ -105,9 +118,17 @@ func (s *EmulatorService) Save(in EmulatorSetup) (EmulatorView, error) {
 		// emulator's command ({ryujinx:...} paths) would look in the usual one.
 		dataDir = defaultRoot(p, name, in.Exe, in.Args)
 	}
+	platforms := in.Platforms
+	if platforms == nil && in.ID != "" {
+		// A client that doesn't know them (the desktop's form, an older app)
+		// must not drop them.
+		if old, err := s.c.Library.Emulator(in.ID); err == nil {
+			platforms = old.Platforms
+		}
+	}
 	devID := s.c.DeviceID()
 	saved, err := s.c.Library.SaveEmulator(library.Emulator{
-		ID: in.ID, Name: name, Preset: in.Preset,
+		ID: in.ID, Name: name, Preset: in.Preset, Platforms: platforms,
 		Devices: map[string]library.EmulatorDevice{devID: {
 			Exe: strings.TrimSpace(in.Exe), Args: in.Args, WorkDir: strings.TrimSpace(in.WorkDir),
 			Env: in.Env, WaitProcess: strings.TrimSpace(in.WaitProcess), DataDir: dataDir,
@@ -133,7 +154,7 @@ func (s *EmulatorService) Unset(id string) error {
 	}
 	devID := s.c.DeviceID()
 	if _, err := s.c.Library.SaveEmulator(library.Emulator{
-		ID: e.ID, Name: e.Name, Preset: e.Preset,
+		ID: e.ID, Name: e.Name, Preset: e.Preset, Platforms: e.Platforms,
 		Devices: map[string]library.EmulatorDevice{devID: {}},
 	}, devID); err != nil {
 		return err

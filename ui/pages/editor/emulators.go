@@ -61,7 +61,9 @@ func (e *Page) addEmulator(ev services.EmulatorView) {
 func (e *Page) emulatorsCard(c *ui.Context) {
 	var avail []services.EmulatorView
 	for _, ev := range e.vm.emuList {
-		if !e.vm.hasEmulator(ev.ID) {
+		// One without a version for this device (Lemon on a PC) is added to a
+		// game on a device it runs on.
+		if !e.vm.hasEmulator(ev.ID) && !ev.NoVersionHere {
 			avail = append(avail, ev)
 		}
 	}
@@ -134,11 +136,22 @@ func (e *Page) shareField(c *ui.Context, m *emuForm) {
 // fields and save locations read as belonging to it: the game file, the cloud
 // save it uses and its save locations.
 func (e *Page) emulatorPanel(c *ui.Context, m *emuForm, onRemove func()) {
+	ev, known := e.vm.emuView(m.id)
 	kit.SubCard(c, func() {
 		ui.Row(c).Gap(kit.S2).AlignItems(ui.Center).Children(func() {
-			kit.ItemName(c, m.name).Grow(1)
+			kit.ItemName(c, m.name)
+			if known && ev.NoVersionHere {
+				kit.Badge(c, components.OnlyOn(ev.Platforms), kit.BadgeInfo)
+			}
+			ui.Spacer(c)
 			components.RemoveButton(c, e.u, m, onRemove)
 		})
+		if known && ev.NoVersionHere {
+			// Nothing of it is set up here: its game file and save locations are
+			// those of the devices it runs on, and are kept as they are.
+			kit.Muted(c, i18n.L("It doesn't run on this device: its game file and save locations are set up on a device it runs on."))
+			return
+		}
 		kit.Labeled(c, i18n.L("Game file / ID passed to the emulator ({rom})"), func() {
 			ui.Row(c).Gap(8).Children(func() {
 				e.field(c, [2]any{"rom", m}, &m.rom, "", true).Grow(1)
@@ -154,7 +167,6 @@ func (e *Page) emulatorPanel(c *ui.Context, m *emuForm, onRemove func()) {
 		e.shareField(c, m)
 
 		// Its save locations, under a heading with the buttons that fill them in.
-		ev, _ := e.vm.emuView(m.id)
 		ui.Divider(c)
 		ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
 			ui.Text(c, i18n.L("Save locations")).FontWeight(600).Grow(1)

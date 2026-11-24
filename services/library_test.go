@@ -236,3 +236,52 @@ func TestOtherDevicesPerProfile(t *testing.T) {
 	assert.Equal(t, "/deck/eden", others[0].Paths["account"], "the emulator's path there")
 	assert.Empty(t, others[1].Paths, "Zed doesn't play it with Eden")
 }
+
+// An emulator without a version for this device (Lemon on a PC) is marked so,
+// doesn't say what the game is missing here, and keeps its platforms when a
+// client that doesn't know them saves it.
+func TestEmulatorThatDoesntRunHere(t *testing.T) {
+	t.Setenv(appdir.EnvHome, t.TempDir())
+	t.Cleanup(background.Wait) // catalog uploads write into the home
+	c, err := core.New()
+	require.NoError(t, err)
+	emus := NewEmulatorService(c, nil)
+	lib := NewLibraryService(c, nil, nil)
+	other := "android"
+	if c.Platform() == "android" {
+		other = "windows"
+	}
+
+	away, err := emus.Save(EmulatorSetup{Name: "Away", Platforms: []string{other}})
+	require.NoError(t, err)
+	assert.True(t, away.NoVersionHere)
+	assert.Equal(t, []string{other}, away.Platforms)
+	eden, err := emus.Save(EmulatorSetup{Name: "Eden"})
+	require.NoError(t, err)
+	assert.False(t, eden.NoVersionHere)
+
+	// Saved again by a client that doesn't send them: kept.
+	away, err = emus.Save(EmulatorSetup{ID: away.ID, Name: "Away"})
+	require.NoError(t, err)
+	assert.Equal(t, []string{other}, away.Platforms)
+
+	slots := []library.SaveSlot{{Key: "saves"}}
+	both, err := c.Library.Save(library.Game{
+		Name:      "Both",
+		Emulators: []library.GameEmulator{{EmulatorID: away.ID, Slots: slots}, {EmulatorID: eden.ID, Slots: slots}},
+	}, c.DeviceID())
+	require.NoError(t, err)
+	v, err := lib.Get(both.ID)
+	require.NoError(t, err)
+	require.Len(t, v.Emulators, 2)
+	for _, pv := range v.Emulators {
+		assert.Equal(t, pv.EmulatorID != eden.ID, pv.NoVersionHere, pv.Name)
+	}
+	assert.Equal(t, v.Emulators[1].SetupHint, v.SetupHint, "what Eden is missing, not what Away is")
+
+	only, err := c.Library.Save(library.Game{Name: "Only", Emulators: []library.GameEmulator{{EmulatorID: away.ID, Slots: slots}}}, c.DeviceID())
+	require.NoError(t, err)
+	v, err = lib.Get(only.ID)
+	require.NoError(t, err)
+	assert.Equal(t, "Played with Away, which doesn't run on this device", v.SetupHint)
+}

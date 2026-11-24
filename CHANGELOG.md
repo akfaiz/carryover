@@ -37,6 +37,9 @@ All notable changes to Carryover are listed here. The format follows
 - An emulator's **Remove from this device** and **Delete** are in its **⋯** menu. An empty library, emulator list,
   trash or list of remotes says what to do next.
 - On a wide window, pages are centered. The window can't be made smaller than 900×600.
+- An emulator that only has an Android version, as Lemon, is marked **Android only** on the desktop: it isn't one of
+  a game's ways to play there, doesn't make the game need setup, and isn't offered to set up or add to a game. The
+  Android app stores which platforms Lemon runs on; a Lemon set up before this version is recognized by its name.
 - The library's game grid fills the window: the covers grow with it (at least as wide as before) and another column is
   added once it fits, so there is no empty strip at the right of the grid.
 - The main window opens where it was left: its position, size and maximized state are remembered (full screen still
