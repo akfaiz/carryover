@@ -256,7 +256,8 @@ func AllowedImageURL(u string) bool {
 }
 
 // Download fetches an image from SteamGridDB's CDN. It returns the bytes and a
-// file extension (".png", ".jpg" or ".webp").
+// file extension (".png", ".jpg" or ".webp"): an icon (.ico) comes back as its
+// largest image, in PNG.
 func Download(ctx context.Context, client *http.Client, imageURL string) ([]byte, string, error) {
 	if !AllowedImageURL(imageURL) {
 		return nil, "", fmt.Errorf("refusing to download %q: not a SteamGridDB image URL", imageURL)
@@ -277,9 +278,23 @@ func Download(ctx context.Context, client *http.Client, imageURL string) ([]byte
 	if err != nil {
 		return nil, "", err
 	}
-	ext := imageExt(http.DetectContentType(data))
+	return convertImage(data)
+}
+
+// convertImage returns image bytes ready to store and their extension: PNG,
+// JPEG and WebP as they are, an icon (.ico) as its largest image in PNG.
+func convertImage(data []byte) ([]byte, string, error) {
+	ct := http.DetectContentType(data)
+	if ct == "image/x-icon" {
+		p, err := icoToPNG(data)
+		if err != nil {
+			return nil, "", fmt.Errorf("downloaded icon: %w", err)
+		}
+		return p, ".png", nil
+	}
+	ext := imageExt(ct)
 	if ext == "" {
-		return nil, "", errors.New("downloaded file is not a PNG, JPEG or WebP image")
+		return nil, "", errors.New("downloaded file is not a PNG, JPEG, WebP or ICO image")
 	}
 	return data, ext, nil
 }
