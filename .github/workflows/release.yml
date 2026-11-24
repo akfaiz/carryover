@@ -42,7 +42,7 @@ jobs:
           if-no-files-found: error
 
   linux:
-    # Same Dockerfile as scripts/linux-docker (Debian bookworm, appimagetool pinned
+    # Same Dockerfile as scripts/linux-docker (Debian trixie, appimagetool pinned
     # there), so the release is the build already tested on the Steam Deck.
     runs-on: ubuntu-latest
     env:

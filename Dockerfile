@@ -4,7 +4,7 @@
 # packages it into an image that can display its window on a Windows host
 # through WSLg. Use scripts/linux-docker.ps1 rather than calling this directly.
 
-FROM golang:1.27-bookworm AS build
+FROM golang:1.27-trixie AS build
 WORKDIR /src
 COPY go.mod go.sum ./
 RUN --mount=type=cache,target=/go/pkg/mod go mod download
@@ -12,9 +12,10 @@ COPY . .
 RUN --mount=type=cache,target=/go/pkg/mod --mount=type=cache,target=/root/.cache/go-build \
     CGO_ENABLED=0 go build -trimpath -ldflags "-s -w" -o /out/carryover .
 
-# AppImage packaging (see packaging/appimage/build.sh). Built on demand:
-#   docker build --target appimage-out --output type=local,dest=dist .
-FROM build AS appimage
+# The AppImage tools, in a stage of their own: it doesn't depend on the sources,
+# so the packages and appimagetool are installed once and stay cached when the
+# code changes (they used to be reinstalled after every `COPY . .`).
+FROM debian:trixie-slim AS appimage-tools
 ARG APPIMAGETOOL_VERSION=1.9.1
 RUN apt-get update \
     && apt-get install -y --no-install-recommends curl ca-certificates file desktop-file-utils zsync appstream \
@@ -28,6 +29,15 @@ RUN apt-get update \
 # builds under emulation (arm64 host). Harmless on a native x86-64 host.
 # No FUSE inside a build container: let appimagetool unpack itself.
 ENV APPIMAGE_EXTRACT_AND_RUN=1
+
+# AppImage packaging (see packaging/appimage/build.sh): the tools, the binary
+# and only the files the script reads. Built on demand:
+#   docker build --target appimage-out --output type=local,dest=dist .
+FROM appimage-tools AS appimage
+WORKDIR /src
+COPY packaging/ packaging/
+COPY ui/assets/appicon.png ui/assets/appicon.svg ui/assets/
+COPY --from=build /out/carryover /out/carryover
 # Update information for AppImageUpdate / Gear Lever (empty for local builds);
 # when set, <APPIMAGE>.zsync is written next to the AppImage. Releases set
 # APPIMAGE to the versioned name: the .zsync file refers to the AppImage by name.
@@ -43,10 +53,10 @@ COPY --from=appimage /appimage/ /
 FROM scratch AS binary-out
 COPY --from=build /out/carryover /carryover
 
-FROM debian:bookworm-slim
+FROM debian:trixie-slim
 # MyGo loads GTK 3 and OpenGL at run time (no cgo): the packages the window needs.
 RUN apt-get update && apt-get install -y --no-install-recommends \
-        libgtk-3-0 libgl1 libgl1-mesa-dri libegl1 fontconfig fonts-dejavu-core ca-certificates xdg-utils \
+        libgtk-3-0t64 libgl1 libgl1-mesa-dri libegl1 fontconfig fonts-dejavu-core ca-certificates xdg-utils \
     && rm -rf /var/lib/apt/lists/*
 COPY --from=build /out/carryover /usr/local/bin/carryover
 # Keep settings, library, rclone.conf and state in a volume, away from any real config.
