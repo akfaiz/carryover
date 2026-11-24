@@ -9,7 +9,7 @@ import (
 )
 
 // Backend is what the game page asks of the services; the page's ViewModel
-// holds one, so the operations can be tested without Fyne or a cloud.
+// holds one, so the operations can be tested without the toolkit or a cloud.
 type Backend interface {
 	Plan(key string) (services.PlanView, error)
 	Sync(key, resolution string) (string, error)

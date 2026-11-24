@@ -35,6 +35,23 @@ func BigPicture() bool { return os.Getenv("SteamTenfoot") == "1" }
 // with a controller here: in Game Mode, or when Steam started Carryover.
 func KeyboardWanted() bool { return Active() || SteamLaunched() }
 
+// QuietInputMethod stops Steam's own GTK input method from showing the
+// on-screen keyboard whenever a window gets the focus. MyGo focuses GTK's
+// input context with the window, not only with a text field, and Game Mode
+// exports GTK_IM_MODULE=Steam, whose module opens Steam's keyboard on that
+// focus: over Carryover and over its prompts, which have no text field.
+// Carryover asks for the keyboard itself (OpenKeyboard) when a text field is
+// opened. An input method the user chose (fcitx, ibus) is left alone. Call it
+// before the GUI starts.
+func QuietInputMethod() {
+	if !CanRequestKeyboard || !KeyboardWanted() {
+		return
+	}
+	if im := os.Getenv("GTK_IM_MODULE"); im == "" || strings.EqualFold(im, "steam") {
+		_ = os.Setenv("GTK_IM_MODULE", "gtk-im-context-simple")
+	}
+}
+
 // KeyboardURL asks Steam to show its on-screen keyboard.
 const KeyboardURL = "steam://open/keyboard"
 

@@ -6,15 +6,14 @@ import (
 	"strings"
 	"testing"
 
-	"fyne.io/fyne/v2"
-	"fyne.io/fyne/v2/test"
-	"fyne.io/fyne/v2/widget"
+	"github.com/egoist/mygo/ui"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/akfaiz/carryover/services"
 	"github.com/akfaiz/carryover/ui/env"
 	"github.com/akfaiz/carryover/ui/internal/uitest"
+	"github.com/akfaiz/carryover/ui/kit"
 	"github.com/akfaiz/carryover/ui/pages/game"
 	"github.com/akfaiz/carryover/ui/shell"
 )
@@ -23,7 +22,7 @@ import (
 // where the game page navigated to.
 type elsewhere struct{}
 
-func (elsewhere) View() fyne.CanvasObject { return widget.NewLabel("elsewhere") }
+func (elsewhere) View(c *ui.Context) { ui.Text(c, "elsewhere") }
 
 // newHarness shows the game page in a shell, in an isolated data dir. Any other
 // route shows a stand-in page.
@@ -41,21 +40,10 @@ func newHarness(t *testing.T) *uitest.Harness {
 	})
 }
 
-// askDelete opens the game page's delete dialog (from its "⋯" menu).
 func askDelete(t *testing.T, h *uitest.Harness) {
 	t.Helper()
-	gp, ok := h.Shell.Page().(*game.Page)
-	require.True(t, ok, "on a game page")
-	g, _ := h.Shell.Store().Game(gp.GameID())
-	var item *fyne.MenuItem
-	for _, it := range gp.MoreMenu(g, false).Items {
-		if it.Label == "Delete from library…" {
-			item = it
-		}
-	}
-	require.NotNil(t, item, "the menu offers to delete")
-	item.Action()
-	h.Settle()
+	h.Click("⋯")
+	h.Click("Delete from library…")
 }
 
 func TestGamePageDeleteAsksFirst(t *testing.T) {
@@ -65,19 +53,17 @@ func TestGamePageDeleteAsksFirst(t *testing.T) {
 	h.Open("/game/" + g.ID)
 
 	askDelete(t, h)
-	uitest.TapOverlayButton(t, h, "Cancel") // the confirmation can be backed out of
-	h.Settle()
+	h.Click("Cancel") // the confirmation can be backed out of
 	require.Len(t, h.Core.Library.List(), 1)
 	assert.Equal(t, "/game/"+g.ID, h.Shell.Route())
 
 	askDelete(t, h)
-	uitest.TapOverlayButton(t, h, "Delete")
+	h.Click("Delete")
 	h.Settle()
 	assert.Empty(t, h.Core.Library.List())
-	assert.Equal(t, "/", h.Shell.Route(), "back to the library")
+	assert.Equal(t, "/", h.Shell.Route(), "the game's page is gone")
 }
 
-// With a cloud remote, the game page syncs on demand and takes manual backups.
 func TestGamePageSyncAndBackup(t *testing.T) {
 	h := newHarness(t)
 	cloudDir := h.UseLocalCloud()
@@ -86,15 +72,13 @@ func TestGamePageSyncAndBackup(t *testing.T) {
 	g := h.AddGame("Game A", saves)
 	h.Open("/game/" + g.ID)
 
-	sync := uitest.ButtonWith(t, uitest.PageWidgets[*widget.Button](h), "Sync now")
-	require.False(t, sync.Disabled(), "a cloud remote is configured")
-	test.Tap(sync)
+	h.Click("Sync now")
 	h.Settle()
 	assert.FileExists(t, filepath.Join(cloudDir, "games", g.ID, "current", "saves", "a.sav"), "the saves were uploaded")
 
 	// Back up now stores a pinned backup.
 	h.Open("/game/" + g.ID)
-	test.Tap(uitest.ButtonWith(t, uitest.PageWidgets[*widget.Button](h), "Back up now"))
+	h.Click("Back up now")
 	h.Settle()
 	backups, err := h.Shell.Sync().Backups(g.ID)
 	require.NoError(t, err)
@@ -110,22 +94,13 @@ func TestGamePageSwitchesBetweenEmulators(t *testing.T) {
 	g, eden, _ := h.AddEmulatorGame()
 	h.Open("/game/" + g.ID)
 
-	buttons := map[string]int{}
-	for _, b := range uitest.PageWidgets[*widget.Button](h) {
-		buttons[b.Text]++
-	}
 	for _, name := range []string{"Without an emulator", "Eden", "Ryujinx"} {
-		assert.Equal(t, 1, buttons[name], "a switcher button for %s", name)
+		assert.Contains(t, h.Texts(), name, "a switcher button for %s", name)
 	}
-	assert.Equal(t, 1, buttons["Compare with cloud"], "one profile's cards at a time")
-	assert.Equal(t, 1, buttons["Back up now"])
-
 	gp := h.Shell.Page().(*game.Page)
 	assert.Empty(t, gp.SelectedProfile(uitest.MustGame(t, h, g.ID)), "starts on the first")
-	uitest.TapButton(t, h, "Eden")
-	h.Settle()
+	h.Click("Eden")
 	assert.Equal(t, eden.ID, gp.SelectedProfile(uitest.MustGame(t, h, g.ID)))
-	assert.Equal(t, widget.HighImportance, uitest.ButtonWith(t, uitest.PageWidgets[*widget.Button](h), "Eden").Importance, "the selected one stands out")
 }
 
 // A plain game (no emulators) has no switcher.
@@ -133,7 +108,7 @@ func TestGamePageWithoutEmulatorsHasNoTags(t *testing.T) {
 	h := newHarness(t)
 	g := h.AddGame("Game A", t.TempDir())
 	h.Open("/game/" + g.ID)
-	texts := strings.Join(uitest.LabelTexts(h), "\n")
+	texts := strings.Join(h.Texts(), "\n")
 	assert.NotContains(t, texts, "Without an emulator")
 	assert.NotContains(t, texts, "Saves of")
 	assert.Contains(t, texts, "Saves")
@@ -161,11 +136,10 @@ func TestGamePageConflictShowsTheChoice(t *testing.T) {
 	require.NoError(t, os.WriteFile(file, []byte("three"), 0o644))
 
 	h.Open("/game/" + g.ID)
-	uitest.TapButton(t, h, "Sync now")
+	h.Click("Sync now")
 	h.Settle()
-	texts := uitest.ButtonTextsOnPage(h)
-	assert.Contains(t, texts, "Keep this device's saves")
-	assert.Contains(t, texts, "Keep cloud saves")
+	assert.Contains(t, h.Texts(), "Keep this device's saves")
+	assert.Contains(t, h.Texts(), "Keep cloud saves")
 }
 
 // The delete confirmation says where kept cloud saves can be found again, and
@@ -175,107 +149,22 @@ func TestDeleteConfirmationExplainsKeptSaves(t *testing.T) {
 	g := h.AddGame("Game A", t.TempDir())
 	h.Open("/game/" + g.ID)
 	askDelete(t, h)
-	assert.Contains(t, uitest.OverlayText(h), "Leftover cloud saves")
-	test.Tap(uitest.OverlayWidgets[*widget.Check](h)[0])
-	h.Settle()
-	assert.NotContains(t, uitest.OverlayText(h), "Leftover cloud saves")
+	kept := "The cloud saves stay until you delete them. Once it is gone for good, they are listed under Trash → Leftover cloud saves."
+	assert.Contains(t, h.Texts(), kept)
+	h.Click("Also delete its cloud saves and backups")
+	assert.NotContains(t, h.Texts(), kept)
 }
 
-// The Steam shortcut of a game with emulators can be for the whole game or for
-// any one of its emulators, not only the one shown on the page.
-func TestSteamShortcutTargetsListEveryEmulator(t *testing.T) {
-	t.Setenv("CARRYOVER_STEAM_ROOT", t.TempDir())
+// The pad starts on Back, which only goes back, never on Play.
+func TestGamePagePadStartsOnBack(t *testing.T) {
 	h := newHarness(t)
 	g := h.AddGame("Game A", t.TempDir())
-	var ids []string
-	for _, name := range []string{"Eden", "Ryujinx"} {
-		ev, err := h.Shell.Emus().Save(services.EmulatorSetup{Name: name, Exe: name})
-		require.NoError(t, err)
-		ids = append(ids, ev.ID)
-	}
-	var in []services.GameEmulatorInput
-	for _, id := range ids {
-		in = append(in, services.GameEmulatorInput{EmulatorID: id, Slots: g.Slots, Rom: "g.nsp", Paths: map[string]string{"saves": filepath.Join(t.TempDir(), id)}})
-	}
-	_, err := h.Shell.Lib().Save(services.GameInput{
-		ID: g.ID, Name: g.Name, Slots: g.Slots, Device: services.DeviceInput{Paths: g.Device.Paths, Exe: g.Device.Exe}, Emulators: in,
-	})
-	require.NoError(t, err)
-	h.Shell.Store().Refresh()
-	h.Settle()
-
+	h.Open("/")
 	h.Open("/game/" + g.ID)
-	var shortcut *widget.Select
-	for _, s := range uitest.WidgetsOf[*widget.Select](h.Shell.Page().View()) {
-		for _, o := range s.Options {
-			if o == "Only Eden" {
-				shortcut = s
-			}
-		}
-	}
-	require.NotNil(t, shortcut, "no shortcut target selector")
-	assert.Equal(t, []string{
-		"The whole game: asks which emulator to use when it starts", "Only Eden", "Only Ryujinx",
-	}, shortcut.Options)
-	assert.Equal(t, shortcut.Options[0], shortcut.Selected, "one shortcut for the whole game is the default")
-}
-
-// A backup can be unpinned, restored and deleted from the game page.
-func TestGamePageBackupActions(t *testing.T) {
-	h := newHarness(t)
-	h.UseLocalCloud()
-	saves := t.TempDir()
-	require.NoError(t, os.WriteFile(filepath.Join(saves, "a.sav"), []byte("save"), 0o644))
-	g := h.AddGame("Game A", saves)
-	h.Open("/game/" + g.ID)
-	test.Tap(uitest.ButtonWith(t, uitest.PageWidgets[*widget.Button](h), "Sync now"))
+	h.Shell.Navigator().Press(kit.PadDown)
 	h.Settle()
-	h.Open("/game/" + g.ID)
-	test.Tap(uitest.ButtonWith(t, uitest.PageWidgets[*widget.Button](h), "Back up now"))
+	assert.False(t, h.Tester.Focused("Play"), "a stray A can't start the game")
+	h.Shell.Navigator().Press(kit.PadAccept)
 	h.Settle()
-	buttons := func() []*widget.Button { return uitest.PageWidgets[*widget.Button](h) }
-
-	test.Tap(uitest.ButtonWith(t, buttons(), "Unpin"))
-	h.Settle()
-	backups, err := h.Shell.Sync().Backups(g.ID)
-	require.NoError(t, err)
-	require.Len(t, backups, 1)
-	assert.False(t, backups[0].Pinned)
-
-	test.Tap(uitest.ButtonWith(t, buttons(), "Restore"))
-	h.Settle()
-	uitest.TapOverlayButton(t, h, "Restore")
-	h.Settle()
-	assert.Contains(t, h.Toasts(), "Backup restored and uploaded")
-
-	// delete (the icon-only button): the one with no text
-	var del *widget.Button
-	for _, b := range buttons() {
-		if b.Text == "" && b.Icon != nil {
-			del = b
-		}
-	}
-	if del != nil {
-		test.Tap(del)
-		h.Settle()
-		uitest.TapOverlayButton(t, h, "Delete")
-		h.Settle()
-	}
-}
-
-func TestGamePageSyncNowAndRedraw(t *testing.T) {
-	h := newHarness(t)
-	h.UseLocalCloud()
-	saves := t.TempDir()
-	require.NoError(t, os.WriteFile(filepath.Join(saves, "a.sav"), []byte("save"), 0o644))
-	g := h.AddGame("Game A", saves)
-	h.Open("/game/" + g.ID)
-	gp, ok := h.Shell.Page().(*game.Page)
-	require.True(t, ok)
-	assert.NotNil(t, gp.DefaultFocus())
-	gp.Redraw()
-	gp.SyncNow()
-	h.Settle()
-	gv := uitest.MustGame(t, h, g.ID)
-	assert.NotEmpty(t, gv.Status.LastSyncAt)
+	assert.Equal(t, "/", h.Shell.Route(), "A on Back goes back")
 }

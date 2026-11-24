@@ -41,8 +41,8 @@ sync is in progress. Carryover stops reading the controller while another window
 started from it.
 
 If Steam's controller layout for Carryover maps the D-pad to arrow keys instead of a gamepad, switch it back to a
-"Gamepad" layout: in Fyne, the toolkit Carryover uses, arrow keys move on only from game tiles and list rows, not
-from ordinary buttons.
+"Gamepad" layout: Carryover reads the controller itself in Game Mode and moves between buttons with the D-pad, which
+arrow keys don't do everywhere.
 
 ## Proton games
 

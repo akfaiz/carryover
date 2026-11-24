@@ -3,46 +3,58 @@ package editor
 import (
 	"strings"
 
-	"fyne.io/fyne/v2"
-	"fyne.io/fyne/v2/container"
-	"fyne.io/fyne/v2/widget"
-
-	"github.com/akfaiz/carryover/ui/i18n"
+	"github.com/egoist/mygo/ui"
 
 	"github.com/akfaiz/carryover/services"
 	"github.com/akfaiz/carryover/ui/components"
 	"github.com/akfaiz/carryover/ui/env"
 	"github.com/akfaiz/carryover/ui/flows"
+	"github.com/akfaiz/carryover/ui/i18n"
 	"github.com/akfaiz/carryover/ui/kit"
 )
 
-// Page is the game editor: add a game, or edit one.
+// Page is the game editor: add a game, or edit one. MyGo draws it every frame:
+// the fields are bound straight to the ViewModel's, so typing changes the
+// ViewModel without a callback; what must follow a change (the save-location
+// key from a label, a path's preview) is noticed as the frame is built.
 type Page struct {
 	u  env.Env
 	vm *ViewModel
 
-	scroll    *container.Scroll
-	root      *fyne.Container // the page: the scrolling form over the bar
-	bar       *fyne.Container // the Save / Cancel bar under the scrolling form
-	nameEntry *widget.Entry
-	exeEntry  *widget.Entry
-	advItem   *kit.AccordionSection
-	artItem   *kit.AccordionSection
-	slotViews map[*slotForm]*slotView
+	scroll    ui.ScrollState
+	slotOpen  map[*slotForm]*bool // whether a slot's Filters section is open
+	slotLabel map[*slotForm]string
+	paths     map[*string]*components.PathInput
 }
+
+var (
+	_ env.Guarded    = (*Page)(nil)
+	_ env.Scrollable = (*Page)(nil)
+)
 
 // Dirty: the form has unsaved changes (env.Guarded).
 func (e *Page) Dirty() bool { return e.vm.Dirty() }
 
-var (
-	_ env.Guarded    = (*Page)(nil)
-	_ env.Redrawable = (*Page)(nil)
-)
-
 // New returns the editor for the game id, or for a new game when id is empty.
 // steamAppID pre-fills a new game from the installed Steam library.
 func New(u env.Env, id, steamAppID string) *Page {
-	return &Page{u: u, slotViews: map[*slotForm]*slotView{}, vm: newViewModel(id, steamAppID, serviceBackend{u})}
+	e := &Page{
+		u: u, vm: newViewModel(id, steamAppID, serviceBackend{u}),
+		slotOpen: map[*slotForm]*bool{}, slotLabel: map[*slotForm]string{}, paths: map[*string]*components.PathInput{},
+	}
+	kit.Async(e.vm.Load, func(l Loaded, err error) {
+		e.vm.Apply(l, err)
+		if e.vm.id == "" && e.vm.steamAppID != "" {
+			e.prefillFromSteam(e.vm.steamAppID)
+		}
+		if e.vm.id == "" && e.vm.lutrisID != "" {
+			e.prefillFromLutris(e.vm.lutrisID)
+		}
+		if e.vm.id == "" && e.vm.heroicGame[1] != "" {
+			e.prefillFromHeroic(e.vm.heroicGame[0], e.vm.heroicGame[1])
+		}
+	})
+	return e
 }
 
 // NewFromLutris returns the editor for a new game, pre-filled from the game
@@ -84,33 +96,14 @@ func (e *Page) EmulatorNames() []string {
 	return out
 }
 
-func (e *Page) View() fyne.CanvasObject {
-	e.scroll = kit.ScrollPage(kit.Muted(i18n.L("Loading…")))
-	e.bar = container.NewStack()
-	kit.Async(e.vm.Load, func(l Loaded, err error) {
-		e.vm.Apply(l, err)
-		e.render()
-		if e.vm.id == "" && e.vm.steamAppID != "" {
-			e.prefillFromSteam(e.vm.steamAppID)
-		}
-		if e.vm.id == "" && e.vm.lutrisID != "" {
-			e.prefillFromLutris(e.vm.lutrisID)
-		}
-		if e.vm.id == "" && e.vm.heroicGame[1] != "" {
-			e.prefillFromHeroic(e.vm.heroicGame[0], e.vm.heroicGame[1])
-		}
-	})
-	// Save and Cancel stay in view under the form, however long it gets.
-	e.root = container.NewBorder(nil, e.bar, nil, nil, e.scroll)
-	return e.root
-}
+// Scroll is the page's scroll container, which the pad's right stick scrolls.
+func (e *Page) Scroll() *ui.ScrollState { return &e.scroll }
 
 func (e *Page) prefillFromSteam(appID string) {
 	kit.Async(func() ([]services.SteamLibraryGame, error) { return e.vm.be.SteamLibrary(), nil }, func(lib []services.SteamLibraryGame, _ error) {
 		for _, a := range lib {
 			if a.AppID == appID {
 				e.vm.PrefillFromSteam(a)
-				e.render()
 				e.suggestSaves(true)
 				return
 			}
@@ -123,7 +116,6 @@ func (e *Page) prefillFromLutris(configID string) {
 		for _, g := range lib {
 			if g.ConfigID == configID {
 				e.vm.PrefillFromLutris(g)
-				e.render()
 				e.suggestSaves(true)
 				return
 			}
@@ -136,7 +128,6 @@ func (e *Page) prefillFromHeroic(runner, appName string) {
 		for _, g := range lib {
 			if g.Runner == runner && g.AppName == appName {
 				e.vm.PrefillFromHeroic(g)
-				e.render()
 				e.suggestSaves(true)
 				return
 			}
@@ -152,33 +143,26 @@ func (e *Page) suggestSaves(autofill bool) {
 		return
 	}
 	e.vm.suggesting = true
-	e.render()
 	in := services.SuggestInput{GameID: e.vm.id, Name: e.vm.name, StoreAppID: e.vm.storeAppID, Exe: e.vm.dev.Exe, LaunchMode: e.vm.dev.LaunchMode}
 	kit.Async(func() (services.SuggestResult, error) { return e.vm.be.SuggestSaves(in) }, func(res services.SuggestResult, err error) {
 		e.vm.suggesting = false
 		if err != nil {
 			e.u.Toast(i18n.L("Save suggestions: {{.Err}}", map[string]any{"Err": err}), kit.ToastErr)
-			e.render()
 			return
 		}
 		if e.vm.ApplySuggestions(res, autofill) {
 			e.u.Toast(i18n.L("Found {{.Game}} saves on this device", map[string]any{"Game": res.Matched}), kit.ToastOK)
 		}
-		e.render()
 	})
+	kit.Redraw()
 }
 
-func (e *Page) addSlot() {
-	e.vm.addSlot()
-	e.render()
-}
 func (e *Page) searchSteam() {
 	term := strings.TrimSpace(e.vm.name)
 	if len(term) < 2 {
 		return
 	}
 	e.vm.searching = true
-	e.render()
 	kit.Async(func() ([]services.StoreMatch, error) { return e.vm.be.SearchSteam(term) }, func(res []services.StoreMatch, err error) {
 		e.vm.searching = false
 		if err != nil {
@@ -187,8 +171,8 @@ func (e *Page) searchSteam() {
 		} else {
 			e.vm.steamResults, e.vm.showResults = res, true
 		}
-		e.render()
 	})
+	kit.Redraw()
 }
 
 // pickFile asks for a file, starting at the folder of from (a path that may
@@ -199,71 +183,192 @@ func (e *Page) pickFile(title string, exts []string, from string, done func(stri
 	})
 }
 
-func (e *Page) render() {
-	if e.vm.loading {
-		return
+// askGridKey asks for a SteamGridDB key in a dialog, so the form stays as it is.
+func (e *Page) askGridKey() {
+	flows.ShowGridKeyDialog(e.u, func() { e.vm.hasGridKey = true })
+}
+
+// pathInput is the path entry for the string at ptr, kept across frames; it
+// follows the string when something else changes it (a suggestion is used).
+func (e *Page) pathInput(ptr *string, gameID, placeholder string, withTokens bool) *components.PathInput {
+	pi := e.paths[ptr]
+	if pi == nil {
+		tokens := e.vm.tokens
+		if !withTokens {
+			tokens = nil
+		}
+		pi = components.NewPathInput(e.u, gameID, tokens, *ptr, placeholder, func(v string) { *ptr = v })
+		e.paths[ptr] = pi
 	}
-	u := e.u
-	// Keep accordion states across re-renders.
-	if e.advItem != nil {
-		e.vm.advanced = e.advItem.Open()
+	pi.Follow(*ptr)
+	return pi
+}
+
+// button is a button that registers with the gamepad. key tells it from the
+// others on the page.
+func (e *Page) button(c *ui.Context, key any, label string, primary, disabled bool, action func()) {
+	nav := e.u.Navigator()
+	k := [2]any{"editor", key}
+	var b ui.Element
+	if primary {
+		b = ui.PrimaryButton(c.Key(k), label)
+	} else {
+		b = ui.Button(c.Key(k), label)
 	}
-	if e.artItem != nil {
-		e.vm.artOpen = e.artItem.Open()
+	if nav.Item(nav.Handle(k), b.Disabled(disabled), action).Clicked() && !disabled {
+		action()
 	}
-	for _, s := range e.vm.slots {
-		e.slotViewOf(s).rememberOpen()
+}
+
+// field is a single-line text input bound to *v.
+func (e *Page) field(c *ui.Context, key any, v *string, placeholder string, mono bool) ui.Element {
+	nav := e.u.Navigator()
+	k := [2]any{"editor-field", key}
+	in := ui.TextInput(c.Key(k), v).Placeholder(placeholder).Label(placeholder)
+	if mono {
+		in = in.Font("monospace")
 	}
+	return nav.Item(nav.Handle(k), in, nil, kit.TextField)
+}
+
+// area is a multi-line text input bound to *v.
+func (e *Page) area(c *ui.Context, key any, v *string, placeholder string, height float32) {
+	nav := e.u.Navigator()
+	k := [2]any{"editor-area", key}
+	nav.Item(nav.Handle(k), ui.TextArea(c.Key(k), v).Placeholder(placeholder).Label(placeholder).Font("monospace").Height(height), nil, kit.TextField)
+}
+
+// View draws the page: the scrolling form over the Save / Cancel bar.
+func (e *Page) View(c *ui.Context) {
+	nav := e.u.Navigator()
 	head := i18n.L("Add game")
 	if e.vm.id != "" {
 		head = i18n.L("Edit game")
 	}
-	var body fyne.CanvasObject
-	if e.vm.id == "" {
-		// A new game is filled in from top to bottom, one card after the other;
-		// the artwork is optional, so it starts folded.
-		col := kit.Stack(e.gameCard(), e.howCard())
-		if e.vm.kind != KindEmulator {
-			col.Add(e.launchCard())
-			col.Add(e.savesCard())
+	ui.Column(c).Grow(1).Children(func() {
+		ui.Scroll(c).Grow(1).TrackScroll(&e.scroll).Children(func() {
+			ui.Column(c).Gap(10).Padding(0, 20, 20, 20).Children(func() {
+				kit.PageHead(c, nav, nav.Handle("editor-back"), e.u.Back, head, nil)
+				if e.vm.loading {
+					kit.Muted(c, i18n.L("Loading…"))
+					return
+				}
+				e.form(c)
+			})
+		})
+		if !e.vm.loading {
+			e.bar(c)
 		}
-		if e.vm.kind != KindDirect {
-			col.Add(e.emulatorsCard())
-		}
-		e.artItem = kit.NewAccordionSection(i18n.L("Steam artwork (optional)"), e.artworkCard(), e.vm.artOpen)
-		col.Add(e.artItem)
-		body = kit.MaxWidth(780, col)
-	} else {
-		e.artItem = nil
-		left, right := kit.Stack(e.gameCard(), e.howCard()), kit.Stack()
-		if e.vm.kind != KindEmulator {
-			left.Add(e.launchCard())
-			right.Add(e.savesCard())
-		}
-		if e.vm.kind != KindDirect {
-			left.Add(e.emulatorsCard())
-		}
-		right.Add(e.artworkCard())
-		// On a very wide window the page stops growing: fields 1100 px wide
-		// are hard to read. The form gets the larger share when the right
-		// column only holds the artwork; the save locations need room.
-		var ratios []float32
-		if e.vm.kind == KindEmulator {
-			ratios = []float32{3, 2}
-		}
-		body = kit.MaxWidth(1400, kit.NewCols(440, ratios, left, right))
-	}
-	kit.ReplaceScroll(e.scroll, kit.Stack(kit.PageHead(u.Back, head), body))
-	e.renderBar()
-}
-
-// askGridKey asks for a SteamGridDB key in a dialog, so the form stays as it is.
-func (e *Page) askGridKey() {
-	flows.ShowGridKeyDialog(e.u, func() {
-		e.vm.hasGridKey = true
-		e.render()
 	})
 }
 
-// Redraw draws the page again from its state (env.Redrawable).
-func (e *Page) Redraw() { e.render() }
+func (e *Page) form(c *ui.Context) {
+	if e.vm.id == "" {
+		// A new game is filled in from top to bottom, one card after the other;
+		// the artwork is optional, so it starts folded.
+		ui.Column(c).MaxWidth(780).Gap(10).Children(func() {
+			e.gameCard(c)
+			e.howCard(c)
+			if e.vm.kind != KindEmulator {
+				e.launchCard(c)
+				e.savesCard(c)
+			}
+			if e.vm.kind != KindDirect {
+				e.emulatorsCard(c)
+			}
+			ui.Collapsible(c.Key("art-open"), i18n.L("Steam artwork (optional)"), &e.vm.artOpen, func() { e.artworkCard(c) })
+		})
+		return
+	}
+	// On a very wide window the page stops growing: fields 1100 px wide are
+	// hard to read. The form gets the larger share when the right column only
+	// holds the artwork; the save locations need room.
+	left, right := float32(1), float32(1)
+	if e.vm.kind == KindEmulator {
+		left, right = 3, 2
+	}
+	ui.Row(c).MaxWidth(1400).Gap(16).Wrap().AlignItems(ui.Start).Children(func() {
+		ui.Column(c).Grow(left).MinWidth(440).Gap(10).Children(func() {
+			e.gameCard(c)
+			e.howCard(c)
+			if e.vm.kind != KindEmulator {
+				e.launchCard(c)
+			}
+			if e.vm.kind != KindDirect {
+				e.emulatorsCard(c)
+			}
+		})
+		ui.Column(c).Grow(right).MinWidth(440).Gap(10).Children(func() {
+			if e.vm.kind != KindEmulator {
+				e.savesCard(c)
+			}
+			e.artworkCard(c)
+		})
+	})
+}
+
+// bar is the bar under the form: an error or a hint about what is still
+// missing, Cancel and Save. It stays in view however long the form gets.
+func (e *Page) bar(c *ui.Context) {
+	t := c.Theme()
+	ui.Column(c).Background(t.Surface).Children(func() {
+		ui.Divider(c)
+		ui.Row(c).Gap(10).Padding(10, 28).AlignItems(ui.Center).Children(func() {
+			var note ui.Element
+			switch e.vm.BarNote() {
+			case NoteError:
+				note = kit.Danger(c, e.vm.errText)
+			case NoteName:
+				note = kit.Muted(c, i18n.L("Give the game a name to save it."))
+			case NoteEmulator:
+				note = kit.Muted(c, i18n.L("Add the emulator you play it with."))
+			case NoteSaveLocation:
+				note = kit.Muted(c, i18n.L("No save location is set for this device yet. You can save anyway; the game shows “needs setup” here until you set one."))
+			default:
+				note = ui.Spacer(c)
+			}
+			note.Grow(1)
+			e.button(c, "cancel", i18n.L("Cancel"), false, false, e.u.Back)
+			label := i18n.L("Save")
+			if e.vm.saving {
+				label = i18n.L("Saving…")
+			}
+			e.button(c, "save", label, true, !e.vm.CanSave(), e.save)
+		})
+	})
+}
+
+func (e *Page) save() {
+	u := e.u
+	e.vm.errText = ""
+	in, err := e.vm.Input()
+	if err != nil {
+		e.vm.errText = i18n.L("Add at least one emulator, or choose “PC or Steam game”.")
+		return
+	}
+	e.vm.saving = true
+	coverSrc, gridPick := e.vm.coverSrc, e.vm.gridPick
+	artJobs := e.vm.artworkJobs()
+	kit.Async(func() (SaveOutcome, error) {
+		return e.vm.Submit(in, coverSrc, gridPick, artJobs)
+	}, func(out SaveOutcome, err error) {
+		g, coverErr, artErr := out.Game, out.CoverErr, out.ArtErr
+		e.vm.saving = false
+		if err != nil {
+			e.vm.errText = err.Error()
+			return
+		}
+		e.vm.saved = true
+		if coverErr != nil {
+			u.Toast(i18n.L("Cover: {{.Err}}", map[string]any{"Err": coverErr}), kit.ToastErr)
+		}
+		if artErr != nil {
+			u.Toast(i18n.L("Artwork: {{.Err}}", map[string]any{"Err": artErr}), kit.ToastErr)
+		}
+		u.Store().Refresh()
+		u.Toast(i18n.L("Saved"), kit.ToastOK)
+		// In place of the editor: Back from the game goes where the editor was
+		// opened from, not into the editor again.
+		u.Replace("/game/" + g.ID)
+	})
+}

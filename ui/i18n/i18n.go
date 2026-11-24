@@ -3,8 +3,7 @@
 // Source strings in code are the English text passed to L or N, which is also
 // the catalog key, so a missing translation falls back to the English source.
 // The package does not depend on the GUI toolkit: it holds its own go-i18n
-// localizer, the way Fyne's lang package does. The GUI also hands the same
-// catalogs to its toolkit (FS) so the toolkit's own dialogs are translated.
+// localizer. FS and Catalog expose the embedded catalogs.
 package i18n
 
 import (
@@ -103,8 +102,8 @@ func Init(setting string) {
 	mu.Unlock()
 }
 
-// systemLanguage is the catalog closest to the user's locales, as Fyne's
-// closestSupportedLocale picks it.
+// systemLanguage is the catalog closest to the user's locales, by the closest
+// match of the system's languages.
 func systemLanguage(tags []language.Tag) string {
 	locs, err := locale.GetLocales()
 	if err != nil || len(locs) == 0 {
@@ -159,7 +158,7 @@ func localize(key string, count any, data []any) string {
 	return ret
 }
 
-// fallback renders the English source itself, as Fyne's fallbackWithData.
+// fallback renders the English source itself, as go-i18n does when a message has no entry.
 func fallback(key string, data any) string {
 	t, err := template.New(key).Parse(key)
 	if err != nil {

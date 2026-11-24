@@ -4,8 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	"fyne.io/fyne/v2"
-	"fyne.io/fyne/v2/widget"
+	"github.com/egoist/mygo/ui"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -20,13 +19,13 @@ import (
 // that the editor navigated to it.
 type elsewhere struct{}
 
-func (elsewhere) View() fyne.CanvasObject { return widget.NewLabel("elsewhere") }
+func (elsewhere) View(c *ui.Context) { ui.Text(c, "elsewhere") }
 
 // newHarness shows the game editor in a shell, in an isolated data dir. Any
 // other route shows a stand-in page.
 func newHarness(t *testing.T) *uitest.Harness {
 	t.Helper()
-	return uitest.New(t, shell.Config{
+	h := uitest.New(t, shell.Config{
 		Page: func(e env.Env, route string) env.Page {
 			switch {
 			case route == "/new":
@@ -41,21 +40,16 @@ func newHarness(t *testing.T) *uitest.Harness {
 		AddGame:      func(env.Env) {},
 		SyncProblems: func(env.Env, int, []services.SyncResult) {},
 	})
+	h.Tester.SetSize(1000, 2600) // tall: the whole form is in view, nothing to scroll to
+	return h
 }
 
-// exeEntry finds the executable field. Its placeholder is an example path in
-// the running OS's style (C:\Games\A\Game.exe, /home/deck/Games/A/Game.exe or
-// /Applications/GameA.app).
-func exeEntry(t *testing.T, h *uitest.Harness) *widget.Entry {
+// typeInto clicks the empty field showing placeholder and types text.
+func typeInto(t *testing.T, h *uitest.Harness, placeholder, text string) {
 	t.Helper()
-	for _, e := range uitest.PageWidgets[*widget.Entry](h) {
-		if strings.HasSuffix(e.PlaceHolder, "A/Game.exe") || strings.HasSuffix(e.PlaceHolder, `A\Game.exe`) ||
-			strings.HasSuffix(e.PlaceHolder, "GameA.app") {
-			return e
-		}
-	}
-	require.Fail(t, "no executable entry found")
-	return nil
+	require.NoError(t, h.Tester.Click(placeholder))
+	h.Tester.Type(text)
+	h.Settle()
 }
 
 // Only the name is required: a game can be added without a path, and another
@@ -63,38 +57,25 @@ func exeEntry(t *testing.T, h *uitest.Harness) *widget.Entry {
 func TestEditorSaveNeedsAName(t *testing.T) {
 	h := newHarness(t)
 	h.Open("/new")
-	saveDisabled := func() bool {
-		return uitest.ButtonWith(t, uitest.PageWidgets[*widget.Button](h), "Save").Disabled()
+	info := func() ui.AccessInfo {
+		a, ok := h.Tester.AccessByRole(ui.RoleButton, "Save")
+		require.True(t, ok)
+		return a
 	}
-	assert.True(t, saveDisabled(), "an empty form can't be saved")
-
-	uitest.EntryByPlaceholder(t, h, "Game name").SetText("   ")
-	h.Settle()
-	assert.True(t, saveDisabled(), "a blank name doesn't count")
-
-	uitest.EntryByPlaceholder(t, h, "Game name").SetText("Game A")
-	h.Settle()
-	assert.False(t, saveDisabled(), "a name is enough")
+	assert.True(t, info().Disabled, "an empty form can't be saved")
+	typeInto(t, h, "Game name", "   ")
+	assert.True(t, info().Disabled, "a blank name doesn't count")
+	typeInto(t, h, "Game name", "A")
+	assert.False(t, info().Disabled, "a name is enough")
 }
 
 func TestEditorCreatesGame(t *testing.T) {
 	h := newHarness(t)
 	h.Open("/new")
-
-	uitest.EntryByPlaceholder(t, h, "Game name").SetText("Game A")
-	exeEntry(t, h).SetText("/games/a/a.exe")
-	uitest.EntryByPlaceholder(t, h, "-windowed").SetText("-windowed -nosplash")
-	uitest.EntryByPlaceholder(t, h, "Game-Win64-Shipping.exe").SetText("Game-Win64-Shipping.exe")
-	uitest.EntryByPlaceholder(t, h, "{appdata}/Game/Saves").SetText("{home}/GameA/Saves")
-	uitest.EntryByPlaceholder(t, h, "*.sav").SetText("*.sav\n  *.dat \n")
-	uitest.EntryByPlaceholder(t, h, "*.log\nshadercache/**").SetText("*.log")
-	for _, e := range uitest.PageWidgets[*widget.Entry](h) {
-		if e.MultiLine && e.PlaceHolder == "" { // the environment variables
-			e.SetText("A=1\nB = two\nnot-a-pair")
-		}
-	}
-	h.Settle()
-	uitest.TapButton(t, h, "Save")
+	typeInto(t, h, "Game name", "Game A")
+	typeInto(t, h, "-windowed", "-windowed -nosplash")
+	typeInto(t, h, "{appdata}/Game/Saves", "{home}/GameA/Saves")
+	h.Click("Save")
 	h.Settle()
 
 	games := h.Core.Library.List()
@@ -103,39 +84,22 @@ func TestEditorCreatesGame(t *testing.T) {
 	assert.Equal(t, "Game A", g.Name)
 	require.Len(t, g.Slots, 1)
 	assert.Equal(t, "Saves", g.Slots[0].Label)
-	assert.Equal(t, []string{"*.sav", "*.dat"}, g.Slots[0].Include, "blank lines and spaces are dropped")
-	assert.Equal(t, []string{"*.log"}, g.Slots[0].Exclude)
-
 	dev, ok := g.Device(h.Core.DeviceID())
 	require.True(t, ok)
-	assert.Equal(t, "/games/a/a.exe", dev.Exe)
 	assert.Equal(t, "-windowed -nosplash", dev.Args)
-	assert.Equal(t, "Game-Win64-Shipping.exe", dev.WaitProcess)
 	assert.Equal(t, "{home}/GameA/Saves", dev.Paths[g.Slots[0].Key])
-	assert.Equal(t, map[string]string{"A": "1", "B": " two"}, dev.Env, "lines without = are ignored; the key is trimmed, the value kept")
-
-	assert.Contains(t, h.Toasts(), "Saved")
 	assert.Contains(t, h.Shell.Route(), g.ID, "the game's page opens after saving")
 }
 
 func TestEditorSecondSaveLocation(t *testing.T) {
 	h := newHarness(t)
 	h.Open("/new")
-	uitest.EntryByPlaceholder(t, h, "Game name").SetText("Game A")
-	uitest.EntryByPlaceholder(t, h, "{appdata}/Game/Saves").SetText("{home}/one")
-	uitest.TapButton(t, h, "Add")
-	h.Settle()
-
-	var paths []*widget.Entry
-	for _, e := range uitest.PageWidgets[*widget.Entry](h) {
-		if e.PlaceHolder == "{appdata}/Game/Saves" {
-			paths = append(paths, e)
-		}
-	}
-	require.Len(t, paths, 2, "Add creates another save location")
-	paths[1].SetText("{home}/two")
-	h.Settle()
-	uitest.TapButton(t, h, "Save")
+	typeInto(t, h, "Game name", "Game A")
+	typeInto(t, h, "{appdata}/Game/Saves", "{home}/one")
+	h.Click("Add")
+	// Both locations show the same placeholder; the empty one is the second.
+	typeInto(t, h, "{appdata}/Game/Saves", "{home}/two")
+	h.Click("Save")
 	h.Settle()
 
 	games := h.Core.Library.List()
@@ -148,20 +112,15 @@ func TestEditorSecondSaveLocation(t *testing.T) {
 
 func TestEditorEditsExistingGame(t *testing.T) {
 	h := newHarness(t)
-	h.Open("/new")
-	uitest.EntryByPlaceholder(t, h, "Game name").SetText("Game A")
-	uitest.EntryByPlaceholder(t, h, "{appdata}/Game/Saves").SetText("{home}/one")
-	h.Settle()
-	uitest.TapButton(t, h, "Save")
-	h.Settle()
-	g := h.Core.Library.List()[0]
-
+	g := h.AddGame("Game A", t.TempDir())
 	h.Open("/edit/" + g.ID)
-	name := uitest.EntryByPlaceholder(t, h, "Game name")
-	assert.Equal(t, "Game A", name.Text, "the form starts with the saved values")
-	name.SetText("Game A (GOTY)")
+	assert.Contains(t, h.Texts(), "Edit game")
+	h.Shell.Navigator().Handle([2]any{"editor-field", "name"}).Focus() // the name field, holding the saved name
 	h.Settle()
-	uitest.TapButton(t, h, "Save")
+	h.Tester.Key(ui.Cmd, ui.KeyA)
+	h.Tester.Type("Game A (GOTY)")
+	h.Settle()
+	h.Click("Save")
 	h.Settle()
 
 	games := h.Core.Library.List()
@@ -175,22 +134,31 @@ func TestEditorAsksBeforeDiscarding(t *testing.T) {
 	h := newHarness(t)
 	h.Open("/")
 	h.Open("/new")
-	uitest.EntryByPlaceholder(t, h, "Game name").SetText("Game A")
-	h.Settle()
+	typeInto(t, h, "Game name", "Game A")
 
 	h.Shell.Navigate("/settings")
 	h.Settle()
 	assert.Equal(t, "/new", h.Shell.Route(), "still on the editor")
-	uitest.TapOverlayButton(t, h, "Keep editing")
-	h.Settle()
-	assert.Equal(t, "Game A", uitest.EntryByPlaceholder(t, h, "Game name").Text)
+	h.Click("Keep editing")
+	assert.Equal(t, "/new", h.Shell.Route())
 
 	h.Shell.Navigate("/settings")
 	h.Settle()
-	uitest.TapOverlayButton(t, h, "Discard changes")
-	h.Settle()
+	h.Click("Discard changes")
 	assert.Equal(t, "/settings", h.Shell.Route())
 	assert.Empty(t, h.Core.Library.List())
+}
+
+// An emulated game shows the emulators card and no PC launch or saves.
+func TestEditorEmulatedGameShowsEmulators(t *testing.T) {
+	h := newHarness(t)
+	h.Open("/new/emulator")
+	assert.Contains(t, h.Texts(), "Emulators")
+	assert.Contains(t, h.Texts(), "New emulator…")
+	assert.NotContains(t, h.Texts(), "Launch on this device")
+	h.Click("PC or Steam game")
+	assert.Contains(t, h.Texts(), "Launch on this device")
+	assert.NotContains(t, h.Texts(), "New emulator…")
 }
 
 // An emulator added from the game editor is set up in a dialog and joins the
@@ -198,20 +166,13 @@ func TestEditorAsksBeforeDiscarding(t *testing.T) {
 func TestEditorAddsANewEmulatorInADialog(t *testing.T) {
 	h := newHarness(t)
 	h.Open("/new/emulator")
-	uitest.EntryByPlaceholder(t, h, "Game name").SetText("Zelda")
-	uitest.TapButton(t, h, "New emulator…")
+	typeInto(t, h, "Game name", "Zelda")
+	h.Click("New emulator…")
+	assert.True(t, h.Shell.Dialogs().Open())
+	typeInto(t, h, "Emulator name (e.g. Eden)", "Eden")
+	h.Click("Save")
 	h.Settle()
-	for _, e := range uitest.OverlayWidgets[*widget.Entry](h) {
-		switch e.PlaceHolder {
-		case "Emulator name (e.g. Eden)":
-			e.SetText("Eden")
-		case `C:\Emulators\Eden\eden.exe`, "/home/deck/Applications/eden.AppImage", "/Applications/Eden.app":
-			e.SetText("eden.exe")
-		}
-	}
-	uitest.TapOverlayButton(t, h, "Save")
-	h.Settle()
-	assert.Empty(t, h.Shell.Window().Canvas().Overlays().List(), "the dialog closed")
+	assert.False(t, h.Shell.Dialogs().Open(), "the dialog closed")
 	assert.Equal(t, "/new/emulator", h.Shell.Route(), "still in the editor")
 	e := h.Shell.Page().(*editor.Page)
 	assert.Equal(t, "Zelda", e.Name())

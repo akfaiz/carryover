@@ -1,7 +1,7 @@
 # Developer shortcuts. CI runs the same commands (.github/workflows/ci.yml);
 # builds and packaging are documented in CONTRIBUTING.md and not wrapped here.
 #
-# Fyne needs cgo and a C compiler; see CONTRIBUTING.md.
+# The GUI needs no cgo and no C compiler; see CONTRIBUTING.md.
 
 PKGS ?= ./...
 COVER_PROFILE ?= coverage.txt

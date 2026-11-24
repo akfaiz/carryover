@@ -4,8 +4,8 @@
 #
 #   packaging/appimage/build.sh [path/to/carryover]
 #
-# The binary defaults to the fyne-cross output
-# (fyne-cross/bin/linux-amd64/carryover). The AppImage is written to
+# The binary defaults to a plain Linux build
+# (dist/linux/carryover). The AppImage is written to
 # dist/carryover-linux-amd64.AppImage (override with OUT=...).
 #
 # Needs appimagetool on PATH:
@@ -18,7 +18,7 @@
 set -euo pipefail
 
 cd "$(dirname "$0")/../.."
-bin="${1:-fyne-cross/bin/linux-amd64/carryover}"
+bin="${1:-dist/linux/carryover}"
 out="${OUT:-dist/carryover-linux-amd64.AppImage}"
 
 [ -f "$bin" ] || { echo "binary not found: $bin (build it first, see README)" >&2; exit 1; }

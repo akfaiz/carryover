@@ -12,6 +12,7 @@ import (
 	"github.com/akfaiz/carryover/services"
 	"github.com/akfaiz/carryover/ui/env"
 	"github.com/akfaiz/carryover/ui/internal/uitest"
+	"github.com/akfaiz/carryover/ui/kit"
 	"github.com/akfaiz/carryover/ui/pages/trash"
 	"github.com/akfaiz/carryover/ui/shell"
 )
@@ -26,6 +27,14 @@ func newHarness(t *testing.T) *uitest.Harness {
 	})
 }
 
+func TestTrashPageEmpty(t *testing.T) {
+	h := newHarness(t)
+	h.Open("/trash")
+	for _, want := range []string{"No deleted games.", "No deleted emulators.", "Set up cloud storage to look for them."} {
+		assert.Contains(t, h.Texts(), want)
+	}
+}
+
 // "Delete permanently" asks first, and a game deleted for good can't be restored.
 func TestTrashPageDeleteForever(t *testing.T) {
 	h := newHarness(t)
@@ -33,19 +42,42 @@ func TestTrashPageDeleteForever(t *testing.T) {
 	require.NoError(t, h.Shell.Lib().Delete(g.ID))
 
 	h.Open("/trash")
-	uitest.TapButton(t, h, "Delete permanently…")
-	h.Settle()
-	uitest.TapOverlayButton(t, h, "Cancel")
-	h.Settle()
+	h.Click("Delete permanently…")
+	h.Click("Cancel")
 	require.Len(t, h.Core.Library.Trash(), 1)
 
-	uitest.TapButton(t, h, "Delete permanently…")
-	h.Settle()
-	uitest.TapOverlayButton(t, h, "Delete")
+	h.Click("Delete permanently…")
+	assert.Contains(t, h.Texts(), "Also delete its cloud saves and backups")
+	h.Click("Delete")
 	h.Settle()
 	assert.Empty(t, h.Core.Library.Trash())
 	_, err := h.Core.Library.Restore(g.ID)
 	require.ErrorIs(t, err, library.ErrNotRestorable)
+}
+
+// The checkbox in the dialog changes what it says it will delete.
+func TestTrashPageDeleteWithCloudSaves(t *testing.T) {
+	h := newHarness(t)
+	g := h.AddGame("Game A", t.TempDir())
+	require.NoError(t, h.Shell.Lib().Delete(g.ID))
+	h.Open("/trash")
+	h.Click("Delete permanently…")
+	assert.Contains(t, h.Texts(), "The cloud saves stay and are listed under Leftover cloud saves below until you delete them.")
+	h.Click("Also delete its cloud saves and backups")
+	assert.NotContains(t, h.Texts(), "The cloud saves stay and are listed under Leftover cloud saves below until you delete them.")
+	assert.Contains(t, h.Texts(), "Delete Game A permanently together with its cloud saves and backups? This cannot be undone.")
+}
+
+func TestTrashPageRestoresAGame(t *testing.T) {
+	h := newHarness(t)
+	g := h.AddGame("Game A", t.TempDir())
+	require.NoError(t, h.Shell.Lib().Delete(g.ID))
+	h.Open("/trash")
+	h.Click("Restore")
+	h.Settle()
+	assert.Empty(t, h.Core.Library.Trash())
+	_, ok := h.Shell.Store().Game(g.ID)
+	assert.True(t, ok)
 }
 
 // Cloud saves no game uses are listed and can be restored into the editor.
@@ -61,10 +93,21 @@ func TestTrashPageLeftoverSaves(t *testing.T) {
 
 	h.Open("/trash")
 	h.Settle()
-	uitest.TapButton(t, h, "Restore")
+	h.Click("Restore")
 	h.Settle()
 	assert.Equal(t, "/edit/"+g.ID, h.Shell.Route(), "the editor opens to set the save location")
 	v, err := h.Shell.Lib().Get(g.ID)
 	require.NoError(t, err)
 	assert.Equal(t, "Game A", v.Name)
+}
+
+// The pad reaches the page's buttons.
+func TestTrashPagePadReachesButtons(t *testing.T) {
+	h := newHarness(t)
+	g := h.AddGame("Game A", t.TempDir())
+	require.NoError(t, h.Shell.Lib().Delete(g.ID))
+	h.Open("/trash")
+	h.Shell.Navigator().Press(kit.PadDown)
+	h.Settle()
+	assert.True(t, h.Tester.Focused("Restore") || h.Tester.Focused("Delete permanently…"), "the first press lands on the page, not the sidebar")
 }

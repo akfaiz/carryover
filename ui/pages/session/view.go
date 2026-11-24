@@ -1,106 +1,124 @@
 package session
 
 import (
-	"image"
-	"image/color"
+	"github.com/egoist/mygo/ui"
 
-	"fyne.io/fyne/v2"
-	"fyne.io/fyne/v2/canvas"
-	"fyne.io/fyne/v2/container"
-	"fyne.io/fyne/v2/theme"
-	"fyne.io/fyne/v2/widget"
-
-	"github.com/akfaiz/carryover/ui/i18n"
-
+	"github.com/akfaiz/carryover/internal/cloudsync/syncer"
 	"github.com/akfaiz/carryover/services"
 	"github.com/akfaiz/carryover/ui/env"
+	"github.com/akfaiz/carryover/ui/i18n"
 	"github.com/akfaiz/carryover/ui/kit"
 	"github.com/akfaiz/carryover/ui/store"
 )
 
-// Page is the wrapper window's content.
+// Page is the wrapper window's content. The ViewModel decides what a status
+// change means; the page keeps the result and draws it every frame.
 type Page struct {
-	u      env.Env
-	vm     *ViewModel
-	w      services.WrapperState
-	msg    *widget.Label
-	prog   *kit.ProgressBar
-	cancel *widget.Button
+	u  env.Env
+	vm *ViewModel
+	w  services.WrapperState
+
+	msg      string
+	failed   bool
+	sync     bool
+	progress syncer.Event
+
+	cancelLabel string // "" while Cancel is not offered
+	cancelling  bool
+	cancelH     ui.Handle
 }
 
 // New is the wrapper window's page. It reads what to show from the session
 // service, which must have been set up for the wrapper.
 func New(e env.Env) env.Page {
-	return &Page{u: e, vm: NewViewModel(), w: e.Sess().Wrapper()}
+	return &Page{u: e, vm: NewViewModel(), w: e.Sess().Wrapper(), msg: i18n.L("Starting…")}
 }
 
-func (p *Page) View() fyne.CanvasObject {
-	brand := kit.Muted("Carryover")
-	name := kit.Title(p.w.GameName)
-	if p.w.GameName == "" {
-		name.SetText(p.w.GameID)
+// View draws the page: the game's art behind, its name, the message, the
+// progress bar and Cancel at the bottom.
+func (p *Page) View(c *ui.Context) {
+	t := c.Theme()
+	name := p.w.GameName
+	if name == "" {
+		name = p.w.GameID
 	}
-	p.msg = widget.NewLabel(i18n.L("Starting…"))
-	p.msg.Wrapping = fyne.TextWrapWord
-	p.prog = kit.NewProgress()
-	p.prog.Set("", 0, 0)
-	p.cancel = widget.NewButtonWithIcon(i18n.L("Cancel"), theme.CancelIcon(), func() {
-		if p.u.Sess().Cancel(p.w.GameID) {
-			p.cancel.SetText(i18n.L("Cancelling…"))
-			p.cancel.Disable()
-		}
-	})
-	p.cancel.Hide()
-	content := container.NewPadded(container.NewPadded(kit.VBox(brand, name, p.msg, p.prog, kit.HBox(p.cancel))))
-	var bg fyne.CanvasObject = canvas.NewRectangle(kit.ColBg)
-	if p.w.Background != "" {
-		bg = p.background()
-	}
-	return container.NewStack(bg, container.NewBorder(nil, content, nil, nil))
-}
-
-// background draws the game's art behind the page. Hero or wide artwork fills the
-// window. A cover is portrait, so it sits at the right edge, full height and
-// uncropped, with its left edge fading into the page colour. A vertical shade
-// over either keeps the text readable.
-func (p *Page) background() fyne.CanvasObject {
-	img := canvas.NewImageFromImage(nil)
-	var art *fyne.Container
-	if p.w.BackgroundWide {
-		img.FillMode = canvas.ImageFillCover
-		img.Translucency = 0.6
-		art = container.NewStack(img)
-	} else {
-		img.FillMode = canvas.ImageFillStretch // the layout gives it the cover's own shape
-		img.Translucency = 0.6
-		fade := canvas.NewHorizontalGradient(kit.ColBg, color.NRGBA{kit.ColBg.R, kit.ColBg.G, kit.ColBg.B, 0})
-		art = container.New(&coverLayout{aspect: 2.0 / 3}, img, fade)
-	}
-	kit.Images.LoadFile(p.w.Background, 0, func(i image.Image) {
-		if i == nil {
-			return
-		}
-		if l, ok := art.Layout.(*coverLayout); ok {
-			if b := i.Bounds(); b.Dy() > 0 {
-				l.aspect = float32(b.Dx()) / float32(b.Dy())
+	ui.Column(c).Fill().Children(func() {
+		p.background(c)
+		ui.Spacer(c)
+		ui.Column(c).Padding(24).Gap(8).Children(func() {
+			ui.Text(c, "Carryover").TextColor(t.TextMuted)
+			ui.Text(c, name).FontSize(22).Bold()
+			msg := ui.Text(c, p.msg).Wrap()
+			if p.failed {
+				msg.TextColor(t.Danger)
 			}
-		}
-		img.Image = i
-		img.Refresh()
-		art.Refresh()
+			if p.sync {
+				p.progressBar(c)
+			}
+			if p.cancelLabel != "" {
+				b := ui.Button(c.Key("cancel"), p.cancelLabel).Disabled(p.cancelling)
+				if p.u.Navigator().Item(&p.cancelH, b, p.cancel).Clicked() {
+					p.cancel()
+				}
+			}
+		})
 	})
-	shade := canvas.NewLinearGradient(color.NRGBA{kit.ColBg.R, kit.ColBg.G, kit.ColBg.B, 0x80}, kit.ColBg, 0)
-	return container.NewStack(canvas.NewRectangle(kit.ColBg), art, shade)
+}
+
+func (p *Page) progressBar(c *ui.Context) {
+	ev := p.progress
+	if ev.TotalBytes > 0 {
+		ui.Progress(c, float64(ev.Bytes)/float64(ev.TotalBytes))
+		info := kit.FormatBytes(ev.Bytes) + " / " + kit.FormatBytes(ev.TotalBytes)
+		if ev.Message != "" {
+			info = ev.Message + " · " + info
+		}
+		ui.Text(c, info).FontSize(12).TextColor(c.Theme().TextMuted)
+		return
+	}
+	ui.Progress(c, -1)
+	if ev.Message != "" {
+		ui.Text(c, ev.Message).FontSize(12).TextColor(c.Theme().TextMuted)
+	}
+}
+
+func (p *Page) cancel() {
+	if p.cancelling {
+		return
+	}
+	if p.u.Sess().Cancel(p.w.GameID) {
+		p.cancelLabel, p.cancelling = i18n.L("Cancelling…"), true
+	}
+}
+
+// background draws the game's art behind the page, faded so the text stays
+// readable. Hero or wide artwork fills the window; a cover is portrait, so it
+// sits at the right edge, full height and uncropped.
+func (p *Page) background(c *ui.Context) {
+	if p.w.Background == "" {
+		return
+	}
+	bm := kit.Images.File(p.w.Background, 0, 960)
+	if bm == nil {
+		return
+	}
+	art := ui.Image(c, bm).Absolute().Top(0).Bottom(0).Opacity(0.4).ZIndex(-1)
+	if p.w.BackgroundWide {
+		art.Left(0).Right(0).Fit(ui.Cover)
+		return
+	}
+	art.Right(0).Fit(ui.Contain)
 }
 
 // DefaultFocus is where the first pad press lands: Cancel while there is one.
-func (p *Page) DefaultFocus() fyne.Focusable {
-	if p.cancel == nil || !p.cancel.Visible() {
+func (p *Page) DefaultFocus() *ui.Handle {
+	if p.cancelLabel == "" || p.cancelling {
 		return nil
 	}
-	return p.cancel
+	return &p.cancelH
 }
 
+// StateChanged follows the status of the wrapper's game.
 func (p *Page) StateChanged(store.Topic) {
 	s := p.u.Store()
 	st, ok := s.Status[p.w.GameID]
@@ -108,52 +126,16 @@ func (p *Page) StateChanged(store.Topic) {
 		return
 	}
 	up := p.vm.Apply(st, s.Progress[p.w.GameID])
-	p.msg.SetText(up.Message)
-	if up.Failed {
-		p.msg.Importance = widget.DangerImportance
-	} else {
-		p.msg.Importance = widget.MediumImportance
-	}
-	p.msg.Refresh()
-	if up.Sync {
-		p.prog.Set(up.Progress.Message, up.Progress.Bytes, up.Progress.TotalBytes)
-		p.prog.Show()
-	} else {
-		p.prog.Hide()
-	}
+	p.msg, p.failed = up.Message, up.Failed
+	p.sync, p.progress = up.Sync, up.Progress
 	if up.HideCancel {
-		p.cancel.Hide()
+		p.cancelLabel, p.cancelling = "", false
 	}
 	if up.OfferCancel != nil {
-		p.cancel.SetText(i18n.L("Cancel upload"))
+		p.cancelLabel, p.cancelling = i18n.L("Cancel upload"), false
 		if up.OfferCancel.BeforePlay {
-			p.cancel.SetText(i18n.L("Cancel and don't play"))
+			p.cancelLabel = i18n.L("Cancel and don't play")
 		}
-		p.cancel.Enable()
-		p.cancel.Show()
-		// Leave the focus off Cancel, before and after the game: the player may
-		// still be pressing A, and the first D-pad or A press only focuses it
-		// (Navigator.accept), so a stray press can't abort the sync.
-		p.u.Window().Canvas().Unfocus()
 	}
+	kit.Redraw()
 }
-
-// coverLayout puts the first object (the cover) at the right edge, as tall as
-// the area, with the cover's own width/height ratio, and the second (a fade)
-// over its left third.
-type coverLayout struct{ aspect float32 }
-
-func (l *coverLayout) Layout(objs []fyne.CanvasObject, size fyne.Size) {
-	w := min(size.Height*l.aspect, size.Width)
-	x := size.Width - w
-	if len(objs) > 0 {
-		objs[0].Move(fyne.NewPos(x, 0))
-		objs[0].Resize(fyne.NewSize(w, size.Height))
-	}
-	if len(objs) > 1 {
-		objs[1].Move(fyne.NewPos(x, 0))
-		objs[1].Resize(fyne.NewSize(w/3, size.Height))
-	}
-}
-
-func (l *coverLayout) MinSize([]fyne.CanvasObject) fyne.Size { return fyne.NewSize(0, 0) }

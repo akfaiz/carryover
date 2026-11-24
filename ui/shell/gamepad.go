@@ -2,39 +2,21 @@ package shell
 
 import (
 	"log"
-	"strings"
-	"sync/atomic"
 
-	"fyne.io/fyne/v2"
-	"fyne.io/fyne/v2/container"
-	"fyne.io/fyne/v2/layout"
-
-	"github.com/akfaiz/carryover/ui/i18n"
+	"github.com/egoist/mygo/ui"
 
 	"github.com/akfaiz/carryover/internal/app/gamemode"
 	"github.com/akfaiz/carryover/ui/env"
+	"github.com/akfaiz/carryover/ui/i18n"
 	"github.com/akfaiz/carryover/ui/kit"
 )
 
-// sections are the sidebar's places, in order, for LB and RB.
-var sections = []string{"/", "/emulators", "/cloud", "/trash", "/settings"}
-
-// sectionOf is the sidebar place a route belongs to.
-func sectionOf(route string) string {
-	s, _, _ := strings.Cut(strings.TrimPrefix(route, "/"), "/")
-	switch s {
-	case "", "game", "edit", "new":
-		return "/"
-	}
-	return "/" + s
-}
-
-// newNavigator lets the main window be used with a gamepad (Steam Deck Game
+// navOptions lets the main window be used with a gamepad (Steam Deck Game
 // Mode, where Carryover is a non-Steam game): the D-pad moves between the
 // controls, A presses, B goes back, LB/RB switch sections, X searches and Y
 // syncs.
-func (u *Shell) newNavigator() {
-	u.nav = kit.NewNavigator(u.win, kit.NavigatorOptions{
+func (u *Shell) navOptions() kit.NavigatorOptions {
+	return kit.NavigatorOptions{
 		Back: func() {
 			if u.route != "/" {
 				u.back()
@@ -44,7 +26,6 @@ func (u *Shell) newNavigator() {
 		Search: func() {
 			if s, ok := u.page.(env.Searchable); ok {
 				s.FocusSearch()
-				u.openKeyboard()
 			}
 		},
 		Sync: func() {
@@ -52,48 +33,27 @@ func (u *Shell) newNavigator() {
 				s.SyncNow()
 			}
 		},
-		View: u.toggleFullScreen,
-		TextField: func(f fyne.Focusable) {
-			u.win.Canvas().Focus(f)
-			u.openKeyboard()
-		},
-		DefaultFocus: func() fyne.Focusable {
+		DefaultFocus: func() *ui.Handle {
 			if p, ok := u.page.(env.PadFocuser); ok {
-				if f := p.DefaultFocus(); f != nil {
-					return f
-				}
-			}
-			// The page's first control, not the window's: that would be the
-			// sidebar's Library button, whatever page is open. A page with no
-			// controls (an empty trash) starts on its own sidebar entry.
-			if f := kit.FirstFocusable(u.content); f != nil {
-				return f
-			}
-			if b := u.navBtns[sectionOf(u.route)]; b != nil {
-				return b
+				return p.DefaultFocus()
 			}
 			return nil
 		},
-		PadChanged: func(present bool) {
-			kit.SetVisible(u.padHints, present)
-			if present && u.win.Canvas().Focused() == nil {
-				u.nav.FocusDefault()
-			}
-		},
-	})
-	u.readPad(true)
+		TextField:  u.openKeyboard,
+		View:       u.toggleFullScreen,
+		PadChanged: func(present bool) { kit.Redraw() },
+	}
 }
-
-// padWanted reports whether Carryover reads the gamepad itself: in Game Mode
-// or when Steam started it, where Steam hands the controller over as a
-// gamepad. Started by hand on a desktop, Steam's Desktop Layout already turns
-// the controller into a mouse and keys (stick: mouse, D-pad: arrows, A:
-// Enter); reading it as well would do every press twice.
-func padWanted() bool { return gamemode.Active() || gamemode.SteamLaunched() }
 
 // readPad starts (where padWanted) or stops reading the gamepad.
 func (u *Shell) readPad(on bool) {
-	u.nav.SetActive(on && padWanted())
+	if u.stopPad != nil {
+		u.stopPad()
+		u.stopPad = nil
+	}
+	if on && (u.wrapper || padWanted()) {
+		u.stopPad = u.nav.StartPad(kit.MygoPad, u.win.Update)
+	}
 }
 
 // stepSection goes to the next (dir 1) or previous (-1) sidebar place.
@@ -107,23 +67,6 @@ func (u *Shell) stepSection(dir int) {
 	u.navigate(sections[(cur+dir+len(sections))%len(sections)])
 }
 
-// Full screen is remembered apart for Carryover started by Steam (Big
-// Picture, a controller across the room) and started by hand (a window on
-// the desktop).
-const (
-	// PrefFullScreen and PrefFullScreenSteam are the preference keys of the
-	// full screen choice.
-	PrefFullScreen      = "window.fullscreen"
-	PrefFullScreenSteam = "window.fullscreen.steam"
-)
-
-func fullScreenPref() string {
-	if gamemode.SteamLaunched() {
-		return PrefFullScreenSteam
-	}
-	return PrefFullScreen
-}
-
 // applyFullScreen opens the main window full screen when that was last chosen
 // for how Carryover was started; from Big Picture it starts full screen until
 // the user says otherwise. Game Mode makes every window full screen itself.
@@ -132,7 +75,7 @@ func (u *Shell) applyFullScreen() {
 		return
 	}
 	def := gamemode.SteamLaunched() && gamemode.BigPicture()
-	if u.app.Preferences().BoolWithFallback(fullScreenPref(), def) {
+	if u.prefs.BoolWithFallback(fullScreenPref(), def) {
 		u.win.SetFullScreen(true)
 	}
 }
@@ -140,17 +83,25 @@ func (u *Shell) applyFullScreen() {
 // toggleFullScreen switches full screen (the View button, F11) and remembers
 // it.
 func (u *Shell) toggleFullScreen() {
-	on := !u.win.FullScreen()
+	on := !u.win.IsFullScreen()
 	u.win.SetFullScreen(on)
-	u.app.Preferences().SetBool(fullScreenPref(), on)
-	u.refreshSidebar() // Exit comes and goes with the window's own close button
+	u.prefs.SetBool(fullScreenPref(), on)
+	kit.Redraw() // Exit comes and goes with the window's own close button
 }
 
 // showExit reports whether the sidebar offers Exit: where the window has no
 // close button to reach (Game Mode, full screen) or Steam started Carryover
 // (Big Picture, a controller across the room).
 func (u *Shell) showExit() bool {
-	return gamemode.Active() || gamemode.SteamLaunched() || (u.win != nil && u.win.FullScreen())
+	return gamemode.Active() || gamemode.SteamLaunched() || (u.win != nil && u.win.IsFullScreen())
+}
+
+// focusForPad puts the focus where a gamepad starts on the page just shown,
+// when a gamepad is connected: the next frame's first press does it.
+func (u *Shell) focusForPad() {
+	if u.nav != nil && u.nav.PadPresent() {
+		u.nav.Press(kit.PadDown)
+	}
 }
 
 // openKeyboard opens Steam's on-screen keyboard when Steam started Carryover
@@ -177,43 +128,4 @@ func (u *Shell) openKeyboard() {
 			log.Printf("asked Steam for its on-screen keyboard (via %s)", via)
 		}
 	}()
-}
-
-// openKeyboard asks Steam for its keyboard; tests replace it.
-var openKeyboard = gamemode.OpenKeyboard
-
-// keyboardLogged is set once a successful request was logged.
-var keyboardLogged atomic.Bool
-
-// focusForPad puts the focus where a gamepad starts on the page just shown,
-// when a gamepad is connected.
-func (u *Shell) focusForPad() {
-	if u.nav != nil && u.nav.PadPresent() {
-		u.nav.FocusDefault()
-	}
-}
-
-// padHintBar is the line under the pages that says what the gamepad's
-// buttons do; it shows while one is connected.
-func (u *Shell) padHintBar() *fyne.Container {
-	hint := func(button, what string) fyne.CanvasObject {
-		return kit.HBox(container.NewCenter(kit.Badge(button, kit.BadgeInfo)), kit.Small(what))
-	}
-	bar := container.NewHBox(
-		layout.NewSpacer(),
-		hint("A", i18n.L("Select")),
-		hint("B", i18n.L("Back")),
-		hint("LB / RB", i18n.L("Section")),
-		hint("X", i18n.L("Search")),
-		hint("Y", i18n.L("Sync")),
-		hint("R", i18n.L("Scroll")),
-	)
-	if !gamemode.Active() { // Game Mode is always full screen
-		bar.Add(hint("View", i18n.L("Full screen")))
-	}
-	c := container.NewPadded(bar)
-	if u.nav == nil || !u.nav.PadPresent() {
-		c.Hide()
-	}
-	return c
 }

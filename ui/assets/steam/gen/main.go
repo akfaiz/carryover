@@ -7,8 +7,10 @@
 //	logo.png   1280x400  logo over hero   (<appid>_logo.png)
 //
 // The icon is ui/assets/appicon.png. Each image is built as SVG, with the
-// wordmark turned into paths from Fyne's bold font, and rasterized with the
-// same SVG renderer Fyne uses. Run from the repository root:
+// wordmark turned into paths from the Go bold font, and rasterized with oksvg.
+// The shipped artwork was first drawn with another bold font, so running this
+// again gives the wordmark the Go font's letter shapes. Run from the
+// repository root:
 //
 //	go run ./ui/assets/steam/gen
 package main
@@ -24,10 +26,11 @@ import (
 	"path/filepath"
 	"strings"
 
-	"fyne.io/fyne/v2/theme"
-	"github.com/fyne-io/oksvg"
+	"github.com/srwiley/oksvg"
 	"github.com/srwiley/rasterx"
 	"golang.org/x/image/font"
+	"golang.org/x/image/font/gofont/gobold"
+	"golang.org/x/image/font/gofont/goregular"
 	"golang.org/x/image/font/sfnt"
 	"golang.org/x/image/math/fixed"
 )
@@ -46,10 +49,10 @@ var bold, regular *sfnt.Font
 
 func main() {
 	var err error
-	if bold, err = sfnt.Parse(theme.DefaultTextBoldFont().Content()); err != nil {
+	if bold, err = sfnt.Parse(gobold.TTF); err != nil {
 		log.Fatal(err)
 	}
-	if regular, err = sfnt.Parse(theme.DefaultTextFont().Content()); err != nil {
+	if regular, err = sfnt.Parse(goregular.TTF); err != nil {
 		log.Fatal(err)
 	}
 	if err := os.MkdirAll(outDir, 0o755); err != nil {

@@ -5,104 +5,124 @@ import (
 	"strings"
 	"time"
 
-	"fyne.io/fyne/v2"
-	"fyne.io/fyne/v2/dialog"
-	"fyne.io/fyne/v2/theme"
-	"fyne.io/fyne/v2/widget"
-
-	"github.com/akfaiz/carryover/ui/i18n"
+	"github.com/egoist/mygo/ui"
 
 	"github.com/akfaiz/carryover/internal/saves/pathvar"
 	"github.com/akfaiz/carryover/ui/env"
+	"github.com/akfaiz/carryover/ui/i18n"
 	"github.com/akfaiz/carryover/ui/kit"
 )
 
-// PathInput is a path entry with token insertion, a folder browser and a
-// live preview of the expanded path.
+// PathInput is a path entry with token insertion, a folder browser and a live
+// preview of the expanded path. A page keeps one per path and calls View each
+// frame; Text is what is typed, SetText changes it from outside.
 type PathInput struct {
-	kit.Composite
-	u        env.Env
-	entry    *widget.Entry
-	preview  *kit.PathLabel // the expanded path, on one line
-	previewE *widget.Label  // or why it can't be expanded
-	gameID   string
-	gen      int
+	u           env.Env
+	gameID      string
+	tokens      []pathvar.Token
+	Text        string
+	Placeholder string
+	onChange    func(string)
+
+	last       string // Text as of the last frame, to notice typing
+	preview    string // the expanded path, when it differs from Text
+	previewErr string // or why it can't be expanded
+	gen        int
+	schedule   func()
 }
 
+// NewPathInput returns the entry for gameID's paths, showing value.
 func NewPathInput(u env.Env, gameID string, tokens []pathvar.Token, value, placeholder string, onChange func(string)) *PathInput {
-	p := &PathInput{u: u, gameID: gameID, entry: widget.NewEntry(), preview: kit.NewPathLabel("").Caption("→ "),
-		previewE: kit.Colored("", widget.DangerImportance)}
-	p.entry.TextStyle.Monospace = true
-	p.entry.SetPlaceHolder(placeholder)
-	p.entry.SetText(value)
-	p.preview.Hide()
-	p.previewE.Hide()
-	schedule := kit.Debounce(250*time.Millisecond, p.updatePreview)
-	p.entry.OnChanged = func(s string) {
-		if onChange != nil {
-			onChange(s)
-		}
-		schedule()
-	}
-	var right []fyne.CanvasObject
-	if len(tokens) > 0 {
-		var tokBtn *widget.Button
-		// Named, not "{ }": the tokens are what it inserts, which the
-		// symbol alone didn't say.
-		tokBtn = widget.NewButtonWithIcon(i18n.L("Tokens"), theme.MenuDropDownIcon(), func() {
-			items := make([]*fyne.MenuItem, 0, len(tokens))
-			for _, t := range tokens {
-				desc := t.Value
-				if desc == "" {
-					desc = t.Description
-				}
-				items = append(items, fyne.NewMenuItem(t.Token+"   "+desc, func() { p.insert(t.Token) }))
-			}
-			c := fyne.CurrentApp().Driver().CanvasForObject(tokBtn)
-			pos := fyne.CurrentApp().Driver().AbsolutePositionForObject(tokBtn)
-			widget.ShowPopUpMenuAtPosition(fyne.NewMenu("", items...), c, pos.AddXY(0, tokBtn.Size().Height))
-		})
-		right = append(right, tokBtn)
-	}
-	right = append(right, widget.NewButton(i18n.L("Browse…"), p.browse))
-	p.Init(p, kit.VBox(kit.RowFill(p.entry, right...), p.preview, p.previewE))
+	p := &PathInput{u: u, gameID: gameID, tokens: tokens, Text: value, last: value, Placeholder: placeholder, onChange: onChange}
+	p.schedule = kit.Debounce(250*time.Millisecond, p.updatePreview)
 	p.updatePreview()
 	return p
 }
 
+// Follow shows v when it differs from what the field showed at the last frame:
+// the path was changed from outside (a suggestion was used). A path the user
+// typed is left alone.
+func (p *PathInput) Follow(v string) {
+	if v != p.last && v != p.Text {
+		p.Text = v
+	}
+}
+
+// SetText replaces the path, as if typed.
+func (p *PathInput) SetText(s string) { p.Text = s }
+
+// View draws the entry; key tells it from the other entries on the page.
+func (p *PathInput) View(c *ui.Context, key any) ui.Element {
+	nav := p.u.Navigator()
+	k := [2]any{"path", key}
+	if p.Text != p.last {
+		p.last = p.Text
+		if p.onChange != nil {
+			p.onChange(p.Text)
+		}
+		p.schedule()
+	}
+	return ui.Column(c).Gap(4).Children(func() {
+		ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
+			in := ui.TextInput(c.Key(k), &p.Text).Placeholder(p.Placeholder).Label(p.Placeholder).Font("monospace").Grow(1)
+			nav.Item(nav.Handle(k), in, nil, kit.TextField)
+			if len(p.tokens) > 0 {
+				// Named, not "{ }": the tokens are what it inserts, which the
+				// symbol alone didn't say.
+				tk := [2]any{"path-tokens", key}
+				if nav.Item(nav.Handle(tk), ui.Button(c.Key(tk), i18n.L("Tokens")+" ▾"), p.showTokens).Clicked() {
+					p.showTokens()
+				}
+			}
+			bk := [2]any{"path-browse", key}
+			if nav.Item(nav.Handle(bk), ui.Button(c.Key(bk), i18n.L("Browse…")), p.browse).Clicked() {
+				p.browse()
+			}
+		})
+		if p.preview != "" {
+			kit.Small(c, "→ "+p.preview).Font("monospace").TextColor(c.Theme().TextMuted)
+		}
+		if p.previewErr != "" {
+			kit.Danger(c, p.previewErr)
+		}
+	})
+}
+
+// showTokens lists the tokens in a dialog; picking one adds it to the path.
+func (p *PathInput) showTokens() {
+	var d *kit.Dialog
+	d = p.u.Dialogs().Show(&kit.Dialog{Title: i18n.L("Tokens"), Width: 560, Body: func(c *ui.Context, nav *kit.Navigator) {
+		for i, t := range p.tokens {
+			desc := t.Value
+			if desc == "" {
+				desc = t.Description
+			}
+			k := [3]any{"path-token", p.gameID, i}
+			pick := func() { d.Close(); p.insert(t.Token) }
+			if nav.Item(nav.Handle(k), ui.Button(c.Key(k), t.Token+"   "+desc).AlignSelf(ui.Stretch), pick).Clicked() {
+				pick()
+			}
+		}
+	}})
+}
+
+// insert adds a token at the end of the path: MyGo's text input has no caret to
+// ask for.
 func (p *PathInput) insert(tok string) {
-	tok = strings.Replace(tok, "<appid>", "", 1)
-	runes := []rune(p.entry.Text)
-	col := min(max(p.entry.CursorColumn, 0), len(runes))
-	text := string(runes[:col]) + tok + string(runes[col:])
-	pos := col + len([]rune(tok))
-	if strings.HasSuffix(tok, ":}") { // e.g. {proton:} — put the cursor before "}"
-		pos--
-	}
-	p.entry.SetText(text)
-	p.entry.CursorColumn = pos
-	p.entry.Refresh()
-	if c := fyne.CurrentApp().Driver().CanvasForObject(p.entry); c != nil {
-		c.Focus(p.entry)
-	}
+	p.Text += strings.Replace(tok, "<appid>", "", 1)
 }
 
 // browse picks a folder, starting at the one typed in (or the placeholder's,
 // the folder used while none is typed).
 func (p *PathInput) browse() {
-	from := p.entry.Text
+	from := p.Text
 	if strings.TrimSpace(from) == "" {
-		from = p.entry.PlaceHolder
+		from = p.Placeholder
 	}
 	BrowseFrom(p.u, p.gameID, from, func(start string) {
-		d := dialog.NewFolderOpen(func(dir fyne.ListableURI, err error) {
-			if err != nil || dir == nil {
-				return
-			}
-			p.entry.SetText(p.u.Lib().ContractPath(filepath.FromSlash(dir.Path())))
-		}, p.u.Window())
-		kit.StartIn(d, start)
-		kit.ShowFilePicker(p.u.Window(), d)
+		kit.PickDir(p.u.Window(), i18n.L("Choose a folder"), start, func(dir string) {
+			p.Text = p.u.Lib().ContractPath(filepath.FromSlash(dir))
+		})
 	})
 }
 
@@ -127,29 +147,23 @@ func BrowseFrom(u env.Env, gameID, raw string, show func(dir string)) {
 }
 
 func (p *PathInput) updatePreview() {
-	v := p.entry.Text
+	v := p.Text
 	p.gen++
 	gen := p.gen
 	if v == "" {
-		p.preview.Hide()
-		p.previewE.Hide()
+		p.preview, p.previewErr = "", ""
 		return
 	}
 	kit.Async(func() (string, error) { return p.u.Lib().PreviewPath(p.gameID, v) }, func(out string, err error) {
 		if gen != p.gen {
 			return
 		}
-		p.preview.Hide()
-		p.previewE.Hide()
+		p.preview, p.previewErr = "", ""
 		switch {
 		case err != nil:
-			p.previewE.SetText(err.Error())
-			p.previewE.Show()
+			p.previewErr = err.Error()
 		case out != "" && out != v:
-			p.preview.SetPath(out)
-			p.preview.Show()
+			p.preview = out
 		}
 	})
 }
-
-// dialogSize is a comfortable size for file and picker dialogs.

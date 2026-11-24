@@ -68,7 +68,7 @@ type subscription struct {
 }
 
 // New returns an empty store that refreshes through load. onUI runs work on
-// the UI goroutine (fyne.Do in the Fyne GUI); nil runs it in place, for tests.
+// the UI goroutine (kit.OnUI in the GUI); nil runs it in place, for tests.
 func New(load Loader, onUI func(func())) *Store {
 	if onUI == nil {
 		onUI = func(f func()) { f() }

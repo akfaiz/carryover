@@ -1,15 +1,17 @@
+// Package prompts shows the session prompts (a save conflict, the cloud lock,
+// a sync error, which emulator to play with) one at a time as modal dialogs.
+// This is the MyGo build: the queue turns the first prompt into a kit.Dialog
+// that the window draws, and every answer comes from a control the gamepad
+// reaches.
 package prompts
 
 import (
-	"fyne.io/fyne/v2"
-	"fyne.io/fyne/v2/dialog"
-	"fyne.io/fyne/v2/widget"
-
-	"github.com/akfaiz/carryover/ui/i18n"
+	"github.com/egoist/mygo/ui"
 
 	"github.com/akfaiz/carryover/services"
 	"github.com/akfaiz/carryover/ui/components"
 	"github.com/akfaiz/carryover/ui/env"
+	"github.com/akfaiz/carryover/ui/i18n"
 	"github.com/akfaiz/carryover/ui/kit"
 )
 
@@ -21,8 +23,8 @@ type Queue struct {
 
 	e       env.Env
 	queue   []services.Prompt
-	current *dialog.CustomDialog
-	nav     *kit.Nav // keyboard and gamepad control of the current prompt
+	current *kit.Dialog
+	emu     *emuState // the "which emulator?" prompt on screen
 }
 
 // New returns an empty queue that shows its dialogs on the environment's window.
@@ -32,16 +34,17 @@ func New(e env.Env) *Queue { return &Queue{e: e} }
 func (q *Queue) Pending() []services.Prompt { return q.queue }
 
 // Current is the dialog on screen, nil when there is none.
-func (q *Queue) Current() *dialog.CustomDialog { return q.current }
+func (q *Queue) Current() *kit.Dialog { return q.current }
 
 // CloseCurrent takes the current prompt's dialog down.
 func (q *Queue) CloseCurrent() {
-	if q.nav != nil {
-		q.nav.Stop()
-		q.nav = nil
+	if q.emu != nil {
+		q.emu.stopCountdown(true)
+		q.emu = nil
+		q.e.Navigator().OnInput = nil
 	}
 	if q.current != nil {
-		q.current.Hide()
+		q.current.Close()
 		q.current = nil
 	}
 }
@@ -75,7 +78,7 @@ func (q *Queue) Remove(id string) {
 }
 
 func (q *Queue) next() {
-	if len(q.queue) == 0 || q.e.Window() == nil {
+	if len(q.queue) == 0 {
 		q.current = nil
 		return
 	}
@@ -87,73 +90,89 @@ func (q *Queue) next() {
 		q.next()
 	}
 	// Every prompt works with the keyboard and a gamepad (a Steam shortcut on a
-	// Steam Deck is played with one): arrows or the D-pad move between the
-	// buttons, Enter or A press one, Escape or B give the safe answer. The
-	// focus starts on that safe button, so a stray press doesn't overwrite saves.
+	// Steam Deck is played with one): the D-pad moves between the buttons, A
+	// presses one, B gives the safe answer. The focus starts on that safe
+	// button, so a stray press doesn't overwrite saves.
 	var back string
-	var first fyne.Focusable
-	nav := kit.NewNav(q.e.Window(), func() { answer(back) })
-	button := func(label string, imp widget.Importance, a string) *kit.NavButton {
-		return nav.Button(label, imp, func() { answer(a) })
+	d := &kit.Dialog{Width: 560}
+	// btn draws one answer button; safe marks the one the dialog starts on.
+	btn := func(c *ui.Context, nav *kit.Navigator, label, a string, primary, safe bool) {
+		k := [2]any{"prompt", label}
+		var b ui.Element
+		if primary {
+			b = ui.PrimaryButton(c.Key(k), label)
+		} else {
+			b = ui.Button(c.Key(k), label)
+		}
+		var opts []kit.ItemOption
+		if safe {
+			opts = append(opts, kit.FocusSafe)
+		}
+		if nav.Item(nav.Handle(k), b, func() { answer(a) }, opts...).Clicked() {
+			answer(a)
+		}
 	}
-	var title string
-	var body fyne.CanvasObject
+	var body func(c *ui.Context, nav *kit.Navigator)
 	switch {
 	case p.Kind == "conflict" && p.Conflict != nil:
-		title = i18n.L("Save conflict — {{.Game}}", map[string]any{"Game": p.GameName})
+		d.Title = i18n.L("Save conflict — {{.Game}}", map[string]any{"Game": p.GameName})
 		skip := i18n.L("Decide later")
 		if p.BeforePlay {
 			skip = i18n.L("Skip sync and play")
 		}
-		skipBtn := button(skip, widget.MediumImportance, "skip")
-		first, back = skipBtn, "skip"
-		body = kit.VBox(
-			kit.Muted(conflictIntro(p.Conflict)),
-			components.SaveSidesNav(nav, p.Conflict.Local, p.Conflict.Remote, true, answer),
-			kit.HBox(skipBtn),
-		)
+		back = "skip"
+		body = func(c *ui.Context, nav *kit.Navigator) {
+			kit.Muted(c, conflictIntro(p.Conflict))
+			components.SaveSides(c, nav, "prompt", p.Conflict.Local, p.Conflict.Remote, true, answer)
+			ui.Row(c).Children(func() { btn(c, nav, skip, "skip", false, true) })
+		}
 	case p.Kind == "emulator":
-		title = i18n.L("Play {{.Game}}", map[string]any{"Game": p.GameName})
-		body, first = q.emulatorChoice(p, answer, nav)
+		d.Title = i18n.L("Play {{.Game}}", map[string]any{"Game": p.GameName})
 		back = "cancel"
+		q.emu = newEmuState(q, p, answer)
+		body = q.emu.body
 	case p.Kind == "lock" && p.Lock != nil:
-		title = i18n.L("{{.Game}} is being played elsewhere", map[string]any{"Game": p.GameName})
-		cancel := button(i18n.L("Cancel"), widget.MediumImportance, "no")
-		first, back = cancel, "no"
-		body = kit.VBox(
-			kit.Colored(i18n.L("{{.Device}} started playing at {{.Time}}. If you play here too, you may get a save conflict when both devices upload.",
-				map[string]any{"Device": p.Lock.DeviceName, "Time": components.FmtDate(p.Lock.Since)}), widget.MediumImportance),
-			kit.HBox(cancel, button(i18n.L("Play anyway"), widget.HighImportance, "yes")),
-		)
+		d.Title = i18n.L("{{.Game}} is being played elsewhere", map[string]any{"Game": p.GameName})
+		back = "no"
+		body = func(c *ui.Context, nav *kit.Navigator) {
+			ui.Text(c, i18n.L("{{.Device}} started playing at {{.Time}}. If you play here too, you may get a save conflict when both devices upload.",
+				map[string]any{"Device": p.Lock.DeviceName, "Time": components.FmtDate(p.Lock.Since)})).Wrap()
+			ui.Row(c).Gap(8).Children(func() {
+				btn(c, nav, i18n.L("Cancel"), "no", false, true)
+				btn(c, nav, i18n.L("Play anyway"), "yes", true, false)
+			})
+		}
 	default:
-		errText := kit.Mono(p.Error)
-		errText.Importance = widget.DangerImportance
 		if p.BeforePlay {
-			title = i18n.L("Could not sync before playing")
-			cancel := button(i18n.L("Cancel"), widget.MediumImportance, "no")
-			first, back = cancel, "no"
-			body = kit.VBox(errText,
-				kit.Muted(i18n.L("You can play offline; your saves will be uploaded next time sync succeeds.")),
-				kit.HBox(cancel, button(i18n.L("Play offline"), widget.HighImportance, "yes")))
+			d.Title = i18n.L("Could not sync before playing")
+			back = "no"
+			body = func(c *ui.Context, nav *kit.Navigator) {
+				kit.Danger(c, p.Error).Font("monospace")
+				kit.Muted(c, i18n.L("You can play offline; your saves will be uploaded next time sync succeeds."))
+				ui.Row(c).Gap(8).Children(func() {
+					btn(c, nav, i18n.L("Cancel"), "no", false, true)
+					btn(c, nav, i18n.L("Play offline"), "yes", true, false)
+				})
+			}
 		} else {
-			title = i18n.L("Could not upload saves")
-			ok := button(i18n.L("OK"), widget.HighImportance, "yes")
-			first, back = ok, "yes"
-			body = kit.VBox(errText,
-				kit.Muted(i18n.L("Your saves are safe on this device and will upload on the next sync.")),
-				kit.HBox(ok))
+			d.Title = i18n.L("Could not upload saves")
+			back = "yes"
+			body = func(c *ui.Context, nav *kit.Navigator) {
+				kit.Danger(c, p.Error).Font("monospace")
+				kit.Muted(c, i18n.L("Your saves are safe on this device and will upload on the next sync."))
+				ui.Row(c).Children(func() { btn(c, nav, i18n.L("OK"), "yes", true, true) })
+			}
 		}
 	}
-	if q.Wrapper {
-		// Opened by a Steam shortcut: likely driven with a controller.
-		body = kit.VBox(body, kit.Muted(i18n.L("D-pad or arrow keys to choose, A or Enter to confirm, B or Esc to go back.")))
+	d.Back = func() { answer(back) }
+	d.Body = func(c *ui.Context, nav *kit.Navigator) {
+		body(c, nav)
+		if q.Wrapper {
+			// Opened by a Steam shortcut: likely driven with a controller.
+			kit.Muted(c, i18n.L("D-pad or arrow keys to choose, A or Enter to confirm, B or Esc to go back."))
+		}
 	}
-	size := q.e.Window().Canvas().Size()
-	q.current = dialog.NewCustomWithoutButtons(title, body, q.e.Window())
-	q.current.Resize(fyne.NewSize(min(560, size.Width-20), 0))
-	q.current.Show()
-	q.nav = nav
-	nav.Start(first)
+	q.current = q.e.Dialogs().Show(d)
 }
 
 // conflictIntro explains a conflict. A device whose saves are gone while the

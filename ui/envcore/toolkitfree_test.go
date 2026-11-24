@@ -29,16 +29,16 @@ var (
 	}
 )
 
-// toolkit reports whether an import path is (part of) a GUI toolkit.
+// toolkit reports whether an import path is (part of) the GUI toolkit.
 func toolkit(path string) bool {
-	return strings.HasPrefix(path, "fyne.io/") || strings.HasPrefix(path, "github.com/go-gl/") ||
-		strings.HasPrefix(path, "github.com/fyne-io/")
+	return strings.HasPrefix(path, "github.com/egoist/mygo")
 }
 
 // checker walks the module's own packages; anything outside the module only
 // counts by its own path (no third-party library imports a GUI toolkit).
 type checker struct {
 	root string
+	ctx  build.Context
 	seen map[string]string // package -> the toolkit import it reaches, "" if none
 }
 
@@ -54,7 +54,7 @@ func (c *checker) reaches(path string) string {
 	}
 	c.seen[path] = "" // cycles can't happen in Go, but stay safe
 	dir := filepath.Join(c.root, strings.TrimPrefix(strings.TrimPrefix(path, module), "/"))
-	pkg, err := build.ImportDir(dir, 0)
+	pkg, err := c.ctx.ImportDir(dir, 0)
 	if err != nil {
 		return ""
 	}
@@ -70,7 +70,7 @@ func (c *checker) reaches(path string) string {
 func TestToolkitFree(t *testing.T) {
 	root, err := filepath.Abs(filepath.Join("..", ".."))
 	require.NoError(t, err)
-	c := &checker{root: root, seen: map[string]string{}}
+	c := &checker{root: root, ctx: build.Default, seen: map[string]string{}}
 
 	for _, p := range toolkitFreePackages {
 		assert.Empty(t, c.reaches(module+"/"+p), "%s must not reach a GUI toolkit", p)

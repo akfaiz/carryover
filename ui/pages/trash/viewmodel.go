@@ -2,7 +2,7 @@
 // be restored, and cloud save folders no game uses any more.
 //
 // ViewModel holds the lists, what is loading and what a command does, and is
-// tested without Fyne; Page draws it.
+// tested without the toolkit; Page draws it.
 package trash
 
 import "github.com/akfaiz/carryover/services"

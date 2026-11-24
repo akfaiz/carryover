@@ -2,26 +2,26 @@
 // opens pages, the keyboard and gamepad handling, the toasts and the session
 // prompts. It implements env.Env for the pages and knows no page itself: the
 // application hands it the pages through Config.
+//
+// This is the MyGo build. MyGo draws the window again from this code every
+// frame, so the shell keeps plain state (route, history, the dialog open) and
+// the view reads it; nothing here builds or updates widgets.
 package shell
 
 import (
+	"errors"
 	"fmt"
 	"log"
 	"time"
 
-	"fyne.io/fyne/v2"
-	"fyne.io/fyne/v2/canvas"
-	"fyne.io/fyne/v2/container"
-	"fyne.io/fyne/v2/layout"
-	"fyne.io/fyne/v2/theme"
-	"fyne.io/fyne/v2/widget"
+	"github.com/egoist/mygo"
+	"github.com/egoist/mygo/ui"
 
-	"github.com/akfaiz/carryover/ui/i18n"
-
+	"github.com/akfaiz/carryover/internal/app/gamemode"
 	"github.com/akfaiz/carryover/internal/core"
 	"github.com/akfaiz/carryover/services"
-	"github.com/akfaiz/carryover/ui/components"
 	"github.com/akfaiz/carryover/ui/env"
+	"github.com/akfaiz/carryover/ui/i18n"
 	"github.com/akfaiz/carryover/ui/kit"
 	"github.com/akfaiz/carryover/ui/prompts"
 	"github.com/akfaiz/carryover/ui/store"
@@ -39,13 +39,11 @@ type Config struct {
 	SyncProblems func(e env.Env, total int, problems []services.SyncResult)
 }
 
-// Shell is the running main window. All fields are used on the Fyne UI thread
-// only.
+// Shell is the running main window. All fields are used on the UI thread only.
 type Shell struct {
 	cfg Config
 
-	app fyne.App
-	win fyne.Window
+	win *mygo.Window
 	c   *core.Core
 
 	lib   *services.LibraryService
@@ -63,19 +61,32 @@ type Shell struct {
 	route   string
 	history []string
 	page    env.Page
-	content *fyne.Container
-	sidebar *fyne.Container
-	navBtns map[string]*widget.Button
-	// activity is the sidebar line that shows a running "Sync all" or game.
-	activity *fyne.Container
-	toasts   *kit.Toaster
-	prompts  *prompts.Queue
-	// nav drives the window with a gamepad; padHints says how, while one is
-	// connected.
-	nav      *kit.Navigator
-	padHints *fyne.Container
+
+	nav     *kit.Navigator
+	confirm kit.Confirm
+	dialogs kit.Dialogs
+	prompts *prompts.Queue
+	prefs   *prefs
+	logo    *ui.Bitmap
+	// toastQ holds toasts asked for outside a frame; the view shows them.
+	toastQ []toastReq
+	// themeDirty asks the next frame to apply the palette again.
+	themeDirty bool
+	closing    bool
+	wrapper    bool // the window is the wrapper of `carryover run`
+	stopPad    func()
+
+	sideH     [5]ui.Handle // the places of the sidebar
+	exitH     ui.Handle
+	cloudH    ui.Handle
+	activityH [8]ui.Handle // running games, "Sync all"
 
 	lastLocalCheck time.Time // last checkLocalChanges run
+}
+
+type toastReq struct {
+	text string
+	kind kit.ToastKind
 }
 
 // localCheckInterval limits how often the saves are scanned for changes made
@@ -93,12 +104,10 @@ func (u *Shell) checkLocalChanges() {
 }
 
 // New builds the shell around the services of c; bus carries their events.
-func New(c *core.Core, a fyne.App, bus *services.Bus, cfg Config) *Shell {
-	u := &Shell{
-		cfg: cfg,
-		app: a, c: c,
-		navBtns: map[string]*widget.Button{},
-		toasts:  kit.NewToaster(),
+func New(c *core.Core, bus *services.Bus, cfg Config) *Shell {
+	u := &Shell{cfg: cfg, c: c, prefs: loadPrefs(c.Dirs.StateDir())}
+	if cfg.Icon != nil {
+		u.logo, _ = ui.DecodeBitmap(cfg.Icon)
 	}
 	u.sess = services.NewSessionService(c, bus)
 	u.lib = services.NewLibraryService(c, bus, u.sess.IsRunning)
@@ -106,7 +115,7 @@ func New(c *core.Core, a fyne.App, bus *services.Bus, cfg Config) *Shell {
 	u.cloud = services.NewCloudService(c)
 	u.steam = services.NewSteamService(c, bus)
 	u.emus = services.NewEmulatorService(c, bus)
-	u.prompts = prompts.New(u)
+	u.nav = kit.NewNavigator(u.navOptions())
 
 	// A failed session is an event, not state: it toasts once, before the store
 	// (registered next) tells the pages about the new status.
@@ -119,42 +128,50 @@ func New(c *core.Core, a fyne.App, bus *services.Bus, cfg Config) *Shell {
 		func(f func()) { kit.OnUI(f) }) // a closure: tests swap kit.OnUI
 	u.store.Attach(bus)
 	u.store.Subscribe(u.onStore)
+	u.prompts = prompts.New(u)
 	bus.OnPrompt(func(p services.Prompt) { kit.OnUI(func() { u.prompts.Add(p) }) })
 	bus.OnPromptClosed(func(id string) { kit.OnUI(func() { u.prompts.Remove(id) }) })
 	return u
 }
 
-// onStore keeps the window's own parts (sidebar, activity line) up to date and
-// hands the change on to the open page. Pages see "Sync all" as transfer
-// progress.
+// onStore hands a change to the open page. Pages see "Sync all" as transfer
+// progress. The window redraws by itself: kit.OnUI invalidates it.
 func (u *Shell) onStore(t store.Topic) {
-	switch t {
-	case store.Library:
-		if u.sidebar != nil {
-			u.renderSidebar()
-		}
-	case store.Status, store.SyncAll:
-		u.renderActivity()
-	}
 	if t == store.SyncAll {
 		t = store.Progress
 	}
-	u.notify(t)
+	if s, ok := u.page.(env.Stateful); ok {
+		s.StateChanged(t)
+	}
 }
 
-// BuildMain creates the launcher window.
+// BuildMain creates the launcher window. Call it once MyGo is ready.
 func (u *Shell) BuildMain() {
-	u.win = u.app.NewWindow("Carryover")
-	u.win.Resize(fyne.NewSize(1180, 760))
-	u.win.SetMaster()
-	u.win.SetCloseIntercept(u.confirmClose)
+	kit.SystemDark.Store(mygo.Theme.IsDark())
+	mygo.Theme.OnUpdated(func() {
+		kit.OnUI(func() {
+			kit.SystemDark.Store(mygo.Theme.IsDark())
+			u.ApplyTheme(u.store.Settings.Theme)
+		})
+	})
+	u.win = mygo.NewWindow(mygo.WindowOptions{
+		Title:   "Carryover",
+		Width:   1180,
+		Height:  760,
+		Content: ui.View(u.view),
+	})
+	u.win.OnClose(u.onClose)
 	u.applyFullScreen()
-	u.newNavigator()
-	u.buildLayout()
-	u.addShortcuts()
+	u.Init()
+	u.readPad(true)
+}
+
+// Init shows the first page and loads the state. BuildMain calls it once the
+// window exists; tests call it on a shell with no window.
+func (u *Shell) Init() {
 	u.show("/")
 	u.store.Refresh()
-	go func() {
+	go func() { // prompts a session raised before this window existed
 		p := u.sess.Prompts()
 		kit.OnUI(func() {
 			for _, x := range p {
@@ -170,104 +187,249 @@ func (u *Shell) busy() bool {
 	return u.store.SyncAll.Running || u.sess.Active() || u.sync.Active()
 }
 
-// confirmClose closes the main window, after asking when a game is being
-// played or a sync runs: the post-play upload and the release of the cloud lock
-// happen in this process, so closing it would skip both.
-func (u *Shell) confirmClose() {
+// onClose lets the window close, after asking when a game is being played or a
+// sync runs: the post-play upload and the release of the cloud lock happen in
+// this process, so closing it would skip both.
+func (u *Shell) onClose(e *mygo.CloseEvent) {
+	if u.closing || !u.busy() {
+		return
+	}
+	e.PreventDefault()
+	u.askClose()
+}
+
+func (u *Shell) askClose() {
 	if !u.busy() {
+		u.closing = true
 		u.win.Close()
 		return
 	}
-	kit.ConfirmDiscard(u.win, i18n.L("Close Carryover?"),
-		i18n.L("A game is still running or a sync is in progress. If you close Carryover now, its saves won't be uploaded until the next sync, and your other devices may keep showing the game as being played."),
-		i18n.L("Keep open"), i18n.L("Close anyway"), u.win.Close)
+	u.confirm.Show(kit.ConfirmOptions{
+		Title:  i18n.L("Close Carryover?"),
+		Body:   i18n.L("A game is still running or a sync is in progress. If you close Carryover now, its saves won't be uploaded until the next sync, and your other devices may keep showing the game as being played."),
+		Cancel: i18n.L("Keep open"), OK: i18n.L("Close anyway"), Danger: true,
+	}, func() { u.closing = true; u.win.Close() })
+	kit.Redraw()
 }
 
-// buildLayout creates the window content (sidebar + page area); the palette
-// colours are read here, so it is rebuilt when the theme changes.
-func (u *Shell) buildLayout() {
-	u.content = container.NewStack()
-	u.sidebar = container.NewVBox()
-	u.navBtns = map[string]*widget.Button{}
-	bg := canvas.NewRectangle(kit.ColBg2)
-	sep := canvas.NewRectangle(kit.ColLine)
-	sep.SetMinSize(fyne.NewSize(1, 0))
-	// One group for the gamepad: up and down stay in the sidebar.
-	side := container.NewStack(bg, container.NewPadded(kit.NewNavGroup(u.sidebar)))
-	u.padHints = u.padHintBar()
-	main := container.NewBorder(nil, u.padHints, container.NewHBox(kit.FixedWidth(200, side), sep), nil, u.content)
-	u.win.SetContent(container.NewStack(main, u.toasts.Layer, u.nav.RingLayer()))
-	u.renderSidebar()
+// frame is what every window of the shell shares around its content: the
+// theme, the gamepad's registry, toasts and the yes/no dialog.
+func (u *Shell) frame(c *ui.Context, shortcuts bool, content func()) {
+	if u.themeDirty || c.Theme().Background != kitTheme().Background {
+		c.SetTheme(kitTheme())
+		u.themeDirty = false
+	}
+	u.nav.Begin(c)
+	u.showToasts(c)
+	if shortcuts {
+		u.shortcuts(c)
+	}
+	c.Root().Background(c.Theme().Background)
+	content()
+	u.dialogs.View(c, u.nav)
+	u.confirm.View(c, u.nav)
+	u.nav.Keys(c)
+	u.nav.End(c)
 }
 
-// applyTheme switches to the palette for a stored theme setting and rebuilds the UI.
-func (u *Shell) applyTheme(setting string) {
+// view is the main window's content, built every frame.
+func (u *Shell) view(c *ui.Context) {
+	u.frame(c, true, func() {
+		ui.Column(c).Fill().Children(func() {
+			ui.Row(c).Grow(1).AlignItems(ui.Stretch).Children(func() {
+				u.sidebar(c)
+				ui.Column(c).Grow(1).Padding(0, 0, 0, 16).Children(func() {
+					if u.page != nil {
+						u.nav.MarkPage()
+						u.page.View(c)
+					}
+				})
+			})
+			u.padHints(c)
+		})
+	})
+}
+
+// wrapperView is the wrapper window's content: the page alone.
+func (u *Shell) wrapperView(c *ui.Context) {
+	u.frame(c, false, func() {
+		ui.Column(c).Fill().Children(func() {
+			u.nav.MarkPage()
+			u.page.View(c)
+		})
+	})
+}
+
+// kitTheme is the palette as a theme (a func so tests can stand in).
+var kitTheme = kit.AppTheme
+
+func (u *Shell) shortcuts(c *ui.Context) {
+	if u.confirm.Open() || u.dialogs.Open() {
+		return
+	}
+	c.OnShortcut(ui.Cmd, ui.KeyF, func() {
+		if s, ok := u.page.(env.Searchable); ok {
+			s.FocusSearch()
+		}
+	})
+	c.OnShortcut(ui.Cmd, ui.KeyN, func() { u.cfg.AddGame(u) })
+	if c.Shortcut(0, ui.KeyEscape) && u.route != "/" {
+		u.back()
+	}
+	if c.Shortcut(0, ui.KeyF5) {
+		if s, ok := u.page.(env.Syncable); ok {
+			s.SyncNow()
+		}
+	}
+	if c.Shortcut(0, ui.KeyF11) {
+		u.toggleFullScreen()
+	}
+}
+
+// showToasts hands the toasts asked for since the last frame to MyGo.
+func (u *Shell) showToasts(c *ui.Context) {
+	for _, t := range u.toastQ {
+		typ := "info"
+		switch t.kind {
+		case kit.ToastOK:
+			typ = "success"
+		case kit.ToastErr:
+			typ = "error"
+		}
+		c.AddToast(ui.Toast{Description: t.text, Type: typ})
+	}
+	u.toastQ = u.toastQ[:0]
+}
+
+// sidebarPlaces are the sidebar's entries in order; the labels are looked up
+// when drawn, since text goes through i18n.
+func (u *Shell) sidebarPlaces() []struct{ path, label string } {
+	return []struct{ path, label string }{
+		{"/", i18n.L("Library")},
+		{"/emulators", i18n.L("Emulators")},
+		{"/cloud", i18n.L("Cloud")},
+		{"/trash", u.trashLabel()},
+		{"/settings", i18n.L("Settings")},
+	}
+}
+
+func (u *Shell) sidebar(c *ui.Context) {
+	t := c.Theme()
+	ui.Column(c).Width(216).Padding(12).Gap(4).Background(t.Surface).Children(func() {
+		ui.Row(c).Gap(8).AlignItems(ui.Center).Padding(0, 0, 8, 0).Children(func() {
+			if u.logo != nil {
+				ui.Image(c, u.logo).Size(30, 30)
+			}
+			ui.Text(c, "Carryover").FontSize(16).Bold()
+		})
+		ui.Divider(c)
+		places := u.sidebarPlaces()
+		section := sectionOf(u.route)
+		item := func(i int) {
+			p := places[i]
+			var b ui.Element
+			if p.path == section {
+				b = ui.PrimaryButton(c.Key([2]any{"side", i}), p.label)
+			} else {
+				b = ui.Button(c.Key([2]any{"side", i}), p.label)
+			}
+			go1 := func() { u.navigate(p.path) }
+			if u.nav.Item(&u.sideH[i], b.AlignSelf(ui.Stretch), go1).Clicked() {
+				go1()
+			}
+		}
+		for i := range 3 {
+			item(i)
+		}
+		ui.Spacer(c)
+		for i := 3; i < len(places); i++ {
+			item(i)
+		}
+		if u.showExit() {
+			exit := u.askClose
+			if u.nav.Item(&u.exitH, ui.Button(c.Key("exit"), i18n.L("Exit")).AlignSelf(ui.Stretch), exit).Clicked() {
+				exit()
+			}
+		}
+		ui.Divider(c)
+		u.activity(c)
+		s := &u.store.Settings
+		ui.Text(c, s.DeviceName).FontSize(12).TextColor(t.TextMuted)
+		switch {
+		case s.Remote != "":
+			ui.Text(c, s.Remote+":"+s.RemoteRoot).FontSize(12).TextColor(t.TextMuted)
+		case u.store.Loaded:
+			cloud := func() { u.navigate("/cloud") }
+			if u.nav.Item(&u.cloudH, ui.Button(c.Key("nocloud"), i18n.L("No cloud configured")).TextColor(t.Warning).AlignSelf(ui.Stretch), cloud).Clicked() {
+				cloud()
+			}
+		}
+	})
+}
+
+// activity shows what runs in the background at the bottom of the sidebar,
+// whatever page is open: a "Sync all" and the games being played. Each entry
+// opens the page it belongs to.
+func (u *Shell) activity(c *ui.Context) {
+	n := 0
+	entry := func(label string, to string) {
+		if n >= len(u.activityH) {
+			return
+		}
+		h := &u.activityH[n]
+		n++
+		open := func() { u.navigate(to) }
+		if u.nav.Item(h, ui.Button(c.Key([2]any{"act", n}), label).AlignSelf(ui.Stretch), open).Clicked() {
+			open()
+		}
+	}
+	// The library shows "Sync all" progress itself; elsewhere it shows here.
+	if u.store.SyncAll.Running && u.route != "/" {
+		text := i18n.L("Syncing…")
+		if p := u.store.SyncAll.Progress; p.Total > 0 {
+			text = i18n.L("Syncing {{.Done}} of {{.Total}}", map[string]any{"Done": p.Done, "Total": p.Total})
+		}
+		entry(text, "/")
+	}
+	for _, g := range u.store.Games {
+		if st, ok := u.store.Status[g.ID]; ok && st.Running {
+			entry(i18n.L("Playing {{.Game}}", map[string]any{"Game": g.Name}), "/game/"+g.ID)
+		}
+	}
+}
+
+// padHints says what the gamepad's buttons do; it shows while one is connected.
+func (u *Shell) padHints(c *ui.Context) {
+	if !u.nav.PadPresent() {
+		return
+	}
+	t := c.Theme()
+	hints := []struct{ button, what string }{
+		{"A", i18n.L("Select")}, {"B", i18n.L("Back")}, {"LB / RB", i18n.L("Section")},
+		{"X", i18n.L("Search")}, {"Y", i18n.L("Sync")}, {"R", i18n.L("Scroll")},
+	}
+	if !gamemode.Active() { // Game Mode is always full screen
+		hints = append(hints, struct{ button, what string }{"View", i18n.L("Full screen")})
+	}
+	ui.Row(c).Gap(14).Padding(8, 16).Justify(ui.End).Children(func() {
+		for _, h := range hints {
+			ui.Row(c).Gap(4).AlignItems(ui.Center).Children(func() {
+				ui.Badge(c, h.button)
+				ui.Text(c, h.what).FontSize(12).TextColor(t.TextMuted)
+			})
+		}
+	})
+}
+
+// ApplyTheme switches to the palette for a stored theme setting.
+func (u *Shell) ApplyTheme(setting string) {
 	name := kit.PaletteFor(setting)
 	if (name == kit.ThemeLight) == kit.LightOn {
 		return
 	}
 	kit.SetPalette(name)
-	u.app.Settings().SetTheme(kit.AppTheme{})
-	u.toasts.Recolor()
-	if u.win == nil {
-		return
-	}
-	u.buildLayout()
-	u.show(u.route)
-}
-
-func (u *Shell) renderSidebar() {
-	logo := canvas.NewImageFromResource(fyne.NewStaticResource("appicon.png", u.cfg.Icon))
-	logo.FillMode = canvas.ImageFillContain
-	logo.SetMinSize(fyne.NewSize(30, 30))
-	brand := widget.NewLabelWithStyle("Carryover", fyne.TextAlignLeading, fyne.TextStyle{Bold: true})
-	brand.SizeName = theme.SizeNameSubHeadingText
-	objs := []fyne.CanvasObject{container.NewHBox(logo, brand), widget.NewSeparator()}
-	nav := func(path, label string, icon fyne.Resource) {
-		b := widget.NewButtonWithIcon(label, icon, func() { u.navigate(path) })
-		b.Alignment = widget.ButtonAlignLeading
-		u.navBtns[path] = b
-		objs = append(objs, b)
-	}
-	nav("/", i18n.L("Library"), theme.GridIcon())
-	nav("/emulators", i18n.L("Emulators"), theme.ComputerIcon())
-	nav("/cloud", i18n.L("Cloud"), theme.StorageIcon())
-	objs = append(objs, layout.NewSpacer())
-	// Secondary places, out of the way of the main ones.
-	nav("/trash", u.trashLabel(), theme.DeleteIcon())
-	nav("/settings", i18n.L("Settings"), theme.SettingsIcon())
-	if u.showExit() {
-		exit := widget.NewButtonWithIcon(i18n.L("Exit"), theme.LogoutIcon(), u.confirmClose)
-		exit.Alignment, exit.Importance = widget.ButtonAlignLeading, widget.LowImportance
-		objs = append(objs, exit)
-	}
-	u.activity = kit.VBox()
-	objs = append(objs, widget.NewSeparator(), u.activity)
-	u.renderActivity()
-	dev := kit.Muted(u.store.Settings.DeviceName)
-	objs = append(objs, dev)
-	if u.store.Settings.Remote != "" {
-		objs = append(objs, kit.Muted(u.store.Settings.Remote+":"+u.store.Settings.RemoteRoot))
-	} else if u.store.Loaded {
-		b := widget.NewButtonWithIcon(i18n.L("No cloud configured"), theme.WarningIcon(), func() { u.navigate("/cloud") })
-		b.Importance = widget.WarningImportance
-		objs = append(objs, b)
-	}
-	u.sidebar.Objects = objs
-	u.sidebar.Refresh()
-	u.highlightNav()
-}
-
-func (u *Shell) highlightNav() {
-	section := sectionOf(u.route)
-	for p, b := range u.navBtns {
-		if p == section {
-			b.Importance = widget.MediumImportance
-		} else {
-			b.Importance = widget.LowImportance
-		}
-		b.Refresh()
-	}
+	u.themeDirty = true
+	kit.Redraw()
 }
 
 // navigate goes to a route, adding it to the history. Leaving a form with
@@ -310,7 +472,11 @@ func (u *Shell) back() {
 // leave runs next, after asking when the current page has unsaved changes.
 func (u *Shell) leave(next func()) {
 	if g, ok := u.page.(env.Guarded); ok && g.Dirty() {
-		components.ConfirmDiscard(u, next)
+		u.confirm.Show(kit.ConfirmOptions{
+			Title:  i18n.L("Discard changes?"),
+			Body:   i18n.L("Your changes on this page haven't been saved."),
+			Cancel: i18n.L("Keep editing"), OK: i18n.L("Discard changes"), Danger: true,
+		}, next)
 		return
 	}
 	next()
@@ -319,11 +485,12 @@ func (u *Shell) leave(next func()) {
 func (u *Shell) show(path string) {
 	u.route = path
 	u.page = u.cfg.Page(u, path)
-	u.content.Objects = []fyne.CanvasObject{u.page.View()}
-	u.content.Refresh()
-	u.highlightNav()
-	u.renderActivity() // what it shows depends on the page
-	u.focusForPad()
+	if s, ok := u.page.(env.Scrollable); ok {
+		u.nav.SetScroll(s.Scroll())
+	} else {
+		u.nav.SetScroll(nil)
+	}
+	kit.Redraw()
 }
 
 // trashLabel is the sidebar text of the Trash entry: it counts the games and
@@ -336,58 +503,13 @@ func (u *Shell) trashLabel() string {
 	return i18n.L("Trash")
 }
 
-// renderActivity shows what runs in the background at the bottom of the
-// sidebar, whatever page is open: a "Sync all" and the games being played.
-// Each entry opens the page it belongs to.
-func (u *Shell) renderActivity() {
-	if u.activity == nil {
-		return
-	}
-	var objs []fyne.CanvasObject
-	// The library shows "Sync all" progress itself; elsewhere it shows here.
-	if u.store.SyncAll.Running && u.route != "/" {
-		text := i18n.L("Syncing…")
-		if p := u.store.SyncAll.Progress; p.Total > 0 {
-			text = i18n.L("Syncing {{.Done}} of {{.Total}}", map[string]any{"Done": p.Done, "Total": p.Total})
-		}
-		b := widget.NewButtonWithIcon(text, theme.ViewRefreshIcon(), func() { u.navigate("/") })
-		b.Alignment, b.Importance = widget.ButtonAlignLeading, widget.LowImportance
-		objs = append(objs, b)
-	}
-	for _, g := range u.store.Games {
-		if st, ok := u.store.Status[g.ID]; ok && st.Running {
-			id := g.ID
-			// Truncated: a button would widen the sidebar to a long name.
-			objs = append(objs, kit.IconRow(theme.MediaPlayIcon(), i18n.L("Playing {{.Game}}", map[string]any{"Game": g.Name}),
-				func() { u.navigate("/game/" + id) }))
-		}
-	}
-	grew := len(objs) != len(u.activity.Objects)
-	u.activity.Objects = objs
-	u.activity.Refresh()
-	if grew && u.sidebar != nil {
-		u.sidebar.Refresh() // its height changed: lay the sidebar out again
-	}
-}
-
-func (u *Shell) refreshSidebar() {
-	if u.sidebar != nil {
-		u.renderSidebar()
-	}
-}
-
-func (u *Shell) notify(what store.Topic) {
-	if s, ok := u.page.(env.Stateful); ok {
-		s.StateChanged(what)
-	}
-}
-
 func (u *Shell) toast(text string, kind kit.ToastKind) {
 	if kind == kit.ToastErr {
 		// The log is what a bug report carries: record every error the user saw.
 		log.Printf("ui error: %s", text)
 	}
-	u.toasts.Show(text, kind)
+	u.toastQ = append(u.toastQ, toastReq{text, kind})
+	kit.Redraw()
 }
 
 func (u *Shell) toastErr(err error) {
@@ -403,4 +525,70 @@ func (u *Shell) openFolder(p string) {
 		return
 	}
 	u.toastErr(kit.OpenFolder(p))
+}
+
+// syncAll syncs every game that is set up on this device; called again while
+// it runs, it cancels. It belongs to the window, not to the library page, so
+// it keeps running (and is shown in the sidebar) on any page.
+func (u *Shell) syncAll() {
+	if u.store.SyncAll.Running {
+		if !u.store.SyncAll.Cancelling && u.sync.Cancel("") {
+			u.store.SyncAllCancelling()
+		}
+		return
+	}
+	u.store.BeginSyncAll()
+	kit.Async(u.sync.SyncAll, func(res []services.SyncResult, err error) {
+		u.store.EndSyncAll()
+		defer u.store.Refresh()
+		if errors.Is(err, services.ErrSyncCancelled) {
+			u.toast(i18n.N("Sync cancelled after {{.Count}} game", len(res), map[string]any{"Count": len(res)}), kit.ToastInfo)
+			return
+		}
+		if services.IsOffline(err) {
+			u.toast(i18n.L("Offline — nothing synced"), kit.ToastInfo)
+			return
+		}
+		if err != nil {
+			u.toastErr(err)
+			return
+		}
+		var problems []services.SyncResult
+		for _, r := range res {
+			if r.Error != "" || r.Action == "conflict" {
+				problems = append(problems, r)
+			}
+		}
+		if len(problems) > 0 {
+			u.cfg.SyncProblems(u, len(res), problems)
+			return
+		}
+		u.toast(i18n.N("Synced {{.Count}} game", len(res), map[string]any{"Count": len(res)}), kit.ToastOK)
+	})
+}
+
+// showNotices shows, once, what session watchers did while no notification
+// could be shown (e.g. in Steam Deck Game Mode).
+func (u *Shell) showNotices() {
+	go func() {
+		notices := u.sync.TakeNotices()
+		if len(notices) == 0 {
+			return
+		}
+		kit.OnUI(func() {
+			for _, n := range notices {
+				u.toast(noticeBody(n), noticeToastKind(n.Kind))
+			}
+		})
+	}()
+}
+
+func noticeToastKind(k core.NoticeKind) kit.ToastKind {
+	switch k {
+	case core.NoticeUploaded:
+		return kit.ToastOK
+	case core.NoticeConflict, core.NoticeOffline:
+		return kit.ToastInfo
+	}
+	return kit.ToastErr
 }

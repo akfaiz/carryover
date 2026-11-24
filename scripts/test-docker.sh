@@ -26,7 +26,7 @@ run() {
         "$image" bash -c "$@"
 }
 
-linux() { echo "== linux: go test ${args[*]}"; run 'CGO_ENABLED=1 go test "$@"' _ "${args[@]}"; }
+linux() { echo "== linux: go test ${args[*]}"; run 'CGO_ENABLED=0 go test "$@"' _ "${args[@]}"; }
 windows() {
     echo "== windows: cross-compile tests + vet (not executed)"
     run 'GOOS=windows CGO_ENABLED=0 go vet ./internal/... ./services/...'

@@ -1,15 +1,13 @@
 package library
 
 import (
-	"fyne.io/fyne/v2"
-	"fyne.io/fyne/v2/container"
-	"fyne.io/fyne/v2/layout"
-	"fyne.io/fyne/v2/theme"
-	"fyne.io/fyne/v2/widget"
+	"github.com/egoist/mygo/ui"
 
-	"github.com/akfaiz/carryover/ui/i18n"
-
+	"github.com/akfaiz/carryover/services"
+	"github.com/akfaiz/carryover/ui/components"
 	"github.com/akfaiz/carryover/ui/env"
+	"github.com/akfaiz/carryover/ui/flows"
+	"github.com/akfaiz/carryover/ui/i18n"
 	"github.com/akfaiz/carryover/ui/kit"
 	"github.com/akfaiz/carryover/ui/store"
 )
@@ -17,254 +15,274 @@ import (
 // ShowAttention sets the library's filter to the games that need attention,
 // for the next time the page opens.
 func ShowAttention(u env.Env) {
-	NewViewModel(StoreSource(u.Store()), u.App().Preferences()).SetFilter(FilterAttention)
+	NewViewModel(StoreSource(u.Store()), u.Prefs()).SetFilter(FilterAttention)
 }
 
-// Page is the library page. It builds its widgets once and draws them again
-// from the ViewModel when the shared state or the user's choices change.
+// Page is the library page. MyGo draws it again every frame: View reads the
+// ViewModel (whose state is the shared store and the user's choices) and
+// declares the controls.
 type Page struct {
 	u  env.Env
 	vm *ViewModel
 
-	scroll  *container.Scroll
-	body    *fyne.Container // the page's rows, laid out again when one changes height
-	search  *widget.Entry
-	syncBtn *widget.Button
-	head    fyne.CanvasObject // header row, refreshed when syncBtn's label changes
-	// chipsHost holds toolsRow (search and sort, the filters under them) once
-	// there are games; filterHost is the row of filter buttons, the only part
-	// drawn again (the search field stays the same widget while typing).
-	chipsHost  *fyne.Container
-	toolsRow   fyne.CanvasObject
-	filterHost *fyne.Container
-	gridHost   *fyne.Container
-	emptyHost  *fyne.Container
-	barHost    *fyne.Container // "Sync all" progress, shown only while syncing
-	bar        *widget.ProgressBar
-	barLabel   *widget.Label
-	tiles      map[string]*Tile // by game id, kept across renders
+	search string // bound to the search field
+	scroll ui.ScrollState
+	// playing: games whose Play was pressed and has not answered yet.
+	playing map[string]bool
+
+	sorts *kit.Choice
 }
 
 // New returns the library page.
 func New(u env.Env) *Page {
-	return &Page{
-		u:     u,
-		vm:    NewViewModel(StoreSource(u.Store()), u.App().Preferences()),
-		tiles: map[string]*Tile{},
-	}
+	p := &Page{u: u, vm: NewViewModel(StoreSource(u.Store()), u.Prefs()), playing: map[string]bool{}}
+	p.sorts = &kit.Choice{}
+	p.sorts.Add(string(SortName), i18n.L("Sort by name"))
+	p.sorts.Add(string(SortRecent), i18n.L("Sort by last sync"))
+	return p
 }
 
-// ChipsHost and GridHost are the rows whose layout the page's tests check.
-func (p *Page) ChipsHost() *fyne.Container { return p.chipsHost }
-func (p *Page) GridHost() *fyne.Container  { return p.gridHost }
+// Scroll is the page's scroll container, which the pad's right stick scrolls.
+func (p *Page) Scroll() *ui.ScrollState { return &p.scroll }
 
-// Tiles lists the tiles on the page.
-func (p *Page) Tiles() map[string]*Tile { return p.tiles }
+// FocusSearch puts the cursor in the search field (Ctrl+F, the pad's X).
+func (p *Page) FocusSearch() { p.u.Navigator().Handle("search").Focus() }
 
-func (p *Page) View() fyne.CanvasObject {
-	p.search = widget.NewEntry()
-	p.search.SetPlaceHolder(i18n.L("Search…"))
-	p.search.OnChanged = func(s string) { p.vm.SetQuery(s); p.renderGrid() }
-	p.syncBtn = widget.NewButtonWithIcon(i18n.L("Sync all"), theme.ViewRefreshIcon(), p.u.SyncAll)
-	p.head = kit.PageHead(nil, i18n.L("Library"),
-		p.syncBtn,
-		kit.Primary(i18n.L("＋ Add game"), p.u.AddGame),
-	)
-	// Search and sort on one row, the filters on their own row under it: three
-	// kinds of control in one row ran together.
-	sorts := &kit.Choice{}
-	sorts.Add(string(SortName), i18n.L("Sort by name"))
-	sorts.Add(string(SortRecent), i18n.L("Sort by last sync"))
-	sortSel := kit.SelectOf(sorts, string(p.vm.Sort()), func(v string) {
-		p.vm.SetSort(Sort(v))
-		p.renderGrid()
-	})
-	p.filterHost = container.NewStack()
-	p.filterHost.Hide()
-	// The extra space below sets the tools apart from the grid; it goes with
-	// them, so an empty library has none.
-	p.toolsRow = container.New(layout.NewCustomPaddedLayout(0, 8, 0, 0), kit.VBox(
-		container.NewHBox(kit.FixedWidth(360, p.search), kit.FixedWidth(190, kit.Outlined(sortSel))),
-		p.filterHost))
-	p.chipsHost = container.NewStack()
-	p.gridHost = container.NewStack()
-	p.emptyHost = container.NewStack()
-	p.bar = widget.NewProgressBar()
-	p.barLabel = kit.Small("")
-	p.barHost = container.NewVBox(p.barLabel, p.bar)
-	p.barHost.Hide()
-	p.renderGrid()
-	p.updateProgress()
-	p.body = kit.VBox(p.head, p.barHost, p.chipsHost, p.emptyHost, p.gridHost)
-	p.scroll = kit.ScrollPage(p.body)
-	return p.scroll
-}
-
-// relayout lays the page out again after a row's height changed: the filter
-// row and the empty-state card come and go (on startup the page is drawn
-// before the games are read), and a refreshed row alone keeps its old height.
-func (p *Page) relayout() {
-	if p.body == nil {
-		return
-	}
-	p.body.Refresh()
-	p.scroll.Refresh()
-}
-
-func (p *Page) FocusSearch() { p.u.Window().Canvas().Focus(p.search) }
-
-// DefaultFocus starts a gamepad on the first game.
-func (p *Page) DefaultFocus() fyne.Focusable {
-	if games := p.vm.Visible(); len(games) > 0 {
-		if t := p.tiles[games[0].ID]; t != nil {
-			return t.open
-		}
-	}
-	return nil
-}
-
+// SyncNow starts a Sync all (F5, the pad's Y).
 func (p *Page) SyncNow() {
 	if p.vm.CanSyncNow() {
 		p.u.SyncAll()
 	}
 }
 
-// updateProgress shows how many games "Sync all" has finished, and turns its
-// button into Cancel while it runs.
-func (p *Page) updateProgress() {
+// StateChanged: the page reads the store when it draws, so a redraw is all it
+// needs; kit.OnUI asked for one already.
+func (p *Page) StateChanged(store.Topic) {}
+
+// DefaultFocus starts a gamepad on the first game.
+func (p *Page) DefaultFocus() *ui.Handle {
+	if games := p.vm.Visible(); len(games) > 0 {
+		return p.u.Navigator().Handle([2]any{"open", games[0].ID})
+	}
+	return nil
+}
+
+// View draws the page.
+func (p *Page) View(c *ui.Context) {
+	u, nav := p.u, p.u.Navigator()
+	p.vm.SetQuery(p.search)
+	ui.Scroll(c).Grow(1).TrackScroll(&p.scroll).Children(func() {
+		ui.Column(c).Gap(0).Padding(0, 20, 20, 20).Children(func() {
+			kit.PageHead(c, nav, nil, nil, i18n.L("Library"), func() {
+				p.syncButton(c)
+				add := u.AddGame
+				if nav.Item(nav.Handle("add"), ui.PrimaryButton(c.Key("add"), i18n.L("＋ Add game")), add).Clicked() {
+					add()
+				}
+			})
+			p.progress(c)
+			if p.vm.HasGames() {
+				p.tools(c)
+			}
+			p.empty(c)
+			p.grid(c)
+		})
+	})
+}
+
+func (p *Page) syncButton(c *ui.Context) {
+	nav := p.u.Navigator()
 	state, enabled := p.vm.SyncButton()
+	label := i18n.L("Sync all")
 	switch state {
 	case SyncCancelling:
-		p.syncBtn.SetText(i18n.L("Cancelling…"))
-		p.syncBtn.SetIcon(theme.CancelIcon())
+		label = i18n.L("Cancelling…")
 	case SyncRunning:
-		p.syncBtn.SetText(i18n.L("Cancel sync"))
-		p.syncBtn.SetIcon(theme.CancelIcon())
-	default:
-		p.syncBtn.SetText(i18n.L("Sync all"))
-		p.syncBtn.SetIcon(theme.ViewRefreshIcon())
+		label = i18n.L("Cancel sync")
 	}
-	kit.SetEnabled(p.syncBtn, enabled)
-	if p.head != nil {
-		p.head.Refresh() // the button's label width changed
+	sync := p.u.SyncAll
+	if nav.Item(nav.Handle("sync"), ui.Button(c.Key("sync"), label).Disabled(!enabled), sync).Clicked() {
+		sync()
 	}
+}
+
+// progress shows how many games "Sync all" has finished.
+func (p *Page) progress(c *ui.Context) {
 	pr, running := p.vm.Progress()
 	if !running {
-		if p.barHost.Visible() {
-			p.barHost.Hide()
-			p.relayout()
+		return
+	}
+	ui.Column(c).Gap(4).Padding(0, 0, 12, 0).Children(func() {
+		text := i18n.L("Synced {{.Done}} of {{.Total}}", map[string]any{"Done": pr.Done, "Total": pr.Total})
+		if pr.Name != "" {
+			text += " · " + pr.Name
 		}
-		return
-	}
-	p.bar.Max = float64(pr.Total)
-	p.bar.SetValue(float64(pr.Done))
-	text := i18n.L("Synced {{.Done}} of {{.Total}}", map[string]any{"Done": pr.Done, "Total": pr.Total})
-	if pr.Name != "" {
-		text += " · " + pr.Name
-	}
-	p.barLabel.SetText(text)
-	if !p.barHost.Visible() {
-		p.barHost.Show()
-		p.relayout()
-	}
+		kit.Small(c, text)
+		if pr.Total > 0 {
+			ui.Progress(c, float64(pr.Done)/float64(pr.Total))
+		} else {
+			ui.Progress(c, -1)
+		}
+	})
 }
 
-func (p *Page) StateChanged(what store.Topic) {
-	if what == store.Progress {
-		p.updateProgress()
-		return
-	}
-	p.updateProgress() // the remote may have been set up
-	p.renderGrid()
-}
-
-func (p *Page) renderChips() {
-	if !p.vm.HasGames() {
-		p.chipsHost.Objects = nil
-		p.chipsHost.Refresh()
-		return
-	}
-	p.filterHost.Objects = nil
-	p.filterHost.Hide() // no gap above the grid for an empty row
-	if p.vm.ShowFilters() {
-		c := p.vm.Counts()
-		p.filterHost.Objects = []fyne.CanvasObject{kit.Chips([]kit.ChipOption{
-			{Value: string(FilterAll), Label: i18n.L("All ({{.Count}})", map[string]any{"Count": c.All})},
-			{Value: string(FilterReady), Label: i18n.L("Ready to play ({{.Count}})", map[string]any{"Count": c.Ready}), Icon: theme.MediaPlayIcon()},
-			{Value: string(FilterAttention), Label: i18n.L("Needs attention ({{.Count}})", map[string]any{"Count": c.Attention}), Icon: theme.WarningIcon()},
-		}, string(p.vm.Filter()), func(v string) {
-			p.vm.SetFilter(Filter(v))
-			p.renderGrid()
-		})}
-		p.filterHost.Show()
-	}
-	p.filterHost.Refresh()
-	p.chipsHost.Objects = []fyne.CanvasObject{p.toolsRow}
-	p.chipsHost.Refresh()
+// tools is search and sort on one row, the filters on their own row under it.
+func (p *Page) tools(c *ui.Context) {
+	nav := p.u.Navigator()
+	ui.Column(c).Gap(8).Padding(0, 0, 8, 0).Children(func() {
+		ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
+			in := ui.TextInput(c.Key("search"), &p.search).Placeholder(i18n.L("Search…")).Label(i18n.L("Search…")).Width(360)
+			nav.Item(nav.Handle("search"), in, nil, kit.TextField)
+			kit.SelectOf(c, nav, p.u.Dialogs(), "sort", i18n.L("Sort"), p.sorts, string(p.vm.Sort()), func(v string) { p.vm.SetSort(Sort(v)) })
+		})
+		if p.vm.ShowFilters() {
+			n := p.vm.Counts()
+			kit.Chips(c, nav, "filter", []kit.ChipOption{
+				{Value: string(FilterAll), Label: i18n.L("All ({{.Count}})", map[string]any{"Count": n.All})},
+				{Value: string(FilterReady), Label: i18n.L("Ready to play ({{.Count}})", map[string]any{"Count": n.Ready})},
+				{Value: string(FilterAttention), Label: i18n.L("Needs attention ({{.Count}})", map[string]any{"Count": n.Attention})},
+			}, string(p.vm.Filter()), func(v string) { p.vm.SetFilter(Filter(v)) })
+		}
+	})
 }
 
 // showAll is the "Show all games" button of the empty states that come from a
 // filter.
-func (p *Page) showAll() fyne.CanvasObject {
-	return kit.HBox(widget.NewButton(i18n.L("Show all games"), func() { p.vm.SetFilter(FilterAll); p.renderGrid() }))
+func (p *Page) showAll(c *ui.Context) {
+	nav := p.u.Navigator()
+	show := func() { p.vm.SetFilter(FilterAll) }
+	if nav.Item(nav.Handle("show-all"), ui.Button(c.Key("show-all"), i18n.L("Show all games")), show).Clicked() {
+		show()
+	}
 }
 
-func (p *Page) renderEmpty() {
-	u := p.u
-	p.emptyHost.Objects = nil
+func (p *Page) empty(c *ui.Context) {
+	u, nav := p.u, p.u.Navigator()
 	switch p.vm.Empty() {
 	case EmptyNoGames:
-		actions := kit.HBox(kit.Primary(i18n.L("＋ Add your first game"), u.AddGame))
-		if !p.vm.src.HasRemote() {
-			actions.Add(widget.NewButtonWithIcon(i18n.L("Set up cloud storage"), theme.StorageIcon(), func() { u.Navigate("/cloud") }))
-		}
-		p.emptyHost.Objects = []fyne.CanvasObject{kit.Card(i18n.L("No games yet"),
-			kit.Muted(i18n.L("Add a game, tell Carryover where its saves live on this device, and it will keep them in sync through your cloud storage every time you play — from here or from Steam.")),
-			actions)}
+		kit.Card(c, i18n.L("No games yet"), func() {
+			kit.Muted(c, i18n.L("Add a game, tell Carryover where its saves live on this device, and it will keep them in sync through your cloud storage every time you play — from here or from Steam."))
+			ui.Row(c).Gap(8).Children(func() {
+				add := u.AddGame
+				if nav.Item(nav.Handle("add-first"), ui.PrimaryButton(c.Key("add-first"), i18n.L("＋ Add your first game")), add).Clicked() {
+					add()
+				}
+				if !p.vm.src.HasRemote() {
+					cloud := func() { u.Navigate("/cloud") }
+					if nav.Item(nav.Handle("setup-cloud"), ui.Button(c.Key("setup-cloud"), i18n.L("Set up cloud storage")), cloud).Clicked() {
+						cloud()
+					}
+				}
+			})
+		})
 	case EmptyNoMatch:
-		p.emptyHost.Objects = []fyne.CanvasObject{kit.Card("",
-			kit.Muted(i18n.L("No games match “{{.Query}}”.", map[string]any{"Query": p.vm.Query()})),
-			kit.HBox(widget.NewButton(i18n.L("Clear search"), func() { p.search.SetText("") })))}
+		kit.Card(c, "", func() {
+			kit.Muted(c, i18n.L("No games match “{{.Query}}”.", map[string]any{"Query": p.vm.Query()}))
+			clear := func() { p.search = "" }
+			if nav.Item(nav.Handle("clear-search"), ui.Button(c.Key("clear-search"), i18n.L("Clear search")), clear).Clicked() {
+				clear()
+			}
+		})
 	case EmptyNoReady:
-		p.emptyHost.Objects = []fyne.CanvasObject{kit.Card("",
-			kit.Muted(i18n.L("No game can be played on this device yet. Set one up to play it here.")),
-			p.showAll())}
+		kit.Card(c, "", func() {
+			kit.Muted(c, i18n.L("No game can be played on this device yet. Set one up to play it here."))
+			p.showAll(c)
+		})
 	case EmptyNoAttention:
-		p.emptyHost.Objects = []fyne.CanvasObject{kit.Card("",
-			kit.Muted(i18n.L("Nothing needs attention: every game is set up and synced.")),
-			p.showAll())}
+		kit.Card(c, "", func() {
+			kit.Muted(c, i18n.L("Nothing needs attention: every game is set up and synced."))
+			p.showAll(c)
+		})
 	}
-	p.emptyHost.Refresh()
 }
 
-func (p *Page) renderGrid() {
-	p.renderChips()
+func (p *Page) grid(c *ui.Context) {
 	games := p.vm.Visible()
-	p.renderEmpty()
+	if len(games) == 0 {
+		return
+	}
+	ui.Row(c).Wrap().Gap(12).Children(func() {
+		for _, g := range games {
+			p.tile(c, g)
+		}
+	})
+}
 
-	// Reuse the tiles: only games new to the page get one built.
-	var tiles []fyne.CanvasObject
-	cell := fyne.NewSize(170, 0)
-	for _, g := range games {
-		t := p.tiles[g.ID]
-		if t == nil {
-			t = newTile(p.u, g)
-			p.tiles[g.ID] = t
-		} else {
-			t.set(g)
+// tile is a library grid entry: cover, name and sync status (press to open the
+// game) and a play (or "Set up") button.
+func (p *Page) tile(c *ui.Context, g services.GameView) {
+	u, nav := p.u, p.u.Navigator()
+	g.Status = g.Overall // the tile shows the game as a whole: its own saves and all its emulators
+	ui.Column(c.Key([2]any{"tile", g.ID})).Width(170).Gap(6).Children(func() {
+		open := func() { u.Navigate("/game/" + g.ID) }
+		k := [2]any{"open", g.ID}
+		// Long names get a second line rather than a tooltip: there is no hover
+		// on a Steam Deck.
+		b := ui.ButtonBase(c.Key(k)).Label(g.Name).Radius(8).Children(func() {
+			ui.Column(c).Gap(6).Children(func() {
+				kit.CoverView(c, kit.CoverSource{Path: g.CoverPath, Version: g.CoverVersion, Name: g.Name}, 160, 240)
+				ui.Text(c, g.Name).Bold().Wrap().MaxLines(2)
+				ui.Row(c).Gap(6).AlignItems(ui.Center).Children(func() {
+					components.StatusBadge(c, g)
+					when := ""
+					if g.Ready {
+						when = components.TimeAgo(g.Status.LastSyncAt)
+					}
+					kit.Small(c, when)
+				})
+			})
+		})
+		if nav.Item(nav.Handle(k), b, open).Clicked() {
+			open()
 		}
-		// As tall as a tile needs (it depends on the theme's text size), so
-		// rows never overlap.
-		cell.Height = max(cell.Height, t.MinSize().Height)
-		tiles = append(tiles, t)
+		p.play(c, g)
+	})
+}
+
+// play is the one Play button of a game.
+func (p *Page) play(c *ui.Context, g services.GameView) {
+	nav := p.u.Navigator()
+	label, enabled, primary := i18n.L("Play"), !p.playing[g.ID], true
+	switch {
+	case g.Status.Running:
+		label, enabled, primary = i18n.L("Running"), false, false
+	case !g.Ready:
+		label, primary = i18n.L("Set up"), false
+	case g.Device.LaunchMode == "steamwrap":
+		// Steam starts it (and Carryover through its launch options).
+		label, primary, enabled = i18n.L("Play in Steam"), false, services.SteamRunURL(g) != ""
 	}
-	grid := kit.GridWrap(cell, 12, tiles...)
-	for id := range p.tiles {
-		if _, ok := p.u.Store().Game(id); !ok {
-			delete(p.tiles, id)
-		}
+	k := [2]any{"play", g.ID}
+	var b ui.Element
+	if primary {
+		b = ui.PrimaryButton(c.Key(k), label)
+	} else {
+		b = ui.Button(c.Key(k), label)
 	}
-	p.gridHost.Objects = []fyne.CanvasObject{grid}
-	p.gridHost.Refresh()
-	p.relayout()
+	b = b.Disabled(!enabled).AlignSelf(ui.Stretch)
+	action := func() { p.playTapped(g) }
+	if nav.Item(nav.Handle(k), b, action).Clicked() {
+		action()
+	}
+}
+
+func (p *Page) playTapped(g services.GameView) {
+	u := p.u
+	switch {
+	case !g.Ready:
+		u.Navigate("/edit/" + g.ID)
+	case g.Device.LaunchMode == "steamwrap":
+		flows.OpenSteam(u, g)
+	default:
+		p.playing[g.ID] = true
+		// A game that can be played in several ways asks which one in a dialog.
+		kit.Async0(func() error { return u.Sess().Play(g.ID) }, func(err error) {
+			delete(p.playing, g.ID)
+			if err != nil {
+				u.ToastErr(err)
+				return
+			}
+			u.Navigate("/game/" + g.ID)
+		})
+	}
 }

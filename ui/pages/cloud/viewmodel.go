@@ -2,7 +2,7 @@
 // folder), the configured remotes, importing an rclone config and the wizard
 // that adds a remote.
 //
-// ViewModel and Wizard hold the state and rules and are tested without Fyne;
+// ViewModel and Wizard hold the state and rules and are tested without the toolkit;
 // Page and the wizard's dialog draw them.
 package cloud
 

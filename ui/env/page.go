@@ -1,43 +1,22 @@
 package env
 
-import (
-	"fyne.io/fyne/v2"
+import "github.com/egoist/mygo/ui"
 
-	"github.com/akfaiz/carryover/ui/store"
-)
-
-// Page is one screen of the main window.
+// Page is one screen of the main window. MyGo redraws the window every frame,
+// so a page builds its controls in View each time it is called, from its
+// ViewModel and the little UI state it keeps (handles, scroll positions).
 type Page interface {
-	View() fyne.CanvasObject
-}
-
-// Guarded pages hold a form: leaving them while Dirty asks first.
-type Guarded interface {
-	Dirty() bool
-}
-
-// Searchable pages focus their search field on Ctrl+F.
-type Searchable interface {
-	FocusSearch()
-}
-
-// Syncable pages start a sync on F5.
-type Syncable interface {
-	SyncNow()
-}
-
-// Stateful pages are told when shared state changes.
-type Stateful interface {
-	StateChanged(store.Topic)
+	View(c *ui.Context)
 }
 
 // PadFocuser pages say where a gamepad starts on them (nil: the top left
 // control).
 type PadFocuser interface {
-	DefaultFocus() fyne.Focusable
+	DefaultFocus() *ui.Handle
 }
 
-// Redrawable pages can be drawn again from their state.
-type Redrawable interface {
-	Redraw()
+// Scrollable pages say which scroll container the gamepad's right stick
+// scrolls.
+type Scrollable interface {
+	Scroll() *ui.ScrollState
 }

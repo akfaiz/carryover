@@ -4,7 +4,7 @@
 // so it lives beside the pages, not in one of them.
 //
 // ViewModel holds the form's content and its rules and is tested without
-// Fyne; Form draws it.
+// the toolkit; Form draws it.
 package emulatorform
 
 import (

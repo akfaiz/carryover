@@ -3,7 +3,7 @@
 //
 // The page is split in two. ViewModel holds everything that can be decided
 // without a widget (which games show, in which order, which empty state, what
-// the Sync all button does) and is tested without Fyne. Page is the view: it
+// the Sync all button does) and is tested without the toolkit. Page is the view: it
 // builds the widgets once and updates them from the ViewModel.
 package library
 
@@ -38,8 +38,8 @@ const (
 	prefSort   = "library.sort"
 )
 
-// Prefs is where the chosen filter and sort order are kept: Fyne's
-// preferences, or a fake in tests.
+// Prefs is where the chosen filter and sort order are kept: the GUI's
+// preferences (env.Prefs), or a fake in tests.
 type Prefs interface {
 	StringWithFallback(key, fallback string) string
 	SetString(key, value string)

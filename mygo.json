@@ -1,0 +1,8 @@
+{
+  "name": "Carryover",
+  "slug": "carryover",
+  "identifier": "com.akfaiz.carryover",
+  "version": "0.1.0",
+  "icon": "ui/assets/appicon.png",
+  "out": "dist/mygo"
+}

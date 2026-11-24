@@ -6,10 +6,7 @@ import (
 	"strings"
 	"time"
 
-	"fyne.io/fyne/v2"
-	"fyne.io/fyne/v2/container"
-	"fyne.io/fyne/v2/theme"
-	"fyne.io/fyne/v2/widget"
+	"github.com/egoist/mygo/ui"
 
 	"github.com/akfaiz/carryover/internal/app/appdir"
 	"github.com/akfaiz/carryover/internal/app/version"
@@ -28,22 +25,48 @@ type Options struct {
 	SteamArt func() map[string][]byte
 }
 
-// Page is the Settings page.
+// Page is the Settings page. Every setting saves as soon as it changes: the
+// page keeps what the fields show, notices a change each frame, and has the
+// ViewModel save it (text after a pause, anything else at once).
 type Page struct {
 	u      env.Env
 	opts   Options
 	vm     *ViewModel // of the form shown; set once the settings are loaded
-	scroll *container.Scroll
+	devs   []services.DeviceView
+	scroll ui.ScrollState
+
+	// What the fields show.
+	f        formState
+	seen     Form // the fields as of the last frame
+	later    func()
+	savedAt  time.Time
+	keyTest  *kit.TestButton
+	keyDirty bool
+	steam    *selfSteamCard
+	langs    kit.Choice
+}
+
+// formState are the fields of the form.
+type formState struct {
+	name, id  string
+	backups   bool
+	retention string
+	theme     string // a kit.Theme* setting
+	language  string
+	share     bool
+	covers    bool
+	key       string
 }
 
 // New returns the Settings page.
-func New(u env.Env, opts Options) *Page { return &Page{u: u, opts: opts} }
-
-func (p *Page) View() fyne.CanvasObject {
-	p.scroll = kit.ScrollPage(kit.Muted(i18n.L("Loading…")))
+func New(u env.Env, opts Options) *Page {
+	p := &Page{u: u, opts: opts}
 	p.reload()
-	return p.scroll
+	return p
 }
+
+// Scroll is the page's scroll container, which the pad's right stick scrolls.
+func (p *Page) Scroll() *ui.ScrollState { return &p.scroll }
 
 // loaded is what the page shows: the settings and the devices the library knows.
 type loaded struct {
@@ -51,11 +74,11 @@ type loaded struct {
 	devs []services.DeviceView
 }
 
-// reload reads the settings and the devices again and draws the page anew.
+// reload reads the settings and the devices again.
 func (p *Page) reload() {
 	sync := p.u.Sync()
 	kit.Async(func() (loaded, error) { return loaded{sync.GetSettings(), sync.Devices()}, nil }, func(l loaded, _ error) {
-		kit.ReplaceScroll(p.scroll, p.form(l.st, l.devs))
+		p.load(l.st, l.devs)
 	})
 }
 
@@ -71,162 +94,187 @@ func words(err error) error {
 	return err
 }
 
-func (p *Page) form(st appdir.Settings, devs []services.DeviceView) fyne.CanvasObject {
+func (p *Page) load(st appdir.Settings, devs []services.DeviceView) {
 	u := p.u
-	// A quiet note next to the title says a change was saved; a toast for
-	// every change would pile up while typing.
-	savedNote := kit.Small("")
-	var hideNote *time.Timer
-	var keyDirty func()
+	p.devs = devs
 	p.vm = NewViewModel(Deps{
 		Save: u.Sync().SaveSettings,
 		Run:  func(work func() (appdir.Settings, error), done func(appdir.Settings, error)) { kit.Async(work, done) },
 		Saved: func() {
-			keyDirty()
-			savedNote.SetText("✓ " + i18n.L("Saved"))
-			if hideNote != nil {
-				hideNote.Stop()
-			}
-			hideNote = time.AfterFunc(2500*time.Millisecond, func() { kit.OnUI(func() { savedNote.SetText("") }) })
+			p.savedAt = time.Now()
+			time.AfterFunc(2500*time.Millisecond, func() { kit.OnUI(func() {}) }) // draw again to hide the note
 		},
 		Refresh:      u.Store().Refresh,
 		ThemeChanged: u.ApplyTheme,
 		Error:        func(err error) { u.ToastErr(words(err)) },
 	}, st)
-	vm := p.vm
-
-	var read func() Form
-	commit := func() { vm.Commit(read) }
-	later := kit.Debounce(AutosaveDelay, commit)
-
-	name := widget.NewEntry()
-	name.SetText(st.DeviceName)
-	name.OnChanged = func(string) { later() }
-	name.OnSubmitted = func(string) { commit() }
-	id := kit.MonoEntry("", st.DeviceID, nil)
-	id.Disable()
-
-	// Cloud backups: a checkbox turns them on, then a count of 1-100. Off is
-	// stored as 0; turning them back on starts from the default count.
-	retention := widget.NewEntry()
-	retention.SetText(strconv.Itoa(vm.InitialRetention()))
-	retention.Validator = func(s string) error {
-		_, err := ParseRetention(s)
-		return words(err)
+	p.f = formState{
+		name: st.DeviceName, id: st.DeviceID,
+		backups: st.BackupRetention > 0, retention: strconv.Itoa(p.vm.InitialRetention()),
+		theme: st.Theme, language: st.Language,
+		share: st.SyncLibrary, covers: !st.CoversLocalOnly, key: st.SteamGridDBKey,
 	}
-	retention.OnChanged = func(string) { later() }
-	retention.OnSubmitted = func(string) { commit() }
-	backups := kit.NewCheck(i18n.L("Back up saves to the cloud before they're overwritten"), st.BackupRetention > 0, func(on bool) {
-		kit.SetEnabled(retention, on)
-		commit()
-	})
-	kit.SetEnabled(retention, backups.Checked)
-	themes := []struct{ setting, label string }{
-		{kit.ThemeSystem, i18n.L("System")}, {kit.ThemeDark, i18n.L("Dark")}, {kit.ThemeLight, i18n.L("Light")},
-	}
-	labels := make([]string, len(themes))
-	for i, t := range themes {
-		labels[i] = t.label
-	}
-	themeSel := widget.NewRadioGroup(labels, nil)
-	themeSel.Horizontal = true
-	themeSel.Required = true
-	for _, t := range themes {
-		if t.setting == st.Theme {
-			themeSel.SetSelected(t.label)
-		}
-	}
-	themeSel.OnChanged = func(string) { commit() }
-
-	// The language applies at the next start (Fyne picks its translations once).
-	langs := &kit.Choice{}
-	langs.Add("", i18n.L("System"))
+	p.later = kit.Debounce(AutosaveDelay, p.commit)
+	p.langs = kit.Choice{}
+	p.langs.Add("", i18n.L("System"))
 	for _, o := range i18n.Options() {
-		langs.Add(o.Code, o.Name)
+		p.langs.Add(o.Code, o.Name)
 	}
-	langNote := kit.Muted(i18n.L("Restart Carryover to apply the language."))
-	showLangNote := func(code string) { kit.SetVisible(langNote, code != i18n.Started()) }
-	showLangNote(st.Language)
-	langSel := kit.SelectOf(langs, st.Language, func(v string) {
-		showLangNote(v)
-		commit()
-	})
-
-	// Cover art is part of the library sync, so it can only be on while that is.
-	covers := kit.NewCheck(i18n.L("Upload cover art and artwork to the cloud"), !st.CoversLocalOnly, func(bool) { commit() })
-	share := kit.NewCheck(i18n.L("Share the game library between devices through the cloud"), st.SyncLibrary, func(on bool) {
-		kit.SetEnabled(covers, on)
-		commit()
-	})
-	kit.SetEnabled(covers, share.Checked)
-
-	key := widget.NewPasswordEntry()
-	key.SetPlaceHolder(i18n.L("Paste your key"))
-	key.SetText(st.SteamGridDBKey)
-	keyTest := kit.NewTestButton(i18n.L("Test"), i18n.L("Key works."), i18n.L("Testing…"), func() func() error {
-		k := key.Text
+	p.keyTest = kit.NewTestButton(i18n.L("Test"), i18n.L("Key works."), i18n.L("Testing…"), func() func() error {
+		k := p.f.key
 		return func() error { return u.Lib().TestSteamGridKey(k) }
 	})
-	keyTest.SetAllowed(st.SteamGridDBKey != "")
-	keySave := widget.NewButton(i18n.L("Save"), func() { vm.SaveKey(key.Text, read) })
-	keySave.Importance = widget.HighImportance
-	keyDirty = func() { kit.SetEnabled(keySave, vm.KeyDirty(key.Text)) }
-	keyDirty()
-	key.OnChanged = func(s string) {
-		keyTest.SetAllowed(strings.TrimSpace(s) != "")
-		keyDirty()
-	}
-
-	read = func() Form {
-		f := Form{
-			DeviceName: name.Text, BackupsOn: backups.Checked, Retention: retention.Text,
-			ShareLibrary: share.Checked, UploadCovers: covers.Checked,
-			Language: langs.Value(langSel.Selected),
-		}
-		for _, t := range themes {
-			if t.label == themeSel.Selected {
-				f.Theme, f.ThemeChosen = t.setting, true
-			}
-		}
-		return f
-	}
-
-	narrow := func(o fyne.CanvasObject) fyne.CanvasObject { return kit.MaxWidth(640, o) }
-	objs := []fyne.CanvasObject{
-		kit.PageHead(nil, i18n.L("Settings"), container.NewCenter(savedNote)),
-		narrow(kit.Card(i18n.L("Appearance"),
-			kit.Field(i18n.L("Theme"), themeSel),
-			kit.Field(i18n.L("Language"), kit.Outlined(langSel)),
-			langNote)),
-		narrow(kit.Card(i18n.L("This device"),
-			kit.Field(i18n.L("Device name (shown on other devices and in backups)"), name),
-			kit.Field(i18n.L("Device ID"), id))),
-		narrow(p.devicesCard(devs)),
-		narrow(kit.Card(i18n.L("Sync"),
-			backups,
-			kit.Field(i18n.L("Backups to keep per game (1–100)"), kit.FixedWidth(120, retention)),
-			kit.Muted(i18n.L("Each backup is a zip uploaded before a sync replaces saves, so syncing gets slower, especially after playing. Older backups are deleted once there are more than this; pinned backups are always kept.")),
-			kit.Muted(i18n.L("When off, only the current save is in the cloud. Before a download replaces this device's saves, a copy is still kept on this device (the last {{.Count}}).",
-				map[string]any{"Count": syncer.SafetyKeep})),
-			share,
-			kit.Muted(i18n.L("When enabled, games added on one device appear on the others; each device only needs to set its own paths.")),
-			covers,
-			kit.Muted(i18n.L("Covers and artwork always stay on this device. When this is on they are also uploaded to the cloud, so every device shows the same images; when off, this device neither uploads nor downloads them.")))),
-		narrow(kit.Card(i18n.L("Cover art"),
-			kit.Field(i18n.L("SteamGridDB API key (optional)"), kit.RowFill(key, keySave, keyTest.Button)),
-			keyTest.Result,
-			kit.Muted(flows.GridKeyHelp()))),
-	}
 	if p.opts.SteamArt != nil {
-		objs = append(objs, narrow(newSelfSteamCard(u, p.opts.SteamArt)))
+		p.steam = newSelfSteamCard(u, p.opts.SteamArt)
 	}
-	objs = append(objs, narrow(aboutCard(u)))
-	return kit.Stack(objs...)
+	p.seen = p.read()
 }
 
-// aboutCard shows which build is running, with links to its release notes
-// and the source code, and the folder of the log to attach to bug reports.
-func aboutCard(u env.Env) fyne.CanvasObject {
+// read is the form as the fields show it now.
+func (p *Page) read() Form {
+	return Form{
+		DeviceName: p.f.name, BackupsOn: p.f.backups, Retention: p.f.retention,
+		ShareLibrary: p.f.share, UploadCovers: p.f.covers,
+		Language: p.f.language, Theme: p.f.theme, ThemeChosen: true,
+	}
+}
+
+func (p *Page) commit() { p.vm.Commit(p.read) }
+
+// watch saves a change made since the last frame: a name or a count after a
+// pause (they change with every key), any other field at once.
+func (p *Page) watch() {
+	cur := p.read()
+	if cur == p.seen {
+		return
+	}
+	quiet := func(f Form) Form { f.DeviceName, f.Retention = "", ""; return f }
+	if quiet(cur) != quiet(p.seen) {
+		p.seen = cur
+		p.commit()
+		return
+	}
+	p.seen = cur
+	p.later()
+}
+
+// View draws the page.
+func (p *Page) View(c *ui.Context) {
+	nav := p.u.Navigator()
+	ui.Scroll(c).Grow(1).TrackScroll(&p.scroll).Children(func() {
+		ui.Column(c).Gap(10).Padding(0, 20, 20, 20).MaxWidth(700).Children(func() {
+			if p.vm == nil {
+				kit.PageHead(c, nav, nil, nil, i18n.L("Settings"), nil)
+				kit.Muted(c, i18n.L("Loading…"))
+				return
+			}
+			p.watch()
+			p.keyDirty = p.vm.KeyDirty(p.f.key)
+			p.keyTest.SetAllowed(strings.TrimSpace(p.f.key) != "")
+			p.form(c)
+		})
+	})
+}
+
+func (p *Page) field(c *ui.Context, key string, v *string, placeholder string) ui.Element {
+	nav := p.u.Navigator()
+	k := [2]any{"set", key}
+	in := ui.TextInput(c.Key(k), v).Placeholder(placeholder).Label(placeholder)
+	return nav.Item(nav.Handle(k), in, nil, kit.TextField)
+}
+
+// check is a labelled box the pad toggles with A.
+func (p *Page) check(c *ui.Context, key string, v *bool, label string, disabled bool) {
+	nav := p.u.Navigator()
+	k := [2]any{"set", key}
+	toggle := func() {
+		if !disabled {
+			*v = !*v
+		}
+	}
+	nav.Item(nav.Handle(k), ui.Checkbox(c.Key(k), v, label).Disabled(disabled), toggle)
+}
+
+func (p *Page) form(c *ui.Context) {
+	u, nav, f := p.u, p.u.Navigator(), &p.f
+	kit.PageHead(c, nav, nil, nil, i18n.L("Settings"), func() {
+		if time.Since(p.savedAt) < 2500*time.Millisecond && !p.savedAt.IsZero() {
+			kit.Small(c, "✓ "+i18n.L("Saved"))
+		}
+	})
+
+	kit.Card(c, i18n.L("Appearance"), func() {
+		kit.Labeled(c, i18n.L("Theme"), func() {
+			kit.Chips(c, nav, "theme", []kit.ChipOption{
+				{Value: kit.ThemeSystem, Label: i18n.L("System")},
+				{Value: kit.ThemeDark, Label: i18n.L("Dark")},
+				{Value: kit.ThemeLight, Label: i18n.L("Light")},
+			}, f.theme, func(v string) { f.theme = v })
+		})
+		kit.Labeled(c, i18n.L("Language"), func() {
+			kit.SelectOf(c, nav, u.Dialogs(), "language", i18n.L("Language"), &p.langs, f.language, func(v string) { f.language = v })
+		})
+		if f.language != i18n.Started() {
+			kit.Muted(c, i18n.L("Restart Carryover to apply the language."))
+		}
+	})
+
+	kit.Card(c, i18n.L("This device"), func() {
+		kit.Labeled(c, i18n.L("Device name (shown on other devices and in backups)"), func() { p.field(c, "name", &f.name, "") })
+		kit.Labeled(c, i18n.L("Device ID"), func() { kit.Mono(c, f.id) })
+	})
+
+	p.devicesCard(c)
+
+	kit.Card(c, i18n.L("Sync"), func() {
+		// Cloud backups: a checkbox turns them on, then a count of 1-100. Off is
+		// stored as 0; turning them back on starts from the default count.
+		p.check(c, "backups", &f.backups, i18n.L("Back up saves to the cloud before they're overwritten"), false)
+		kit.Labeled(c, i18n.L("Backups to keep per game (1–100)"), func() {
+			p.field(c, "retention", &f.retention, "").Width(120).Disabled(!f.backups)
+			if f.backups {
+				if _, err := ParseRetention(f.retention); err != nil {
+					kit.Danger(c, words(err).Error())
+				}
+			}
+		})
+		kit.Muted(c, i18n.L("Each backup is a zip uploaded before a sync replaces saves, so syncing gets slower, especially after playing. Older backups are deleted once there are more than this; pinned backups are always kept."))
+		kit.Muted(c, i18n.L("When off, only the current save is in the cloud. Before a download replaces this device's saves, a copy is still kept on this device (the last {{.Count}}).",
+			map[string]any{"Count": syncer.SafetyKeep}))
+		// Cover art is part of the library sync, so it can only be on while that is.
+		p.check(c, "share", &f.share, i18n.L("Share the game library between devices through the cloud"), false)
+		kit.Muted(c, i18n.L("When enabled, games added on one device appear on the others; each device only needs to set its own paths."))
+		p.check(c, "covers", &f.covers, i18n.L("Upload cover art and artwork to the cloud"), !f.share)
+		kit.Muted(c, i18n.L("Covers and artwork always stay on this device. When this is on they are also uploaded to the cloud, so every device shows the same images; when off, this device neither uploads nor downloads them."))
+	})
+
+	kit.Card(c, i18n.L("Cover art"), func() {
+		kit.Labeled(c, i18n.L("SteamGridDB API key (optional)"), func() {
+			ui.Row(c).Gap(8).Children(func() {
+				k := [2]any{"set", "key"}
+				in := ui.TextInput(c.Key(k), &f.key).Password().Placeholder(i18n.L("Paste your key")).Label(i18n.L("Paste your key")).Grow(1)
+				nav.Item(nav.Handle(k), in, nil, kit.TextField)
+				save := func() { p.vm.SaveKey(f.key, p.read) }
+				if nav.Item(nav.Handle("key-save"), ui.PrimaryButton(c.Key("key-save"), i18n.L("Save")).Disabled(!p.keyDirty), save).Clicked() {
+					save()
+				}
+				p.keyTest.Button(c, nav, "grid")
+			})
+		})
+		p.keyTest.Result(c)
+		kit.Muted(c, flows.GridKeyHelp())
+	})
+
+	if p.steam != nil {
+		p.steam.view(c)
+	}
+	p.about(c)
+}
+
+// about shows which build is running, with links to its release notes and the
+// source code, and the folder of the log to attach to bug reports.
+func (p *Page) about(c *ui.Context) {
+	u, nav := p.u, p.u.Navigator()
 	info := version.Get()
 	title := i18n.L("Development build")
 	notes := i18n.L("All releases")
@@ -234,21 +282,32 @@ func aboutCard(u env.Env) fyne.CanvasObject {
 		title = i18n.L("Version {{.Version}}", map[string]any{"Version": info.Version})
 		notes = i18n.L("Release notes")
 	}
-	objs := []fyne.CanvasObject{widget.NewLabelWithStyle(title, fyne.TextAlignLeading, fyne.TextStyle{Bold: true})}
-	if info.Commit != "" {
-		commit := i18n.L("Commit {{.Commit}}", map[string]any{"Commit": info.Commit})
-		if info.Modified {
-			commit = i18n.L("Commit {{.Commit}}, with uncommitted changes", map[string]any{"Commit": info.Commit})
+	kit.Card(c, i18n.L("About Carryover"), func() {
+		ui.Text(c, title).Bold()
+		if info.Commit != "" {
+			commit := i18n.L("Commit {{.Commit}}", map[string]any{"Commit": info.Commit})
+			if info.Modified {
+				commit = i18n.L("Commit {{.Commit}}, with uncommitted changes", map[string]any{"Commit": info.Commit})
+			}
+			kit.Muted(c, commit)
 		}
-		objs = append(objs, kit.Muted(commit))
-	}
-	objs = append(objs, kit.HBox(
-		widget.NewHyperlink(notes, kit.MustURL(info.ReleaseURL())),
-		widget.NewHyperlink(i18n.L("Source code"), kit.MustURL(version.RepoURL)),
-	))
-	logs := u.Sync().LogsDir()
-	objs = append(objs,
-		kit.HBox(widget.NewButtonWithIcon(i18n.L("Open logs folder"), theme.FolderOpenIcon(), func() { u.OpenFolder(logs) })),
-		kit.Muted(i18n.L("When reporting a problem, attach carryover.log from this folder (and carryover.1.log if it happened a while ago).")))
-	return kit.Card(i18n.L("About Carryover"), objs...)
+		ui.Row(c).Gap(12).Children(func() {
+			p.link(c, "notes", notes, info.ReleaseURL())
+			p.link(c, "source", i18n.L("Source code"), version.RepoURL)
+		})
+		logs := u.Sync().LogsDir()
+		open := func() { u.OpenFolder(logs) }
+		if nav.Item(nav.Handle("open-logs"), ui.Button(c.Key("open-logs"), i18n.L("Open logs folder")), open).Clicked() {
+			open()
+		}
+		kit.Muted(c, i18n.L("When reporting a problem, attach carryover.log from this folder (and carryover.1.log if it happened a while ago)."))
+	})
+}
+
+// link is a link the pad can press: it opens the address in the browser.
+func (p *Page) link(c *ui.Context, key, label, url string) {
+	nav := p.u.Navigator()
+	k := [2]any{"link", key}
+	open := func() { p.u.ToastErr(p.u.OpenURL(url)) }
+	nav.Item(nav.Handle(k), ui.Link(c.Key(k), label, url), open)
 }

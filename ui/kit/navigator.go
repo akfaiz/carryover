@@ -1,351 +1,303 @@
 package kit
 
 import (
-	"reflect"
-	"sync"
 	"time"
 
-	"fyne.io/fyne/v2"
-	"fyne.io/fyne/v2/container"
-	"fyne.io/fyne/v2/driver"
-	"fyne.io/fyne/v2/driver/mobile"
-	"fyne.io/fyne/v2/widget"
+	"github.com/egoist/mygo/ui"
 )
 
-// A Navigator lets a whole window be used with a gamepad, as in Steam Deck
-// Game Mode where Carryover is a non-Steam game without a mouse. The D-pad (or
-// the left stick) moves the focus to the control on screen in that direction,
-// A presses it, B goes back or closes the dialog, LB/RB switch tabs or
-// sections, X searches, Y syncs and the right stick scrolls. The arrow keys,
-// Enter and Escape do the same where Fyne lets them through: while nothing is
-// focused, and on the kit's own controls (Tappable, NavButton).
+// Navigator moves the focus with a gamepad (and the arrow keys left over)
+// across the controls a page declares, MyGo has no way to list the focusable controls of a window, so a
+// view registers each control it wants the D-pad to reach with Item while it
+// builds; the Navigator picks the next one in a direction from the boxes the
+// last frame laid out (ui.Handle.Bounds).
 //
-// What the keys do on a page is up to the app (NavigatorOptions); in a dialog
-// B closes it, the safe way: a dialog registers what that is with OnBack, and
-// one that didn't is just hidden. A Nav (padnav.go) is such a dialog too.
+// A dialog is a scope: while one is open (Overlay), only its controls are
+// reachable and B runs its back. Everything runs on the UI goroutine.
+//
+// Per frame, a window's root view calls Begin, then registers its controls, and
+// wraps a dialog's content in Overlay. A pad's presses arrive through Press
+// (see StartPad).
 type Navigator struct {
-	win  fyne.Window
 	opts NavigatorOptions
-	pad  PadSource
+
+	// root is the page's scope; overlays are the dialogs open in the frame
+	// being built, in order. prev is the last frame's, whose boxes are
+	// committed.
+	root, prev scope
+	overlays   []*scope
+	prevTop    *scope
+	building   *scope
+	ctx        *ui.Context
+
+	pending []PadAction
+	scroll  *ui.ScrollState
+	present bool
+	// padUsed is set by a pad press and cleared when the pad goes away: while
+	// set, the focused control gets a ring even though the focus did not come
+	// from the keyboard, which is all MyGo rings by itself.
+	padUsed bool
+	ringed  *ui.Handle // the control the last frame drew the ring on
+
+	handles map[any]*ui.Handle
+	chosen  map[any]*string // what each drop-down shows (see SelectOf)
+	// OnInput, when set, runs on every press the Navigator acts on (a prompt
+	// with a countdown stops it: whoever moves between the choices is choosing).
+	OnInput func()
 
 	tracker padTracker
-	scopes  map[fyne.CanvasObject]*navScope // by overlay
-	stop    chan struct{}
-	present bool // a gamepad is connected
-	idle    int  // polls to skip while there is no gamepad
-	// last is where the navigator last put the focus, and in which root: a
-	// page that redraws itself replaces the focused control, and the focus
-	// goes back to the one now in its place (see keepFocus).
-	last     navRect
-	lastRoot fyne.CanvasObject
-	polls    int
-	// The focus ring (focusring.go): the page's, each dialog's (by
-	// overlay) and the one last drawn in.
-	mainRing *focusRing
-	rings    map[fyne.CanvasObject]*focusRing
-	shown    *focusRing
 }
 
-// NavigatorOptions says what the gamepad does on the window's pages (not in a
-// dialog). Every hook is optional.
+// NavigatorOptions says what the gamepad does on a page (not in a dialog).
+// Every hook is optional.
 type NavigatorOptions struct {
-	Back         func()                 // B with no dialog open
-	Section      func(dir int)          // LB (-1) and RB (1) when there are no tabs to switch
-	Search       func()                 // X
-	Sync         func()                 // Y
-	TextField    func(f fyne.Focusable) // A on a text field: e.g. open an on-screen keyboard
-	View         func()                 // the View button, also in a dialog: e.g. full screen
-	DefaultFocus func() fyne.Focusable  // where a first press starts on a page
-	PadChanged   func(present bool)     // a gamepad was connected or disconnected
+	Back       func()             // B with no dialog open
+	Section    func(dir int)      // LB (-1) and RB (1)
+	Search     func()             // X
+	Sync       func()             // Y
+	View       func()             // the View button, also in a dialog
+	TextField  func()             // A on a text field: e.g. open an on-screen keyboard
+	PadChanged func(present bool) // a gamepad was connected or disconnected
+	// DefaultFocus is where a first press starts on a page: nil for the page's
+	// top left control.
+	DefaultFocus func() *ui.Handle
 }
 
-// navScope is what B does in one dialog, and what else a press there runs.
-type navScope struct {
-	back    func()
-	onInput func()
-	nav     *Nav
+// scope is the set of controls one layer (the page or a dialog) offers.
+type scope struct {
+	id     string
+	items  []navItem
+	back   func()
+	safe   int // index of the item that starts focused, -1 for the first
+	pageAt int // index of the first item of the page itself (after the window's own), -1 if unmarked
 }
 
-const (
-	padIdlePolls  = 12 // without a gamepad, look for one every 12 polls (~0.5s)
-	padKeepPolls  = 5  // check that the focus survived a redraw every 5 polls (~0.2s)
-	padScrollStep = 22 // pixels per poll at full right-stick deflection
-	padKeepRadius = 48 // how far a redrawn control may have moved and still get the focus back
-)
+type navItem struct {
+	h      *ui.Handle
+	action func()
+	text   bool
+}
 
-var (
-	navigatorsMu sync.Mutex
-	navigators   = map[fyne.Canvas]*Navigator{}
-)
+// NewNavigator returns a Navigator with the page's hooks.
+func NewNavigator(opts NavigatorOptions) *Navigator {
+	return &Navigator{opts: opts, root: scope{safe: -1, pageAt: -1}, prev: scope{safe: -1, pageAt: -1}}
+}
 
-// NavigatorFor returns the Navigator of the window that c belongs to, or nil.
-func NavigatorFor(c fyne.Canvas) *Navigator {
-	if c == nil {
+// Handle returns the handle kept under key, made on first use: for controls
+// a page draws in a loop (one per game, per row), where a field per control
+// does not fit. The key identifies the control (an id, a struct of ids).
+func (n *Navigator) Handle(key any) *ui.Handle {
+	if n.handles == nil {
+		n.handles = map[any]*ui.Handle{}
+	}
+	h, ok := n.handles[key]
+	if !ok {
+		h = new(ui.Handle)
+		n.handles[key] = h
+	}
+	return h
+}
+
+// selected returns the string a drop-down keeps its choice in, made on first
+// use.
+func (n *Navigator) selected(key any) *string {
+	if n.chosen == nil {
+		n.chosen = map[any]*string{}
+	}
+	p, ok := n.chosen[key]
+	if !ok {
+		p = new(string)
+		n.chosen[key] = p
+	}
+	return p
+}
+
+// SetOptions replaces the hooks (the shell sets them once it exists).
+func (n *Navigator) SetOptions(opts NavigatorOptions) { n.opts = opts }
+
+// ItemOption changes how Item registers a control.
+type ItemOption int
+
+// FocusSafe marks the control a dialog starts on: one that never overwrites
+// saves (an overwriting action is never the default).
+const FocusSafe ItemOption = 1
+
+// TextField marks a text input: A on it runs NavigatorOptions.TextField (open
+// Steam's on-screen keyboard) instead of the item's action.
+const TextField ItemOption = 2
+
+// Begin starts a frame: it runs the presses queued since the last one against
+// the last frame's layout, then starts the new registry. Call it first in the
+// window's view.
+func (n *Navigator) Begin(c *ui.Context) {
+	n.prev, n.root = n.root, scope{items: n.prev.items[:0], safe: -1, pageAt: -1}
+	n.prevTop = n.top(n.overlays)
+	n.overlays = nil
+	n.building = &n.root
+	n.ctx = c
+	pending := n.pending
+	n.pending = nil
+	for _, a := range pending {
+		n.apply(c, a)
+	}
+}
+
+// End finishes the frame's registry: a dialog that opened in it gets the
+// focus on its default control, next frame (Handle.Focus waits for the
+// control to exist). Call it last in the window's view.
+func (n *Navigator) End(c *ui.Context) {
+	if top := n.top(n.overlays); top != nil && (n.prevTop == nil || n.prevTop.id != top.id) {
+		if it := top.defaultItem(); it != nil {
+			it.h.Focus(c)
+		}
+	}
+}
+
+func (n *Navigator) top(o []*scope) *scope {
+	if len(o) == 0 {
 		return nil
 	}
-	navigatorsMu.Lock()
-	defer navigatorsMu.Unlock()
-	return navigators[c]
+	return o[len(o)-1]
 }
 
-func navigatorOf(o fyne.CanvasObject) *Navigator {
-	app := fyne.CurrentApp()
-	if app == nil {
+// MarkPage says the controls registered from here on belong to the page, not
+// to the window around it: a first press starts on the page's.
+func (n *Navigator) MarkPage() { n.building.pageAt = len(n.building.items) }
+
+// Item registers el as a control the D-pad can reach; action is what A does
+// on it (nil: nothing beyond what the control's own click does is needed, so A
+// leaves it to it). It returns el bound to h.
+func (n *Navigator) Item(h *ui.Handle, el ui.Element, action func(), opts ...ItemOption) ui.Element {
+	s := n.building
+	text := false
+	for _, o := range opts {
+		switch o {
+		case FocusSafe:
+			s.safe = len(s.items)
+		case TextField:
+			text = true
+		}
+	}
+	s.items = append(s.items, navItem{h: h, action: action, text: text})
+	if n.padUsed && n.ctx != nil && h.Focused(n.ctx) && !el.FocusVisible() {
+		n.ringed = h
+		// A shadow with a spread is a ring outside the box: it changes no layout.
+		el = el.Shadow(0, 0, 0, 2, col(ColAccent))
+	}
+	return el.Bind(h)
+}
+
+// Overlay declares a dialog's controls: while open is true, fn runs with the
+// dialog as the scope controls register in, back is what B does there, and
+// the page behind is out of reach. id tells dialogs apart (a new one gets the
+// focus when it opens).
+func (n *Navigator) Overlay(id string, open bool, back func(), fn func()) {
+	if !open {
+		return
+	}
+	s := &scope{id: id, back: back, safe: -1, pageAt: -1}
+	n.overlays = append(n.overlays, s)
+	outer := n.building
+	n.building = s
+	fn()
+	n.building = outer
+}
+
+func (s *scope) defaultItem() *navItem {
+	if len(s.items) == 0 {
 		return nil
 	}
-	return NavigatorFor(app.Driver().CanvasForObject(o))
+	if s.safe >= 0 && s.safe < len(s.items) {
+		return &s.items[s.safe]
+	}
+	return &s.items[0]
 }
 
-// NewNavigator makes the gamepad navigation of win. It reads the gamepad once
-// SetActive(true) is called.
-func NewNavigator(win fyne.Window, opts NavigatorOptions) *Navigator {
-	n := &Navigator{win: win, opts: opts, scopes: map[fyne.CanvasObject]*navScope{}, rings: map[fyne.CanvasObject]*focusRing{}}
-	if _, native := win.(driver.NativeWindow); native {
-		n.pad = glfwPad // not in Fyne's headless test driver
+// active layer for acting on a press: the topmost dialog of the last frame,
+// else the page.
+func (n *Navigator) layer() *scope {
+	if n.prevTop != nil {
+		return n.prevTop
 	}
-	navigatorsMu.Lock()
-	navigators[win.Canvas()] = n
-	navigatorsMu.Unlock()
-	return n
+	return &n.prev
 }
 
-// SetActive starts or stops reading the gamepad. Only the window in front
-// should: a game started from Carryover is played with the same controller.
-func (n *Navigator) SetActive(on bool) {
-	if !on {
-		if n.stop != nil {
-			close(n.stop)
-			n.stop = nil
-		}
-		return
-	}
-	if n.stop != nil || n.pad == nil {
-		return
-	}
-	stop := make(chan struct{})
-	n.stop = stop
-	// What is held now (the A that started Carryover from Steam, a stick
-	// leaning on the way back from the game) must not count as a press.
-	n.idle = 0
-	n.tracker = padTracker{}
-	if s, ok := n.pad(); ok {
-		n.tracker.prime(s, time.Now())
-	}
-	go func() {
-		t := time.NewTicker(padPollEvery)
-		defer t.Stop()
-		for {
-			select {
-			case <-stop:
-				return
-			case <-t.C:
-				// Gamepad state is read on the main thread, like the rest of the UI.
-				fyne.Do(func() {
-					select {
-					case <-stop:
-						return
-					default:
-					}
-					n.poll(time.Now())
-				})
-			}
-		}
-	}()
+// Press queues a press from any goroutine's Window.Update (or the UI
+// goroutine); it runs at the start of the next frame.
+func (n *Navigator) Press(a PadAction) {
+	n.padUsed = true
+	n.pending = append(n.pending, a)
 }
 
-// PadPresent reports whether a gamepad is connected (as far as the last poll
-// saw).
+// Apply runs a press now, as Begin would; for tests and the arrow keys.
+func (n *Navigator) Apply(c *ui.Context, a PadAction) { n.apply(c, a) }
+
+// PadPresent reports whether a gamepad is connected.
 func (n *Navigator) PadPresent() bool { return n.present }
 
-// poll reads the gamepad once and does what its presses mean.
-func (n *Navigator) poll(now time.Time) {
-	if !n.present && n.idle > 0 {
-		n.idle--
-		return
-	}
-	s, ok := n.pad()
-	if ok != n.present {
-		n.present = ok
-		if ok {
-			n.tracker = padTracker{}
-			n.tracker.prime(s, now)
-		}
-		if n.opts.PadChanged != nil {
-			n.opts.PadChanged(ok)
-		}
-		n.updateRing()
-	}
-	if !ok {
-		n.idle = padIdlePolls
-		return
-	}
-	actions := n.tracker.update(s, now)
-	for _, a := range actions {
-		n.apply(a, true)
-	}
-	if s.Scroll != 0 {
-		n.scrollBy(s.Scroll * padScrollStep)
-	}
-	n.polls++
-	tick := n.polls%padKeepPolls == 0
-	if tick {
-		n.keepFocus()
-	}
-	if len(actions) > 0 || s.Scroll != 0 || tick {
-		// After a press, and now and then: the page may have scrolled or
-		// redrawn, or a mouse moved the focus.
-		n.updateRing()
-	}
-}
-
-// keepFocus gives the focus back after the page redrew the focused control:
-// to the control now nearest the place it had.
-func (n *Navigator) keepFocus() {
-	root, _, _ := n.root()
-	if root == nil || root != n.lastRoot {
-		return
-	}
-	tree := walkNav(root)
-	if tree.index(n.win.Canvas().Focused()) >= 0 {
-		return
-	}
-	if i := tree.nearest(n.last, padKeepRadius); i >= 0 {
-		n.win.Canvas().Focus(tree.targets[i].obj)
-	}
-}
-
-// HandleKey does what an arrow key, Enter or Escape means when it reaches the
-// window (nothing is focused) and reports whether it was one of those.
-func (n *Navigator) HandleKey(ev *fyne.KeyEvent) bool {
-	a := directionForKey(ev.Name)
-	if a == PadNone {
-		return false
-	}
-	n.apply(a, false)
-	return true
-}
-
-// Apply does what a gamepad press means.
-func (n *Navigator) Apply(a PadAction) { n.apply(a, true) }
-
-// OnBack sets what B (and Escape) does while the dialog shown last is open,
-// e.g. its Cancel. Call it right after showing the dialog.
-func OnBack(win fyne.Window, back func()) {
-	c := win.Canvas()
-	if n := NavigatorFor(c); n != nil {
-		if top := c.Overlays().Top(); top != nil {
-			n.setScope(top, &navScope{back: back})
+// Keys turns the arrow keys nothing else took into D-pad presses, for a
+// controller Steam maps to keys. Call it in the window's view after the
+// controls were built, so a text field or list has had its chance.
+func (n *Navigator) Keys(c *ui.Context) {
+	for _, k := range []struct {
+		key ui.Key
+		a   PadAction
+	}{{ui.KeyUp, PadUp}, {ui.KeyDown, PadDown}, {ui.KeyLeft, PadLeft}, {ui.KeyRight, PadRight}} {
+		if c.Shortcut(0, k.key) {
+			n.apply(c, k.a)
 		}
 	}
 }
 
-// FocusSafe focuses obj, the button a press should answer a dialog with
-// (Cancel, Keep), when a gamepad is connected. Without one the focus stays
-// where it is, so nothing looks pre-selected to a mouse user.
-func FocusSafe(win fyne.Window, obj fyne.Focusable) {
-	c := win.Canvas()
-	if n := NavigatorFor(c); n != nil && n.present && obj != nil {
-		c.Focus(obj)
-	}
-}
+// SetScroll sets the page's main scroll container, which the right stick
+// scrolls; nil when the page has none.
+func (n *Navigator) SetScroll(s *ui.ScrollState) { n.scroll = s }
 
-func (n *Navigator) setScope(overlay fyne.CanvasObject, s *navScope) {
-	if overlay == nil {
-		return
+func (n *Navigator) apply(c *ui.Context, a PadAction) {
+	if n.OnInput != nil {
+		n.OnInput()
 	}
-	n.pruneScopes()
-	n.scopes[overlay] = s
-}
-
-func (n *Navigator) dropScope(nav *Nav) {
-	for o, s := range n.scopes {
-		if s.nav == nav {
-			delete(n.scopes, o)
-		}
-	}
-}
-
-// pruneScopes forgets the dialogs that are no longer shown.
-func (n *Navigator) pruneScopes() {
-	open := map[fyne.CanvasObject]bool{}
-	for _, o := range n.win.Canvas().Overlays().List() {
-		open[o] = true
-	}
-	for o := range n.scopes {
-		if !open[o] {
-			delete(n.scopes, o)
-		}
-	}
-	for o := range n.rings {
-		if !open[o] {
-			delete(n.rings, o)
-		}
-	}
-}
-
-// root is what the presses act on: the dialog in front, or the window's
-// content. scope is set for a dialog that said what B does.
-func (n *Navigator) root() (root fyne.CanvasObject, overlay bool, scope *navScope) {
-	c := n.win.Canvas()
-	if top := c.Overlays().Top(); top != nil {
-		return top, true, n.scopes[top]
-	}
-	return c.Content(), false, nil
-}
-
-func (n *Navigator) apply(a PadAction, fromPad bool) {
-	root, overlay, scope := n.root()
-	if root == nil {
-		return
-	}
-	if scope != nil && scope.onInput != nil {
-		scope.onInput()
-	}
-	c := n.win.Canvas()
-	focused := c.Focused()
+	l := n.layer()
 	switch a {
 	case PadUp, PadDown, PadLeft, PadRight:
-		if focused != nil && ownsKey(focused, a) {
-			// A list or grid moves its own highlight; at its edge, where it
-			// stays put, the D-pad leaves it for the control that way.
-			before, ok := highlightOf(focused)
-			focused.TypedKey(&fyne.KeyEvent{Name: keyOf(a)})
-			if after, _ := highlightOf(focused); !ok || after != before || isMenu(focused) {
+		n.move(c, l, a)
+	case PadAccept:
+		for _, it := range l.items {
+			if it.h.Focused(c) {
+				switch {
+				case it.text && n.opts.TextField != nil:
+					n.opts.TextField()
+				case it.action != nil:
+					it.action()
+				}
 				return
 			}
 		}
-		n.move(root, overlay, focused, a)
-	case PadAccept:
-		n.accept(root, overlay, focused, fromPad)
+		// Nothing has the focus: the first press only picks where to start,
+		// so a stray A (still held from the press that opened a dialog)
+		// can't answer it.
+		n.move(c, l, PadDown)
 	case PadBack:
 		switch {
-		case isMenu(focused):
-			focused.TypedKey(&fyne.KeyEvent{Name: fyne.KeyEscape})
-		case overlay && scope != nil && scope.back != nil:
-			scope.back()
-		case overlay:
-			n.hideOverlay(root)
-		case n.opts.Back != nil:
+		case n.prevTop != nil && l.back != nil:
+			l.back()
+		case n.prevTop == nil && n.opts.Back != nil:
 			n.opts.Back()
 		}
 	case PadTabPrev, PadTabNext:
-		dir := 1
-		if a == PadTabPrev {
-			dir = -1
-		}
-		if tabs := findTabs(root); tabs != nil {
-			if k := len(tabs.Items); k > 0 {
-				tabs.SelectIndex((tabs.SelectedIndex() + dir + k) % k)
+		if n.prevTop == nil && n.opts.Section != nil {
+			dir := 1
+			if a == PadTabPrev {
+				dir = -1
 			}
-		} else if !overlay && n.opts.Section != nil {
 			n.opts.Section(dir)
 		}
 	case PadSearch:
-		if !overlay && n.opts.Search != nil {
+		if n.prevTop == nil && n.opts.Search != nil {
 			n.opts.Search()
 		}
 	case PadSync:
-		if !overlay && n.opts.Sync != nil {
+		if n.prevTop == nil && n.opts.Sync != nil {
 			n.opts.Sync()
 		}
 	case PadView:
@@ -355,237 +307,134 @@ func (n *Navigator) apply(a PadAction, fromPad bool) {
 	}
 }
 
-// move takes the focus to the control in direction a. When nothing in root
-// has it yet, the first press only picks where to start.
-func (n *Navigator) move(root fyne.CanvasObject, overlay bool, focused fyne.Focusable, a PadAction) {
-	tree := walkNav(root)
-	cur := tree.index(focused)
-	if cur < 0 && root == n.lastRoot {
-		cur = tree.nearest(n.last, padKeepRadius) // redrawn: carry on from its place
-	}
-	if cur < 0 {
-		n.focusStart(root, overlay, tree)
+// move takes the focus to the control in direction a. When nothing in the
+// layer has it yet, the first press only picks where to start.
+func (n *Navigator) move(c *ui.Context, l *scope, a PadAction) {
+	if len(l.items) == 0 {
 		return
 	}
-	next := tree.pick(cur, a)
-	if next < 0 && overlay {
-		// Nothing that way in a dialog: go round, in Tab order, like a Nav.
-		k := len(tree.targets)
-		if a.linear() == PadNext {
-			next = (cur + 1) % k
-		} else {
-			next = (cur - 1 + k) % k
+	cur := -1
+	rects := make([]ui.Rect, len(l.items))
+	for i, it := range l.items {
+		rects[i] = it.h.Bounds(c)
+		if cur < 0 && it.h.Focused(c) {
+			cur = i
 		}
 	}
-	if next >= 0 && next != cur {
-		n.focusTarget(tree.targets[next])
-	}
-}
-
-// FocusDefault focuses where the page wants a gamepad to start (or the top
-// left control). It does nothing while a dialog is open.
-func (n *Navigator) FocusDefault() {
-	root, overlay, _ := n.root()
-	if root == nil || overlay {
+	if cur < 0 {
+		n.focusStart(c, l, rects)
 		return
 	}
-	n.focusStart(root, false, walkNav(root))
-}
-
-// Focus focuses obj and scrolls it into view, as a D-pad press onto it would.
-func (n *Navigator) Focus(obj fyne.Focusable) {
-	root, _, _ := n.root()
-	tree := walkNav(root)
-	if i := tree.index(obj); i >= 0 {
-		n.focusTarget(tree.targets[i])
-	} else if obj != nil {
-		n.win.Canvas().Focus(obj)
+	nr := make([]navRect, len(rects))
+	for i, r := range rects {
+		nr[i] = navRect{r.X, r.Y, r.W, r.H}
+	}
+	if next := pickInDirection(nr[cur], a, nr); next >= 0 {
+		l.items[next].h.Focus(c) // focusing also scrolls it into view
 	}
 }
 
-func (n *Navigator) focusStart(root fyne.CanvasObject, overlay bool, tree navTree) {
-	if !overlay && n.opts.DefaultFocus != nil {
-		if i := tree.index(n.opts.DefaultFocus()); i >= 0 {
-			n.focusTarget(tree.targets[i])
+// focusStart puts the focus where a layer starts: a dialog's safe control; on
+// the page, its declared default, else its top left control, else the
+// window's.
+func (n *Navigator) focusStart(c *ui.Context, l *scope, rects []ui.Rect) {
+	if n.prevTop != nil {
+		if it := l.defaultItem(); it != nil {
+			it.h.Focus(c)
 			return
 		}
 	}
-	if i := tree.topLeft(); i >= 0 {
-		n.focusTarget(tree.targets[i])
-	}
-}
-
-func (n *Navigator) focusTarget(t navTarget) {
-	n.win.Canvas().Focus(t.obj)
-	n.last, n.lastRoot = scrollIntoView(t), n.rootNow()
-	n.updateRing()
-}
-
-func (n *Navigator) rootNow() fyne.CanvasObject {
-	r, _, _ := n.root()
-	return r
-}
-
-// accept presses the focused control the way the space bar does, which every
-// Fyne control answers to: buttons, checks, selects, radio items, links,
-// lists, menus. A text field instead gets typed into.
-func (n *Navigator) accept(root fyne.CanvasObject, overlay bool, focused fyne.Focusable, fromPad bool) {
-	tree := walkNav(root)
-	if focused == nil || (tree.index(focused) < 0 && !isMenu(focused)) {
-		n.focusStart(root, overlay, tree) // first press: only show where we are
-		return
-	}
-	if isTextField(focused) {
-		if fromPad && n.opts.TextField != nil {
-			n.opts.TextField(focused)
-		}
-		return
-	}
-	if isMenu(focused) {
-		focused.TypedKey(&fyne.KeyEvent{Name: fyne.KeyReturn})
-		return
-	}
-	focused.TypedKey(&fyne.KeyEvent{Name: fyne.KeySpace})
-	focused.TypedRune(' ')
-}
-
-// scrollBy scrolls what holds the focus, or else the biggest scroll in view.
-func (n *Navigator) scrollBy(dy float32) {
-	root, _, _ := n.root()
-	if root == nil {
-		return
-	}
-	tree := walkNav(root)
-	var f *scrollFrame
-	if i := tree.index(n.win.Canvas().Focused()); i >= 0 && len(tree.targets[i].scrolls) > 0 {
-		f = &tree.targets[i].scrolls[len(tree.targets[i].scrolls)-1]
-	} else {
-		var area float32
-		for i, s := range tree.scrolls {
-			if sz := s.s.Size(); sz.Width*sz.Height > area {
-				area, f = sz.Width*sz.Height, &tree.scrolls[i]
+	if n.opts.DefaultFocus != nil {
+		if h := n.opts.DefaultFocus(); h != nil {
+			for _, it := range l.items {
+				if it.h == h {
+					h.Focus(c)
+					return
+				}
 			}
 		}
 	}
-	if f == nil {
-		return
-	}
-	s := f.s
-	maxY := max(0, s.Content.Size().Height-s.Size().Height)
-	if y := clamp(s.Offset.Y+dy, 0, maxY); y != s.Offset.Y {
-		s.ScrollToOffset(fyne.NewPos(s.Offset.X, y))
-		s.Refresh()
-	}
-}
-
-// hideOverlay closes a dialog that didn't say how (OnBack). Fyne wraps a
-// pop-up (which a dialog is) in an overlay container of its own: hide the
-// pop-up, which takes the overlay down with it.
-func (n *Navigator) hideOverlay(top fyne.CanvasObject) {
-	var pop *widget.PopUp
-	var walk func(o fyne.CanvasObject, depth int)
-	walk = func(o fyne.CanvasObject, depth int) {
-		if pop != nil || o == nil || depth > 3 {
+	for _, from := range []int{max(l.pageAt, 0), 0} {
+		if best := topLeft(rects, from); best >= 0 {
+			l.items[best].h.Focus(c)
 			return
 		}
-		if p, ok := o.(*widget.PopUp); ok {
-			pop = p
-			return
-		}
-		for _, ch := range childrenOf(o) {
-			walk(ch, depth+1)
-		}
 	}
-	walk(top, 0)
-	if pop != nil {
-		pop.Hide()
-		return
-	}
-	n.win.Canvas().Overlays().Remove(top)
 }
 
-// childrenOf returns the objects directly inside o.
-func childrenOf(o fyne.CanvasObject) []fyne.CanvasObject {
-	switch c := o.(type) {
-	case *fyne.Container:
-		return c.Objects
-	case fyne.Widget:
-		if r := widgetRenderer(c); r != nil {
-			return r.Objects()
+// topLeft is the index (from index from on) of the control nearest the top
+// left corner that has a box, or -1.
+func topLeft(rects []ui.Rect, from int) int {
+	best, bestScore := -1, float32(1e30)
+	for i := from; i < len(rects); i++ {
+		r := rects[i]
+		if r.W == 0 || r.H == 0 {
+			continue
+		}
+		if s := r.Y*4 + r.X; s < bestScore {
+			best, bestScore = i, s
 		}
 	}
-	return nil
+	return best
 }
 
-// findTabs returns the first tab container shown under root, or nil.
-func findTabs(root fyne.CanvasObject) *container.AppTabs {
-	var found *container.AppTabs
-	var walk func(o fyne.CanvasObject)
-	walk = func(o fyne.CanvasObject) {
-		if found != nil || o == nil || !o.Visible() {
-			return
+// FocusDefault puts the focus on the page's first control, as a first press
+// does.
+func (n *Navigator) FocusDefault(c *ui.Context) { n.apply(c, PadDown) }
+
+// StartPad reads the gamepad src until the returned stop function is called,
+// and queues what it presses. update runs a function on the UI goroutine and
+// redraws (Window.Update). The reading is off the UI goroutine; presses held
+// when it starts do not count.
+func (n *Navigator) StartPad(src PadSource, update func(func())) (stop func()) {
+	done := make(chan struct{})
+	go func() {
+		t := time.NewTicker(padPollEvery)
+		defer t.Stop()
+		var primed, present bool
+		for {
+			select {
+			case <-done:
+				return
+			case now := <-t.C:
+				s, ok := src()
+				if ok != present {
+					present = ok
+					update(func() {
+						n.present = ok
+						if !ok {
+							n.padUsed = false
+						}
+						if n.opts.PadChanged != nil {
+							n.opts.PadChanged(ok)
+						}
+					})
+				}
+				if !ok {
+					primed = false
+					continue
+				}
+				if !primed {
+					n.tracker.prime(s, now)
+					primed = true
+				}
+				acts := n.tracker.update(s, now)
+				if len(acts) > 0 || s.Scroll != 0 {
+					scroll := s.Scroll
+					update(func() {
+						if len(acts) > 0 {
+							n.padUsed = true
+						}
+						n.pending = append(n.pending, acts...)
+						if scroll != 0 && n.scroll != nil && n.prevTop == nil {
+							n.scroll.Y += scroll * padScrollStep
+						}
+					})
+				}
+			}
 		}
-		if t, ok := o.(*container.AppTabs); ok {
-			found = t
-			return
-		}
-		for _, ch := range childrenOf(o) {
-			walk(ch)
-		}
-	}
-	walk(root)
-	return found
+	}()
+	return func() { close(done) }
 }
 
-// isTextField reports whether f takes typed text (an entry of any kind).
-func isTextField(f fyne.Focusable) bool {
-	_, ok := f.(mobile.Keyboardable)
-	return ok
-}
-
-func isMenu(f fyne.Focusable) bool {
-	_, ok := f.(*widget.PopUpMenu)
-	return ok
-}
-
-// ownsKey reports whether the focused control uses the direction itself: an
-// open menu, a list moving its highlight up and down, a grid (the file
-// picker's) in every direction. Anything else (a text field too: a gamepad
-// doesn't move a cursor) lets the focus move on.
-func ownsKey(f fyne.Focusable, a PadAction) bool {
-	switch f.(type) {
-	case *widget.PopUpMenu, *widget.GridWrap:
-		return true
-	case *widget.List:
-		return a == PadUp || a == PadDown
-	}
-	return false
-}
-
-// highlightOf reads which item of a list or grid is highlighted, to tell
-// whether a key moved it. Fyne keeps it unexported; ok is false if it can't be
-// read (a menu, or a Fyne release that renamed it: TestHighlightOf fails then).
-func highlightOf(f fyne.Focusable) (id int64, ok bool) {
-	switch f.(type) {
-	case *widget.List, *widget.GridWrap:
-	default:
-		return 0, false
-	}
-	v := reflect.ValueOf(f).Elem().FieldByName("currentHighlight")
-	if !v.IsValid() || !v.CanInt() {
-		return 0, false
-	}
-	return v.Int(), true
-}
-
-func keyOf(a PadAction) fyne.KeyName {
-	switch a {
-	case PadUp:
-		return fyne.KeyUp
-	case PadDown:
-		return fyne.KeyDown
-	case PadLeft:
-		return fyne.KeyLeft
-	}
-	return fyne.KeyRight
-}
+const padScrollStep = 22 // DIPs per poll at full right-stick deflection

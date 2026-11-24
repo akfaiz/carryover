@@ -1,6 +1,7 @@
 package gamemode
 
 import (
+	"os"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -37,4 +38,24 @@ func TestOpenKeyboardWithoutACommand(t *testing.T) {
 	via, err := OpenKeyboard()
 	assert.Empty(t, via)
 	assert.EqualError(t, err, "no way to ask Steam for its keyboard here")
+}
+
+// Where Steam's keyboard is the way to type, GTK's input method is quieted
+// unless the user picked one; Steam's own module is replaced.
+func TestQuietInputMethod(t *testing.T) {
+	if !CanRequestKeyboard {
+		t.Skip("GTK input methods are a Linux matter")
+	}
+	t.Setenv("SteamGameId", "1")
+	t.Setenv("GTK_IM_MODULE", "")
+	QuietInputMethod()
+	assert.Equal(t, "gtk-im-context-simple", os.Getenv("GTK_IM_MODULE"))
+
+	t.Setenv("GTK_IM_MODULE", "Steam")
+	QuietInputMethod()
+	assert.Equal(t, "gtk-im-context-simple", os.Getenv("GTK_IM_MODULE"), "Steam's module is what opens the keyboard")
+
+	t.Setenv("GTK_IM_MODULE", "fcitx")
+	QuietInputMethod()
+	assert.Equal(t, "fcitx", os.Getenv("GTK_IM_MODULE"), "the user's choice stays")
 }

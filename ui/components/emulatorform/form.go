@@ -3,53 +3,52 @@ package emulatorform
 import (
 	"runtime"
 
-	"fyne.io/fyne/v2"
-	"fyne.io/fyne/v2/container"
-	"fyne.io/fyne/v2/widget"
-
-	"github.com/akfaiz/carryover/ui/i18n"
+	"github.com/egoist/mygo/ui"
 
 	"github.com/akfaiz/carryover/internal/saves/pathvar"
 	"github.com/akfaiz/carryover/services"
 	"github.com/akfaiz/carryover/ui/components"
 	"github.com/akfaiz/carryover/ui/env"
+	"github.com/akfaiz/carryover/ui/i18n"
 	"github.com/akfaiz/carryover/ui/kit"
 )
 
-// Form adds or edits an emulator. It draws itself into Host, so it works on the
-// Emulators page and in a dialog over the game editor alike.
+// Form adds or edits an emulator. It is drawn by whoever holds it (the
+// Emulators page, or a dialog over the game editor): View each frame. The
+// ViewModel owns the content; the form keeps the text of each field and copies
+// it into the ViewModel when it changes (push), and back after the ViewModel
+// itself changed a field (pull).
 type Form struct {
-	u       env.Env
-	vm      *ViewModel
-	tokens  []pathvar.Token
-	advItem *kit.AccordionSection
+	u      env.Env
+	vm     *ViewModel
+	tokens []pathvar.Token
 
-	// Host holds the form.
-	Host     *fyne.Container
+	name, exe, args, wait, envText string
+	workDir, dataDir               *components.PathInput
+	advanced                       bool
+
 	onCancel func()
 	onSaved  func(services.EmulatorView)
-	// Relayout (if set) lays out what holds the form again after it was drawn
-	// anew: its height changes (a type adds the data folder fields).
-	Relayout func()
 }
 
 // New returns a form for s (the zero value adds an emulator). onCancel is the
 // Cancel button; onSaved gets the saved emulator.
 func New(u env.Env, s services.EmulatorSetup, tokens []pathvar.Token, onCancel func(), onSaved func(services.EmulatorView)) *Form {
-	f := &Form{u: u, vm: NewViewModel(u.Emus(), s), tokens: tokens, Host: container.NewStack(), onCancel: onCancel, onSaved: onSaved}
-	f.render()
+	f := &Form{u: u, vm: NewViewModel(u.Emus(), s), tokens: tokens, onCancel: onCancel, onSaved: onSaved}
+	f.workDir = components.NewPathInput(u, "", nil, s.WorkDir, "", f.vm.SetWorkDir)
+	f.dataDir = components.NewPathInput(u, "", tokens, s.DataDir, f.vm.DefaultDataDir(), f.vm.SetDataDir)
+	f.pull()
 	kit.Async(func() ([]services.FlatpakEmulator, error) { return u.Emus().Flatpaks(), nil },
 		func(l []services.FlatpakEmulator, _ error) {
 			if len(l) > 0 {
 				f.vm.SetFlatpaks(l)
-				f.render()
 			}
 		})
 	return f
 }
 
 // Dirty reports unsaved changes.
-func (f *Form) Dirty() bool { return f.vm.Dirty() }
+func (f *Form) Dirty() bool { f.push(); return f.vm.Dirty() }
 
 // Title is the heading above the form.
 func (f *Form) Title() string {
@@ -59,21 +58,43 @@ func (f *Form) Title() string {
 	return i18n.L("Edit emulator")
 }
 
-func (f *Form) render() {
-	f.Host.Objects = []fyne.CanvasObject{f.form()}
-	f.Host.Refresh()
-	if f.Relayout != nil {
-		f.Relayout()
-	}
+// pull copies the ViewModel's fields into the form's, after the ViewModel
+// changed them itself (a type chosen, a Flatpak, a program picked).
+func (f *Form) pull() {
+	s := f.vm.Setup()
+	f.name, f.exe, f.args, f.wait, f.envText = s.Name, s.Exe, s.Args, s.WaitProcess, f.vm.EnvText()
+	f.advanced = f.vm.Advanced()
+	f.workDir.SetText(s.WorkDir)
+	f.dataDir.Placeholder = f.vm.DefaultDataDir()
+	f.dataDir.SetText(s.DataDir)
 }
 
-func (f *Form) form() fyne.CanvasObject {
-	vm := f.vm
-	s := vm.Setup()
-	name := widget.NewEntry()
-	name.SetPlaceHolder(i18n.L("Emulator name (e.g. Eden)"))
-	name.SetText(s.Name)
-	name.OnChanged = vm.SetName
+// push copies what was typed into the ViewModel.
+func (f *Form) push() {
+	s := f.vm.Setup()
+	if f.name != s.Name {
+		f.vm.SetName(f.name)
+	}
+	if f.exe != s.Exe {
+		f.vm.SetExe(f.exe)
+	}
+	if f.args != s.Args {
+		f.vm.SetArgs(f.args)
+	}
+	if f.wait != s.WaitProcess {
+		f.vm.SetWaitProcess(f.wait)
+	}
+	if f.envText != f.vm.EnvText() {
+		f.vm.SetEnvText(f.envText)
+	}
+	f.vm.SetAdvanced(f.advanced)
+}
+
+// View draws the form.
+func (f *Form) View(c *ui.Context) ui.Element {
+	f.push()
+	vm, nav := f.vm, f.u.Navigator()
+	preset := vm.CurrentPreset()
 
 	example := "/home/deck/Applications/eden.AppImage"
 	switch runtime.GOOS {
@@ -82,138 +103,151 @@ func (f *Form) form() fyne.CanvasObject {
 	case "darwin":
 		example = "/Applications/Eden.app"
 	}
-	exe := kit.MonoEntry(example, s.Exe, vm.SetExe)
-	browse := widget.NewButton(i18n.L("Browse…"), func() {
-		components.BrowseFrom(f.u, "", vm.Setup().Exe, func(dir string) {
-			kit.PickProgram(f.u.Window(), i18n.L("Choose the emulator executable"), dir, func(path string) {
-				path = services.AppBundle(path) // a program picked inside a macOS .app
-				vm.SetExe(path)
-				exe.SetText(path)
-				if vm.ExePicked(path) {
-					f.render()
-				}
-			})
-		})
-	})
-	preset := vm.CurrentPreset()
 	argsPlaceholder := "-f -g {rom}"
 	if preset.Args != "" {
 		argsPlaceholder = preset.Args
 	}
-	args := kit.MonoEntry(argsPlaceholder, s.Args, vm.SetArgs)
-	wait := kit.MonoEntry("eden.exe", s.WaitProcess, vm.SetWaitProcess)
-	envVars := kit.MonoMultiLine("", vm.EnvText(), 3, vm.SetEnvText)
-	workDir := components.NewPathInput(f.u, "", nil, s.WorkDir, "", vm.SetWorkDir)
-	if f.advItem != nil {
-		vm.SetAdvanced(f.advItem.Open())
+	field := func(key string, v *string, placeholder string) {
+		k := [2]any{"emu", key}
+		nav.Item(nav.Handle(k), ui.TextInput(c.Key(k), v).Placeholder(placeholder).Label(placeholder).Font("monospace"), nil, kit.TextField)
 	}
-	f.advItem = kit.NewAccordionSection(i18n.L("Advanced"), kit.VBox(
-		kit.Field(i18n.L("Working directory (default: executable's folder)"), workDir),
-		kit.Field(i18n.L("Wait for process (when the exe is a launcher that exits immediately)"), wait),
-		kit.Field(i18n.L("Environment variables (KEY=value per line)"), envVars),
-	), vm.Advanced())
 
-	label := i18n.L("Save")
-	if vm.Saving() {
-		label = i18n.L("Saving…")
-	}
-	save := kit.Primary(label, f.save)
-	kit.SetEnabled(save, !vm.Saving())
-	c := kit.VBox(
-		kit.Field(i18n.L("Executable on this device"), kit.RowFill(exe, browse)),
-		f.flatpakField(),
-		kit.Field(i18n.L("Name"), name),
-		f.typeField(),
-		kit.Field(i18n.L("Arguments"), args),
-		f.argsHints(preset),
-		f.dataFolderFields(preset),
-		f.advItem,
-	)
-	if vm.ErrText() != "" {
-		c.Add(kit.Colored(vm.ErrText(), widget.DangerImportance))
-	}
-	c.Add(kit.HBox(widget.NewButton(i18n.L("Cancel"), f.onCancel), save))
-	return kit.Card("", c)
+	return kit.Card(c, "", func() {
+		kit.Labeled(c, i18n.L("Executable on this device"), func() {
+			ui.Row(c).Gap(8).Children(func() {
+				field("exe", &f.exe, example)
+				browse := f.browse
+				if nav.Item(nav.Handle("emu-browse"), ui.Button(c.Key("emu-browse"), i18n.L("Browse…")), browse).Clicked() {
+					browse()
+				}
+			})
+		})
+		f.flatpakField(c)
+		kit.Labeled(c, i18n.L("Name"), func() { field("name", &f.name, i18n.L("Emulator name (e.g. Eden)")) })
+		f.typeField(c)
+		kit.Labeled(c, i18n.L("Arguments"), func() { field("args", &f.args, argsPlaceholder) })
+		f.argsHints(c, preset)
+		f.dataFolderFields(c, preset)
+
+		ui.Collapsible(c.Key("emu-adv"), i18n.L("Advanced"), &f.advanced, func() {
+			kit.Labeled(c, i18n.L("Working directory (default: executable's folder)"), func() { f.workDir.View(c, "workdir") })
+			kit.Labeled(c, i18n.L("Wait for process (when the exe is a launcher that exits immediately)"), func() { field("wait", &f.wait, "eden.exe") })
+			kit.Labeled(c, i18n.L("Environment variables (KEY=value per line)"), func() {
+				k := [2]any{"emu", "env"}
+				nav.Item(nav.Handle(k), ui.TextArea(c.Key(k), &f.envText).Font("monospace").Height(80), nil, kit.TextField)
+			})
+		})
+
+		if vm.ErrText() != "" {
+			kit.Danger(c, vm.ErrText())
+		}
+		ui.Row(c).Gap(8).Children(func() {
+			if nav.Item(nav.Handle("emu-cancel"), ui.Button(c.Key("emu-cancel"), i18n.L("Cancel")), f.onCancel, kit.FocusSafe).Clicked() {
+				f.onCancel()
+			}
+			label := i18n.L("Save")
+			if vm.Saving() {
+				label = i18n.L("Saving…")
+			}
+			if nav.Item(nav.Handle("emu-save"), ui.PrimaryButton(c.Key("emu-save"), label).Disabled(vm.Saving()), f.save).Clicked() {
+				f.save()
+			}
+		})
+	})
+}
+
+func (f *Form) browse() {
+	components.BrowseFrom(f.u, "", f.vm.Setup().Exe, func(dir string) {
+		kit.PickProgram(f.u.Window(), i18n.L("Choose the emulator executable"), dir, func(path string) {
+			path = services.AppBundle(path) // a program picked inside a macOS .app
+			f.vm.SetExe(path)
+			f.vm.ExePicked(path)
+			f.pull()
+		})
+	})
 }
 
 // flatpakField offers the emulators installed with Flatpak (Linux): choosing
 // one sets the executable to its launcher and fills in its name, type,
 // arguments and data folder. Nothing is shown when there are none.
-func (f *Form) flatpakField() fyne.CanvasObject {
+func (f *Form) flatpakField(c *ui.Context) {
 	l := f.vm.Flatpaks()
 	if len(l) == 0 {
-		return kit.VBox()
+		return
 	}
 	apps := &kit.Choice{}
+	apps.Add("", i18n.L("Choose an installed Flatpak…"))
 	for _, a := range l {
 		apps.Add(a.AppID, a.Name+" ("+a.AppID+")")
 	}
-	sel := kit.SelectOf(apps, f.vm.CurrentFlatpak(), func(id string) {
-		if id != "" && id != f.vm.CurrentFlatpak() {
-			f.vm.UseFlatpak(id)
-			f.render()
-		}
+	kit.Labeled(c, i18n.L("Or an emulator installed with Flatpak"), func() {
+		kit.SelectOf(c, f.u.Navigator(), f.u.Dialogs(), "flatpak", i18n.L("Flatpak"), apps, f.vm.CurrentFlatpak(), func(id string) {
+			if id != "" && id != f.vm.CurrentFlatpak() {
+				f.vm.UseFlatpak(id)
+				f.pull()
+			}
+		})
 	})
-	sel.PlaceHolder = i18n.L("Choose an installed Flatpak…")
-	return kit.Field(i18n.L("Or an emulator installed with Flatpak"), kit.Outlined(sel))
 }
 
 // typeField asks for the emulator's type. Choosing one fills in the usual
 // arguments (when none are set), and lets the game editor suggest save locations.
-func (f *Form) typeField() fyne.CanvasObject {
+func (f *Form) typeField(c *ui.Context) {
 	types := &kit.Choice{}
 	types.Add("", i18n.L("Not listed"))
 	for _, pr := range f.vm.Presets() {
 		types.Add(pr.ID, pr.Name)
 	}
-	kind := kit.SelectOf(types, f.vm.Setup().Preset, func(v string) {
-		f.vm.SetPreset(v)
-		f.render()
+	kit.Labeled(c, i18n.L("Emulator type (suggests the arguments and save locations)"), func() {
+		kit.SelectOf(c, f.u.Navigator(), f.u.Dialogs(), "type", i18n.L("Emulator type"), types, f.vm.Setup().Preset, func(v string) {
+			f.vm.SetPreset(v)
+			f.pull()
+		})
 	})
-	return kit.Field(i18n.L("Emulator type (suggests the arguments and save locations)"), kit.Outlined(kind))
 }
 
 // argsHints explains {rom} and offers the type's usual arguments.
-func (f *Form) argsHints(preset services.PresetView) fyne.CanvasObject {
-	c := kit.VBox(kit.Muted(i18n.L("{{.Token}} is replaced by the game's file or ID, which you set per game. Without it, the game file is added after the arguments.", map[string]any{"Token": "{rom}"})))
+func (f *Form) argsHints(c *ui.Context, preset services.PresetView) {
+	nav := f.u.Navigator()
+	kit.Muted(c, i18n.L("{{.Token}} is replaced by the game's file or ID, which you set per game. Without it, the game file is added after the arguments.", map[string]any{"Token": "{rom}"}))
 	if f.vm.OffersPresetArgs() {
-		c.Add(kit.HBox(kit.Small(i18n.L("Usual for this type: {{.Args}}", map[string]any{"Args": preset.Args})),
-			kit.LowButton(i18n.L("Use"), func() { f.vm.UsePresetArgs(); f.render() })))
+		ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
+			kit.Small(c, i18n.L("Usual for this type: {{.Args}}", map[string]any{"Args": preset.Args}))
+			use := func() { f.vm.UsePresetArgs(); f.pull() }
+			if nav.Item(nav.Handle("emu-use-args"), ui.Button(c.Key("emu-use-args"), i18n.L("Use")), use).Clicked() {
+				use()
+			}
+		})
 	}
 	if preset.ArgsNote != "" {
-		c.Add(kit.Muted(preset.ArgsNote))
+		kit.Muted(c, preset.ArgsNote)
 	}
 	if preset.Args != "" {
-		c.Add(kit.Muted(i18n.L("Suggested arguments can differ between versions of the emulator; check its command line help.")))
+		kit.Muted(c, i18n.L("Suggested arguments can differ between versions of the emulator; check its command line help."))
 	}
-	return c
 }
 
 // dataFolderFields asks for the emulator's data folder, where its saves are.
-func (f *Form) dataFolderFields(preset services.PresetView) fyne.CanvasObject {
+func (f *Form) dataFolderFields(c *ui.Context, preset services.PresetView) {
 	s := f.vm.Setup()
 	if s.Preset == "" {
-		return kit.VBox()
+		return
 	}
-	c := kit.VBox()
-	placeholder := f.vm.DefaultDataDir()
-	c.Add(kit.Field(i18n.L("Data folder on this device: {{.Hint}}", map[string]any{"Hint": preset.RootHint}),
-		components.NewPathInput(f.u, "", f.tokens, s.DataDir, placeholder, f.vm.SetDataDir)))
-	if placeholder != "" {
-		c.Add(kit.Muted(i18n.L("Left empty, the usual folder shown above is used.")))
+	f.dataDir.Placeholder = f.vm.DefaultDataDir()
+	kit.Labeled(c, i18n.L("Data folder on this device: {{.Hint}}", map[string]any{"Hint": preset.RootHint}), func() { f.dataDir.View(c, "datadir") })
+	if f.dataDir.Placeholder != "" {
+		kit.Muted(c, i18n.L("Left empty, the usual folder shown above is used."))
 	}
 	if !preset.PerGame {
-		c.Add(kit.Muted(i18n.L("This emulator keeps the saves of every game together, so all games share one save location.")))
+		kit.Muted(c, i18n.L("This emulator keeps the saves of every game together, so all games share one save location."))
 	}
-	return c
 }
 
 func (f *Form) save() {
+	f.push()
 	s := f.vm.BeginSave()
-	f.render()
 	kit.Async(func() (services.EmulatorView, error) { return f.vm.Save(s) }, func(ev services.EmulatorView, err error) {
 		if !f.vm.FinishSave(err) {
-			f.render()
 			return
 		}
 		f.u.Toast(i18n.L("Saved"), kit.ToastOK)
@@ -225,27 +259,21 @@ func (f *Form) save() {
 // editor) keeps what was typed into it. onSaved gets the new one.
 func ShowDialog(u env.Env, onSaved func(services.EmulatorView)) {
 	kit.Async(func() ([]pathvar.Token, error) { return u.Lib().Tokens(""), nil }, func(tokens []pathvar.Token, _ error) {
-		var d components.DialogHider
+		var d *kit.Dialog
 		var f *Form
 		cancel := func() {
 			if f.Dirty() {
-				components.ConfirmDiscard(u, func() { d.Hide() })
+				components.ConfirmDiscard(u, func() { d.Close() })
 				return
 			}
-			d.Hide()
+			d.Close()
 		}
-		f = New(u, services.EmulatorSetup{}, tokens, cancel,
-			func(ev services.EmulatorView) {
-				d.Hide()
-				onSaved(ev)
-			})
-		scroll := container.NewVScroll(f.Host)
-		f.Relayout = func() {
-			// A new content object makes the scroll lay it out at its new height.
-			scroll.Content = container.NewStack(f.Host)
-			scroll.Refresh()
-		}
-		d = kit.ScrollDialog(u.Window(), f.Title(), scroll)
-		kit.OnBack(u.Window(), cancel) // B asks before dropping what was typed, like Cancel
+		f = New(u, services.EmulatorSetup{}, tokens, cancel, func(ev services.EmulatorView) {
+			d.Close()
+			onSaved(ev)
+		})
+		d = u.Dialogs().Show(&kit.Dialog{Title: f.Title(), Wide: true, Back: cancel, Body: func(c *ui.Context, _ *kit.Navigator) {
+			ui.Scroll(c).MaxHeight(560).Children(func() { f.View(c) })
+		}})
 	})
 }
