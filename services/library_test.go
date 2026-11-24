@@ -199,3 +199,40 @@ func TestGameViewNeedsAttention(t *testing.T) {
 		assert.False(t, g.NeedsAttention(), name+" while running")
 	}
 }
+
+// Other devices are listed by name, the game's own paths on the game and each
+// emulator's paths on its profile; a device without that emulator set up is
+// listed with no paths.
+func TestOtherDevicesPerProfile(t *testing.T) {
+	t.Setenv(appdir.EnvHome, t.TempDir())
+	t.Cleanup(background.Wait) // catalog uploads write into the home
+	c, err := core.New()
+	require.NoError(t, err)
+	me := c.DeviceID()
+	emu, err := c.Library.SaveEmulator(library.Emulator{Name: "Eden", Devices: map[string]library.EmulatorDevice{me: {}}}, me)
+	require.NoError(t, err)
+	g, err := c.Library.Save(library.Game{
+		Name:      "Game A",
+		Slots:     []library.SaveSlot{{Key: "saves"}},
+		Emulators: []library.GameEmulator{{EmulatorID: emu.ID, Slots: []library.SaveSlot{{Key: "account"}}}},
+		Devices: map[string]library.DeviceConfig{
+			me:            {Paths: map[string]string{"saves": "/x"}, Exe: "x"},
+			"zz-device-1": {DeviceName: "Zed", Paths: map[string]string{"saves": "/z"}},
+			"aa-device-2": {DeviceName: "Deck", Emulators: map[string]library.EmulatorConfig{emu.ID: {Paths: map[string]string{"account": "/deck/eden"}}}},
+		},
+	}, me)
+	require.NoError(t, err)
+	v, err := NewLibraryService(c, nil, nil).Get(g.ID)
+	require.NoError(t, err)
+
+	require.Len(t, v.OtherDevices, 2)
+	assert.Equal(t, []string{"Deck", "Zed"}, []string{v.OtherDevices[0].DeviceName, v.OtherDevices[1].DeviceName}, "sorted by name")
+	assert.Equal(t, "/z", v.OtherDevices[1].Paths["saves"])
+
+	require.Len(t, v.Emulators, 1)
+	others := v.Emulators[0].OtherDevices
+	require.Len(t, others, 2)
+	assert.Equal(t, "Deck", others[0].DeviceName)
+	assert.Equal(t, "/deck/eden", others[0].Paths["account"], "the emulator's path there")
+	assert.Empty(t, others[1].Paths, "Zed doesn't play it with Eden")
+}

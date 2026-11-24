@@ -36,7 +36,7 @@ func typeName(t *testing.T, h *uitest.Harness, name string) {
 func TestEmptyList(t *testing.T) {
 	h := newHarness(t)
 	assert.Contains(t, h.Texts(), "Add emulator")
-	assert.Contains(t, h.Texts(), "No emulators yet. Add one, for example Eden or Ryujinx for Nintendo Switch games.")
+	assert.Contains(t, h.Texts(), "No emulators yet")
 }
 
 func TestAddEmulatorThenDelete(t *testing.T) {
@@ -48,10 +48,12 @@ func TestAddEmulatorThenDelete(t *testing.T) {
 	require.Len(t, h.Shell.Emus().List(), 1)
 	assert.Contains(t, h.Texts(), "Edit")
 
+	h.Click("More") // the row's menu holds Delete
 	h.Click("Delete…")
 	h.Click("Delete")
 	h.Settle()
 	assert.Empty(t, h.Shell.Emus().List())
+	assert.Contains(t, h.Texts(), "No emulators yet")
 }
 
 func TestFormCancelAndDiscard(t *testing.T) {
@@ -85,10 +87,42 @@ func TestUnsetFromDevice(t *testing.T) {
 	_, err := h.Shell.Emus().Save(services.EmulatorSetup{Name: "Eden", Exe: "/bin/true"})
 	require.NoError(t, err)
 	h.Open("/emulators")
+	h.Click("More")
 	h.Click("Remove from this device…")
 	h.Click("Remove")
 	h.Settle()
+	assert.Contains(t, h.Texts(), "Not set up on this device")
+
+	h.Click("More") // the menu no longer offers it
 	assert.NotContains(t, h.Texts(), "Remove from this device…")
+	assert.Contains(t, h.Texts(), "Delete…")
+}
+
+// The pad reaches a row's menu and the Delete in it.
+func TestPadReachesTheRowMenu(t *testing.T) {
+	h := newHarness(t)
+	_, err := h.Shell.Emus().Save(services.EmulatorSetup{Name: "Eden", Exe: "/bin/true"})
+	require.NoError(t, err)
+	h.Open("/emulators")
+	nav := h.Shell.Navigator()
+	// pressUntil presses a until label has the focus, a few times at most.
+	pressUntil := func(label string, moves ...kit.PadAction) bool {
+		for range 4 {
+			for _, a := range moves {
+				if h.Tester.Focused(label) {
+					return true
+				}
+				nav.Press(a)
+				h.Settle()
+			}
+		}
+		return h.Tester.Focused(label)
+	}
+	require.True(t, pressUntil("More", kit.PadDown, kit.PadRight), "the pad reaches the row's menu")
+	nav.Press(kit.PadAccept)
+	h.Settle()
+	require.Contains(t, h.Texts(), "Delete…")
+	assert.True(t, pressUntil("Delete…", kit.PadDown), "and the Delete in it")
 }
 
 // Choosing a type fills in its usual arguments and shows the data folder.

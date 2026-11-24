@@ -4,7 +4,7 @@
 #
 #   scripts/test-docker.sh [linux|windows|all] [go test args]   # default: all ./...
 #
-# linux:   `go test` on Linux (the CI environment), including ui/ (cgo).
+# linux:   `go test` on Linux (the CI environment), including ui/.
 # windows: cross-compiles every package's tests for GOOS=windows and runs `go vet` on it. The
 #          tests are not executed (no Windows containers on Linux/macOS); that catches build
 #          errors and Windows-only vet problems, but not path-separator behaviour at runtime.

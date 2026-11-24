@@ -20,8 +20,8 @@ func (p *Page) devicesCard(c *ui.Context) {
 			if d.This {
 				continue
 			}
+			p.deviceRow(c, others == 0, d)
 			others++
-			p.deviceRow(c, d)
 		}
 		if others == 0 {
 			kit.Muted(c, i18n.L("No other devices."))
@@ -37,49 +37,41 @@ func deviceName(d services.DeviceView) string {
 	return d.Name
 }
 
-func (p *Page) deviceRow(c *ui.Context, d services.DeviceView) {
+func (p *Page) deviceRow(c *ui.Context, first bool, d services.DeviceView) {
 	nav := p.u.Navigator()
 	name := deviceName(d)
-	button := func(key, label string, danger bool, action func()) {
-		k := [3]any{"device", d.ID, key}
-		b := ui.Button(c.Key(k), label)
-		if danger {
-			b = b.TextColor(c.Theme().Danger)
-		}
-		if nav.Item(nav.Handle(k), b, action).Clicked() {
-			action()
-		}
+	button := func(key string, kind kit.BtnKind, label string, action func()) {
+		kit.Btn(c, nav, [3]any{"device", d.ID, key}, kind, nil, label, action)
 	}
-	ui.Column(c).Gap(2).Children(func() {
-		kit.CardHead(c, name, func() {
-			button("reuse", i18n.L("This is me…"), false, func() {
-				components.ConfirmDanger(p.u, components.ConfirmOpts{
-					Title: i18n.L("Use the settings of {{.Name}} here", map[string]any{"Name": name}),
-					Message: i18n.L("This device takes over the game and emulator settings of {{.Name}} (where both have settings for a game, the newer ones stay), and {{.Name}} is removed from the list on every device. Saves are not touched.",
-						map[string]any{"Name": name}),
-					Action: i18n.L("This is me"),
-					OnConfirm: func(bool) {
-						p.deviceAction(func() error { return p.u.Sync().ReuseDevice(d.ID) }, i18n.L("This device now has the settings of {{.Name}}.", map[string]any{"Name": name}))
-					},
-				})
-			})
-			button("forget", i18n.L("Forget…"), true, func() {
-				components.ConfirmDanger(p.u, components.ConfirmOpts{
-					Title: i18n.L("Forget device"),
-					Message: i18n.L("Remove {{.Name}} and its game and emulator settings from the library on every device? Its cloud saves and backups are kept. Only forget a device you no longer use: one still in use loses its setup too.",
-						map[string]any{"Name": name}),
-					Action: i18n.L("Forget"),
-					OnConfirm: func(bool) {
-						p.deviceAction(func() error { return p.u.Sync().ForgetDevice(d.ID) }, i18n.L("Device forgotten"))
-					},
-				})
-			})
-		})
+	kit.ListRow(c, first, name, func() {
 		if d.SameName {
 			kit.Badge(c, i18n.L("Same name as this device"), kit.BadgeInfo)
 		}
 		kit.Small(c, i18n.L("Last change {{.When}} · games: {{.Games}} · emulators: {{.Emulators}}",
 			map[string]any{"When": components.FmtDate(d.LastSeen), "Games": d.Games, "Emulators": d.Emulators}))
+	}, func() {
+		button("reuse", kit.BtnSecondary, i18n.L("This is me…"), func() {
+			components.ConfirmDanger(p.u, components.ConfirmOpts{
+				Title: i18n.L("Use the settings of {{.Name}} here", map[string]any{"Name": name}),
+				Message: i18n.L("This device takes over the game and emulator settings of {{.Name}} (where both have settings for a game, the newer ones stay), and {{.Name}} is removed from the list on every device. Saves are not touched.",
+					map[string]any{"Name": name}),
+				Action: i18n.L("This is me"),
+				OnConfirm: func(bool) {
+					p.deviceAction(func() error { return p.u.Sync().ReuseDevice(d.ID) }, i18n.L("This device now has the settings of {{.Name}}.", map[string]any{"Name": name}))
+				},
+			})
+		})
+		button("forget", kit.BtnDanger, i18n.L("Forget…"), func() {
+			components.ConfirmDanger(p.u, components.ConfirmOpts{
+				Title: i18n.L("Forget device"),
+				Message: i18n.L("Remove {{.Name}} and its game and emulator settings from the library on every device? Its cloud saves and backups are kept. Only forget a device you no longer use: one still in use loses its setup too.",
+					map[string]any{"Name": name}),
+				Action: i18n.L("Forget"),
+				OnConfirm: func(bool) {
+					p.deviceAction(func() error { return p.u.Sync().ForgetDevice(d.ID) }, i18n.L("Device forgotten"))
+				},
+			})
+		})
 	})
 }
 

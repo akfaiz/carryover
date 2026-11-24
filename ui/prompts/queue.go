@@ -97,20 +97,15 @@ func (q *Queue) next() {
 	d := &kit.Dialog{Width: 560}
 	// btn draws one answer button; safe marks the one the dialog starts on.
 	btn := func(c *ui.Context, nav *kit.Navigator, label, a string, primary, safe bool) {
-		k := [2]any{"prompt", label}
-		var b ui.Element
+		kind := kit.BtnSecondary
 		if primary {
-			b = ui.PrimaryButton(c.Key(k), label)
-		} else {
-			b = ui.Button(c.Key(k), label)
+			kind = kit.BtnPrimary
 		}
-		var opts []kit.ItemOption
+		var opts []kit.BtnOption
 		if safe {
-			opts = append(opts, kit.FocusSafe)
+			opts = append(opts, kit.BtnItem(kit.FocusSafe))
 		}
-		if nav.Item(nav.Handle(k), b, func() { answer(a) }, opts...).Clicked() {
-			answer(a)
-		}
+		kit.Btn(c, nav, [2]any{"prompt", label}, kind, nil, label, func() { answer(a) }, opts...)
 	}
 	var body func(c *ui.Context, nav *kit.Navigator)
 	switch {
@@ -124,7 +119,7 @@ func (q *Queue) next() {
 		body = func(c *ui.Context, nav *kit.Navigator) {
 			kit.Muted(c, conflictIntro(p.Conflict))
 			components.SaveSides(c, nav, "prompt", p.Conflict.Local, p.Conflict.Remote, true, answer)
-			ui.Row(c).Children(func() { btn(c, nav, skip, "skip", false, true) })
+			kit.Footer(c, func() { btn(c, nav, skip, "skip", false, true) })
 		}
 	case p.Kind == "emulator":
 		d.Title = i18n.L("Play {{.Game}}", map[string]any{"Game": p.GameName})
@@ -137,7 +132,7 @@ func (q *Queue) next() {
 		body = func(c *ui.Context, nav *kit.Navigator) {
 			ui.Text(c, i18n.L("{{.Device}} started playing at {{.Time}}. If you play here too, you may get a save conflict when both devices upload.",
 				map[string]any{"Device": p.Lock.DeviceName, "Time": components.FmtDate(p.Lock.Since)})).Wrap()
-			ui.Row(c).Gap(8).Children(func() {
+			kit.Footer(c, func() {
 				btn(c, nav, i18n.L("Cancel"), "no", false, true)
 				btn(c, nav, i18n.L("Play anyway"), "yes", true, false)
 			})
@@ -149,7 +144,7 @@ func (q *Queue) next() {
 			body = func(c *ui.Context, nav *kit.Navigator) {
 				kit.Danger(c, p.Error).Font("monospace")
 				kit.Muted(c, i18n.L("You can play offline; your saves will be uploaded next time sync succeeds."))
-				ui.Row(c).Gap(8).Children(func() {
+				kit.Footer(c, func() {
 					btn(c, nav, i18n.L("Cancel"), "no", false, true)
 					btn(c, nav, i18n.L("Play offline"), "yes", true, false)
 				})
@@ -160,7 +155,7 @@ func (q *Queue) next() {
 			body = func(c *ui.Context, nav *kit.Navigator) {
 				kit.Danger(c, p.Error).Font("monospace")
 				kit.Muted(c, i18n.L("Your saves are safe on this device and will upload on the next sync."))
-				ui.Row(c).Children(func() { btn(c, nav, i18n.L("OK"), "yes", true, true) })
+				kit.Footer(c, func() { btn(c, nav, i18n.L("OK"), "yes", true, true) })
 			}
 		}
 	}
@@ -169,7 +164,11 @@ func (q *Queue) next() {
 		body(c, nav)
 		if q.Wrapper {
 			// Opened by a Steam shortcut: likely driven with a controller.
-			kit.Muted(c, i18n.L("D-pad or arrow keys to choose, A or Enter to confirm, B or Esc to go back."))
+			kit.PadHints(c, []kit.PadHint{
+				{Button: "D-pad", Label: i18n.L("Choose")},
+				{Button: "A / Enter", Label: i18n.L("Confirm")},
+				{Button: "B / Esc", Label: i18n.L("Back")},
+			}).Padding(kit.S2, 0, 0, 0)
 		}
 	}
 	q.current = q.e.Dialogs().Show(d)

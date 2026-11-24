@@ -9,12 +9,48 @@ All notable changes to Carryover are listed here. The format follows
 
 ### Changed
 
-- The desktop app has a new interface toolkit, [MyGo](https://mygo.run), in place of Fyne. It looks the same where it
-  can, builds without a C compiler or GUI libraries, and the downloads are smaller (the macOS app zip is about 30 MB,
-  the Windows exe about 38 MB). Linux needs GTK 3 installed, which the Steam Deck has. Choosing an option from a list
-  (sort order, language, launch mode) now opens a small window of choices, so it works with a controller;
-  pressing A on a text field in Game Mode opens Steam's keyboard as before.
+- The desktop app has a new interface toolkit, [MyGo](https://mygo.run), in place of Fyne. It builds without a C compiler
+  or GUI libraries, and the downloads are smaller (the macOS app zip is about 30 MB,
+  the Windows exe about 38 MB). Linux needs GTK 3 installed, which the Steam Deck has. Pressing A on a text field in
+  Game Mode opens Steam's keyboard as before. The choices Fyne kept (full screen, the library's filter and sort order)
+  start from their defaults once.
+- A new look for every page: an icon sidebar, flat buttons with icons, one card and list style, one set of text sizes,
+  and a Back button above the page title. Lists of choices (sort order, language, launch mode) are one drop-down that
+  works the same with the mouse, the keyboard and a controller: A opens it, the D-pad moves, A picks and B closes.
 - Carryover on macOS is now named `Carryover` inside its app bundle.
+- Notifications appear in the bottom-right corner as cards: an icon for their kind, a close button and a bar that
+  counts down. Errors stay longer.
+- The window shown before and after a game started from a Steam shortcut has a new look: the game's artwork behind
+  it, the steps of the session (sync saves, play, upload saves) and the transfer with its percentage. In Steam Deck
+  Game Mode and Big Picture it opens full screen. Its prompts show which controller buttons to press.
+- The game page shows the game's artwork behind its header and a bigger Play button. What needs a look (a missing
+  setup, an error, saves changed outside Carryover) shows once, in a highlighted box. A game not set up on this device
+  offers **Set up saves for this device** in place of buttons that could not be used yet. A save location with
+  include or exclude filters shows them under its folder, so it's clear which files sync. Every game lists the other
+  devices that have it the same way, in an **Other devices** card with their save paths: for a game played through
+  emulators, those of the emulator shown.
+- Library: the search box has a search icon and a button that clears it, **Needs attention** is highlighted when a
+  game needs it, the Play buttons of a row line up when a name takes two lines, and the grid uses the whole width of
+  the window.
+- Settings has a **Backups** and a **Library sharing** card; each switch has a short description, and the longer
+  explanations fold behind **More**.
+- An emulator's **Remove from this device** and **Delete** are in its **⋯** menu. An empty library, emulator list,
+  trash or list of remotes says what to do next.
+- On a wide window, pages are centered. The window can't be made smaller than 900×600.
+- The library's game grid fills the window: the covers grow with it (at least as wide as before) and another column is
+  added once it fits, so there is no empty strip at the right of the grid.
+- The main window opens where it was left: its position, size and maximized state are remembered (full screen still
+  follows how Carryover was started).
+- Buttons that show only an icon show their name in a tooltip when the pointer rests on them or the keyboard reaches
+  them.
+- Game covers use less memory: once a cover has been drawn, its copy in RAM is released.
+
+### Fixed
+
+- A long save path of another device (a folder named by a long id, as an emulator's) ran past the edge of its card.
+- On Linux under X11, the window's title bar showed no Carryover icon when run as an AppImage (the taskbar had it).
+  Both the main window and the one a Steam shortcut shows now set their icon themselves. Under Wayland the title bar's
+  icon is still chosen by the desktop, which may not find it for an AppImage.
 
 ## [0.5.1] - 2026-11-23
 

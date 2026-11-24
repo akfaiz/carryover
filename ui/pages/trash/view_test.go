@@ -27,12 +27,37 @@ func newHarness(t *testing.T) *uitest.Harness {
 	})
 }
 
+// An empty trash says so once, not with a card per kind.
 func TestTrashPageEmpty(t *testing.T) {
 	h := newHarness(t)
 	h.Open("/trash")
-	for _, want := range []string{"No deleted games.", "No deleted emulators.", "Set up cloud storage to look for them."} {
-		assert.Contains(t, h.Texts(), want)
+	assert.Contains(t, h.Texts(), "Trash is empty")
+	assert.NotContains(t, h.Texts(), "Games")
+	assert.NotContains(t, h.Texts(), "Leftover cloud saves")
+	assert.Equal(t, 2, count(h.Texts(), "Emulators"), "only the sidebar's (text and name) says Emulators")
+}
+
+// count is how many of texts are s.
+func count(texts []string, s string) int {
+	n := 0
+	for _, x := range texts {
+		if x == s {
+			n++
+		}
 	}
+	return n
+}
+
+// Only the kinds with something deleted get a card.
+func TestTrashPageShowsOnlyKindsWithItems(t *testing.T) {
+	h := newHarness(t)
+	g := h.AddGame("Game A", t.TempDir())
+	require.NoError(t, h.Shell.Lib().Delete(g.ID))
+	h.Open("/trash")
+	assert.Contains(t, h.Texts(), "Games")
+	assert.Contains(t, h.Texts(), "Game A")
+	assert.Equal(t, 2, count(h.Texts(), "Emulators"), "no Emulators card: only the sidebar's")
+	assert.NotContains(t, h.Texts(), "Trash is empty")
 }
 
 // "Delete permanently" asks first, and a game deleted for good can't be restored.

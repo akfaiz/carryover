@@ -1,9 +1,19 @@
 package library_test
 
 import (
+	"bytes"
+	"fmt"
+	"image"
+	"image/color"
+	"image/draw"
+	"image/png"
+	"os"
+	"path/filepath"
 	"slices"
 	"testing"
+	"time"
 
+	"github.com/egoist/mygo/ui"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -67,7 +77,7 @@ func typeSearch(t *testing.T, h *uitest.Harness, text string) {
 func TestEmptyLibraryOffersTheFirstGame(t *testing.T) {
 	h := newHarness(t)
 	assert.Contains(t, h.Texts(), "No games yet")
-	assert.Contains(t, h.Texts(), "＋ Add your first game")
+	assert.Contains(t, h.Texts(), "Add your first game")
 	assert.Contains(t, h.Texts(), "Set up cloud storage", "no cloud yet")
 	h.Click("Set up cloud storage")
 	assert.Equal(t, "/cloud", h.Shell.Route())
@@ -132,4 +142,94 @@ func TestPadStartsOnTheFirstGameAndOpensIt(t *testing.T) {
 	nav.Press(kit.PadAccept)
 	h.Settle()
 	assert.Equal(t, "/game/"+g.ID, h.Shell.Route())
+}
+
+// The grid fills the width of the page: whatever the window's width, the games
+// of a row reach its right edge instead of leaving an empty strip, and a wider
+// window gives more columns once they fit.
+func TestGridFillsTheWindowWidth(t *testing.T) {
+	h := newHarness(t)
+	names := make([]string, 0, 18)
+	for i := range 18 {
+		name := fmt.Sprintf("Game %02d", i)
+		names = append(names, name)
+		addGame(t, h, name)
+	}
+	columns := map[int]int{}
+	for _, w := range []int{900, 1000, 1180, 1333, 1600, 1920, 2560} {
+		h.Tester.SetSize(w, 1400)
+		h.Settle()
+		h.Settle()
+
+		// Each tile's name starts at its left edge, inside the tile's padding.
+		var rights []float32
+		var left0 float32 = -1
+		cols := 0
+		var y0 float32 = -1
+		for _, n := range names {
+			r, ok := h.Tester.Find(n)
+			if !ok {
+				continue
+			}
+			if y0 < 0 {
+				y0, left0 = r.Y, r.X
+			}
+			if r.Y == y0 {
+				cols++
+				rights = append(rights, r.X+r.W)
+			}
+		}
+		require.Positive(t, cols, "width %d", w)
+		columns[w] = cols
+		edge := slices.Max(rights) + kit.S2 + 2 // the tile's padding and border
+		// What is left to the window's right is the page's margin and a scroll bar.
+		assert.Less(t, float32(w)-edge, kit.S8+30, "width %d: %d columns, the grid ends at %v (it starts at %v)", w, cols, edge, left0)
+	}
+	assert.Less(t, columns[900], columns[1920], "a wider window shows more games per row")
+	assert.Less(t, columns[1920], columns[2560]+1)
+}
+
+// Every tile is the size of its cell, whatever the size of its cover picture: a
+// small picture is scaled up, a big one down, and the cover keeps its 2:3 shape,
+// instead of the tile following the picture.
+func TestTilesAreTheSameSizeWhateverTheirCovers(t *testing.T) {
+	h := newHarness(t)
+	h.Tester.SetSize(1200, 1000)
+	sizes := map[string][2]int{"Alpha": {40, 30}, "Bravo": {600, 900}, "Charlie": {300, 300}}
+	for name, wh := range sizes {
+		g := addGame(t, h, name)
+		src := filepath.Join(t.TempDir(), "cover.png")
+		img := image.NewRGBA(image.Rect(0, 0, wh[0], wh[1]))
+		draw.Draw(img, img.Bounds(), image.NewUniform(color.RGBA{R: 200, G: 40, B: 40, A: 255}), image.Point{}, draw.Src)
+		var buf bytes.Buffer
+		require.NoError(t, png.Encode(&buf, img))
+		require.NoError(t, os.WriteFile(src, buf.Bytes(), 0o644))
+		_, err := h.Shell.Lib().SetCover(g.ID, src)
+		require.NoError(t, err)
+	}
+	h.Shell.Store().Refresh()
+	h.Settle()
+	// The covers load in the background; the tiles must not change once they have.
+	measure := func() (rects []ui.Rect) {
+		for name := range sizes {
+			r, ok := h.Tester.Find(name)
+			require.True(t, ok, name)
+			rects = append(rects, r)
+		}
+		return rects
+	}
+	before := measure()
+	time.Sleep(300 * time.Millisecond)
+	h.Settle()
+	after := measure()
+
+	for _, rects := range [][]ui.Rect{before, after} {
+		for _, r := range rects {
+			assert.InDelta(t, rects[0].W, r.W, 1, "the tiles are as wide as each other: %v", rects)
+			assert.InDelta(t, rects[0].H, r.H, 1, "and as tall: %v", rects)
+			// A 2:3 cover over its name, status and button is taller than 1.5 times the tile's width.
+			assert.Greater(t, r.H, 1.5*r.W, "the cover is as tall as 2:3 makes it: %v", r)
+		}
+	}
+	assert.InDelta(t, before[0].H, after[0].H, 1, "loading the pictures doesn't resize the tiles")
 }

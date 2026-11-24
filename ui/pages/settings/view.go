@@ -12,6 +12,7 @@ import (
 	"github.com/akfaiz/carryover/internal/app/version"
 	"github.com/akfaiz/carryover/internal/cloudsync/syncer"
 	"github.com/akfaiz/carryover/services"
+	"github.com/akfaiz/carryover/ui/components"
 	"github.com/akfaiz/carryover/ui/env"
 	"github.com/akfaiz/carryover/ui/flows"
 	"github.com/akfaiz/carryover/ui/i18n"
@@ -161,45 +162,33 @@ func (p *Page) watch() {
 // View draws the page.
 func (p *Page) View(c *ui.Context) {
 	nav := p.u.Navigator()
-	ui.Scroll(c).Grow(1).TrackScroll(&p.scroll).Children(func() {
-		ui.Column(c).Gap(10).Padding(0, 20, 20, 20).MaxWidth(700).Children(func() {
-			if p.vm == nil {
-				kit.PageHead(c, nav, nil, nil, i18n.L("Settings"), nil)
-				kit.Muted(c, i18n.L("Loading…"))
-				return
-			}
-			p.watch()
-			p.keyDirty = p.vm.KeyDirty(p.f.key)
-			p.keyTest.SetAllowed(strings.TrimSpace(p.f.key) != "")
-			p.form(c)
-		})
+	kit.Page(c, kit.PageForm, &p.scroll, func() {
+		if p.vm == nil {
+			kit.PageHead(c, nav, nil, "", i18n.L("Settings"), nil)
+			kit.Muted(c, i18n.L("Loading…"))
+			return
+		}
+		p.watch()
+		p.keyDirty = p.vm.KeyDirty(p.f.key)
+		p.keyTest.SetAllowed(strings.TrimSpace(p.f.key) != "")
+		p.form(c)
 	})
 }
 
 func (p *Page) field(c *ui.Context, key string, v *string, placeholder string) ui.Element {
-	nav := p.u.Navigator()
-	k := [2]any{"set", key}
-	in := ui.TextInput(c.Key(k), v).Placeholder(placeholder).Label(placeholder)
-	return nav.Item(nav.Handle(k), in, nil, kit.TextField)
+	return kit.Field(c, p.u.Navigator(), [2]any{"set", key}, v, placeholder)
 }
 
-// check is a labelled box the pad toggles with A.
-func (p *Page) check(c *ui.Context, key string, v *bool, label string, disabled bool) {
-	nav := p.u.Navigator()
-	k := [2]any{"set", key}
-	toggle := func() {
-		if !disabled {
-			*v = !*v
-		}
-	}
-	nav.Item(nav.Handle(k), ui.Checkbox(c.Key(k), v, label).Disabled(disabled), toggle)
+// check is a setting row with a switch the pad toggles with A.
+func (p *Page) check(c *ui.Context, key string, v *bool, label, desc string, disabled bool) {
+	kit.ToggleRow(c, p.u.Navigator(), key, label, desc, v, disabled)
 }
 
 func (p *Page) form(c *ui.Context) {
-	u, nav, f := p.u, p.u.Navigator(), &p.f
-	kit.PageHead(c, nav, nil, nil, i18n.L("Settings"), func() {
+	nav, f := p.u.Navigator(), &p.f
+	kit.PageHead(c, nav, nil, "", i18n.L("Settings"), func() {
 		if time.Since(p.savedAt) < 2500*time.Millisecond && !p.savedAt.IsZero() {
-			kit.Small(c, "✓ "+i18n.L("Saved"))
+			kit.IconLine(c, kit.IconCheck, i18n.L("Saved"), c.Theme().Success)
 		}
 	})
 
@@ -212,7 +201,7 @@ func (p *Page) form(c *ui.Context) {
 			}, f.theme, func(v string) { f.theme = v })
 		})
 		kit.Labeled(c, i18n.L("Language"), func() {
-			kit.SelectOf(c, nav, u.Dialogs(), "language", i18n.L("Language"), &p.langs, f.language, func(v string) { f.language = v })
+			kit.SelectOf(c, nav, "language", i18n.L("Language"), &p.langs, f.language, func(v string) { f.language = v })
 		})
 		if f.language != i18n.Started() {
 			kit.Muted(c, i18n.L("Restart Carryover to apply the language."))
@@ -226,38 +215,39 @@ func (p *Page) form(c *ui.Context) {
 
 	p.devicesCard(c)
 
-	kit.Card(c, i18n.L("Sync"), func() {
-		// Cloud backups: a checkbox turns them on, then a count of 1-100. Off is
+	kit.Card(c, i18n.L("Backups"), func() {
+		// Cloud backups: a switch turns them on, then a count of 1-100. Off is
 		// stored as 0; turning them back on starts from the default count.
-		p.check(c, "backups", &f.backups, i18n.L("Back up saves to the cloud before they're overwritten"), false)
-		kit.Labeled(c, i18n.L("Backups to keep per game (1–100)"), func() {
-			p.field(c, "retention", &f.retention, "").Width(120).Disabled(!f.backups)
-			if f.backups {
+		p.check(c, "backups", &f.backups, i18n.L("Back up saves to the cloud before they're overwritten"),
+			i18n.L("Keeps older versions of your saves in the cloud, so a sync that went wrong can be undone."), false)
+		if f.backups {
+			kit.Labeled(c, i18n.L("Backups to keep per game (1–100)"), func() {
+				p.field(c, "retention", &f.retention, "").Width(120)
 				if _, err := ParseRetention(f.retention); err != nil {
 					kit.Danger(c, words(err).Error())
 				}
-			}
-		})
-		kit.Muted(c, i18n.L("Each backup is a zip uploaded before a sync replaces saves, so syncing gets slower, especially after playing. Older backups are deleted once there are more than this; pinned backups are always kept."))
-		kit.Muted(c, i18n.L("When off, only the current save is in the cloud. Before a download replaces this device's saves, a copy is still kept on this device (the last {{.Count}}).",
-			map[string]any{"Count": syncer.SafetyKeep}))
+			})
+		}
+		components.Help(c, p.u, i18n.L("Backups make syncing a little slower."),
+			i18n.L("Each backup is a zip uploaded before a sync replaces saves, so syncing gets slower, especially after playing. Older backups are deleted once there are more than this; pinned backups are always kept."),
+			i18n.L("When off, only the current save is in the cloud. Before a download replaces this device's saves, a copy is still kept on this device (the last {{.Count}}).",
+				map[string]any{"Count": syncer.SafetyKeep}))
+	})
+
+	kit.Card(c, i18n.L("Library sharing"), func() {
+		p.check(c, "share", &f.share, i18n.L("Share the game library between devices through the cloud"),
+			i18n.L("When enabled, games added on one device appear on the others; each device only needs to set its own paths."), false)
+		ui.Divider(c)
 		// Cover art is part of the library sync, so it can only be on while that is.
-		p.check(c, "share", &f.share, i18n.L("Share the game library between devices through the cloud"), false)
-		kit.Muted(c, i18n.L("When enabled, games added on one device appear on the others; each device only needs to set its own paths."))
-		p.check(c, "covers", &f.covers, i18n.L("Upload cover art and artwork to the cloud"), !f.share)
-		kit.Muted(c, i18n.L("Covers and artwork always stay on this device. When this is on they are also uploaded to the cloud, so every device shows the same images; when off, this device neither uploads nor downloads them."))
+		p.check(c, "covers", &f.covers, i18n.L("Upload cover art and artwork to the cloud"),
+			i18n.L("Covers and artwork always stay on this device. When this is on they are also uploaded to the cloud, so every device shows the same images; when off, this device neither uploads nor downloads them."), !f.share)
 	})
 
 	kit.Card(c, i18n.L("Cover art"), func() {
 		kit.Labeled(c, i18n.L("SteamGridDB API key (optional)"), func() {
-			ui.Row(c).Gap(8).Children(func() {
-				k := [2]any{"set", "key"}
-				in := ui.TextInput(c.Key(k), &f.key).Password().Placeholder(i18n.L("Paste your key")).Label(i18n.L("Paste your key")).Grow(1)
-				nav.Item(nav.Handle(k), in, nil, kit.TextField)
-				save := func() { p.vm.SaveKey(f.key, p.read) }
-				if nav.Item(nav.Handle("key-save"), ui.PrimaryButton(c.Key("key-save"), i18n.L("Save")).Disabled(!p.keyDirty), save).Clicked() {
-					save()
-				}
+			ui.Row(c).Gap(kit.S2).Children(func() {
+				p.field(c, "key", &f.key, i18n.L("Paste your key")).Password().Grow(1)
+				kit.Btn(c, nav, "key-save", kit.BtnPrimary, nil, i18n.L("Save"), func() { p.vm.SaveKey(f.key, p.read) }, kit.BtnDisabled(!p.keyDirty))
 				p.keyTest.Button(c, nav, "grid")
 			})
 		})
@@ -283,7 +273,7 @@ func (p *Page) about(c *ui.Context) {
 		notes = i18n.L("Release notes")
 	}
 	kit.Card(c, i18n.L("About Carryover"), func() {
-		ui.Text(c, title).Bold()
+		ui.Text(c, title).FontWeight(600)
 		if info.Commit != "" {
 			commit := i18n.L("Commit {{.Commit}}", map[string]any{"Commit": info.Commit})
 			if info.Modified {
@@ -291,15 +281,12 @@ func (p *Page) about(c *ui.Context) {
 			}
 			kit.Muted(c, commit)
 		}
-		ui.Row(c).Gap(12).Children(func() {
+		ui.Row(c).Gap(kit.S4).Children(func() {
 			p.link(c, "notes", notes, info.ReleaseURL())
 			p.link(c, "source", i18n.L("Source code"), version.RepoURL)
 		})
 		logs := u.Sync().LogsDir()
-		open := func() { u.OpenFolder(logs) }
-		if nav.Item(nav.Handle("open-logs"), ui.Button(c.Key("open-logs"), i18n.L("Open logs folder")), open).Clicked() {
-			open()
-		}
+		kit.Btn(c, nav, "open-logs", kit.BtnSecondary, kit.IconFolderOpen, i18n.L("Open logs folder"), func() { u.OpenFolder(logs) }).AlignSelf(ui.Start)
 		kit.Muted(c, i18n.L("When reporting a problem, attach carryover.log from this folder (and carryover.1.log if it happened a while ago)."))
 	})
 }

@@ -107,19 +107,15 @@ func (f *Form) View(c *ui.Context) ui.Element {
 	if preset.Args != "" {
 		argsPlaceholder = preset.Args
 	}
-	field := func(key string, v *string, placeholder string) {
-		k := [2]any{"emu", key}
-		nav.Item(nav.Handle(k), ui.TextInput(c.Key(k), v).Placeholder(placeholder).Label(placeholder).Font("monospace"), nil, kit.TextField)
+	field := func(key string, v *string, placeholder string) ui.Element {
+		return kit.Field(c, nav, [2]any{"emu", key}, v, placeholder).Font("monospace")
 	}
 
 	return kit.Card(c, "", func() {
 		kit.Labeled(c, i18n.L("Executable on this device"), func() {
-			ui.Row(c).Gap(8).Children(func() {
-				field("exe", &f.exe, example)
-				browse := f.browse
-				if nav.Item(nav.Handle("emu-browse"), ui.Button(c.Key("emu-browse"), i18n.L("Browse…")), browse).Clicked() {
-					browse()
-				}
+			ui.Row(c).Gap(kit.S2).Children(func() {
+				field("exe", &f.exe, example).Grow(1)
+				kit.Btn(c, nav, "emu-browse", kit.BtnSecondary, kit.IconFolderOpen, i18n.L("Browse…"), f.browse)
 			})
 		})
 		f.flatpakField(c)
@@ -129,29 +125,24 @@ func (f *Form) View(c *ui.Context) ui.Element {
 		f.argsHints(c, preset)
 		f.dataFolderFields(c, preset)
 
-		ui.Collapsible(c.Key("emu-adv"), i18n.L("Advanced"), &f.advanced, func() {
+		kit.Disclosure(c, nav, "emu-adv", i18n.L("Advanced"), &f.advanced, func() {
 			kit.Labeled(c, i18n.L("Working directory (default: executable's folder)"), func() { f.workDir.View(c, "workdir") })
 			kit.Labeled(c, i18n.L("Wait for process (when the exe is a launcher that exits immediately)"), func() { field("wait", &f.wait, "eden.exe") })
 			kit.Labeled(c, i18n.L("Environment variables (KEY=value per line)"), func() {
-				k := [2]any{"emu", "env"}
-				nav.Item(nav.Handle(k), ui.TextArea(c.Key(k), &f.envText).Font("monospace").Height(80), nil, kit.TextField)
+				kit.TextArea(c, nav, [2]any{"emu", "env"}, &f.envText, "", 80).Label(i18n.L("Environment variables (KEY=value per line)"))
 			})
 		})
 
 		if vm.ErrText() != "" {
 			kit.Danger(c, vm.ErrText())
 		}
-		ui.Row(c).Gap(8).Children(func() {
-			if nav.Item(nav.Handle("emu-cancel"), ui.Button(c.Key("emu-cancel"), i18n.L("Cancel")), f.onCancel, kit.FocusSafe).Clicked() {
-				f.onCancel()
-			}
+		kit.Footer(c, func() {
+			kit.Btn(c, nav, "emu-cancel", kit.BtnSecondary, nil, i18n.L("Cancel"), f.onCancel, kit.BtnItem(kit.FocusSafe))
 			label := i18n.L("Save")
 			if vm.Saving() {
 				label = i18n.L("Saving…")
 			}
-			if nav.Item(nav.Handle("emu-save"), ui.PrimaryButton(c.Key("emu-save"), label).Disabled(vm.Saving()), f.save).Clicked() {
-				f.save()
-			}
+			kit.Btn(c, nav, "emu-save", kit.BtnPrimary, nil, label, f.save, kit.BtnDisabled(vm.Saving()))
 		})
 	})
 }
@@ -181,7 +172,7 @@ func (f *Form) flatpakField(c *ui.Context) {
 		apps.Add(a.AppID, a.Name+" ("+a.AppID+")")
 	}
 	kit.Labeled(c, i18n.L("Or an emulator installed with Flatpak"), func() {
-		kit.SelectOf(c, f.u.Navigator(), f.u.Dialogs(), "flatpak", i18n.L("Flatpak"), apps, f.vm.CurrentFlatpak(), func(id string) {
+		kit.SelectOf(c, f.u.Navigator(), "flatpak", i18n.L("Flatpak"), apps, f.vm.CurrentFlatpak(), func(id string) {
 			if id != "" && id != f.vm.CurrentFlatpak() {
 				f.vm.UseFlatpak(id)
 				f.pull()
@@ -199,7 +190,7 @@ func (f *Form) typeField(c *ui.Context) {
 		types.Add(pr.ID, pr.Name)
 	}
 	kit.Labeled(c, i18n.L("Emulator type (suggests the arguments and save locations)"), func() {
-		kit.SelectOf(c, f.u.Navigator(), f.u.Dialogs(), "type", i18n.L("Emulator type"), types, f.vm.Setup().Preset, func(v string) {
+		kit.SelectOf(c, f.u.Navigator(), "type", i18n.L("Emulator type"), types, f.vm.Setup().Preset, func(v string) {
 			f.vm.SetPreset(v)
 			f.pull()
 		})
@@ -211,12 +202,9 @@ func (f *Form) argsHints(c *ui.Context, preset services.PresetView) {
 	nav := f.u.Navigator()
 	kit.Muted(c, i18n.L("{{.Token}} is replaced by the game's file or ID, which you set per game. Without it, the game file is added after the arguments.", map[string]any{"Token": "{rom}"}))
 	if f.vm.OffersPresetArgs() {
-		ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
+		ui.Row(c).Gap(kit.S2).AlignItems(ui.Center).Children(func() {
 			kit.Small(c, i18n.L("Usual for this type: {{.Args}}", map[string]any{"Args": preset.Args}))
-			use := func() { f.vm.UsePresetArgs(); f.pull() }
-			if nav.Item(nav.Handle("emu-use-args"), ui.Button(c.Key("emu-use-args"), i18n.L("Use")), use).Clicked() {
-				use()
-			}
+			kit.Btn(c, nav, "emu-use-args", kit.BtnSecondary, nil, i18n.L("Use"), func() { f.vm.UsePresetArgs(); f.pull() })
 		})
 	}
 	if preset.ArgsNote != "" {
@@ -273,7 +261,7 @@ func ShowDialog(u env.Env, onSaved func(services.EmulatorView)) {
 			onSaved(ev)
 		})
 		d = u.Dialogs().Show(&kit.Dialog{Title: f.Title(), Wide: true, Back: cancel, Body: func(c *ui.Context, _ *kit.Navigator) {
-			ui.Scroll(c).MaxHeight(560).Children(func() { f.View(c) })
+			kit.ScrollBox(c, 560, 0, func() { f.View(c) })
 		}})
 	})
 }

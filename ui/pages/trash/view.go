@@ -49,81 +49,78 @@ func (p *Page) StateChanged(what store.Topic) {
 
 // View draws the page.
 func (p *Page) View(c *ui.Context) {
-	ui.Scroll(c).Grow(1).TrackScroll(&p.scroll).Children(func() {
-		ui.Column(c).Gap(10).Padding(0, 20, 20, 20).Children(func() {
-			kit.PageHead(c, p.u.Navigator(), nil, nil, i18n.L("Trash"), nil)
-			if !p.vm.Loaded() {
-				kit.Muted(c, i18n.L("Loading…"))
-				return
-			}
-			kit.Muted(c, i18n.L("Deleted games and emulators stay here for {{.Days}} days and can be restored with all their settings. Their cloud saves are not touched unless you delete them too.",
-				map[string]any{"Days": services.TrashDays}))
+	kit.Page(c, kit.PageForm, &p.scroll, func() {
+		kit.PageHead(c, p.u.Navigator(), nil, "", i18n.L("Trash"), nil)
+		if !p.vm.Loaded() {
+			return // read from disk at once: a "Loading…" would only flash
+		}
+		retention := i18n.L("Deleted games and emulators stay here for {{.Days}} days and can be restored with all their settings. Their cloud saves are not touched unless you delete them too.",
+			map[string]any{"Days": services.TrashDays})
+		games, emus := p.vm.Games(), p.vm.Emulators()
+		ls := p.vm.LeftoverState()
+		if len(games) == 0 && len(emus) == 0 && (ls == LeftoverNone || ls == LeftoverNoRemote || ls == LeftoverLoading) {
+			// Nothing at all: one empty state, not a card per kind. It shows at
+			// once while the cloud is still searched for leftovers (most often
+			// there are none), so the page doesn't swap a card for it after.
+			kit.Card(c, "", func() {
+				kit.EmptyState(c, kit.IconTrash, i18n.L("Trash is empty"), retention, nil)
+				if ls == LeftoverLoading {
+					kit.BusyLine(c, i18n.L("Looking in the cloud…")).AlignSelf(ui.Center)
+				}
+			})
+			return
+		}
+		kit.Muted(c, retention)
 
-			restored := func() { p.u.Toast(i18n.L("Restored"), kit.ToastOK) }
-			p.section(c, i18n.L("Games"), i18n.L("No deleted games."), len(p.vm.Games()), func() {
-				for _, g := range p.vm.Games() {
-					p.row(c, "game:"+g.ID, g.Name, g.DeletedAt, g.ExpiresAt,
+		// A card per kind that has something in it.
+		restored := func() { p.u.Toast(i18n.L("Restored"), kit.ToastOK) }
+		if len(games) > 0 {
+			kit.Card(c, i18n.L("Games"), func() {
+				for i, g := range games {
+					p.row(c, i == 0, "game:"+g.ID, g.Name, g.DeletedAt, g.ExpiresAt,
 						func() { p.vm.RestoreGame(g.ID, restored) },
 						i18n.L("Also delete its cloud saves and backups"),
 						func(saves bool) { p.vm.DeleteGame(g.ID, saves) })
 				}
 			})
-			p.section(c, i18n.L("Emulators"), i18n.L("No deleted emulators."), len(p.vm.Emulators()), func() {
-				for _, e := range p.vm.Emulators() {
-					p.row(c, "emu:"+e.ID, e.Name, e.DeletedAt, e.ExpiresAt,
+		}
+		if len(emus) > 0 {
+			kit.Card(c, i18n.L("Emulators"), func() {
+				for i, e := range emus {
+					p.row(c, i == 0, "emu:"+e.ID, e.Name, e.DeletedAt, e.ExpiresAt,
 						func() { p.vm.RestoreEmulator(e.ID, restored) },
 						i18n.L("Also delete the cloud saves made with it"),
 						func(saves bool) { p.vm.DeleteEmulator(e.ID, saves) })
 				}
 			})
-			p.leftovers(c)
-		})
-	})
-}
-
-// section is a card with a heading and either its rows or an empty message.
-func (p *Page) section(c *ui.Context, title, empty string, n int, rows func()) {
-	kit.Card(c, title, func() {
-		if n == 0 {
-			kit.Muted(c, empty)
-			return
 		}
-		rows()
+		p.leftovers(c)
 	})
 }
 
 // button draws a button that registers with the gamepad, disabled while the
 // page is busy.
-func (p *Page) button(c *ui.Context, key any, label string, danger bool, action func()) {
-	nav := p.u.Navigator()
-	k := [2]any{"trash", key}
-	b := ui.Button(c.Key(k), label).Disabled(p.vm.Busy())
-	if danger {
-		b = b.TextColor(c.Theme().Danger)
-	}
-	if nav.Item(nav.Handle(k), b, action).Clicked() {
-		action()
-	}
+func (p *Page) button(c *ui.Context, key any, kind kit.BtnKind, icon *ui.SVG, label string, action func()) {
+	kit.Btn(c, p.u.Navigator(), [2]any{"trash", key}, kind, icon, label, action, kit.BtnDisabled(p.vm.Busy()))
 }
 
 // row is a restorable item: Restore, and Delete permanently with an optional
 // deletion of its cloud saves.
-func (p *Page) row(c *ui.Context, key, name string, deleted, expires time.Time, restore func(), checkLabel string, del func(saves bool)) {
-	ui.Column(c).Gap(2).Children(func() {
-		kit.CardHead(c, name, func() {
-			p.button(c, key+"/restore", i18n.L("Restore"), false, restore)
-			p.button(c, key+"/delete", i18n.L("Delete permanently…"), true, func() {
-				components.ConfirmDanger(p.u, components.ConfirmOpts{
-					Title:     i18n.L("Delete permanently"),
-					Message:   i18n.L("Delete {{.Name}} permanently? It can't be restored any more. Its cloud saves and backups are kept.", map[string]any{"Name": name}),
-					Check:     checkLabel,
-					Checked:   i18n.L("Delete {{.Name}} permanently together with its cloud saves and backups? This cannot be undone.", map[string]any{"Name": name}),
-					KeptHint:  i18n.L("The cloud saves stay and are listed under Leftover cloud saves below until you delete them."),
-					OnConfirm: del,
-				})
+func (p *Page) row(c *ui.Context, first bool, key, name string, deleted, expires time.Time, restore func(), checkLabel string, del func(saves bool)) {
+	kit.ListRow(c, first, name, func() {
+		kit.Small(c, i18n.L("Deleted {{.When}} · settings kept until {{.Until}}", map[string]any{"When": components.FmtDate(deleted), "Until": components.FmtDate(expires)}))
+	}, func() {
+		p.button(c, key+"/restore", kit.BtnSecondary, kit.IconRestore, i18n.L("Restore"), restore)
+		p.button(c, key+"/delete", kit.BtnDanger, kit.IconTrash, i18n.L("Delete permanently…"), func() {
+			components.ConfirmDanger(p.u, components.ConfirmOpts{
+				Title:     i18n.L("Delete permanently"),
+				Message:   i18n.L("Delete {{.Name}} permanently? It can't be restored any more. Its cloud saves and backups are kept.", map[string]any{"Name": name}),
+				Check:     checkLabel,
+				Checked:   i18n.L("Delete {{.Name}} permanently together with its cloud saves and backups? This cannot be undone.", map[string]any{"Name": name}),
+				KeptHint:  i18n.L("The cloud saves stay and are listed under Leftover cloud saves below until you delete them."),
+				OnConfirm: del,
 			})
 		})
-		kit.Small(c, i18n.L("Deleted {{.When}} · settings kept until {{.Until}}", map[string]any{"When": components.FmtDate(deleted), "Until": components.FmtDate(expires)}))
 	})
 }
 
@@ -131,7 +128,8 @@ func (p *Page) row(c *ui.Context, key, name string, deleted, expires time.Time, 
 func (p *Page) leftovers(c *ui.Context) {
 	title := i18n.L("Leftover cloud saves")
 	intro := func() {
-		kit.Muted(c, i18n.L("Saves and backups in your cloud that no game in the library uses, for example after a game was deleted for good or an emulator was removed from it. Restore one to add it back to the library, or delete it to free the space."))
+		components.Help(c, p.u, i18n.L("Cloud saves that no game in your library uses."),
+			i18n.L("Saves and backups in your cloud that no game in the library uses, for example after a game was deleted for good or an emulator was removed from it. Restore one to add it back to the library, or delete it to free the space."))
 	}
 	switch p.vm.LeftoverState() {
 	case LeftoverNoRemote:
@@ -145,14 +143,14 @@ func (p *Page) leftovers(c *ui.Context) {
 	default:
 		kit.Card(c, i18n.L("Leftover cloud saves ({{.Count}})", map[string]any{"Count": len(p.vm.Leftovers())}), func() {
 			intro()
-			for _, l := range p.vm.Leftovers() {
-				p.leftoverRow(c, l)
+			for i, l := range p.vm.Leftovers() {
+				p.leftoverRow(c, i == 0, l)
 			}
 		})
 	}
 }
 
-func (p *Page) leftoverRow(c *ui.Context, l services.LeftoverView) {
+func (p *Page) leftoverRow(c *ui.Context, first bool, l services.LeftoverView) {
 	name := l.GameName
 	if name == "" {
 		name = i18n.L("Unknown game")
@@ -164,23 +162,22 @@ func (p *Page) leftoverRow(c *ui.Context, l services.LeftoverView) {
 		}
 		name += " · " + emu
 	}
-	ui.Column(c).Gap(2).Children(func() {
-		kit.CardHead(c, name, func() {
-			p.button(c, "left:"+l.Key+"/restore", i18n.L("Restore"), false, func() {
-				p.vm.RestoreLeftover(l.Key, func(id string) {
-					p.u.Toast(i18n.L("Restored. Set where its saves are on this device, then sync."), kit.ToastOK)
-					p.u.Navigate("/edit/" + id)
-				})
-			})
-			p.button(c, "left:"+l.Key+"/delete", i18n.L("Delete…"), true, func() {
-				components.ConfirmDanger(p.u, components.ConfirmOpts{
-					Title:     i18n.L("Delete cloud saves"),
-					Message:   i18n.L("Permanently delete the cloud saves and backups of {{.Name}}? This cannot be undone.", map[string]any{"Name": name}),
-					OnConfirm: func(bool) { p.vm.DeleteLeftover(l.Key) },
-				})
-			})
-		})
+	kit.ListRow(c, first, name, func() {
 		kit.Small(c, i18n.L("{{.Count}} files, {{.Size}} · last synced {{.When}} · {{.Backups}} backups",
 			map[string]any{"Count": l.Files, "Size": kit.FormatBytes(l.Bytes), "When": components.FmtDate(l.Time), "Backups": l.Backups}))
+	}, func() {
+		p.button(c, "left:"+l.Key+"/restore", kit.BtnSecondary, kit.IconRestore, i18n.L("Restore"), func() {
+			p.vm.RestoreLeftover(l.Key, func(id string) {
+				p.u.Toast(i18n.L("Restored. Set where its saves are on this device, then sync."), kit.ToastOK)
+				p.u.Navigate("/edit/" + id)
+			})
+		})
+		p.button(c, "left:"+l.Key+"/delete", kit.BtnDanger, kit.IconTrash, i18n.L("Delete…"), func() {
+			components.ConfirmDanger(p.u, components.ConfirmOpts{
+				Title:     i18n.L("Delete cloud saves"),
+				Message:   i18n.L("Permanently delete the cloud saves and backups of {{.Name}}? This cannot be undone.", map[string]any{"Name": name}),
+				OnConfirm: func(bool) { p.vm.DeleteLeftover(l.Key) },
+			})
+		})
 	})
 }

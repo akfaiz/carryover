@@ -1,7 +1,6 @@
 .git
 .claude
 bin
-fyne-cross
 carryover.exe
 *.exe
 .docker-data

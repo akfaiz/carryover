@@ -24,7 +24,7 @@ func (e *Page) gameCard(c *ui.Context) {
 				if e.vm.searching {
 					findLabel = i18n.L("Searching…")
 				}
-				e.button(c, "find", findLabel, false, e.vm.searching || len(strings.TrimSpace(e.vm.name)) < 2, e.searchSteam)
+				e.btn(c, "find", kit.BtnSecondary, nil, findLabel, e.vm.searching || len(strings.TrimSpace(e.vm.name)) < 2, e.searchSteam)
 			})
 		})
 		if e.vm.showResults {
@@ -33,7 +33,7 @@ func (e *Page) gameCard(c *ui.Context) {
 		if e.vm.storeAppID != "" {
 			ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
 				kit.Badge(c, i18n.L("Steam app {{.ID}}", map[string]any{"ID": e.vm.storeAppID}), kit.BadgeInfo)
-				e.button(c, "unlink", i18n.L("Unlink"), false, false, func() { e.vm.storeAppID, e.vm.showResults = "", false })
+				e.btn(c, "unlink", kit.BtnSecondary, nil, i18n.L("Unlink"), false, func() { e.vm.storeAppID, e.vm.showResults = "", false })
 			})
 		}
 		e.coverRow(c)
@@ -47,27 +47,21 @@ func (e *Page) steamResults(c *ui.Context) {
 		if len(e.vm.steamResults) == 0 {
 			kit.Muted(c, i18n.L("No match on Steam. You can still add the game."))
 		}
-		ui.Scroll(c).MaxHeight(260).Children(func() {
-			ui.Column(c).Gap(2).Children(func() {
-				for _, m := range e.vm.steamResults {
-					k := [2]any{"steam-result", m.AppID}
-					pick := func() {
-						e.vm.name, e.vm.storeAppID, e.vm.showResults = m.Name, m.AppID, false
-						e.suggestSaves(true)
-					}
-					b := ui.ButtonBase(c.Key(k)).Label(m.Name).Radius(6).Children(func() {
-						ui.Row(c).Gap(10).Padding(6, 8).Children(func() {
-							ui.Text(c, m.Name).Grow(1)
-							kit.Small(c, m.AppID)
-						})
-					})
-					if nav.Item(nav.Handle(k), b.AlignSelf(ui.Stretch), pick).Clicked() {
-						pick()
-					}
+		kit.ScrollBox(c, 260, 2, func() {
+			for _, m := range e.vm.steamResults {
+				pick := func() {
+					e.vm.name, e.vm.storeAppID, e.vm.showResults = m.Name, m.AppID, false
+					e.suggestSaves(true)
 				}
-			})
+				kit.ListButton(c, nav, [2]any{"steam-result", m.AppID}, m.Name, pick, func() {
+					ui.Row(c).Gap(10).Padding(6, 8).Children(func() {
+						ui.Text(c, m.Name).Grow(1)
+						kit.Small(c, m.AppID)
+					})
+				})
+			}
 		})
-		e.button(c, "results-close", i18n.L("Close"), false, false, func() { e.vm.showResults = false })
+		e.btn(c, "results-close", kit.BtnSecondary, nil, i18n.L("Close"), false, func() { e.vm.showResults = false })
 	})
 }
 
@@ -98,20 +92,21 @@ func (e *Page) coverRow(c *ui.Context) {
 		kit.CoverView(c, src, 80, 120)
 		ui.Column(c).Gap(6).Grow(1).Children(func() {
 			ui.Row(c).Gap(8).Children(func() {
-				e.button(c, "cover-file", i18n.L("Choose file…"), false, false, func() {
+				e.btn(c, "cover-file", kit.BtnSecondary, nil, i18n.L("Choose file…"), false, func() {
 					e.pickFile(i18n.L("Choose cover image"), []string{".png", ".jpg", ".jpeg", ".webp"}, "", func(p string) {
 						e.vm.coverSrc, e.vm.gridPick = p, nil
 					})
 				})
+
 				if e.vm.hasGridKey {
-					e.button(c, "cover-find", i18n.L("Find cover…"), false, false, func() { e.openArtPicker(services.ArtCover) })
+					e.btn(c, "cover-find", kit.BtnSecondary, nil, i18n.L("Find cover…"), false, func() { e.openArtPicker(services.ArtCover) })
 				}
 			})
 			kit.Muted(c, hint)
 			if !e.vm.hasGridKey {
 				ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
 					kit.Muted(c, i18n.L("Add a SteamGridDB API key to search community covers.")).Grow(1)
-					e.button(c, "cover-key", i18n.L("Add key…"), false, false, e.askGridKey)
+					e.btn(c, "cover-key", kit.BtnSecondary, nil, i18n.L("Add key…"), false, e.askGridKey)
 				})
 			}
 		})
@@ -159,7 +154,7 @@ func (e *Page) launchCard(c *ui.Context) {
 	kit.Card(c, "", func() {
 		kit.CardHead(c, title, func() { kit.Badge(c, e.u.Store().Settings.DeviceName, kit.BadgeNone) })
 		kit.Labeled(c, i18n.L("Launch with"), func() {
-			kit.SelectOf(c, e.u.Navigator(), e.u.Dialogs(), "launch-mode", i18n.L("Launch with"), modes, string(e.vm.dev.LaunchMode), func(v string) {
+			kit.SelectOf(c, e.u.Navigator(), "launch-mode", i18n.L("Launch with"), modes, string(e.vm.dev.LaunchMode), func(v string) {
 				e.vm.dev.LaunchMode = services.LaunchMode(v)
 			})
 			kit.Muted(c, hint)
@@ -167,9 +162,10 @@ func (e *Page) launchCard(c *ui.Context) {
 		kit.Labeled(c, i18n.L("Executable"), func() {
 			ui.Row(c).Gap(8).Children(func() {
 				e.field(c, "exe", &e.vm.dev.Exe, placeholder, true).Grow(1)
-				e.button(c, "exe-browse", i18n.L("Browse…"), false, false, func() {
+				e.btn(c, "exe-browse", kit.BtnSecondary, nil, i18n.L("Browse…"), false, func() {
 					components.BrowseFrom(e.u, e.vm.id, e.vm.dev.Exe, e.pickExe)
 				})
+
 			})
 		})
 		// Heroic and Lutris launch the game with their own settings, so
@@ -177,7 +173,7 @@ func (e *Page) launchCard(c *ui.Context) {
 		if e.vm.dev.LaunchMode != services.LaunchHeroic && e.vm.dev.LaunchMode != services.LaunchLutris {
 			kit.Labeled(c, i18n.L("Arguments"), func() { e.field(c, "args", &e.vm.dev.Args, "-windowed", true) })
 		}
-		ui.Collapsible(c.Key("adv-open"), i18n.L("Advanced"), &e.vm.advanced, func() {
+		kit.Disclosure(c, e.u.Navigator(), "adv-open", i18n.L("Advanced"), &e.vm.advanced, func() {
 			kit.Labeled(c, i18n.L("Working directory (default: executable's folder)"), func() {
 				e.pathInput(&e.vm.dev.WorkDir, e.vm.id, "", true).View(c, "workdir")
 			})
@@ -266,8 +262,8 @@ func (e *Page) savesCard(c *ui.Context) {
 			if e.vm.suggesting {
 				label = i18n.L("Looking…")
 			}
-			e.button(c, "suggest", label, false, e.vm.suggesting || (strings.TrimSpace(e.vm.name) == "" && e.vm.storeAppID == ""), func() { e.suggestSaves(false) })
-			e.button(c, "slot-add", i18n.L("Add"), false, false, func() { e.vm.addSlot() })
+			e.btn(c, "suggest", kit.BtnSecondary, nil, label, e.vm.suggesting || (strings.TrimSpace(e.vm.name) == "" && e.vm.storeAppID == ""), func() { e.suggestSaves(false) })
+			e.btn(c, "slot-add", kit.BtnSecondary, nil, i18n.L("Add"), false, func() { e.vm.addSlot() })
 		})
 		if e.vm.suggest != nil {
 			e.suggestionList(c)
@@ -303,10 +299,7 @@ func (e *Page) slotEditor(c *ui.Context, s *slotForm, others []services.DevicePa
 		ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
 			e.field(c, [2]any{"slot-label", s}, &s.label, i18n.L("Label"), false).Grow(1)
 			if onRemove != nil {
-				k := [2]any{"slot-remove", s}
-				if e.u.Navigator().Item(e.u.Navigator().Handle(k), ui.Button(c.Key(k), "🗑").Label(i18n.L("Remove")).TextColor(c.Theme().Danger), onRemove).Clicked() {
-					onRemove()
-				}
+				kit.IconBtn(c, e.u.Navigator(), [2]any{"slot-remove", s}, kit.BtnDanger, kit.IconTrash, i18n.L("Remove"), onRemove)
 			}
 		})
 		kit.Labeled(c, i18n.L("Path on this device"), func() {
@@ -314,10 +307,11 @@ func (e *Page) slotEditor(c *ui.Context, s *slotForm, others []services.DevicePa
 		})
 		for _, o := range others {
 			if p := o.Paths[s.key]; p != "" {
-				kit.Small(c, i18n.L("On {{.Device}}: {{.Path}}", map[string]any{"Device": o.DeviceName, "Path": p})).Font("monospace").TextColor(c.Theme().TextMuted)
+				kit.Small(c, i18n.L("On {{.Device}}: {{.Path}}", map[string]any{"Device": o.DeviceName, "Path": textutil.BreakablePath(p)})).
+					Font("monospace").TextColor(c.Theme().TextMuted).Wrap()
 			}
 		}
-		ui.Collapsible(c.Key([2]any{"slot-filters", s}), i18n.L("Filters"), open, func() {
+		kit.Disclosure(c, e.u.Navigator(), [2]any{"slot-filters", s}, i18n.L("Filters"), open, func() {
 			ui.Row(c).Gap(10).Children(func() {
 				ui.Column(c).Grow(1).Children(func() {
 					kit.Labeled(c, i18n.L("Include only (globs, one per line)"), func() { e.area(c, [2]any{"slot-inc", s}, &s.include, "*.sav", 50) })
@@ -341,7 +335,7 @@ func (e *Page) suggestionList(c *ui.Context) {
 		}
 		ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
 			kit.Muted(c, i18n.L("Known save locations for {{.Game}}", map[string]any{"Game": res.Matched})).Grow(1)
-			e.button(c, "sug-hide", i18n.L("Hide"), false, false, func() { e.vm.suggest = nil })
+			e.btn(c, "sug-hide", kit.BtnSecondary, nil, i18n.L("Hide"), false, func() { e.vm.suggest = nil })
 		})
 		if len(res.Suggestions) == 0 {
 			kit.Muted(c, i18n.L("None that apply to this device."))
@@ -381,15 +375,8 @@ func (e *Page) suggestionList(c *ui.Context) {
 					kit.Badge(c, i18n.L("Microsoft Store version"), kit.BadgeWarn)
 				}
 				ui.Spacer(c)
-				ku, ka := [2]any{"sug-use", i}, [2]any{"sug-add", i}
-				use := func() { e.vm.useSuggestion(s, nil) }
-				add := func() { e.vm.addSuggestion(s) }
-				if nav.Item(nav.Handle(ku), ui.Button(c.Key(ku), i18n.L("Use")), use).Clicked() {
-					use()
-				}
-				if nav.Item(nav.Handle(ka), ui.Button(c.Key(ka), i18n.L("＋ Add")), add).Clicked() {
-					add()
-				}
+				kit.Btn(c, nav, [2]any{"sug-use", i}, kit.BtnSecondary, nil, i18n.L("Use"), func() { e.vm.useSuggestion(s, nil) })
+				kit.Btn(c, nav, [2]any{"sug-add", i}, kit.BtnSecondary, kit.IconPlus, i18n.L("Add"), func() { e.vm.addSuggestion(s) })
 			})
 			if s.Kind == "steamcloud" {
 				kit.Muted(c, i18n.L("Steam Cloud already syncs this for the Steam version; useful for non-Steam copies."))
@@ -397,7 +384,10 @@ func (e *Page) suggestionList(c *ui.Context) {
 		}
 		ui.Row(c).Gap(4).Children(func() {
 			kit.Small(c, i18n.L("From the"))
-			ui.Link(c, i18n.L("Ludusavi manifest"), "https://github.com/mtkennerly/ludusavi-manifest")
+			// The pad can press it too: A opens the address in the browser.
+			const manifest = "https://github.com/mtkennerly/ludusavi-manifest"
+			k := "ludusavi-link"
+			nav.Item(nav.Handle(k), ui.Link(c.Key(k), i18n.L("Ludusavi manifest"), manifest), func() { e.u.ToastErr(e.u.OpenURL(manifest)) })
 			kit.Small(c, i18n.L("(PCGamingWiki)."))
 		})
 	})

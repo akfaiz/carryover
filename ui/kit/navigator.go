@@ -40,7 +40,7 @@ type Navigator struct {
 	ringed  *ui.Handle // the control the last frame drew the ring on
 
 	handles map[any]*ui.Handle
-	chosen  map[any]*string // what each drop-down shows (see SelectOf)
+	opened  map[any]*bool // whether each select's list is open (see SelectOf)
 	// OnInput, when set, runs on every press the Navigator acts on (a prompt
 	// with a countdown stops it: whoever moves between the choices is choosing).
 	OnInput func()
@@ -98,16 +98,16 @@ func (n *Navigator) Handle(key any) *ui.Handle {
 	return h
 }
 
-// selected returns the string a drop-down keeps its choice in, made on first
-// use.
-func (n *Navigator) selected(key any) *string {
-	if n.chosen == nil {
-		n.chosen = map[any]*string{}
+// popup returns the flag that says a select's list is open, made on first use:
+// the list stays open across frames until something picks or closes it.
+func (n *Navigator) popup(key any) *bool {
+	if n.opened == nil {
+		n.opened = map[any]*bool{}
 	}
-	p, ok := n.chosen[key]
+	p, ok := n.opened[key]
 	if !ok {
-		p = new(string)
-		n.chosen[key] = p
+		p = new(bool)
+		n.opened[key] = p
 	}
 	return p
 }

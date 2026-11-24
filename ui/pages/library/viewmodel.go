@@ -4,7 +4,7 @@
 // The page is split in two. ViewModel holds everything that can be decided
 // without a widget (which games show, in which order, which empty state, what
 // the Sync all button does) and is tested without the toolkit. Page is the view: it
-// builds the widgets once and updates them from the ViewModel.
+// reads the ViewModel and draws it in every frame.
 package library
 
 import (

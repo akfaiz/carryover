@@ -33,48 +33,41 @@ func showImport(u env.Env, t importText, load func() []importRow) {
 	var d *kit.Dialog
 	d = u.Dialogs().Show(&kit.Dialog{Title: t.title, Wide: true, Body: func(c *ui.Context, nav *kit.Navigator) {
 		kit.Muted(c, t.intro)
-		nav.Item(nav.Handle("import-filter"), ui.TextInput(c.Key("import-filter"), &filter).Placeholder(i18n.L("Filter…")).Label(i18n.L("Filter…")), nil, kit.TextField)
-		ui.Scroll(c).MaxHeight(380).Children(func() {
-			ui.Column(c).Gap(4).Children(func() {
-				switch {
-				case !loaded:
-					kit.Muted(c, t.reading)
-				case len(games) == 0:
-					kit.Muted(c, t.empty)
+		kit.Field(c, nav, "import-filter", &filter, i18n.L("Filter…"))
+		kit.ScrollBox(c, 380, kit.S1, func() {
+			switch {
+			case !loaded:
+				kit.Muted(c, t.reading)
+			case len(games) == 0:
+				kit.Muted(c, t.empty)
+			}
+			f := strings.ToLower(filter)
+			for i, g := range games {
+				if !strings.Contains(strings.ToLower(g.name), f) {
+					continue
 				}
-				f := strings.ToLower(filter)
-				for i, g := range games {
-					if !strings.Contains(strings.ToLower(g.name), f) {
-						continue
+				open := func() {
+					d.Close()
+					if g.gameID != "" {
+						u.Navigate("/game/" + g.gameID)
+					} else {
+						u.Navigate(g.route)
 					}
-					k := [2]any{"import-row", i}
-					open := func() {
-						d.Close()
+				}
+				kit.ListButton(c, nav, [2]any{"import-row", i}, g.name, open, func() {
+					ui.Row(c).Gap(kit.S3).Padding(kit.S2, kit.S3).AlignItems(ui.Center).Children(func() {
+						kit.CoverView(c, kit.CoverSource{Name: g.name}, 36, 54)
+						ui.Text(c, g.name).Grow(1)
 						if g.gameID != "" {
-							u.Navigate("/game/" + g.gameID)
-						} else {
-							u.Navigate(g.route)
+							kit.Badge(c, i18n.L("In library"), kit.BadgeOK)
 						}
-					}
-					b := ui.ButtonBase(c.Key(k)).Label(g.name).Radius(8).Children(func() {
-						ui.Row(c).Gap(10).Padding(6, 8).AlignItems(ui.Center).Children(func() {
-							kit.CoverView(c, kit.CoverSource{Name: g.name}, 36, 54)
-							ui.Text(c, g.name).Grow(1)
-							if g.gameID != "" {
-								kit.Badge(c, i18n.L("In library"), kit.BadgeOK)
-							}
-						})
 					})
-					if nav.Item(nav.Handle(k), b.AlignSelf(ui.Stretch), open).Clicked() {
-						open()
-					}
-				}
-			})
+				})
+			}
 		})
-		close := func() { d.Close() }
-		if nav.Item(nav.Handle("import-close"), ui.Button(c.Key("import-close"), i18n.L("Close")), close, kit.FocusSafe).Clicked() {
-			close()
-		}
+		kit.Footer(c, func() {
+			kit.Btn(c, nav, "import-close", kit.BtnSecondary, nil, i18n.L("Close"), func() { d.Close() }, kit.BtnItem(kit.FocusSafe))
+		})
 	}})
 	kit.Async(func() ([]importRow, error) { return load(), nil }, func(rows []importRow, _ error) {
 		games, loaded = rows, true

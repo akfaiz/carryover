@@ -66,6 +66,8 @@ func TestAddGameEmulated(t *testing.T) {
 
 // An import with nothing installed says so, and Close closes it.
 func TestSteamImportWithNothingInstalled(t *testing.T) {
+	// A Steam with no games, whatever is installed on the machine running this.
+	t.Setenv("CARRYOVER_STEAM_ROOT", t.TempDir())
 	h := newHarness(t)
 	flows.ShowSteamImport(h.Shell)
 	h.Settle()

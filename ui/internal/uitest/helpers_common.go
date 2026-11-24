@@ -13,8 +13,8 @@ import (
 	"github.com/akfaiz/carryover/services"
 )
 
-// Helpers that set up the library and the cloud; they use only what both
-// toolkits' Harness have (T, Core, Shell, Settle).
+// Helpers that set up the library and the cloud; they use only what the
+// Harness has (T, Core, Shell, Settle).
 
 // AddGame adds a game with one save location at saves.
 func (h *Harness) AddGame(name string, saves string) services.GameView {

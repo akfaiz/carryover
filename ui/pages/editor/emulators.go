@@ -79,16 +79,16 @@ func (e *Page) emulatorsCard(c *ui.Context) {
 		switch {
 		case len(e.vm.emuList) == 0:
 			kit.Muted(c, i18n.L("No emulators are set up on this device yet. Add the one you play this game with:"))
-			e.button(c, "emu-new", i18n.L("New emulator…"), true, false, newEmu)
+			e.btn(c, "emu-new", kit.BtnPrimary, kit.IconPlus, i18n.L("New emulator…"), false, newEmu).AlignSelf(ui.Start)
 		case len(avail) > 0:
-			ui.Row(c).Gap(8).Wrap().Children(func() {
+			ui.Row(c).Gap(kit.S2).Wrap().Children(func() {
 				for _, ev := range avail {
-					e.button(c, [2]any{"emu-add", ev.ID}, "＋ "+ev.Name, false, false, func() { e.addEmulator(ev) })
+					e.btn(c, [2]any{"emu-add", ev.ID}, kit.BtnSecondary, kit.IconPlus, ev.Name, false, func() { e.addEmulator(ev) })
 				}
-				e.button(c, "emu-new", i18n.L("New emulator…"), false, false, newEmu)
+				e.btn(c, "emu-new", kit.BtnSecondary, kit.IconPlus, i18n.L("New emulator…"), false, newEmu)
 			})
 		default:
-			e.button(c, "emu-new", i18n.L("New emulator…"), false, false, newEmu)
+			e.btn(c, "emu-new", kit.BtnSecondary, kit.IconPlus, i18n.L("New emulator…"), false, newEmu).AlignSelf(ui.Start)
 		}
 		for i, m := range e.vm.emus {
 			e.emulatorPanel(c, m, func() { e.vm.emus = slices.Delete(e.vm.emus, i, i+1) })
@@ -109,7 +109,7 @@ func (e *Page) shareField(c *ui.Context, m *emuForm) {
 		choice.Add(t.id, i18n.L("Share the saves of {{.Emulator}}", map[string]any{"Emulator": t.name}))
 	}
 	kit.Labeled(c, i18n.L("Cloud save"), func() {
-		kit.SelectOf(c, e.u.Navigator(), e.u.Dialogs(), [2]any{"share", m}, i18n.L("Cloud save"), choice, m.share, func(id string) {
+		kit.SelectOf(c, e.u.Navigator(), [2]any{"share", m}, i18n.L("Cloud save"), choice, m.share, func(id string) {
 			var t *emuForm
 			for _, x := range targets {
 				if x.id == id {
@@ -134,20 +134,21 @@ func (e *Page) shareField(c *ui.Context, m *emuForm) {
 // fields and save locations read as belonging to it: the game file, the cloud
 // save it uses and its save locations.
 func (e *Page) emulatorPanel(c *ui.Context, m *emuForm, onRemove func()) {
-	kit.Panel(c, func() {
-		ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
-			kit.Heading(c, m.name).Grow(1)
+	kit.SubCard(c, func() {
+		ui.Row(c).Gap(kit.S2).AlignItems(ui.Center).Children(func() {
+			kit.ItemName(c, m.name).Grow(1)
 			components.RemoveButton(c, e.u, m, onRemove)
 		})
 		kit.Labeled(c, i18n.L("Game file / ID passed to the emulator ({rom})"), func() {
 			ui.Row(c).Gap(8).Children(func() {
 				e.field(c, [2]any{"rom", m}, &m.rom, "", true).Grow(1)
-				e.button(c, [2]any{"rom-browse", m}, i18n.L("Browse…"), false, false, func() {
+				e.btn(c, [2]any{"rom-browse", m}, kit.BtnSecondary, nil, i18n.L("Browse…"), false, func() {
 					e.pickFile(i18n.L("Choose the game file"), nil, m.rom, func(p string) {
 						m.rom = p
 						e.romPicked(m)
 					})
 				})
+
 			})
 		})
 		e.shareField(c, m)
@@ -156,16 +157,17 @@ func (e *Page) emulatorPanel(c *ui.Context, m *emuForm, onRemove func()) {
 		ev, _ := e.vm.emuView(m.id)
 		ui.Divider(c)
 		ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
-			ui.Text(c, i18n.L("Save locations")).Bold().Grow(1)
+			ui.Text(c, i18n.L("Save locations")).FontWeight(600).Grow(1)
 			label := i18n.L("Suggest")
 			if m.suggesting {
 				label = i18n.L("Looking…")
 			}
-			e.button(c, [2]any{"emu-suggest", m}, label, false,
+			e.btn(c, [2]any{"emu-suggest", m}, kit.BtnSecondary, nil, label,
 				m.suggesting || ev.Preset == "" || (strings.TrimSpace(e.vm.name) == "" && strings.TrimSpace(m.rom) == ""),
 				func() { e.suggestEmuSaves(m, false) })
+
 			if m.share == "" {
-				e.button(c, [2]any{"emu-slot-add", m}, i18n.L("Add"), false, false, func() { m.addSlot() })
+				e.btn(c, [2]any{"emu-slot-add", m}, kit.BtnSecondary, kit.IconPlus, i18n.L("Add"), false, func() { m.addSlot() })
 			}
 		})
 		e.emuSuggestions(c, m, ev)
@@ -256,14 +258,13 @@ func (e *Page) emuSuggestions(c *ui.Context, m *emuForm, ev services.EmulatorVie
 			if hideSuggestion(m, sg) {
 				continue
 			}
-			k := [3]any{"emu-sug", m, i}
 			use := func() {
 				m.sugErr = ""
 				if !m.useSuggestion(sg) {
 					m.sugErr = i18n.L("This emulator shares another emulator's saves, whose locations aren't marked as account or device save. Suggest the locations on that emulator first, or enter the path yourself.")
 				}
 			}
-			b := ui.ButtonBase(c.Key(k)).Label(sg.Game).Radius(6).Children(func() {
+			kit.ListButton(c, nav, [3]any{"emu-sug", m, i}, sg.Game, use, func() {
 				ui.Column(c).Gap(2).Padding(6, 8).Children(func() {
 					ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
 						ui.Text(c, sg.Game).Bold()
@@ -274,10 +275,7 @@ func (e *Page) emuSuggestions(c *ui.Context, m *emuForm, ev services.EmulatorVie
 					kit.Mono(c, sg.Path)
 				})
 			})
-			if nav.Item(nav.Handle(k), b.AlignSelf(ui.Stretch), use).Clicked() {
-				use()
-			}
 		}
-		e.button(c, [2]any{"emu-sug-close", m}, i18n.L("Close"), false, false, func() { m.sug = nil })
+		e.btn(c, [2]any{"emu-sug-close", m}, kit.BtnSecondary, nil, i18n.L("Close"), false, func() { m.sug = nil })
 	})
 }

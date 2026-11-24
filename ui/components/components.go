@@ -21,32 +21,56 @@ func StatusBadge(c *ui.Context, g services.GameView) ui.Element {
 	return kit.Badge(c, text, kind)
 }
 
-// Help is a one-line explanation with a "More" button that unfolds the rest.
-// Whether it is unfolded is remembered for the session (by its summary), so a
-// page that is built again doesn't fold it.
+// Help is a short explanation with a small "More" button under it that
+// unfolds the rest. Whether it is unfolded is remembered for the session (by
+// its summary), so a page that is built again doesn't fold it.
 func Help(c *ui.Context, u env.Env, summary string, details ...string) ui.Element {
 	open := u.HelpOpen()
-	return ui.Column(c).Gap(4).Children(func() {
-		ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
-			kit.Muted(c, summary).Grow(1)
-			if len(details) == 0 {
-				return
-			}
-			label := i18n.L("More")
-			if open[summary] {
-				label = i18n.L("Less")
-			}
-			toggle := func() { open[summary] = !open[summary] }
-			if u.Navigator().Item(u.Navigator().Handle([2]any{"help", summary}), ui.Button(c.Key([2]any{"help", summary}), label), toggle).Clicked() {
-				toggle()
-			}
-		})
+	return ui.Column(c).Gap(kit.S1).Children(func() {
+		kit.Muted(c, summary)
+		if len(details) == 0 {
+			return
+		}
 		if open[summary] {
 			for _, d := range details {
 				kit.Muted(c, d)
 			}
 		}
+		label, icon := i18n.L("More"), kit.IconChevronDown
+		if open[summary] {
+			label, icon = i18n.L("Less"), kit.IconChevronUp
+		}
+		kit.Btn(c, u.Navigator(), [2]any{"help", summary}, kit.BtnGhost, icon, label,
+			func() { open[summary] = !open[summary] }, kit.BtnSmall()).AlignSelf(ui.Start).Margin(0, 0, 0, -kit.S2)
 	})
+}
+
+// MenuItem is one entry of an ActionMenu. Danger draws it red; Icon may be nil.
+type MenuItem struct {
+	Key              any
+	Label            string
+	Icon             *ui.SVG
+	Danger, Disabled bool
+	Action           func()
+}
+
+// ActionMenu shows a small dialog with one full-width button per item, as the
+// "⋯" button of a page or a row opens: pressing one closes the menu, then runs
+// the item's action.
+func ActionMenu(u env.Env, title string, items []MenuItem) {
+	var d *kit.Dialog
+	d = u.Dialogs().Show(&kit.Dialog{Title: title, Width: 380, Body: func(c *ui.Context, nav *kit.Navigator) {
+		ui.Column(c).Gap(kit.S2).Children(func() {
+			for _, it := range items {
+				kind := kit.BtnSecondary
+				if it.Danger {
+					kind = kit.BtnDanger
+				}
+				kit.Btn(c, nav, [2]any{"menu", it.Key}, kind, it.Icon, it.Label, func() { d.Close(); it.Action() }, kit.BtnDisabled(it.Disabled)).
+					AlignSelf(ui.Stretch).Justify(ui.Start)
+			}
+		})
+	}})
 }
 
 // ConfirmDanger asks before something is deleted, in a dialog: the message, an
@@ -73,24 +97,17 @@ func ConfirmDiscard(u env.Env, leave func()) {
 // RemoveButton is a "Remove" button tinted red, so it doesn't read like the
 // button next to it. key tells it from the others on the page.
 func RemoveButton(c *ui.Context, u env.Env, key any, onRemove func()) ui.Element {
-	b := ui.Button(c.Key([2]any{"remove", key}), i18n.L("Remove")).TextColor(c.Theme().Danger)
-	if u.Navigator().Item(u.Navigator().Handle([2]any{"remove", key}), b, onRemove).Clicked() {
-		onRemove()
-	}
-	return b
+	return kit.Btn(c, u.Navigator(), [2]any{"remove", key}, kit.BtnDanger, kit.IconTrash, i18n.L("Remove"), onRemove)
 }
 
 // CopyField is a read-only text with a Copy button that tells it copied.
 func CopyField(c *ui.Context, u env.Env, text string) ui.Element {
 	return ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
 		kit.Mono(c, text).Grow(1)
-		copy := func() {
+		kit.Btn(c, u.Navigator(), [2]any{"copy", text}, kit.BtnSecondary, nil, i18n.L("Copy"), func() {
 			mygo.Clipboard.WriteText(text)
 			u.Toast(i18n.L("Copied"), kit.ToastOK)
-		}
-		if u.Navigator().Item(u.Navigator().Handle([2]any{"copy", text}), ui.Button(c.Key([2]any{"copy", text}), i18n.L("Copy")), copy).Clicked() {
-			copy()
-		}
+		})
 	})
 }
 
@@ -109,9 +126,9 @@ func SaveSides(c *ui.Context, nav *kit.Navigator, scope string, local, remote sy
 		}
 	}
 	side := func(key, label, keepLabel string, s syncer.Summary, has bool) {
-		kit.Card(c, "", func() {
-			ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
-				ui.Text(c, label).Bold()
+		kit.SubCard(c, func() {
+			ui.Row(c).Gap(kit.S2).AlignItems(ui.Center).Children(func() {
+				ui.Text(c, label).FontWeight(600)
 				if newer == key {
 					kit.Badge(c, i18n.L("Newer"), kit.BadgeOK)
 				}
@@ -126,15 +143,11 @@ func SaveSides(c *ui.Context, nav *kit.Navigator, scope string, local, remote sy
 			}
 			ui.Text(c, text).Wrap()
 			if onKeep != nil {
-				keep := func() { onKeep(key) }
-				b := ui.PrimaryButton(c.Key([3]any{"keep", scope, key}), keepLabel).Disabled(!has)
-				if nav.Item(nav.Handle([3]any{"keep", scope, key}), b, keep).Clicked() {
-					keep()
-				}
+				kit.Btn(c, nav, [3]any{"keep", scope, key}, kit.BtnPrimary, nil, keepLabel, func() { onKeep(key) }, kit.BtnDisabled(!has))
 			}
 		}).Grow(1)
 	}
-	return ui.Row(c).Gap(12).AlignItems(ui.Stretch).Children(func() {
+	return ui.Row(c).Gap(kit.S3).AlignItems(ui.Stretch).Children(func() {
 		side("local", i18n.L("This device"), i18n.L("Keep this device's saves"), local, true)
 		side("cloud", i18n.L("Cloud"), i18n.L("Keep cloud saves"), remote, hasRemote)
 	})

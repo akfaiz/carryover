@@ -51,39 +51,41 @@ func (p *Page) Dirty() bool { return p.editing != nil && p.editing.Dirty() }
 // View draws the page.
 func (p *Page) View(c *ui.Context) {
 	nav := p.u.Navigator()
-	ui.Scroll(c).Grow(1).TrackScroll(&p.scroll).Children(func() {
-		ui.Column(c).Gap(10).Padding(0, 20, 20, 20).Children(func() {
-			switch {
-			case !p.vm.Loaded():
-				kit.PageHead(c, nav, nil, nil, i18n.L("Emulators"), nil)
-				kit.Muted(c, i18n.L("Loading…"))
-			case p.editing != nil:
-				kit.PageHead(c, nav, nav.Handle("emu-back"), p.closeForm, p.editing.Title(), nil)
-				p.editing.View(c)
-			default:
-				p.list(c)
-			}
-		})
+	kit.Page(c, kit.PageForm, &p.scroll, func() {
+		switch {
+		case !p.vm.Loaded():
+			kit.PageHead(c, nav, nil, "", i18n.L("Emulators"), nil)
+			kit.Muted(c, i18n.L("Loading…"))
+		case p.editing != nil:
+			kit.PageHead(c, nav, p.closeForm, i18n.L("Back"), p.editing.Title(), nil)
+			p.editing.View(c)
+		default:
+			p.list(c)
+		}
 	})
 }
 
 func (p *Page) list(c *ui.Context) {
 	nav := p.u.Navigator()
-	kit.PageHead(c, nav, nil, nil, i18n.L("Emulators"), func() {
-		add := func() { p.edit(services.EmulatorSetup{}) }
-		if nav.Item(nav.Handle("emu-add"), ui.PrimaryButton(c.Key("emu-add"), i18n.L("Add emulator")), add).Clicked() {
-			add()
+	kit.PageHead(c, nav, nil, "", i18n.L("Emulators"), func() {
+		kit.Btn(c, nav, "emu-add", kit.BtnPrimary, kit.IconPlus, i18n.L("Add emulator"), func() { p.edit(services.EmulatorSetup{}) })
+	})
+	intro := i18n.L("An emulator is set up once per device. Games you play through it pick it in their editor, and each emulator keeps its own saves in the cloud.")
+	if len(p.vm.List()) == 0 {
+		kit.Muted(c, intro)
+		kit.Card(c, "", func() {
+			kit.EmptyState(c, kit.IconGamepad, i18n.L("No emulators yet"), i18n.L("Add one, for example Eden or Ryujinx for Nintendo Switch games."), func() {
+				kit.Btn(c, nav, "emu-add-first", kit.BtnPrimary, kit.IconPlus, i18n.L("Add emulator"), func() { p.edit(services.EmulatorSetup{}) })
+			})
+		})
+		return
+	}
+	kit.Muted(c, intro)
+	kit.Card(c, "", func() {
+		for i, ev := range p.vm.List() {
+			p.row(c, i == 0, ev)
 		}
 	})
-	kit.Muted(c, i18n.L("An emulator is set up once per device. Games you play through it pick it in their editor, and each emulator keeps its own saves in the cloud."))
-	if len(p.vm.List()) == 0 {
-		kit.Card(c, "", func() {
-			kit.Muted(c, i18n.L("No emulators yet. Add one, for example Eden or Ryujinx for Nintendo Switch games."))
-		})
-	}
-	for _, ev := range p.vm.List() {
-		p.row(c, ev)
-	}
 }
 
 // closeForm goes back to the list, asking first if the form has changes.
@@ -96,35 +98,43 @@ func (p *Page) closeForm() {
 	toList()
 }
 
-func (p *Page) row(c *ui.Context, ev services.EmulatorView) {
+func (p *Page) row(c *ui.Context, first bool, ev services.EmulatorView) {
 	nav := p.u.Navigator()
-	button := func(key, label string, danger bool, action func()) {
-		k := [3]any{"emu-row", ev.ID, key}
-		b := ui.Button(c.Key(k), label)
-		if danger {
-			b = b.TextColor(c.Theme().Danger)
+	t := c.Theme()
+	ui.Column(c).Gap(kit.S2).Children(func() {
+		if !first {
+			ui.Divider(c)
 		}
-		if nav.Item(nav.Handle(k), b, action).Clicked() {
-			action()
-		}
-	}
-	kit.Card(c, "", func() {
-		kit.CardHead(c, ev.Name, func() {
-			if ev.SetUp {
-				kit.Badge(c, i18n.L("Ready on this device"), kit.BadgeOK)
-			} else {
-				kit.Badge(c, i18n.L("Not set up on this device"), kit.BadgeNone)
-			}
-		})
-		kit.Small(c, i18n.N("Used by {{.Count}} game", ev.Games, map[string]any{"Count": ev.Games}))
-		ui.Row(c).Gap(8).Wrap().Children(func() {
-			button("edit", i18n.L("Edit"), false, func() { p.edit(SetupOf(ev)) })
-			if ev.SetUp {
-				button("unset", i18n.L("Remove from this device…"), false, func() { p.askUnset(ev) })
-			}
-			button("delete", i18n.L("Delete…"), true, func() { p.askDelete(ev) })
+		ui.Row(c).Gap(kit.S3).AlignItems(ui.Center).Children(func() {
+			ui.Row(c).Width(40).Height(40).Radius(kit.Radius).Background(t.Accent.Alpha(0.14)).Center().Children(func() {
+				ui.Icon(c, kit.IconGamepad).FontSize(kit.IconMD).TextColor(t.Accent)
+			})
+			ui.Column(c).Gap(2).Grow(1).Shrink(1).Children(func() {
+				kit.ItemName(c, ev.Name)
+				ui.Row(c).Gap(kit.S2).AlignItems(ui.Center).Children(func() {
+					if ev.SetUp {
+						kit.Badge(c, i18n.L("Ready on this device"), kit.BadgeOK)
+					} else {
+						kit.Badge(c, i18n.L("Not set up on this device"), kit.BadgeNone)
+					}
+					kit.Small(c, i18n.N("Used by {{.Count}} game", ev.Games, map[string]any{"Count": ev.Games}))
+				})
+			})
+			kit.Btn(c, nav, [3]any{"emu-row", ev.ID, "edit"}, kit.BtnSecondary, kit.IconPencil, i18n.L("Edit"), func() { p.edit(SetupOf(ev)) })
+			kit.IconBtn(c, nav, [3]any{"emu-row", ev.ID, "more"}, kit.BtnSecondary, kit.IconMore, i18n.L("More"), func() { p.more(ev) })
 		})
 	})
+}
+
+// more is the menu of an emulator's row: clear its setup on this device, or
+// delete it.
+func (p *Page) more(ev services.EmulatorView) {
+	var items []components.MenuItem
+	if ev.SetUp {
+		items = append(items, components.MenuItem{Key: [2]any{ev.ID, "unset"}, Label: i18n.L("Remove from this device…"), Icon: kit.IconExit, Action: func() { p.askUnset(ev) }})
+	}
+	items = append(items, components.MenuItem{Key: [2]any{ev.ID, "delete"}, Label: i18n.L("Delete…"), Icon: kit.IconTrash, Danger: true, Action: func() { p.askDelete(ev) }})
+	components.ActionMenu(p.u, ev.Name, items)
 }
 
 // askUnset clears this device's setup of an emulator, keeping it everywhere else.

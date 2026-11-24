@@ -83,15 +83,15 @@ func TestCloudFirstRemoteBecomesTheLocation(t *testing.T) {
 func TestCloudAddRemoteWizard(t *testing.T) {
 	h := newHarness(t)
 	h.Open("/cloud")
-	h.Click("＋ Add remote")
+	h.Click("Add remote")
 	assert.Contains(t, h.Texts(), "Choose storage provider")
-	h.Click("sftp")
+	h.Click("SSH/SFTP")
 	assert.Contains(t, h.Texts(), "Show all options")
 
 	h.Click("Show all options")
 	h.Click("Back")
 	assert.Contains(t, h.Texts(), "Choose storage provider")
-	h.Click("sftp")
+	h.Click("SSH/SFTP")
 	h.Click("Continue")
 	h.Settle()
 	assert.NotEmpty(t, h.Shell.Cloud().Remotes())
@@ -100,7 +100,7 @@ func TestCloudAddRemoteWizard(t *testing.T) {
 func TestCloudAddRemoteCancel(t *testing.T) {
 	h := newHarness(t)
 	h.Open("/cloud")
-	h.Click("＋ Add remote")
+	h.Click("Add remote")
 	h.Click("Cancel")
 	assert.False(t, h.Shell.Dialogs().Open())
 }

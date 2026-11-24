@@ -28,7 +28,7 @@ func newHarness(t *testing.T) *uitest.Harness {
 
 func TestSettingsShowsItsCards(t *testing.T) {
 	h := newHarness(t)
-	for _, want := range []string{"Appearance", "This device", "Other devices", "Sync", "Cover art", "About Carryover"} {
+	for _, want := range []string{"Appearance", "This device", "Other devices", "Backups", "Library sharing", "Cover art", "About Carryover"} {
 		assert.Contains(t, h.Texts(), want)
 	}
 	assert.Contains(t, h.Texts(), "No other devices.")

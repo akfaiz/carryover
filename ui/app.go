@@ -10,7 +10,7 @@ import (
 //go:embed assets/appicon.png
 var appIcon []byte
 
-// AppID identifies the app (toolkit preferences, single instance).
+// AppID identifies the app to desktop notifications.
 const AppID = "com.akfaiz.carryover"
 
 // NoticeText is the desktop notification for what the session watcher did, in

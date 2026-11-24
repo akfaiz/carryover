@@ -45,20 +45,14 @@ func ShowGridKeyDialog(u env.Env, onSaved func()) {
 		ok := strings.TrimSpace(key) != ""
 		test.SetAllowed(ok)
 		kit.Muted(c, GridKeyHelp())
-		ui.Row(c).Gap(8).Children(func() {
-			in := ui.TextInput(c.Key("grid-key"), &key).Password().Placeholder(i18n.L("Paste your key")).Label(i18n.L("Paste your key")).Grow(1)
-			nav.Item(nav.Handle("grid-key"), in, nil, kit.TextField)
+		ui.Row(c).Gap(kit.S2).Children(func() {
+			kit.Field(c, nav, "grid-key", &key, i18n.L("Paste your key")).Password().Grow(1)
 			test.Button(c, nav, "gridkey")
 		})
 		test.Result(c)
-		ui.Row(c).Gap(8).Justify(ui.End).Children(func() {
-			cancel := func() { d.Close() }
-			if nav.Item(nav.Handle("grid-cancel"), ui.Button(c.Key("grid-cancel"), i18n.L("Cancel")), cancel, kit.FocusSafe).Clicked() {
-				cancel()
-			}
-			if nav.Item(nav.Handle("grid-save"), ui.PrimaryButton(c.Key("grid-save"), i18n.L("Save")).Disabled(!ok || saving), save).Clicked() {
-				save()
-			}
+		kit.Footer(c, func() {
+			kit.Btn(c, nav, "grid-cancel", kit.BtnSecondary, nil, i18n.L("Cancel"), func() { d.Close() }, kit.BtnItem(kit.FocusSafe))
+			kit.Btn(c, nav, "grid-save", kit.BtnPrimary, nil, i18n.L("Save"), save, kit.BtnDisabled(!ok || saving))
 		})
 	}})
 }

@@ -104,38 +104,32 @@ func (s *emuState) body(c *ui.Context, nav *kit.Navigator) {
 			defName = choiceName(ch)
 		}
 	}
-	// The rows are laid out by hand, a fixed number of tiles each.
-	for start := 0; start < len(p.Choices); start += kit.ChoicesPerRow {
-		ui.Row(c).Gap(8).Children(func() {
-			for i := start; i < min(start+kit.ChoicesPerRow, len(p.Choices)); i++ {
-				ch := p.Choices[i]
-				icon := kit.IconComputer
-				if ch.ID == services.NativeProfile {
-					icon = kit.IconPlay // the game itself, no emulator
-				}
-				// The default tile is where the dialog starts (and is safe: it is
-				// what would start by itself).
-				var opts []kit.ItemOption
-				if ch.ID == p.Default {
-					opts = append(opts, kit.FocusSafe)
-				}
-				kit.ChoiceTile(c, nav, ch.ID, choiceName(ch), icon, ch.ID == p.Default, func() { s.finish(ch.ID) }, opts...)
-			}
-		})
+	width := float32(kit.ChoiceTileSize)
+	if d := s.q.current; d != nil {
+		width = d.ContentWidth(c)
 	}
+	kit.ChoiceGrid(c, width, len(p.Choices), func(i int) {
+		ch := p.Choices[i]
+		icon := kit.IconComputer
+		if ch.ID == services.NativeProfile {
+			icon = kit.IconPlay // the game itself, no emulator
+		}
+		// The default tile is where the dialog starts (and is safe: it is what
+		// would start by itself).
+		var opts []kit.ItemOption
+		if ch.ID == p.Default {
+			opts = append(opts, kit.FocusSafe)
+		}
+		kit.ChoiceTile(c, nav, ch.ID, choiceName(ch), icon, ch.ID == p.Default, func() { s.finish(ch.ID) }, opts...)
+	})
 	if p.Seconds > 0 && !s.paused && defName != "" {
 		kit.Muted(c, i18n.N("Starting with {{.Emulator}} in {{.Count}} second", s.remaining,
 			map[string]any{"Emulator": defName, "Count": s.remaining}))
 	}
-	ui.Row(c).Gap(8).Children(func() {
-		cancel := func() { s.finish("cancel") }
-		if nav.Item(nav.Handle("emu-cancel"), ui.Button(c.Key("emu-cancel"), i18n.L("Cancel")), cancel).Clicked() {
-			cancel()
-		}
+	kit.Footer(c, func() {
 		if p.Seconds > 0 && !s.paused {
-			if nav.Item(nav.Handle("emu-pause"), ui.Button(c.Key("emu-pause"), i18n.L("Stop countdown")), s.pause).Clicked() {
-				s.pause()
-			}
+			kit.Btn(c, nav, "emu-pause", kit.BtnSecondary, nil, i18n.L("Stop countdown"), s.pause)
 		}
+		kit.Btn(c, nav, "emu-cancel", kit.BtnSecondary, nil, i18n.L("Cancel"), func() { s.finish("cancel") })
 	})
 }
