@@ -21,7 +21,7 @@ func (p *Page) steamCard(c *ui.Context, orig services.GameView, busy bool) {
 	kit.Card(c, i18n.L("Steam"), func() {
 		p.steamForm(c, steamFormOpts{
 			Game: form, Info: p.vm.steam, User: p.vm.steamUser, Mode: p.vm.steamMode, Busy: busy,
-			Profiles: orig.Emulators, Target: target, AsksAtLaunch: asks, HideMode: hideMode,
+			Profiles: runnable(orig.Emulators), Target: target, AsksAtLaunch: asks, HideMode: hideMode,
 			Expanded: p.vm.steamExpanded,
 			OnExpand: func() { p.vm.steamExpanded = true },
 			OnTarget: func(v string) { p.vm.steamTarget = v },

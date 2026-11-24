@@ -568,5 +568,7 @@
   "+{{.Count}} more": {
     "one": "+{{.Count}} more",
     "other": "+{{.Count}} more"
-  }
+  },
+  "{{.Platforms}} only": "{{.Platforms}} only",
+  "It doesn't run on this device: its game file and save locations are set up on a device it runs on.": "It doesn't run on this device: its game file and save locations are set up on a device it runs on."
 }

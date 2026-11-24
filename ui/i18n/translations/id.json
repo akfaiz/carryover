@@ -568,5 +568,7 @@
   "+{{.Count}} more": {
     "one": "+{{.Count}} lainnya",
     "other": "+{{.Count}} lainnya"
-  }
+  },
+  "{{.Platforms}} only": "Hanya {{.Platforms}}",
+  "It doesn't run on this device: its game file and save locations are set up on a device it runs on.": "Tidak berjalan di perangkat ini: file game dan lokasi save-nya diatur di perangkat tempat emulator ini berjalan."
 }

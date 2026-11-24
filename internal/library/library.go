@@ -107,14 +107,37 @@ type Emulator struct {
 	Name string `json:"name"`
 	// Preset is the kind of emulator (emumanifest.Preset.ID), which tells where
 	// its games' saves are; "" if not set.
-	Preset  string                    `json:"preset,omitempty"`
-	Devices map[string]EmulatorDevice `json:"devices"`
+	Preset string `json:"preset,omitempty"`
+	// Platforms are the platforms (GOOS values: android, windows, linux,
+	// darwin) the emulator has a version for; empty: any. Lemon, for one, is
+	// Android only, so other devices don't ask to set it up.
+	Platforms []string                  `json:"platforms,omitempty"`
+	Devices   map[string]EmulatorDevice `json:"devices"`
 	// Deleted marks a tombstone. Until it expires (see ExpireTrash) the rest of
 	// the record is kept, so the emulator can be restored.
 	Deleted   bool      `json:"deleted,omitempty"`
 	DeletedAt time.Time `json:"deletedAt,omitzero"`
 	CreatedAt time.Time `json:"createdAt"`
 	UpdatedAt time.Time `json:"updatedAt"`
+}
+
+// androidOnly are the names of emulators that only have an Android version,
+// for the ones stored before Platforms was (or by a client that dropped it).
+var androidOnly = []string{"lemon"}
+
+// PlatformList is Platforms, or what the emulator's name says for one known
+// to have a single platform that was stored without them; empty: any.
+func (e Emulator) PlatformList() []string {
+	if len(e.Platforms) == 0 && slices.Contains(androidOnly, strings.ToLower(strings.TrimSpace(e.Name))) {
+		return []string{"android"}
+	}
+	return slices.Clone(e.Platforms)
+}
+
+// RunsOn reports whether the emulator has a version for platform (a GOOS).
+func (e Emulator) RunsOn(platform string) bool {
+	ps := e.PlatformList()
+	return len(ps) == 0 || slices.Contains(ps, platform)
 }
 
 // Device returns the emulator's setup on a device.
@@ -765,6 +788,7 @@ func cloneEmulator(e Emulator) Emulator {
 		devs[k] = d
 	}
 	e.Devices = devs
+	e.Platforms = slices.Clone(e.Platforms)
 	return e
 }
 

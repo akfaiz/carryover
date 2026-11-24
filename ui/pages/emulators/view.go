@@ -112,15 +112,21 @@ func (p *Page) row(c *ui.Context, first bool, ev services.EmulatorView) {
 			ui.Column(c).Gap(2).Grow(1).Shrink(1).Children(func() {
 				kit.ItemName(c, ev.Name)
 				ui.Row(c).Gap(kit.S2).AlignItems(ui.Center).Children(func() {
-					if ev.SetUp {
+					switch {
+					case ev.NoVersionHere:
+						// Nothing to set up here: it runs on other devices only.
+						kit.Badge(c, components.OnlyOn(ev.Platforms), kit.BadgeInfo)
+					case ev.SetUp:
 						kit.Badge(c, i18n.L("Ready on this device"), kit.BadgeOK)
-					} else {
+					default:
 						kit.Badge(c, i18n.L("Not set up on this device"), kit.BadgeNone)
 					}
 					kit.Small(c, i18n.N("Used by {{.Count}} game", ev.Games, map[string]any{"Count": ev.Games}))
 				})
 			})
-			kit.Btn(c, nav, [3]any{"emu-row", ev.ID, "edit"}, kit.BtnSecondary, kit.IconPencil, i18n.L("Edit"), func() { p.edit(SetupOf(ev)) })
+			if !ev.NoVersionHere { // its setup on this device is what Edit changes
+				kit.Btn(c, nav, [3]any{"emu-row", ev.ID, "edit"}, kit.BtnSecondary, kit.IconPencil, i18n.L("Edit"), func() { p.edit(SetupOf(ev)) })
+			}
 			kit.IconBtn(c, nav, [3]any{"emu-row", ev.ID, "more"}, kit.BtnSecondary, kit.IconMore, i18n.L("More"), func() { p.more(ev) })
 		})
 	})

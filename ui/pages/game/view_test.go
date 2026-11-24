@@ -291,3 +291,35 @@ func TestGamePageOtherDevicesOfAnEmulator(t *testing.T) {
 		assert.False(t, strings.HasPrefix(s, "Also on"), "no second way of saying it in the header")
 	}
 }
+
+// An Android-only emulator (Lemon) isn't one of the ways to play here: no pill
+// for its saves, no setup asked for it.
+func TestGamePageLeavesOutAnAndroidOnlyEmulator(t *testing.T) {
+	h := newHarness(t)
+	me := h.Core.DeviceID()
+	eden, err := h.Shell.Emus().Save(services.EmulatorSetup{Name: "Eden", Exe: "eden"})
+	require.NoError(t, err)
+	ryu, err := h.Shell.Emus().Save(services.EmulatorSetup{Name: "Ryujinx", Exe: "ryujinx"})
+	require.NoError(t, err)
+	lemon, err := h.Shell.Emus().Save(services.EmulatorSetup{Name: "Lemon"})
+	require.NoError(t, err)
+	require.True(t, lemon.NoVersionHere)
+	slots := []library.SaveSlot{{Key: "saves", Label: "Saves"}}
+	g, err := h.Core.Library.Save(library.Game{
+		Name: "Game L",
+		Emulators: []library.GameEmulator{
+			{EmulatorID: eden.ID, Slots: slots}, {EmulatorID: ryu.ID, Slots: slots}, {EmulatorID: lemon.ID, ShareWith: eden.ID},
+		},
+		Devices: map[string]library.DeviceConfig{me: {Emulators: map[string]library.EmulatorConfig{
+			eden.ID: {Rom: "g.nsp", Paths: map[string]string{"saves": t.TempDir()}},
+		}}},
+	}, me)
+	require.NoError(t, err)
+	h.Shell.Store().Refresh()
+	h.Settle()
+	h.Open("/game/" + g.ID)
+
+	assert.Contains(t, h.Texts(), "Eden")
+	assert.Contains(t, h.Texts(), "Ryujinx")
+	assert.NotContains(t, h.Texts(), "Lemon", "no pill, no Steam shortcut choice")
+}

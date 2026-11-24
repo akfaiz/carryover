@@ -66,4 +66,16 @@ class AndroidLibraryTest {
         // An unknown app has none.
         assertEquals("", AndroidLibrary.presetFor(null, "com.example.unknown"))
     }
+
+    @Test
+    fun anAndroidOnlyEmulatorSaysSo() {
+        // Lemon has no desktop version: it is stored as Android only, with or without an activity.
+        val lemon = EmulatorPresets.all.first { it.name == "Lemon" }.packages.first()
+        assertEquals(listOf("android"), AndroidLibrary.platformsFor(lemon))
+        assertEquals(listOf("android"), AndroidLibrary.platformsFor("$lemon/.Main"))
+        // Eden has one: nothing is stored, and an unknown app keeps what the library has.
+        val eden = EmulatorPresets.all.first { it.name == "Eden" }.packages.first()
+        assertEquals(null, AndroidLibrary.platformsFor(eden))
+        assertEquals(null, AndroidLibrary.platformsFor("com.example.unknown"))
+    }
 }

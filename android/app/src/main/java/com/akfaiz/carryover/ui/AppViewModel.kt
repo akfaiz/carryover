@@ -323,7 +323,8 @@ class AppViewModel(private val services: AppServices = AppServices.shared) : Vie
         viewModelScope.launch {
             try {
                 val preset = AndroidLibrary.presetFor(_state.value.emulators.firstOrNull { it.id == id }, exe.trim())
-                val saved = core.saveEmulator(EmulatorSetup(id, name.trim(), exe.trim(), args.trim(), preset, dataDir.trim()))
+                val platforms = AndroidLibrary.platformsFor(exe.trim())
+                val saved = core.saveEmulator(EmulatorSetup(id, name.trim(), exe.trim(), args.trim(), preset, dataDir.trim(), platforms))
                 m.say(m.str(R.string.msg_emulator_saved, name))
                 loadGames()
                 done(saved.id)
