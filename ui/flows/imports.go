@@ -31,38 +31,63 @@ func showImport(u env.Env, t importText, load func() []importRow) {
 	loaded := false
 	filter := ""
 	var d *kit.Dialog
+
+	// A launcher's library can be hundreds of games: the list builds the rows in
+	// view, and which games the filter lets through is worked out when the filter
+	// or the games change, not in every frame.
+	var (
+		list    ui.ListState
+		keys    []string // the games' names, lower-cased
+		shown   []int    // the games the filter lets through
+		shownBy string   // the filter they were worked out for
+		fresh   = true   // they are to be worked out, whatever the filter
+	)
+	list.Key = func(i int) any { return shown[i] }
+	refilter := func() {
+		f := strings.ToLower(filter)
+		shown, shownBy, fresh = shown[:0], filter, false
+		for i, k := range keys {
+			if strings.Contains(k, f) {
+				shown = append(shown, i)
+			}
+		}
+	}
+
 	d = u.Dialogs().Show(&kit.Dialog{Title: t.title, Wide: true, Body: func(c *ui.Context, nav *kit.Navigator) {
 		kit.Muted(c, t.intro)
 		kit.Field(c, nav, "import-filter", &filter, i18n.L("Filter…"))
-		kit.ScrollBox(c, 380, kit.S1, func() {
+		if fresh || filter != shownBy {
+			refilter()
+		}
+		// Padded by room for a focused row's ring, which the list clips, and as far
+		// out again, so that the rows are where they would be without it (ScrollBox).
+		ui.List(c, &list, len(shown), func(i int) {
+			at := shown[i]
+			g := games[at]
+			open := func() {
+				d.Close()
+				if g.gameID != "" {
+					u.Navigate("/game/" + g.gameID)
+				} else {
+					u.Navigate(g.route)
+				}
+			}
+			kit.ListButton(c, nav, [2]any{"import-row", at}, g.name, open, func() {
+				ui.Row(c).Gap(kit.S3).Padding(kit.S2, kit.S3).AlignItems(ui.Center).Children(func() {
+					kit.CoverView(c, kit.CoverSource{Name: g.name}, 36, 54)
+					ui.Text(c, g.name).Grow(1)
+					if g.gameID != "" {
+						kit.Badge(c, i18n.L("In library"), kit.BadgeOK)
+					}
+				})
+			})
+		}).MaxHeight(380).Margin(-kit.RingRoom).Padding(kit.RingRoom).Gap(kit.S1).Children(func() {
+			// What shows while there are no rows.
 			switch {
 			case !loaded:
 				kit.Muted(c, t.reading)
 			case len(games) == 0:
 				kit.Muted(c, t.empty)
-			}
-			f := strings.ToLower(filter)
-			for i, g := range games {
-				if !strings.Contains(strings.ToLower(g.name), f) {
-					continue
-				}
-				open := func() {
-					d.Close()
-					if g.gameID != "" {
-						u.Navigate("/game/" + g.gameID)
-					} else {
-						u.Navigate(g.route)
-					}
-				}
-				kit.ListButton(c, nav, [2]any{"import-row", i}, g.name, open, func() {
-					ui.Row(c).Gap(kit.S3).Padding(kit.S2, kit.S3).AlignItems(ui.Center).Children(func() {
-						kit.CoverView(c, kit.CoverSource{Name: g.name}, 36, 54)
-						ui.Text(c, g.name).Grow(1)
-						if g.gameID != "" {
-							kit.Badge(c, i18n.L("In library"), kit.BadgeOK)
-						}
-					})
-				})
 			}
 		})
 		kit.Footer(c, func() {
@@ -71,6 +96,11 @@ func showImport(u env.Env, t importText, load func() []importRow) {
 	}})
 	kit.Async(func() ([]importRow, error) { return load(), nil }, func(rows []importRow, _ error) {
 		games, loaded = rows, true
+		keys = make([]string, len(rows))
+		for i, r := range rows {
+			keys[i] = strings.ToLower(r.name)
+		}
+		fresh = true // work the filter out again
 	})
 }
 
