@@ -97,6 +97,24 @@ type ViewModel struct {
 	src   Source
 	prefs Prefs
 	query string
+
+	visible visibleCache
+}
+
+// visibleCache is the last answer of Visible and what it was made from. The page
+// asks in every frame it builds, and working it out takes milliseconds for a
+// library of thousands, so it is only done again when something it depends on
+// changed: the search, the filter, the order or the games. The store replaces its
+// slice of games whenever it reads them again and never changes a game in it, so
+// a slice that starts at the same place and is as long is the same games.
+type visibleCache struct {
+	valid  bool
+	first  *services.GameView
+	n      int
+	query  string
+	filter Filter
+	sort   Sort
+	games  []services.GameView
 }
 
 // NewViewModel returns a view model reading src and keeping its choices in
@@ -128,28 +146,50 @@ func (vm *ViewModel) Sort() Sort {
 func (vm *ViewModel) SetSort(s Sort) { vm.prefs.SetString(prefSort, string(s)) }
 
 // Visible lists the games the search and the filter let through, in the chosen
-// order.
+// order. The slice is the view model's own, kept for the next call: do not change
+// it.
 func (vm *ViewModel) Visible() []services.GameView {
-	q := strings.ToLower(vm.Query())
-	filter := vm.Filter()
-	var out []services.GameView
-	for _, g := range vm.src.Games() {
-		if !strings.Contains(strings.ToLower(g.Name), q) ||
+	all := vm.src.Games()
+	query, filter, sortBy := vm.Query(), vm.Filter(), vm.Sort()
+	var first *services.GameView
+	if len(all) > 0 {
+		first = &all[0]
+	}
+	if c := &vm.visible; c.valid && c.first == first && c.n == len(all) && c.query == query && c.filter == filter && c.sort == sortBy {
+		return c.games
+	}
+
+	// Each name is lower-cased once: the order compares them n log n times. What
+	// is ordered is the place of a game, not the game, which is a big struct.
+	type entry struct {
+		at        int
+		key, sync string
+	}
+	q := strings.ToLower(query)
+	entries := make([]entry, 0, len(all))
+	for i := range all {
+		g := &all[i]
+		key := strings.ToLower(g.Name)
+		if !strings.Contains(key, q) ||
 			(filter == FilterAttention && !g.NeedsAttention()) || (filter == FilterReady && !g.Ready) {
 			continue
 		}
-		out = append(out, g)
+		entries = append(entries, entry{at: i, key: key, sync: g.Overall.LastSyncAt})
 	}
-	if vm.Sort() == SortRecent {
+	if sortBy == SortRecent {
 		// The times are RFC 3339, so they sort as text.
-		slices.SortStableFunc(out, func(a, b services.GameView) int {
-			return strings.Compare(b.Overall.LastSyncAt, a.Overall.LastSyncAt)
-		})
+		slices.SortStableFunc(entries, func(a, b entry) int { return strings.Compare(b.sync, a.sync) })
 	} else {
-		slices.SortStableFunc(out, func(a, b services.GameView) int {
-			return strings.Compare(strings.ToLower(a.Name), strings.ToLower(b.Name))
-		})
+		slices.SortStableFunc(entries, func(a, b entry) int { return strings.Compare(a.key, b.key) })
 	}
+	var out []services.GameView
+	if len(entries) > 0 {
+		out = make([]services.GameView, len(entries))
+		for i, e := range entries {
+			out[i] = all[e.at]
+		}
+	}
+	vm.visible = visibleCache{valid: true, first: first, n: len(all), query: query, filter: filter, sort: sortBy, games: out}
 	return out
 }
 
