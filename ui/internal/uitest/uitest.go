@@ -59,6 +59,10 @@ func New(t *testing.T, cfg shell.Config) *Harness {
 	h.Shell.Init()
 	h.Tester = ui.NewTester(h.Shell.ViewFunc(), 1000, 700)
 	h.Settle()
+	// Cleanups run last-in first-out: this one runs before the data dir is removed, so
+	// a refresh a service call started (a saved game publishes a library event) has
+	// finished writing by then, instead of racing the removal.
+	t.Cleanup(h.Settle)
 	return h
 }
 
