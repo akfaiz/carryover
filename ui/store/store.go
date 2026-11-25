@@ -10,6 +10,8 @@
 package store
 
 import (
+	"sync/atomic"
+
 	"github.com/akfaiz/carryover/internal/app/appdir"
 	"github.com/akfaiz/carryover/internal/cloudsync/syncer"
 	"github.com/akfaiz/carryover/services"
@@ -55,6 +57,8 @@ type Store struct {
 
 	load Loader
 	onUI func(func()) // runs work on the UI goroutine
+
+	loading atomic.Int32 // refreshes still reading; see Loading
 	// seq numbers the refreshes: only the newest one's result is stored, so a
 	// slow older one can't replace fresher data.
 	seq  int
@@ -138,7 +142,9 @@ func (s *Store) Publish(t Topic) {
 func (s *Store) Refresh() {
 	s.seq++
 	seq := s.seq
+	s.loading.Add(1)
 	go func() {
+		defer s.loading.Add(-1)
 		games := s.load.Games()
 		st := s.load.Settings()
 		trash := s.load.TrashCount()
@@ -151,6 +157,9 @@ func (s *Store) Refresh() {
 		})
 	}()
 }
+
+// Loading reports how many refreshes are still reading. Tests wait for zero.
+func (s *Store) Loading() int { return int(s.loading.Load()) }
 
 // Game returns a game of the library by id.
 func (s *Store) Game(id string) (services.GameView, bool) {

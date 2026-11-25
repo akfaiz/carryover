@@ -66,16 +66,24 @@ func New(t *testing.T, cfg shell.Config) *Harness {
 	return h
 }
 
-// Settle runs queued UI work until things go quiet, then draws a frame.
+// Settle runs queued UI work until things go quiet, then draws a frame. Quiet means
+// no background work is still reading (kit.Async, a store refresh) and nothing came
+// in for a moment, so a slow machine can't end it early.
 func (h *Harness) Settle() {
 	h.T.Helper()
+	limit := time.After(30 * time.Second)
 	for idle := time.After(100 * time.Millisecond); ; {
 		select {
 		case f := <-h.queue:
 			f()
 			idle = time.After(100 * time.Millisecond)
 			continue
+		case <-limit:
 		case <-idle:
+			if kit.Pending() > 0 || h.Shell.Store().Loading() > 0 {
+				idle = time.After(10 * time.Millisecond)
+				continue
+			}
 		}
 		break
 	}

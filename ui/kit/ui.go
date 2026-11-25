@@ -1,6 +1,8 @@
 package kit
 
 import (
+	"sync/atomic"
+
 	"github.com/egoist/mygo"
 )
 
@@ -20,9 +22,18 @@ func Redraw() {
 	}
 }
 
+// inflight counts Async work that has not yet handed its result to the UI.
+var inflight atomic.Int64
+
+// Pending reports how many Async calls are still working. Tests wait for it to reach
+// zero instead of guessing how long background work takes.
+func Pending() int64 { return inflight.Load() }
+
 // Async runs work off the UI thread and then done on it.
 func Async[T any](work func() (T, error), done func(T, error)) {
+	inflight.Add(1)
 	go func() {
+		defer inflight.Add(-1)
 		v, err := work()
 		OnUI(func() { done(v, err) })
 	}()
@@ -30,7 +41,9 @@ func Async[T any](work func() (T, error), done func(T, error)) {
 
 // Async0 is Async for work without a result.
 func Async0(work func() error, done func(error)) {
+	inflight.Add(1)
 	go func() {
+		defer inflight.Add(-1)
 		err := work()
 		OnUI(func() { done(err) })
 	}()
