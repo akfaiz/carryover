@@ -8,11 +8,10 @@ import "github.com/egoist/mygo/ui"
 // key tells it from the other rows (nav.Handle(key) focuses it).
 func ListButton(c *ui.Context, nav *Navigator, key any, label string, action func(), fn func()) ui.Element {
 	b := ui.ButtonBase(c.Key(key)).Label(label)
-	bg := ui.Color{}
-	if b.Hovered() {
-		bg = c.Theme().SurfaceHover
-	}
-	b = b.Background(bg).Radius(Radius).AlignSelf(ui.Stretch).Children(fn)
+	owner, hover := b, c.Theme().SurfaceHover
+	b = b.Radius(Radius).AlignSelf(ui.Stretch).Draw(func(p *ui.Painter, r ui.Rect) {
+		paintFace(p, r, HoverColor(owner, ui.Color{}, hover), ui.Color{}, 0, Radius)
+	}).Children(fn)
 	if nav.Item(nav.Handle(key), b, action).Clicked() {
 		action()
 	}
@@ -30,9 +29,10 @@ func Disclosure(c *ui.Context, nav *Navigator, key any, label string, open *bool
 		p := ui.CollapsibleBase(c.Key(k), open)
 		tr := p.Trigger.Label(label).AlignSelf(ui.Start).AlignItems(ui.Center).Gap(S1).
 			Padding(S1, S2, S1, 2).Radius(Radius)
-		if tr.Hovered() {
-			tr = tr.Background(t.SurfaceHover)
-		}
+		owner := tr
+		tr = tr.Draw(func(p *ui.Painter, r ui.Rect) {
+			paintFace(p, r, HoverColor(owner, ui.Color{}, t.SurfaceHover), ui.Color{}, 0, Radius)
+		})
 		icon := IconChevronRight
 		if *open {
 			icon = IconChevronDown

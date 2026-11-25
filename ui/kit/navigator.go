@@ -33,6 +33,10 @@ type Navigator struct {
 	pending []PadAction
 	scroll  *ui.ScrollState
 	present bool
+	// revealing is the control the D-pad just moved to, which Begin makes room
+	// around for the next few frames (see makeRoom); frames counts them.
+	revealing *ui.Handle
+	frames    int
 	// padUsed is set by a pad press and cleared when the pad goes away: while
 	// set, the focused control gets a ring even though the focus did not come
 	// from the keyboard, which is all MyGo rings by itself.
@@ -140,6 +144,42 @@ func (n *Navigator) Begin(c *ui.Context) {
 	for _, a := range pending {
 		n.apply(c, a)
 	}
+	n.makeRoom(c)
+}
+
+// focusRoom is the room left between a control the D-pad moved to and the edge
+// of the page's scroll container: MyGo scrolls a focused control into view and
+// no more, so its ring would sit on the edge, cut off by it or by what is
+// beside the container (the gamepad's hints, the title above it).
+const focusRoom float32 = S3
+
+// makeRoom scrolls the page by what keeps focusRoom around the control the D-pad
+// moved to. The frame after the move laid it out where MyGo scrolled it to, so
+// its box, as the last frame committed it, is where it shows; a few frames are
+// watched because the scroll takes one or two to show. A control that is not in
+// the scrolling area (the filters and the search above a grid, the sidebar) is
+// left alone: there is nothing to scroll for it, and the room it would "need"
+// is however far it is from the area.
+func (n *Navigator) makeRoom(c *ui.Context) {
+	if n.revealing == nil || n.scroll == nil || n.frames <= 0 {
+		n.revealing = nil
+		return
+	}
+	n.frames--
+	box, view := n.revealing.Bounds(c), n.scroll.Bounds(c)
+	if box.H <= 0 || view.H <= 0 || box.H+2*focusRoom > view.H {
+		return // not laid out yet, or too tall to keep the room around
+	}
+	if box.X+box.W <= view.X || box.X >= view.X+view.W || box.Y+box.H <= view.Y || box.Y >= view.Y+view.H {
+		return // not in the area
+	}
+	y := n.scroll.Y
+	if over := view.Y + focusRoom - box.Y; over > 0 {
+		y -= over
+	} else if over := box.Y + box.H - (view.Y + view.H - focusRoom); over > 0 {
+		y += over
+	}
+	n.scroll.Y = min(max(y, 0), max(n.scroll.MaxY, 0))
 }
 
 // End finishes the frame's registry: a dialog that opened in it gets the
@@ -331,6 +371,7 @@ func (n *Navigator) move(c *ui.Context, l *scope, a PadAction) {
 	}
 	if next := pickInDirection(nr[cur], a, nr); next >= 0 {
 		l.items[next].h.Focus(c) // focusing also scrolls it into view
+		n.revealing, n.frames = l.items[next].h, 4
 	}
 }
 

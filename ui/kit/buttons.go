@@ -142,9 +142,24 @@ func button(c *ui.Context, nav *Navigator, key any, kind BtnKind, label string, 
 	if cfg.tip != "" {
 		b = b.Tooltip(cfg.tip)
 	}
-	bg, fg := btnFace(c, kind, b.Hovered(), b.Pressed())
+	// Pressed is read as the view builds (a press is rare), Hovered only as the
+	// button paints: read while building, the pointer crossing any button would
+	// build the whole page anew, which costs a page of hundreds of Play buttons
+	// a frame of milliseconds. The face is painted over no background, in either
+	// look, so a translucent one does not blend with another.
+	pressed := b.Pressed()
+	bg, fg := btnFace(c, kind, false, pressed)
+	hoverBg, _ := btnFace(c, kind, true, pressed)
 	pv, ph := cfg.size.padding()
-	b = b.Background(bg).TextColor(fg).Radius(Radius).Gap(S2).Padding(pv, ph).Children(func() { body(fg) })
+	b = b.TextColor(fg).Radius(Radius).Gap(S2).Padding(pv, ph).Draw(func(p *ui.Painter, r ui.Rect) {
+		face := bg
+		if b.Hovered() {
+			face = hoverBg
+		}
+		if face.A != 0 {
+			p.Fill(r, face, Radius)
+		}
+	}).Children(func() { body(fg) })
 	if cfg.disabled || cfg.busy {
 		return b.Disabled(true)
 	}

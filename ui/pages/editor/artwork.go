@@ -291,14 +291,18 @@ func (p *artPicker) game(c *ui.Context, nav *kit.Navigator) {
 				k := [3]any{"art-grid", p.kind, g.ID}
 				pick := func() { p.picked[p.kind] = g.ID; p.onPick(p.kind, g) }
 				b := ui.ButtonBase(c.Key(k))
-				border, width := c.Theme().Border, float32(1)
-				switch {
-				case p.picked[p.kind] == g.ID:
-					border, width = c.Theme().Accent, 3
-				case b.Hovered():
-					border = c.Theme().TextMuted
+				// The border under the pointer is painted as the thumbnail paints:
+				// reading the hover as the view builds would build the whole
+				// picker anew each time the pointer crossed a thumbnail.
+				th := c.Theme()
+				border, hoverBorder, width := th.Border, th.TextMuted, float32(1)
+				if p.picked[p.kind] == g.ID {
+					border, hoverBorder, width = th.Accent, th.Accent, 3
 				}
-				b = b.Label(spec.label).Radius(8).Border(width, border).Padding(4).Children(func() {
+				owner := b
+				b = b.Label(spec.label).Radius(8).Border(width, ui.Color{}).Padding(4).Draw(func(pt *ui.Painter, r ui.Rect) {
+					pt.Stroke(r, kit.HoverColor(owner, border, hoverBorder), 8, width)
+				}).Children(func() {
 					kit.CoverView(c, kit.CoverSource{URL: src, Contain: spec.contain}, spec.pick[0], spec.pick[1])
 				})
 				if nav.Item(nav.Handle(k), b, pick).Clicked() {
