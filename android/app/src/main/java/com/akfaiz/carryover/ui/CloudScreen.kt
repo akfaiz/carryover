@@ -1,36 +1,28 @@
 package com.akfaiz.carryover.ui
 
-import androidx.lifecycle.viewmodel.compose.viewModel
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.selection.selectable
-import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.foundation.verticalScroll
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.Delete
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.outlined.Add
+import androidx.compose.material.icons.outlined.Cloud
+import androidx.compose.material.icons.outlined.Delete
+import androidx.compose.material.icons.outlined.ErrorOutline
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Button
-import androidx.compose.material3.Card
-import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
-import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -43,11 +35,12 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.KeyboardType
-import com.akfaiz.carryover.R
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.viewmodel.compose.viewModel
+import com.akfaiz.carryover.R
 import com.akfaiz.carryover.core.OptionExample
 import com.akfaiz.carryover.core.Provider
 import com.akfaiz.carryover.core.ProviderOption
@@ -55,20 +48,8 @@ import com.akfaiz.carryover.core.Question
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
 
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-fun BackBar(title: String, nav: Nav) {
-    TopAppBar(
-        title = { Text(title) },
-        navigationIcon = {
-            IconButton(onClick = nav::back) {
-                Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.action_back))
-            }
-        },
-    )
-}
-
 /** Picks the remote and folder Carryover syncs with. */
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun CloudScreen(nav: Nav, vm: CloudViewModel = viewModel()) {
     val state by vm.state.collectAsStateWithLifecycle()
@@ -104,74 +85,67 @@ fun CloudScreen(nav: Nav, vm: CloudViewModel = viewModel()) {
             }
         }
     }
-    Scaffold(contentWindowInsets = LocalPageInsets.current, topBar = { BackBar(stringResource(R.string.section_cloud), nav) }) { padding ->
-        Column(
-            Modifier.fillMaxSize().padding(padding).verticalScroll(rememberScrollState()).padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
-        ) {
-            Text(stringResource(R.string.cloud_intro), style = MaterialTheme.typography.bodyMedium)
-            Text(stringResource(R.string.cloud_accounts), style = MaterialTheme.typography.titleSmall)
-            if (state.remotes.isEmpty()) {
-                Text(stringResource(R.string.cloud_none), style = MaterialTheme.typography.bodySmall)
-            }
-            for (r in state.remotes) {
-                Row(
-                    Modifier.fillMaxWidth().selectable(
-                        selected = remote == r.name,
-                        enabled = !r.incomplete,
-                        onClick = { remote = r.name },
-                    ),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    RadioButton(selected = remote == r.name, onClick = { remote = r.name }, enabled = !r.incomplete)
-                    Column(Modifier.weight(1f)) {
-                        Text(r.name)
-                        Text(
-                            if (r.name == active) "${r.type} · ${stringResource(R.string.cloud_in_use)}" else r.type,
-                            style = MaterialTheme.typography.bodySmall,
-                            color = if (r.name == active) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                        if (r.incomplete) {
-                            Text(
-                                stringResource(R.string.cloud_signin_unfinished),
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.error,
-                            )
+    Scaffold(contentWindowInsets = LocalPageInsets.current, topBar = { PageTopBar(stringResource(R.string.section_cloud), nav::back) }) { padding ->
+        PageColumn(padding) {
+            Hint(stringResource(R.string.cloud_intro))
+            SectionCard(stringResource(R.string.cloud_accounts)) {
+                if (state.remotes.isEmpty()) {
+                    EmptyState(Icons.Outlined.Cloud, stringResource(R.string.cloud_none), stringResource(R.string.cloud_none_text))
+                } else {
+                    ListRows(state.remotes) { r ->
+                        ChoiceRow(remote == r.name, { remote = r.name }, enabled = !r.incomplete) {
+                            Column(Modifier.weight(1f)) {
+                                Text(r.name, style = MaterialTheme.typography.bodyLarge)
+                                Text(
+                                    if (r.name == active) "${r.type} · ${stringResource(R.string.cloud_in_use)}" else r.type,
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = if (r.name == active) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
+                                if (r.incomplete) {
+                                    Text(
+                                        stringResource(R.string.cloud_signin_unfinished),
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = Tone.Err.color(),
+                                    )
+                                }
+                            }
+                            IconButton(onClick = { deleting = r.name }) {
+                                Icon(Icons.Outlined.Delete, contentDescription = stringResource(R.string.action_delete_remote, r.name))
+                            }
                         }
-                    }
-                    IconButton(onClick = { deleting = r.name }) {
-                        Icon(Icons.Filled.Delete, contentDescription = stringResource(R.string.action_delete_remote, r.name))
                     }
                 }
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    AppButton(onClick = { nav.go(Screen.AddRemote) }, icon = Icons.Outlined.Add) { Text(stringResource(R.string.action_add_account)) }
+                    // Accounts of an rclone.conf from a PC: no sign-in on the phone.
+                    AppButton(onClick = { pickConfig.launch(arrayOf("*/*")) }, kind = BtnKind.Secondary) {
+                        Text(stringResource(R.string.action_import_config))
+                    }
+                }
+                Hint(stringResource(R.string.cloud_import_hint))
             }
-            OutlinedButton(onClick = { nav.go(Screen.AddRemote) }) { Text(stringResource(R.string.action_add_account)) }
-            // Accounts of an rclone.conf from a PC: no sign-in on the phone.
-            OutlinedButton(onClick = { pickConfig.launch(arrayOf("*/*")) }) { Text(stringResource(R.string.action_import_config)) }
-            Text(
-                stringResource(R.string.cloud_import_hint),
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-            OutlinedTextField(
-                root,
-                { root = it },
-                label = { Text(stringResource(R.string.cloud_folder)) },
-                supportingText = { Text(stringResource(R.string.cloud_folder_hint)) },
-                singleLine = true,
-                modifier = Modifier.fillMaxWidth(),
-            )
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                Button(
-                    onClick = {
-                        connecting = true
-                        vm.useCloud(remote, root.trim()) { ok ->
-                            connecting = false
-                            if (ok) nav.back()
-                        }
-                    },
-                    enabled = !connecting && remote.isNotEmpty() && root.isNotBlank(),
-                ) { Text(stringResource(R.string.action_use_cloud)) }
-                if (connecting) CircularProgressIndicator(Modifier.size(24.dp), strokeWidth = 2.dp)
+            SectionCard(null) {
+                OutlinedTextField(
+                    root,
+                    { root = it },
+                    label = { Text(stringResource(R.string.cloud_folder)) },
+                    supportingText = { Text(stringResource(R.string.cloud_folder_hint)) },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    AppButton(
+                        onClick = {
+                            connecting = true
+                            vm.useCloud(remote, root.trim()) { ok ->
+                                connecting = false
+                                if (ok) nav.back()
+                            }
+                        },
+                        enabled = !connecting && remote.isNotEmpty() && root.isNotBlank(),
+                    ) { Text(stringResource(R.string.action_use_cloud)) }
+                    if (connecting) Spinner()
+                }
             }
         }
     }
@@ -183,12 +157,12 @@ fun CloudScreen(nav: Nav, vm: CloudViewModel = viewModel()) {
                 Text(stringResource(if (name == active) R.string.dialog_delete_remote_active else R.string.dialog_delete_remote_text))
             },
             confirmButton = {
-                TextButton(onClick = {
+                AppButton(onClick = {
                     deleting = null
                     vm.deleteRemote(name)
-                }) { Text(stringResource(R.string.action_delete), color = MaterialTheme.colorScheme.error) }
+                }, kind = BtnKind.Danger) { Text(stringResource(R.string.action_delete)) }
             },
-            dismissButton = { TextButton(onClick = { deleting = null }) { Text(stringResource(R.string.action_cancel)) } },
+            dismissButton = { AppButton(onClick = { deleting = null }, kind = BtnKind.Ghost) { Text(stringResource(R.string.action_cancel)) } },
         )
     }
 }
@@ -253,48 +227,47 @@ fun AddRemoteScreen(nav: Nav, vm: CloudViewModel = viewModel()) {
         }
     }
 
-    Scaffold(contentWindowInsets = LocalPageInsets.current, topBar = { BackBar(stringResource(R.string.action_add_account), nav) }) { padding ->
-        Column(
-            Modifier.fillMaxSize().padding(padding).verticalScroll(rememberScrollState()).padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
-        ) {
+    Scaffold(contentWindowInsets = LocalPageInsets.current, topBar = { PageTopBar(stringResource(R.string.action_add_account), nav::back) }) { padding ->
+        PageColumn(padding) {
             val p = provider
             val q = question
             when {
                 working -> {
                     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                        CircularProgressIndicator()
+                        Spinner()
                         Text(stringResource(if (authUrl != null) R.string.add_account_signin else R.string.add_account_connecting))
                     }
                     authUrl?.let { url ->
-                        Text(
-                            stringResource(R.string.add_account_browser_hint),
-                            style = MaterialTheme.typography.bodySmall,
-                        )
-                        Text(url, style = MaterialTheme.typography.bodySmall)
+                        Hint(stringResource(R.string.add_account_browser_hint))
+                        Hint(url)
                         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            OutlinedButton(onClick = { vm.openBrowser(url) }) { Text(stringResource(R.string.action_open_browser)) }
+                            AppButton(onClick = { vm.openBrowser(url) }, kind = BtnKind.Secondary) { Text(stringResource(R.string.action_open_browser)) }
                             // Waiting for the browser is the only step that can hang: this ends it.
-                            TextButton(onClick = {
+                            AppButton(onClick = {
                                 cancelled = true
                                 vm.cancelSignIn()
-                            }) { Text(stringResource(R.string.action_cancel)) }
+                            }, kind = BtnKind.Ghost) { Text(stringResource(R.string.action_cancel)) }
                         }
                     }
                 }
                 p == null -> {
-                    Text(stringResource(R.string.add_account_where), style = MaterialTheme.typography.titleSmall)
-                    for (pr in providers) {
-                        Card(
-                            Modifier.fillMaxWidth().clickable {
-                                provider = pr
-                                name = defaultRemoteName(pr.type, vm.state.value.remotes.map { it.name }.toSet())
-                                params.clear()
-                            },
-                        ) {
-                            Column(Modifier.padding(16.dp)) {
-                                Text(pr.description.ifEmpty { pr.type }, style = MaterialTheme.typography.titleMedium)
-                            }
+                    // The title and the rows share the 16dp inset the rows carry themselves.
+                    SectionCard(null, contentPadding = PaddingValues(vertical = 8.dp), gap = 0.dp) {
+                        Text(
+                            stringResource(R.string.add_account_where),
+                            style = MaterialTheme.typography.titleMedium,
+                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+                        )
+                        for (pr in providers) {
+                            SettingRow(
+                                icon = Icons.Outlined.Cloud,
+                                title = pr.description.ifEmpty { pr.type },
+                                onClick = {
+                                    provider = pr
+                                    name = defaultRemoteName(pr.type, vm.state.value.remotes.map { it.name }.toSet())
+                                    params.clear()
+                                },
+                            )
                         }
                     }
                 }
@@ -306,7 +279,7 @@ fun AddRemoteScreen(nav: Nav, vm: CloudViewModel = viewModel()) {
                     if (!(q.exclusive && q.examples.isNotEmpty())) {
                         OptionField(optionLabel(q.name), answer, q.isPassword) { answer = it }
                     }
-                    Button(onClick = { step { vm.continueRemote(name.trim(), q.state, answer) } }) { Text(stringResource(R.string.action_continue)) }
+                    AppButton(onClick = { step { vm.continueRemote(name.trim(), q.state, answer) } }) { Text(stringResource(R.string.action_continue)) }
                 }
                 else -> {
                     Text(p.description.ifEmpty { p.type }, style = MaterialTheme.typography.titleMedium)
@@ -324,24 +297,21 @@ fun AddRemoteScreen(nav: Nav, vm: CloudViewModel = viewModel()) {
                         OptionInput(o, params[o.name] ?: "") { params[o.name] = it }
                     }
                     if (visible.size < p.options.size) {
-                        TextButton(onClick = { showAll = true }) { Text(stringResource(R.string.action_more_options)) }
+                        AppButton(onClick = { showAll = true }, kind = BtnKind.Ghost) { Text(stringResource(R.string.action_more_options)) }
                     }
                     if (p.oauth) {
-                        Text(
-                            stringResource(R.string.add_account_oauth, p.description.ifEmpty { p.type }),
-                            style = MaterialTheme.typography.bodySmall,
-                        )
+                        Hint(stringResource(R.string.add_account_oauth, p.description.ifEmpty { p.type }))
                     }
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Button(
+                        AppButton(
                             onClick = { step { vm.createRemote(name.trim(), p.type, params.toMap()) } },
                             enabled = name.isNotBlank(),
                         ) { Text(stringResource(R.string.action_connect)) }
-                        OutlinedButton(onClick = { provider = null }) { Text(stringResource(R.string.action_other_provider)) }
+                        AppButton(onClick = { provider = null }, kind = BtnKind.Secondary) { Text(stringResource(R.string.action_other_provider)) }
                     }
                 }
             }
-            error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
+            error?.let { Callout(Tone.Err, Icons.Outlined.ErrorOutline, it) }
         }
     }
 }
@@ -350,7 +320,7 @@ fun AddRemoteScreen(nav: Nav, vm: CloudViewModel = viewModel()) {
 private fun OptionInput(o: ProviderOption, value: String, onChange: (String) -> Unit) {
     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
         if (o.help.isNotEmpty()) {
-            Text(o.help.lineSequence().first(), style = MaterialTheme.typography.bodySmall)
+            Hint(o.help.lineSequence().first())
         }
         if (o.exclusive && o.examples.isNotEmpty()) {
             Choices(o.examples, value.ifEmpty { o.default }, onChange)
@@ -380,14 +350,10 @@ private fun OptionField(label: String, value: String, password: Boolean, onChang
 private fun Choices(examples: List<OptionExample>, selected: String, onSelect: (String) -> Unit) {
     Column {
         for (e in examples) {
-            Row(
-                Modifier.fillMaxWidth().selectable(selected = selected == e.value, onClick = { onSelect(e.value) }),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                RadioButton(selected = selected == e.value, onClick = { onSelect(e.value) })
+            ChoiceRow(selected == e.value, { onSelect(e.value) }) {
                 Column {
                     Text(e.value.ifEmpty { stringResource(R.string.option_empty) })
-                    if (e.help.isNotEmpty()) Text(e.help, style = MaterialTheme.typography.bodySmall)
+                    if (e.help.isNotEmpty()) Hint(e.help)
                 }
             }
         }

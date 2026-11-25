@@ -1,92 +1,82 @@
 package com.akfaiz.carryover.ui
 
-import androidx.compose.ui.text.input.PasswordVisualTransformation
-import androidx.compose.material.icons.outlined.Group
-import androidx.compose.material.icons.outlined.History
-import androidx.compose.material.icons.outlined.Image
-import androidx.compose.material.icons.outlined.Delete
-import androidx.compose.material.icons.outlined.Devices
-import androidx.compose.runtime.LaunchedEffect
-import com.akfaiz.carryover.core.DeviceView
-import androidx.lifecycle.viewmodel.compose.viewModel
-import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import android.app.Activity
 import android.content.Context
 import android.content.ContextWrapper
 import android.content.Intent
 import android.os.Build
 import android.provider.DocumentsContract
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.selection.selectable
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.outlined.Launch
+import androidx.compose.material.icons.outlined.BugReport
 import androidx.compose.material.icons.outlined.CheckCircle
 import androidx.compose.material.icons.outlined.Cloud
 import androidx.compose.material.icons.outlined.CloudOff
 import androidx.compose.material.icons.outlined.Contrast
-import androidx.compose.material.icons.outlined.BugReport
-import androidx.compose.material.icons.outlined.SaveAlt
-import androidx.compose.material.icons.outlined.Share
+import androidx.compose.material.icons.outlined.Delete
+import androidx.compose.material.icons.outlined.Devices
 import androidx.compose.material.icons.outlined.FolderOpen
+import androidx.compose.material.icons.outlined.Group
+import androidx.compose.material.icons.outlined.History
+import androidx.compose.material.icons.outlined.Image
 import androidx.compose.material.icons.outlined.Info
 import androidx.compose.material.icons.outlined.Language
-import androidx.compose.material.icons.automirrored.outlined.Launch
 import androidx.compose.material.icons.outlined.Notifications
 import androidx.compose.material.icons.outlined.Palette
 import androidx.compose.material.icons.outlined.PhoneAndroid
 import androidx.compose.material.icons.outlined.QueryStats
+import androidx.compose.material.icons.outlined.SaveAlt
+import androidx.compose.material.icons.outlined.Share
 import androidx.compose.material.icons.outlined.Sync
 import androidx.compose.material.icons.outlined.Timer
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.foundation.layout.size
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.OutlinedButton
-import androidx.compose.runtime.rememberCoroutineScope
-import com.akfaiz.carryover.core.BugReport
-import java.io.File
-import kotlinx.coroutines.launch
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.FilledTonalButton
-import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SegmentedButton
 import androidx.compose.material3.SegmentedButtonDefaults
 import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
-import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.viewmodel.compose.viewModel
 import com.akfaiz.carryover.R
 import com.akfaiz.carryover.core.AppLanguage
+import com.akfaiz.carryover.core.BugReport
+import com.akfaiz.carryover.core.DeviceView
+import java.io.File
+import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -98,6 +88,13 @@ fun SettingsScreen(nav: Nav, vm: SettingsViewModel = viewModel()) {
     var naming by rememberSaveable { mutableStateOf(false) }
     var graceDialog by rememberSaveable { mutableStateOf(false) }
     var gridKey by rememberSaveable { mutableStateOf(false) }
+    // Sent here by a page that needs the key (Find cover): ask for it straight away.
+    LaunchedEffect(nav.askGridKey) {
+        if (nav.askGridKey) {
+            gridKey = true
+            nav.askGridKey = false
+        }
+    }
     var backupsDialog by rememberSaveable { mutableStateOf(false) }
     var devicesDialog by rememberSaveable { mutableStateOf(false) }
     val devices by vm.devices.collectAsStateWithLifecycle()
@@ -105,13 +102,13 @@ fun SettingsScreen(nav: Nav, vm: SettingsViewModel = viewModel()) {
     LaunchedEffect(Unit) { vm.loadDevices() }
     Scaffold(
         contentWindowInsets = LocalPageInsets.current,
-        topBar = { TopAppBar(title = { Text(stringResource(R.string.nav_settings)) }, windowInsets = pageBarInsets()) },
+        topBar = { PageTopBar(stringResource(R.string.nav_settings)) },
     ) { padding ->
         Column(
             Modifier.fillMaxSize().padding(padding).verticalScroll(rememberScrollState()),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
-            Column(Modifier.widthIn(max = 760.dp).fillMaxWidth().padding(horizontal = 12.dp).padding(bottom = 24.dp)) {
+            Column(Modifier.widthIn(max = 760.dp).fillMaxWidth().padding(horizontal = 16.dp).padding(bottom = 24.dp)) {
                 SectionHeader(stringResource(R.string.section_cloud))
                 Group {
                     SettingRow(
@@ -233,6 +230,7 @@ fun SettingsScreen(nav: Nav, vm: SettingsViewModel = viewModel()) {
                         Icons.Outlined.Sync,
                         stringResource(R.string.setting_background_sync),
                         stringResource(R.string.setting_background_sync_hint),
+                        detailLines = Int.MAX_VALUE,
                         onClick = { vm.setBackgroundSync(!state.backgroundSync) },
                         trailing = { Switch(checked = state.backgroundSync, onCheckedChange = vm::setBackgroundSync) },
                     )
@@ -328,12 +326,12 @@ private fun DevicesDialog(others: List<DeviceView>, vm: SettingsViewModel, onDis
         title = { Text(stringResource(R.string.setting_devices)) },
         text = {
             Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                Text(stringResource(R.string.devices_intro), style = MaterialTheme.typography.bodySmall)
+                Hint(stringResource(R.string.devices_intro))
                 if (others.isEmpty()) Text(stringResource(R.string.devices_none))
                 others.forEach { d -> DeviceItem(d, onReuse = { reuse = d.id }, onForget = { forget = d.id }) }
             }
         },
-        confirmButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.action_close)) } },
+        confirmButton = { AppButton(onClick = onDismiss, kind = BtnKind.Ghost) { Text(stringResource(R.string.action_close)) } },
     )
     others.firstOrNull { it.id == reuse }?.let { d ->
         val name = deviceName(d)
@@ -367,24 +365,13 @@ private fun DevicesDialog(others: List<DeviceView>, vm: SettingsViewModel, onDis
 
 @Composable
 private fun DeviceItem(d: DeviceView, onReuse: () -> Unit, onForget: () -> Unit) {
-    Column {
+    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
         Text(deviceName(d), style = MaterialTheme.typography.titleSmall)
-        if (d.sameName) {
-            Text(
-                stringResource(R.string.device_same_name),
-                style = MaterialTheme.typography.labelMedium,
-                color = MaterialTheme.colorScheme.primary,
-            )
-        }
-        Text(
-            stringResource(R.string.device_line, relativeTime(d.lastSeen), d.games, d.emulators),
-            style = MaterialTheme.typography.bodySmall,
-        )
+        if (d.sameName) Pill(stringResource(R.string.device_same_name), Tone.Info)
+        Hint(stringResource(R.string.device_line, relativeTime(d.lastSeen), d.games, d.emulators))
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
-            TextButton(onClick = onReuse) { Text(stringResource(R.string.action_this_is_me)) }
-            TextButton(onClick = onForget) {
-                Text(stringResource(R.string.action_forget), color = MaterialTheme.colorScheme.error)
-            }
+            AppButton(onClick = onReuse, kind = BtnKind.Ghost) { Text(stringResource(R.string.action_this_is_me)) }
+            AppButton(onClick = onForget, kind = BtnKind.Danger) { Text(stringResource(R.string.action_forget)) }
         }
     }
 }
@@ -403,11 +390,9 @@ private fun ConfirmDeviceDialog(
         title = { Text(title) },
         text = { Text(text) },
         confirmButton = {
-            TextButton(onClick = onConfirm) {
-                Text(action, color = if (danger) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary)
-            }
+            AppButton(onClick = onConfirm, kind = if (danger) BtnKind.Danger else BtnKind.Primary) { Text(action) }
         },
-        dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.action_cancel)) } },
+        dismissButton = { AppButton(onClick = onDismiss, kind = BtnKind.Ghost) { Text(stringResource(R.string.action_cancel)) } },
     )
 }
 
@@ -447,19 +432,21 @@ private fun LogsRow(vm: SettingsViewModel) {
         trailing = null,
     )
     Row(
-        Modifier.padding(start = 72.dp, end = 16.dp, bottom = 12.dp),
+        // Under the text of the row above: 16dp padding, a 24dp icon and a 16dp gap in.
+        Modifier.padding(start = 56.dp, end = 16.dp, bottom = 12.dp),
         horizontalArrangement = Arrangement.spacedBy(8.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        FilledTonalButton(onClick = { collect { ctx.startActivity(BugReport.shareIntent(ctx, it, chooserTitle)) } }, enabled = !busy) {
-            Icon(Icons.Outlined.Share, null, Modifier.size(18.dp))
-            Text(stringResource(R.string.action_share), Modifier.padding(start = 8.dp))
+        AppButton(
+            onClick = { collect { ctx.startActivity(BugReport.shareIntent(ctx, it, chooserTitle)) } },
+            kind = BtnKind.Secondary,
+            icon = Icons.Outlined.Share,
+            enabled = !busy,
+        ) { Text(stringResource(R.string.action_share)) }
+        AppButton(onClick = { collect { saver.launch(it.name) } }, kind = BtnKind.Ghost, icon = Icons.Outlined.SaveAlt, enabled = !busy) {
+            Text(stringResource(R.string.action_save_file))
         }
-        OutlinedButton(onClick = { collect { saver.launch(it.name) } }, enabled = !busy) {
-            Icon(Icons.Outlined.SaveAlt, null, Modifier.size(18.dp))
-            Text(stringResource(R.string.action_save_file), Modifier.padding(start = 8.dp))
-        }
-        if (busy) CircularProgressIndicator(Modifier.size(20.dp), strokeWidth = 2.dp)
+        if (busy) Spinner(small = true)
     }
 }
 
@@ -476,14 +463,8 @@ private class SaveInDownloads : ActivityResultContracts.CreateDocument("applicat
 
 /** Rows of one section on a card. */
 @Composable
-private fun Group(content: @Composable () -> Unit) {
-    Card(
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow),
-        border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
-        modifier = Modifier.fillMaxWidth(),
-    ) {
-        Column(Modifier.padding(vertical = 4.dp)) { content() }
-    }
+private fun Group(content: @Composable ColumnScope.() -> Unit) {
+    SectionCard(null, contentPadding = PaddingValues(vertical = 4.dp), gap = 0.dp, content = content)
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -523,17 +504,9 @@ private fun PermissionRow(
         stringResource(hint),
         trailing = {
             if (granted) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(Icons.Outlined.CheckCircle, null, tint = LocalStatusColors.current.ok)
-                    Text(
-                        stringResource(R.string.perm_granted),
-                        style = MaterialTheme.typography.labelMedium,
-                        color = LocalStatusColors.current.ok,
-                        modifier = Modifier.padding(start = 4.dp),
-                    )
-                }
+                Pill(stringResource(R.string.perm_granted), Tone.Ok, icon = Icons.Outlined.CheckCircle)
             } else {
-                FilledTonalButton(onClick = ask) { Text(stringResource(R.string.action_allow)) }
+                AppButton(onClick = ask) { Text(stringResource(R.string.action_allow)) }
             }
         },
     )
@@ -554,23 +527,12 @@ private fun LanguageDialog(current: String, onDismiss: () -> Unit, onPick: (Stri
         text = {
             Column {
                 for (tag in AppLanguage.choices) {
-                    val shape = RoundedCornerShape(10.dp)
-                    Row(
-                        Modifier
-                            .fillMaxWidth()
-                            .focusRing(shape)
-                            .clip(shape)
-                            .selectable(selected = current == tag, onClick = { onPick(tag) }),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        RadioButton(selected = current == tag, onClick = { onPick(tag) })
-                        Text(languageName(tag))
-                    }
+                    ChoiceRow(current == tag, { onPick(tag) }) { Text(languageName(tag)) }
                 }
             }
         },
         confirmButton = {},
-        dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.action_cancel)) } },
+        dismissButton = { AppButton(onClick = onDismiss, kind = BtnKind.Ghost) { Text(stringResource(R.string.action_cancel)) } },
     )
 }
 
@@ -582,25 +544,16 @@ private fun BackupsDialog(current: Int, onDismiss: () -> Unit, onPick: (Int) -> 
         title = { Text(stringResource(R.string.setting_backups)) },
         text = {
             Column {
-                Text(stringResource(R.string.dialog_backups_text), style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(bottom = 8.dp))
+                Hint(stringResource(R.string.dialog_backups_text), Modifier.padding(bottom = 8.dp))
                 for (keep in backupChoices(current)) {
-                    val shape = RoundedCornerShape(10.dp)
-                    Row(
-                        Modifier
-                            .fillMaxWidth()
-                            .focusRing(shape)
-                            .clip(shape)
-                            .selectable(selected = current == keep, onClick = { onPick(keep) }),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        RadioButton(selected = current == keep, onClick = { onPick(keep) })
+                    ChoiceRow(current == keep, { onPick(keep) }) {
                         Text(if (keep == 0) stringResource(R.string.backups_choice_off) else pluralStringResource(R.plurals.backups_keep, keep, keep))
                     }
                 }
             }
         },
         confirmButton = {},
-        dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.action_cancel)) } },
+        dismissButton = { AppButton(onClick = onDismiss, kind = BtnKind.Ghost) { Text(stringResource(R.string.action_cancel)) } },
     )
 }
 
@@ -611,25 +564,14 @@ private fun GraceDialog(choices: List<Int>, current: Int, onDismiss: () -> Unit,
         title = { Text(stringResource(R.string.setting_grace)) },
         text = {
             Column {
-                Text(stringResource(R.string.setting_grace_hint), style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(bottom = 8.dp))
+                Hint(stringResource(R.string.setting_grace_hint), Modifier.padding(bottom = 8.dp))
                 for (seconds in choices) {
-                    val shape = RoundedCornerShape(10.dp)
-                    Row(
-                        Modifier
-                            .fillMaxWidth()
-                            .focusRing(shape)
-                            .clip(shape)
-                            .selectable(selected = current == seconds, onClick = { onPick(seconds) }),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        RadioButton(selected = current == seconds, onClick = { onPick(seconds) })
-                        Text(stringResource(R.string.grace_seconds, seconds))
-                    }
+                    ChoiceRow(current == seconds, { onPick(seconds) }) { Text(stringResource(R.string.grace_seconds, seconds)) }
                 }
             }
         },
         confirmButton = {},
-        dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.action_cancel)) } },
+        dismissButton = { AppButton(onClick = onDismiss, kind = BtnKind.Ghost) { Text(stringResource(R.string.action_cancel)) } },
     )
 }
 
@@ -651,11 +593,11 @@ private fun DeviceNameDialog(current: String, onDismiss: () -> Unit, onSave: (St
             }
         },
         confirmButton = {
-            TextButton(onClick = { onSave(name) }, enabled = name.isNotBlank() && name != current) {
+            AppButton(onClick = { onSave(name) }, enabled = name.isNotBlank() && name != current) {
                 Text(stringResource(R.string.action_save))
             }
         },
-        dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.action_cancel)) } },
+        dismissButton = { AppButton(onClick = onDismiss, kind = BtnKind.Ghost) { Text(stringResource(R.string.action_cancel)) } },
     )
 }
 
@@ -705,9 +647,9 @@ private fun GridKeyDialog(hasKey: Boolean, onSave: (String, (Boolean) -> Unit) -
         confirmButton = {
             Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.End) {
                 if (busy) {
-                    CircularProgressIndicator(Modifier.padding(12.dp).size(24.dp), strokeWidth = 2.dp)
+                    Spinner(Modifier.padding(12.dp))
                 } else {
-                    TextButton(
+                    AppButton(
                         onClick = {
                             busy = true
                             onSave(key, finish)
@@ -715,15 +657,16 @@ private fun GridKeyDialog(hasKey: Boolean, onSave: (String, (Boolean) -> Unit) -
                         enabled = key.isNotBlank(),
                     ) { Text(stringResource(R.string.action_save)) }
                     if (hasKey) {
-                        TextButton(
+                        AppButton(
                             onClick = {
                                 busy = true
                                 onSave("", finish)
                             },
-                        ) { Text(stringResource(R.string.action_remove_key), color = MaterialTheme.colorScheme.error) }
+                            kind = BtnKind.Danger,
+                        ) { Text(stringResource(R.string.action_remove_key)) }
                     }
-                    TextButton(onClick = onGetKey) { Text(stringResource(R.string.action_get_key)) }
-                    TextButton(onClick = onDismiss) { Text(stringResource(R.string.action_cancel)) }
+                    AppButton(onClick = onGetKey, kind = BtnKind.Ghost) { Text(stringResource(R.string.action_get_key)) }
+                    AppButton(onClick = onDismiss, kind = BtnKind.Ghost) { Text(stringResource(R.string.action_cancel)) }
                 }
             }
         },

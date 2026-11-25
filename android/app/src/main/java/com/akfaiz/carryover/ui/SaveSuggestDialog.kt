@@ -3,19 +3,15 @@ package com.akfaiz.carryover.ui
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.ErrorOutline
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Card
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -44,23 +40,23 @@ fun SaveSuggestDialog(state: SuggestState, onUse: (SaveSuggestion) -> Unit, onCl
             ) {
                 when {
                     state.loading -> Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
-                        CircularProgressIndicator(Modifier.size(20.dp), strokeWidth = 2.dp)
+                        Spinner(small = true)
                         Text(stringResource(R.string.suggest_looking), style = MaterialTheme.typography.bodyMedium)
                     }
-                    state.error != null -> Text(state.error, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.error)
+                    state.error != null -> Callout(Tone.Err, Icons.Outlined.ErrorOutline, state.error)
                     result != null -> {
-                        if (result.note.isNotEmpty()) Text(result.note, style = MaterialTheme.typography.bodySmall)
+                        if (result.note.isNotEmpty()) Hint(result.note)
                         if (result.suggestions.isEmpty()) {
                             Text(stringResource(R.string.suggest_none), style = MaterialTheme.typography.bodyMedium)
                         } else {
-                            Text(stringResource(R.string.suggest_hint), style = MaterialTheme.typography.bodySmall)
+                            Hint(stringResource(R.string.suggest_hint))
                         }
                         for (sg in result.suggestions) SuggestionItem(sg, enabled = !state.applying, onUse = { onUse(sg) })
                     }
                 }
             }
         },
-        confirmButton = { TextButton(onClick = onClose) { Text(stringResource(R.string.action_close)) } },
+        confirmButton = { AppButton(onClick = onClose, kind = BtnKind.Ghost) { Text(stringResource(R.string.action_close)) } },
     )
 }
 
@@ -68,28 +64,18 @@ fun SaveSuggestDialog(state: SuggestState, onUse: (SaveSuggestion) -> Unit, onCl
 @Composable
 private fun SuggestionItem(sg: SaveSuggestion, enabled: Boolean, onUse: () -> Unit) {
     val filters = suggestionFilters(sg.include)
-    Card(Modifier.fillMaxWidth()) {
-        Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-            Text(sg.game, style = MaterialTheme.typography.titleSmall)
-            when (sg.kind) {
-                SaveKind.Account -> Text(stringResource(R.string.suggest_kind_account), style = MaterialTheme.typography.labelMedium)
-                SaveKind.Device -> Text(stringResource(R.string.suggest_kind_device), style = MaterialTheme.typography.labelMedium)
-                SaveKind.None -> Unit
-            }
-            Text(SafPath.describe(sg.path), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            if (filters.isNotEmpty()) {
-                Text(
-                    stringResource(R.string.suggest_filters, filters.joinToString(", ")),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
-            Row(Modifier.padding(top = 6.dp), horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
-                OutlinedButton(onClick = onUse, enabled = enabled) { Text(stringResource(R.string.action_use)) }
-                if (sg.exists) {
-                    Text(stringResource(R.string.suggest_found), style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
-                }
-            }
+    SubCard {
+        Text(sg.game, style = MaterialTheme.typography.titleSmall)
+        when (sg.kind) {
+            SaveKind.Account -> Pill(stringResource(R.string.suggest_kind_account), Tone.Neutral)
+            SaveKind.Device -> Pill(stringResource(R.string.suggest_kind_device), Tone.Neutral)
+            SaveKind.None -> Unit
+        }
+        Hint(SafPath.describe(sg.path))
+        if (filters.isNotEmpty()) Hint(stringResource(R.string.suggest_filters, filters.joinToString(", ")))
+        Row(Modifier.padding(top = 6.dp), horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
+            AppButton(onClick = onUse, kind = BtnKind.Secondary, enabled = enabled) { Text(stringResource(R.string.action_use)) }
+            if (sg.exists) Pill(stringResource(R.string.suggest_found), Tone.Ok)
         }
     }
 }

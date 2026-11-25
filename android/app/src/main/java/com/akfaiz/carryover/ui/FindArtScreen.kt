@@ -12,21 +12,18 @@ import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Search
-import androidx.compose.material3.Button
-import androidx.compose.material3.Card
-import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material.icons.outlined.Info
+import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -34,14 +31,12 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
-import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.ImeAction
@@ -70,21 +65,17 @@ fun FindArtScreen(id: String, kind: ArtKind, state: UiState, nav: Nav, vm: ArtVi
     Scaffold(
         contentWindowInsets = LocalPageInsets.current,
         topBar = {
-            TopAppBar(
-                title = { Text(stringResource(if (kind == ArtKind.Cover) R.string.find_cover_title else R.string.find_background_title)) },
-                navigationIcon = {
-                    IconButton(onClick = { if (s.picked != null) vm.backToGames() else nav.back() }) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.action_back))
-                    }
-                },
+            PageTopBar(
+                stringResource(if (kind == ArtKind.Cover) R.string.find_cover_title else R.string.find_background_title),
+                { if (s.picked != null) vm.backToGames() else nav.back() },
             )
         },
     ) { padding ->
-        Box(Modifier.fillMaxSize().padding(padding)) {
+        Box(Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.TopCenter) {
             if (!s.hasKey) {
                 NeedKey(nav)
             } else {
-                Column(Modifier.fillMaxSize().padding(horizontal = 16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Column(Modifier.widthIn(max = 760.dp).fillMaxSize().padding(horizontal = 16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                     OutlinedTextField(
                         value = s.query,
                         onValueChange = vm::setQuery,
@@ -92,7 +83,7 @@ fun FindArtScreen(id: String, kind: ArtKind, state: UiState, nav: Nav, vm: ArtVi
                         singleLine = true,
                         trailingIcon = {
                             IconButton(onClick = { vm.search(s.query) }) {
-                                Icon(Icons.Filled.Search, contentDescription = stringResource(R.string.action_search))
+                                Icon(Icons.Outlined.Search, contentDescription = stringResource(R.string.action_search))
                             }
                         },
                         keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
@@ -116,10 +107,12 @@ fun FindArtScreen(id: String, kind: ArtKind, state: UiState, nav: Nav, vm: ArtVi
                 }
             }
             if (s.applying) {
-                Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.45f)), contentAlignment = Alignment.Center) {
-                    Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                        CircularProgressIndicator()
-                        Text(stringResource(R.string.find_applying), color = Color.White)
+                Box(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.scrim.copy(alpha = 0.45f)), contentAlignment = Alignment.Center) {
+                    SectionCard(null, Modifier.padding(32.dp).widthIn(max = 320.dp)) {
+                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                            Spinner()
+                            Text(stringResource(R.string.find_applying))
+                        }
                     }
                 }
             }
@@ -129,15 +122,23 @@ fun FindArtScreen(id: String, kind: ArtKind, state: UiState, nav: Nav, vm: ArtVi
 
 @Composable
 private fun NeedKey(nav: Nav) {
-    Column(Modifier.fillMaxSize().padding(24.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
-        Text(stringResource(R.string.find_need_key), style = MaterialTheme.typography.bodyLarge)
-        Button(onClick = { nav.go(Screen.Settings) }) { Text(stringResource(R.string.action_open_settings)) }
-    }
+    Callout(
+        Tone.Info,
+        Icons.Outlined.Info,
+        stringResource(R.string.find_need_key),
+        Modifier.widthIn(max = 760.dp).padding(16.dp),
+        actions = {
+            AppButton(onClick = {
+                nav.askGridKey = true
+                nav.go(Screen.Settings)
+            }) { Text(stringResource(R.string.action_open_settings)) }
+        },
+    )
 }
 
 @Composable
 private fun Loading() {
-    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { CircularProgressIndicator() }
+    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { Spinner() }
 }
 
 /** The SteamGridDB games found (null before the first search). */
@@ -145,20 +146,17 @@ private fun Loading() {
 private fun Games(games: List<GridGame>?, onPick: (GridGame) -> Unit) {
     when {
         games == null -> {}
-        games.isEmpty() -> Text(stringResource(R.string.find_no_games), style = MaterialTheme.typography.bodyMedium)
+        games.isEmpty() -> Hint(stringResource(R.string.find_no_games))
         else -> LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
             items(games, key = { it.id }) { g ->
-                Card(Modifier.fillMaxWidth().clickable { onPick(g) }) {
-                    Column(Modifier.padding(16.dp)) {
-                        Text(g.name, style = MaterialTheme.typography.titleMedium)
-                        val detail = listOfNotNull(
-                            g.year.takeIf { it > 0 }?.toString(),
-                            stringResource(R.string.find_verified).takeIf { g.verified },
-                        ).joinToString(" · ")
-                        if (detail.isNotEmpty()) {
-                            Text(detail, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        }
-                    }
+                val shape = MaterialTheme.shapes.medium
+                SectionCard(null, Modifier.focusRing(shape).clip(shape).clickable { onPick(g) }, gap = 4.dp) {
+                    Text(g.name, style = MaterialTheme.typography.bodyLarge)
+                    val detail = listOfNotNull(
+                        g.year.takeIf { it > 0 }?.toString(),
+                        stringResource(R.string.find_verified).takeIf { g.verified },
+                    ).joinToString(" · ")
+                    if (detail.isNotEmpty()) Hint(detail)
                 }
             }
         }
@@ -171,7 +169,7 @@ private fun Images(kind: ArtKind, game: GridGame, grids: List<GridArt>, enabled:
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Text(game.name, style = MaterialTheme.typography.titleSmall)
         if (grids.isEmpty()) {
-            Text(stringResource(R.string.find_no_art), style = MaterialTheme.typography.bodyMedium)
+            Hint(stringResource(R.string.find_no_art))
             return@Column
         }
         LazyVerticalGrid(
@@ -181,8 +179,8 @@ private fun Images(kind: ArtKind, game: GridGame, grids: List<GridArt>, enabled:
         ) {
             items(grids, key = { it.id }) { art ->
                 val ratio = if (art.width > 0 && art.height > 0) art.width.toFloat() / art.height else if (kind == ArtKind.Cover) 2f / 3f else 3f
-                Column(Modifier.clickable(enabled = enabled) { onChoose(art) }) {
-                    RemoteImage(art.thumb, Modifier.fillMaxWidth().aspectRatio(ratio).clip(RoundedCornerShape(8.dp)))
+                Column(Modifier.focusRing(MaterialTheme.shapes.small).clip(MaterialTheme.shapes.small).clickable(enabled = enabled) { onChoose(art) }) {
+                    RemoteImage(art.thumb, Modifier.fillMaxWidth().aspectRatio(ratio).clip(MaterialTheme.shapes.small))
                     if (art.author.isNotEmpty()) {
                         Text(
                             stringResource(R.string.find_art_by, art.author),

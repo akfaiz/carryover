@@ -1,6 +1,5 @@
 package com.akfaiz.carryover.ui
 
-import com.akfaiz.carryover.core.TrashView
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -15,33 +14,22 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.selection.selectable
-import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.outlined.Add
 import androidx.compose.material.icons.outlined.Apps
 import androidx.compose.material.icons.outlined.SportsEsports
 import androidx.compose.material.icons.outlined.Visibility
 import androidx.compose.material.icons.outlined.VisibilityOff
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExtendedFloatingActionButton
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
-import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -50,7 +38,6 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
@@ -58,6 +45,7 @@ import androidx.compose.ui.unit.dp
 import com.akfaiz.carryover.R
 import com.akfaiz.carryover.core.EmulatorPresets
 import com.akfaiz.carryover.core.EmulatorView
+import com.akfaiz.carryover.core.TrashView
 import com.akfaiz.carryover.core.isInstalled
 
 /** The emulators of the library, and which app each one is on this device. */
@@ -69,55 +57,59 @@ fun EmulatorsScreen(state: UiState, vm: AppViewModel, nav: Nav) {
     val (usable, others) = state.emulators.partition(EmulatorPresets::onAndroid)
     Scaffold(
         contentWindowInsets = LocalPageInsets.current,
-        topBar = { TopAppBar(title = { Text(stringResource(R.string.nav_emulators)) }, windowInsets = pageBarInsets()) },
+        topBar = { PageTopBar(stringResource(R.string.nav_emulators)) },
         floatingActionButton = {
-            ExtendedFloatingActionButton(
+            // With no emulators the empty page has the button already.
+            if (!state.loaded || usable.isNotEmpty()) ExtendedFloatingActionButton(
                 onClick = { adding = true },
-                icon = { Icon(Icons.Filled.Add, contentDescription = null) },
+                icon = { Icon(Icons.Outlined.Add, contentDescription = null) },
                 text = { Text(stringResource(R.string.action_add_emulator)) },
             )
         },
     ) { padding ->
-        LazyColumn(
-            Modifier.fillMaxSize().padding(padding),
-            contentPadding = PaddingValues(start = 8.dp, end = 8.dp, bottom = 96.dp),
-        ) {
-            item {
-                Text(
-                    stringResource(R.string.emulators_intro),
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
-                )
-            }
-            if (state.loaded && usable.isEmpty()) {
-                item {
-                    EmptyState(
-                        Icons.Outlined.SportsEsports,
-                        stringResource(R.string.nav_emulators),
-                        stringResource(R.string.emulators_empty),
-                    )
+        Box(Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.TopCenter) {
+            LazyColumn(
+                Modifier.widthIn(max = 760.dp).fillMaxSize(),
+                contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 96.dp),
+                verticalArrangement = Arrangement.spacedBy(16.dp),
+            ) {
+                item { Hint(stringResource(R.string.emulators_intro)) }
+                if (state.loaded && usable.isEmpty()) {
+                    item {
+                        EmptyState(
+                            Icons.Outlined.SportsEsports,
+                            stringResource(R.string.emulators_empty_title),
+                            stringResource(R.string.emulators_empty),
+                            actions = {
+                                AppButton(onClick = { adding = true }, icon = Icons.Outlined.Add) { Text(stringResource(R.string.action_add_emulator)) }
+                            },
+                        )
+                    }
                 }
-            }
-            items(usable, key = { it.id }) { e -> EmulatorRow(e) { nav.go(Screen.Emulator(e.id)) } }
-            // Emulators without an Android app (Ryujinx, Cemu, …) stay out of the way,
-            // still reachable in case one has an Android version after all.
-            if (others.isNotEmpty()) {
-                item(key = "others") {
-                    SettingRow(
-                        if (showOthers) Icons.Outlined.VisibilityOff else Icons.Outlined.Visibility,
-                        if (showOthers) {
-                            stringResource(R.string.emulators_hide_others)
-                        } else {
-                            pluralStringResource(R.plurals.emulators_show_others, others.size, others.size)
-                        },
-                        stringResource(R.string.emulators_others_hint),
-                        onClick = { showOthers = !showOthers },
-                        trailing = null,
-                    )
-                }
-                if (showOthers) {
-                    items(others, key = { it.id }) { e -> EmulatorRow(e) { nav.go(Screen.Emulator(e.id)) } }
+                if (usable.isNotEmpty() || others.isNotEmpty()) {
+                    item {
+                        SectionCard(null, contentPadding = PaddingValues(vertical = 4.dp), gap = 0.dp) {
+                            for (e in usable) EmulatorRow(e) { nav.go(Screen.Emulator(e.id)) }
+                            // Emulators without an Android app (Ryujinx, Cemu, …) stay out of the way,
+                            // still reachable in case one has an Android version after all.
+                            if (others.isNotEmpty()) {
+                                SettingRow(
+                                    if (showOthers) Icons.Outlined.VisibilityOff else Icons.Outlined.Visibility,
+                                    if (showOthers) {
+                                        stringResource(R.string.emulators_hide_others)
+                                    } else {
+                                        pluralStringResource(R.plurals.emulators_show_others, others.size, others.size)
+                                    },
+                                    stringResource(R.string.emulators_others_hint),
+                                    onClick = { showOthers = !showOthers },
+                                    trailing = null,
+                                )
+                                if (showOthers) {
+                                    for (e in others) EmulatorRow(e) { nav.go(Screen.Emulator(e.id)) }
+                                }
+                            }
+                        }
+                    }
                 }
             }
         }
@@ -161,7 +153,7 @@ fun AppIcon(pkg: String, sizeDp: Int) {
         Image(icon, null, Modifier.size(sizeDp.dp))
         return
     }
-    Surface(Modifier.size(sizeDp.dp), shape = RoundedCornerShape(10.dp), color = MaterialTheme.colorScheme.surfaceContainerHighest) {
+    Surface(Modifier.size(sizeDp.dp), shape = MaterialTheme.shapes.small, color = MaterialTheme.colorScheme.surfaceContainerHighest) {
         Box(contentAlignment = Alignment.Center) {
             Icon(Icons.Outlined.Apps, null, Modifier.size((sizeDp / 2).dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
         }
@@ -179,24 +171,11 @@ fun EmulatorScreen(id: String, state: UiState, vm: AppViewModel, nav: Nav) {
     val e = state.emulators.firstOrNull { it.id == id }
     Scaffold(
         contentWindowInsets = LocalPageInsets.current,
-        topBar = {
-            TopAppBar(
-                title = { Text(e?.name ?: stringResource(R.string.nav_emulators)) },
-                navigationIcon = {
-                    IconButton(onClick = nav::back) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.action_back))
-                    }
-                },
-                windowInsets = pageBarInsets(),
-            )
-        },
+        topBar = { PageTopBar(e?.name ?: stringResource(R.string.nav_emulators), nav::back) },
     ) { padding ->
         if (e == null) return@Scaffold
-        Column(
-            Modifier.fillMaxSize().padding(padding).verticalScroll(rememberScrollState()),
-            horizontalAlignment = Alignment.CenterHorizontally,
-        ) {
-            EmulatorEditor(e, vm, nav, Modifier.widthIn(max = 760.dp).padding(16.dp))
+        PageColumn(padding) {
+            EmulatorEditor(e, vm, nav, Modifier.fillMaxWidth())
         }
     }
 }
@@ -229,11 +208,11 @@ private fun EmulatorEditor(e: EmulatorView, vm: AppViewModel, nav: Nav, modifier
                         style = MaterialTheme.typography.bodyLarge,
                     )
                     if (exe.isNotBlank()) {
-                        Text(exe, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Hint(exe)
                     }
                 }
             }
-            OutlinedButton(onClick = { picking = true }) {
+            AppButton(onClick = { picking = true }, kind = BtnKind.Secondary) {
                 Text(stringResource(if (exe.isBlank()) R.string.action_choose_app else R.string.action_change_app))
             }
         }
@@ -257,9 +236,7 @@ private fun EmulatorEditor(e: EmulatorView, vm: AppViewModel, nav: Nav, modifier
             }
             val switch = e.preset == "switch" || preset?.manifestPreset == "switch"
             SectionCard(stringResource(if (switch) R.string.emulator_data_folder else R.string.emulator_data_folder_optional)) {
-                preset?.savesNote?.takeIf { it != 0 }?.let {
-                    Text(stringResource(it), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                }
+                preset?.savesNote?.takeIf { it != 0 }?.let { Hint(stringResource(it)) }
                 FolderField(
                     dataDir,
                     { dataDir = it },
@@ -274,12 +251,12 @@ private fun EmulatorEditor(e: EmulatorView, vm: AppViewModel, nav: Nav, modifier
             verticalArrangement = Arrangement.spacedBy(4.dp),
             itemVerticalAlignment = Alignment.CenterVertically,
         ) {
-            Button(
+            AppButton(
                 onClick = { vm.saveEmulator(e.id, e.name, exe, if (direct) args else "", dataDir) },
                 enabled = dirty,
             ) { Text(stringResource(R.string.action_save)) }
             if (e.setUp && e.device.exe.isNotBlank()) {
-                TextButton(onClick = { nav.go(Screen.Frontends(e.id)) }) { Text(stringResource(R.string.action_use_frontend)) }
+                AppButton(onClick = { nav.go(Screen.Frontends(e.id)) }, kind = BtnKind.Ghost) { Text(stringResource(R.string.action_use_frontend)) }
             }
         }
         // Apart from Save, each with what it does: one is this device only, the other every device.
@@ -296,13 +273,13 @@ private fun EmulatorEditor(e: EmulatorView, vm: AppViewModel, nav: Nav, modifier
             title = { Text(stringResource(R.string.emulator_remove_title, e.name)) },
             text = { Text(stringResource(R.string.emulator_remove_text, e.name)) },
             confirmButton = {
-                TextButton(onClick = {
+                AppButton(onClick = {
                     removing = false
                     vm.unsetEmulator(e.id, e.name)
                     nav.back()
-                }) { Text(stringResource(R.string.action_remove)) }
+                }, kind = BtnKind.Danger) { Text(stringResource(R.string.action_remove)) }
             },
-            dismissButton = { TextButton(onClick = { removing = false }) { Text(stringResource(R.string.action_cancel)) } },
+            dismissButton = { AppButton(onClick = { removing = false }, kind = BtnKind.Ghost) { Text(stringResource(R.string.action_cancel)) } },
         )
     }
     if (deleting) {
@@ -311,14 +288,15 @@ private fun EmulatorEditor(e: EmulatorView, vm: AppViewModel, nav: Nav, modifier
             title = { Text(stringResource(R.string.dialog_delete_game_title, e.name)) },
             text = { Text(stringResource(R.string.dialog_delete_emulator_text, TrashView().days)) },
             confirmButton = {
-                TextButton(
+                AppButton(
                     onClick = {
                         deleting = false
                         vm.deleteEmulator(e.id, e.name) { nav.back() }
                     },
-                ) { Text(stringResource(R.string.action_delete), color = MaterialTheme.colorScheme.error) }
+                    kind = BtnKind.Danger,
+                ) { Text(stringResource(R.string.action_delete)) }
             },
-            dismissButton = { TextButton(onClick = { deleting = false }) { Text(stringResource(R.string.action_cancel)) } },
+            dismissButton = { AppButton(onClick = { deleting = false }, kind = BtnKind.Ghost) { Text(stringResource(R.string.action_cancel)) } },
         )
     }
     if (picking) {
@@ -334,28 +312,13 @@ private fun EmulatorEditor(e: EmulatorView, vm: AppViewModel, nav: Nav, modifier
 /** A destructive action: its button, and a line on what it does. */
 @Composable
 private fun DangerAction(label: String, hint: String, onClick: () -> Unit) {
-    Column {
-        OutlinedButton(
-            onClick = onClick,
-            colors = androidx.compose.material3.ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.error),
-        ) { Text(label) }
-        Text(
-            hint,
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.padding(start = 4.dp, top = 2.dp),
-        )
+    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        AppButton(onClick = onClick, kind = BtnKind.Danger) { Text(label) }
+        Hint(hint)
     }
 }
 
 @Composable
 private fun Choice(label: String, selected: Boolean, onClick: () -> Unit) {
-    val shape = RoundedCornerShape(10.dp)
-    Row(
-        Modifier.fillMaxWidth().focusRing(shape).clip(shape).selectable(selected = selected, onClick = onClick),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        RadioButton(selected = selected, onClick = onClick)
-        Text(label, style = MaterialTheme.typography.bodyMedium)
-    }
+    ChoiceRow(selected, onClick) { Text(label, style = MaterialTheme.typography.bodyMedium) }
 }

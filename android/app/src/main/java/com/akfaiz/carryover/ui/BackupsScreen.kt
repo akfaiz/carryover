@@ -1,23 +1,23 @@
 package com.akfaiz.carryover.ui
 
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.CloudUpload
+import androidx.compose.material.icons.outlined.ErrorOutline
+import androidx.compose.material.icons.outlined.History
+import androidx.compose.material.icons.outlined.Info
+import androidx.compose.material.icons.outlined.PushPin
+import androidx.compose.material.icons.outlined.Restore
+import androidx.compose.material.icons.outlined.WarningAmber
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Button
-import androidx.compose.material3.Card
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -25,7 +25,6 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
-import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
@@ -50,54 +49,59 @@ fun BackupsScreen(key: String, state: UiState, nav: Nav, vm: BackupsViewModel = 
     val game = state.games.firstOrNull { g -> g.profiles.any { it.key == key } }
     val profile = game?.profiles?.firstOrNull { it.key == key }
 
-    Scaffold(contentWindowInsets = LocalPageInsets.current, topBar = { BackBar(stringResource(R.string.backups_title), nav) }) { padding ->
-        Column(
-            Modifier.fillMaxSize().padding(padding).verticalScroll(rememberScrollState()).padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
-        ) {
+    Scaffold(contentWindowInsets = LocalPageInsets.current, topBar = { PageTopBar(stringResource(R.string.backups_title), nav::back) }) { padding ->
+        PageColumn(padding) {
             if (game != null) {
                 Text(
                     listOfNotNull(game.name, profile?.emulator).joinToString(" · "),
                     style = MaterialTheme.typography.titleMedium,
                 )
             }
-            Text(
+            Hint(
                 if (s.kept > 0) {
                     pluralStringResource(R.plurals.backups_intro_on, s.kept, s.kept)
                 } else {
                     stringResource(R.string.backups_intro_off)
                 },
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-                Button(onClick = vm::backupNow, enabled = state.cloudReady && profile?.canSync == true && !s.busy) {
+                AppButton(
+                    onClick = vm::backupNow,
+                    icon = Icons.Outlined.CloudUpload,
+                    enabled = state.cloudReady && profile?.canSync == true && !s.busy,
+                ) {
                     Text(stringResource(if (s.making) R.string.backups_making else R.string.action_backup_now))
                 }
-                if (s.busy) CircularProgressIndicator(Modifier.size(24.dp), strokeWidth = 2.dp)
-                if (s.cancellable) TextButton(onClick = vm::cancel) { Text(stringResource(R.string.action_cancel)) }
+                if (s.busy) Spinner()
+                if (s.cancellable) AppButton(onClick = vm::cancel, kind = BtnKind.Ghost) { Text(stringResource(R.string.action_cancel)) }
             }
             if (profile != null && !profile.canSync) {
-                Text(stringResource(R.string.backups_need_folders), style = MaterialTheme.typography.bodySmall)
+                Callout(Tone.Warn, Icons.Outlined.WarningAmber, stringResource(R.string.backups_need_folders))
             }
 
             when {
-                !state.cloudReady -> Text(stringResource(R.string.backups_need_cloud), style = MaterialTheme.typography.bodyMedium)
-                s.loadFailed && s.backups.isEmpty() -> {
-                    Text(stringResource(R.string.backups_load_failed), style = MaterialTheme.typography.bodyMedium)
-                    OutlinedButton(onClick = vm::refresh) { Text(stringResource(R.string.action_retry)) }
-                }
-                !s.loaded -> CircularProgressIndicator(Modifier.size(24.dp), strokeWidth = 2.dp)
-                s.backups.isEmpty() -> Text(stringResource(R.string.backups_none), style = MaterialTheme.typography.bodyMedium)
-                else -> for (b in s.backups) {
-                    BackupItem(
-                        b,
-                        busy = s.acting == b.name,
-                        enabled = !s.busy,
-                        onRestore = { restoring = b },
-                        onPin = { vm.togglePinned(b) },
-                        onDelete = { deleting = b },
-                    )
+                !state.cloudReady -> Callout(Tone.Info, Icons.Outlined.Info, stringResource(R.string.backups_need_cloud))
+                s.loadFailed && s.backups.isEmpty() -> Callout(
+                    Tone.Err,
+                    Icons.Outlined.ErrorOutline,
+                    stringResource(R.string.backups_load_failed),
+                    actions = {
+                        AppButton(onClick = vm::refresh, kind = BtnKind.Secondary) { Text(stringResource(R.string.action_retry)) }
+                    },
+                )
+                !s.loaded -> Spinner()
+                s.backups.isEmpty() -> EmptyState(Icons.Outlined.History, stringResource(R.string.backups_none), stringResource(R.string.backups_none_text))
+                else -> SectionCard(null) {
+                    ListRows(s.backups) { b ->
+                        BackupItem(
+                            b,
+                            busy = s.acting == b.name,
+                            enabled = !s.busy,
+                            onRestore = { restoring = b },
+                            onPin = { vm.togglePinned(b) },
+                            onDelete = { deleting = b },
+                        )
+                    }
                 }
             }
         }
@@ -109,14 +113,14 @@ fun BackupsScreen(key: String, state: UiState, nav: Nav, vm: BackupsViewModel = 
             title = { Text(stringResource(R.string.dialog_restore_backup_title)) },
             text = { Text(stringResource(R.string.dialog_restore_backup_text, relativeTime(b.time))) },
             confirmButton = {
-                TextButton(
+                AppButton(
                     onClick = {
                         restoring = null
                         vm.restore(b)
                     },
                 ) { Text(stringResource(R.string.action_restore)) }
             },
-            dismissButton = { TextButton(onClick = { restoring = null }) { Text(stringResource(R.string.action_cancel)) } },
+            dismissButton = { AppButton(onClick = { restoring = null }, kind = BtnKind.Ghost) { Text(stringResource(R.string.action_cancel)) } },
         )
     }
     deleting?.let { b ->
@@ -137,45 +141,39 @@ fun BackupsScreen(key: String, state: UiState, nav: Nav, vm: BackupsViewModel = 
                 )
             },
             confirmButton = {
-                TextButton(
+                AppButton(
                     onClick = {
                         deleting = null
                         vm.delete(b)
                     },
-                ) { Text(stringResource(R.string.action_delete), color = MaterialTheme.colorScheme.error) }
+                    kind = BtnKind.Danger,
+                ) { Text(stringResource(R.string.action_delete)) }
             },
-            dismissButton = { TextButton(onClick = { deleting = null }) { Text(stringResource(R.string.action_cancel)) } },
+            dismissButton = { AppButton(onClick = { deleting = null }, kind = BtnKind.Ghost) { Text(stringResource(R.string.action_cancel)) } },
         )
     }
 }
 
 /** One backup: when, whose saves and why, and what to do with it. */
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
-private fun BackupItem(b: Backup, busy: Boolean, enabled: Boolean, onRestore: () -> Unit, onPin: () -> Unit, onDelete: () -> Unit) {
-    Card(Modifier.fillMaxWidth()) {
-        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-            Text(relativeTime(b.time), style = MaterialTheme.typography.titleMedium)
-            Text(
-                backupDescription(b),
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-            Row(Modifier.padding(top = 8.dp), horizontalArrangement = Arrangement.spacedBy(4.dp), verticalAlignment = Alignment.CenterVertically) {
-                if (busy) {
-                    CircularProgressIndicator(Modifier.size(24.dp), strokeWidth = 2.dp)
-                } else {
-                    OutlinedButton(onClick = onRestore, enabled = enabled) { Text(stringResource(R.string.action_restore)) }
-                    // A copy a device keeps for itself is not shared, so there is nothing to protect from pruning.
-                    if (!b.local) {
-                        TextButton(onClick = onPin, enabled = enabled) {
-                            Text(stringResource(if (b.pinned) R.string.action_unpin else R.string.action_pin))
-                        }
-                    }
-                    TextButton(onClick = onDelete, enabled = enabled) {
-                        Text(stringResource(R.string.action_delete), color = MaterialTheme.colorScheme.error)
-                    }
+private fun ColumnScope.BackupItem(b: Backup, busy: Boolean, enabled: Boolean, onRestore: () -> Unit, onPin: () -> Unit, onDelete: () -> Unit) {
+    Text(relativeTime(b.time), style = MaterialTheme.typography.bodyLarge)
+    Hint(backupDescription(b))
+    FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        if (busy) {
+            Spinner()
+        } else {
+            AppButton(onClick = onRestore, kind = BtnKind.Secondary, icon = Icons.Outlined.Restore, enabled = enabled) {
+                Text(stringResource(R.string.action_restore))
+            }
+            // A copy a device keeps for itself is not shared, so there is nothing to protect from pruning.
+            if (!b.local) {
+                AppButton(onClick = onPin, kind = BtnKind.Ghost, icon = Icons.Outlined.PushPin, enabled = enabled) {
+                    Text(stringResource(if (b.pinned) R.string.action_unpin else R.string.action_pin))
                 }
             }
+            AppButton(onClick = onDelete, kind = BtnKind.Danger, enabled = enabled) { Text(stringResource(R.string.action_delete)) }
         }
     }
 }

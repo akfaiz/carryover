@@ -9,7 +9,6 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -98,7 +97,7 @@ fun SlotDialog(title: String, initial: SaveSlot?, onDismiss: () -> Unit, onSave:
             }
         },
         confirmButton = {
-            TextButton(
+            AppButton(
                 onClick = {
                     val edited = (initial ?: SaveSlot()).copy(
                         label = name.trim(),
@@ -110,6 +109,6 @@ fun SlotDialog(title: String, initial: SaveSlot?, onDismiss: () -> Unit, onSave:
                 enabled = name.isNotBlank() && changed,
             ) { Text(stringResource(R.string.action_save)) }
         },
-        dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.action_cancel)) } },
+        dismissButton = { AppButton(onClick = onDismiss, kind = BtnKind.Ghost) { Text(stringResource(R.string.action_cancel)) } },
     )
 }

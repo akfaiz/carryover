@@ -45,11 +45,18 @@
     <string name="library_none_ready">No game can be played on this device yet. Set one up to play it here.</string>
     <string name="library_none_attention">Nothing needs attention: every game is set up and synced.</string>
     <string name="library_add_game">Add game</string>
+    <string name="library_show_all">Show all games</string>
+    <string name="library_add_first">Add your first game</string>
+    <string name="library_clear_search">Clear search</string>
     <string name="library_syncing_library">Syncing the library…</string>
     <string name="library_syncing_game">Syncing %1$s (%2$d/%3$d)</string>
 
     <!-- Setup checklist -->
     <string name="setup_title">Finish setting up</string>
+    <plurals name="setup_steps_left">
+        <item quantity="one">%1$d step left</item>
+        <item quantity="other">%1$d steps left</item>
+    </plurals>
     <string name="setup_cloud_title">Connect a cloud</string>
     <string name="setup_cloud_text">Choose the cloud account and folder your other devices sync with.</string>
     <string name="setup_cloud_action">Set up cloud</string>
@@ -63,23 +70,23 @@
     <string name="setup_notifications_text">Allow notifications so Carryover can tell you when your saves were uploaded after playing.</string>
 
     <!-- Status -->
-    <string name="status_playing">Playing</string>
+    <string name="status_playing">Running</string>
     <string name="status_conflict">Conflict</string>
-    <string name="status_error">Error</string>
-    <string name="status_changed">Changed here</string>
-    <string name="status_not_set_up">Not set up</string>
+    <string name="status_error">Sync error</string>
+    <string name="status_changed">Not uploaded</string>
+    <string name="status_not_set_up">Needs setup</string>
     <string name="status_synced">Synced</string>
-    <string name="status_never">Never synced</string>
+    <string name="status_never">Not synced</string>
     <string name="status_uploading">Uploading saves…</string>
     <string name="status_checking">Checking cloud saves…</string>
     <string name="status_syncing">Syncing…</string>
     <string name="status_line_conflict">Conflict: saves changed here and in the cloud</string>
-    <string name="status_line_error">Error: %1$s</string>
-    <string name="status_line_changed">Changed on this device since the last sync</string>
+    <string name="status_line_error">Sync error: %1$s</string>
+    <string name="status_line_changed">Not uploaded: changed on this device since the last sync</string>
     <string name="status_line_synced">Synced %1$s</string>
     <string name="status_line_never">Never synced on this device</string>
     <string name="time_just_now">just now</string>
-    <string name="status_line_not_set_up">Not set up on this device</string>
+    <string name="status_line_not_set_up">Needs setup on this device</string>
 
     <!-- Game -->
     <string name="game_missing">This game is no longer in the library.</string>
@@ -237,7 +244,8 @@
     </plurals>
     <string name="emulators_hide_others">Hide emulators without an Android app</string>
     <string name="emulators_others_hint">Used on your other devices; their games are hidden here.</string>
-    <string name="emulators_empty">No emulators yet. Add one here or in the desktop app.</string>
+    <string name="emulators_empty_title">No emulators yet</string>
+    <string name="emulators_empty">Add one here or in the desktop app.</string>
     <string name="action_add_emulator">Add an emulator</string>
     <string name="emulators_choose_app">Choose the emulator\'s app</string>
     <string name="emulator_app">App on this device</string>
@@ -313,7 +321,8 @@
     <!-- Cloud -->
     <string name="cloud_intro">Use the same cloud account and folder as on your other devices, so they share one library and the same saves.</string>
     <string name="cloud_accounts">Cloud accounts</string>
-    <string name="cloud_none">None yet.</string>
+    <string name="cloud_none">No cloud accounts yet</string>
+    <string name="cloud_none_text">Add one (Google Drive, Dropbox, OneDrive, WebDAV, SFTP or SMB), or import the accounts of an rclone.conf from your PC.</string>
     <string name="cloud_signin_unfinished">Sign-in not finished. Delete it and add the account again.</string>
     <string name="cloud_in_use">In use</string>
     <string name="action_delete_remote">Delete %1$s</string>
@@ -414,7 +423,7 @@
     <string name="trash_intro">Deleted games and emulators stay here for %1$d days, then their settings are removed for good. Their saves in the cloud stay until you delete them.</string>
     <string name="trash_games">Games</string>
     <string name="trash_emulators">Emulators</string>
-    <string name="trash_empty">Nothing here</string>
+    <string name="trash_empty">Trash is empty</string>
     <string name="trash_item_info">Deleted %1$s · %2$s</string>
     <string name="trash_expiring">removed soon</string>
     <plurals name="trash_days_left">
@@ -501,6 +510,7 @@
     <string name="action_backup_now">Back up now</string>
     <string name="backups_making">Backing up…</string>
     <string name="backups_none">No backups yet.</string>
+    <string name="backups_none_text">Back up now to keep a copy of this game\'s saves.</string>
     <string name="backups_need_cloud">Set up cloud storage to keep backups in the cloud.</string>
     <string name="backups_need_folders">Set this game\'s save folders on this device to back its saves up.</string>
     <string name="backups_load_failed">Couldn\'t read the backups.</string>

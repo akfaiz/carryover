@@ -38,11 +38,17 @@
     <string name="library_none_ready">Belum ada game yang bisa dimainkan di perangkat ini. Atur salah satunya untuk memainkannya di sini.</string>
     <string name="library_none_attention">Tidak ada yang perlu perhatian: semua game sudah diatur dan disinkronkan.</string>
     <string name="library_add_game">Tambah game</string>
+    <string name="library_show_all">Tampilkan semua game</string>
+    <string name="library_add_first">Tambah game pertama Anda</string>
+    <string name="library_clear_search">Hapus pencarian</string>
     <string name="library_syncing_library">Menyinkronkan pustaka…</string>
     <string name="library_syncing_game">Menyinkronkan %1$s (%2$d/%3$d)</string>
 
     <!-- Setup checklist -->
     <string name="setup_title">Selesaikan pengaturan</string>
+    <plurals name="setup_steps_left">
+        <item quantity="other">%1$d langkah lagi</item>
+    </plurals>
     <string name="setup_cloud_title">Hubungkan cloud</string>
     <string name="setup_cloud_text">Pilih akun cloud dan folder yang dipakai perangkat Anda yang lain untuk sinkronisasi.</string>
     <string name="setup_cloud_action">Atur cloud</string>
@@ -56,23 +62,23 @@
     <string name="setup_notifications_text">Izinkan notifikasi agar Carryover dapat memberi tahu Anda saat save Anda telah diunggah setelah bermain.</string>
 
     <!-- Status -->
-    <string name="status_playing">Sedang dimainkan</string>
+    <string name="status_playing">Berjalan</string>
     <string name="status_conflict">Konflik</string>
-    <string name="status_error">Galat</string>
-    <string name="status_changed">Berubah di sini</string>
-    <string name="status_not_set_up">Belum diatur</string>
+    <string name="status_error">Galat sinkron</string>
+    <string name="status_changed">Belum diunggah</string>
+    <string name="status_not_set_up">Perlu diatur</string>
     <string name="status_synced">Tersinkron</string>
-    <string name="status_never">Belum pernah disinkronkan</string>
+    <string name="status_never">Belum disinkronkan</string>
     <string name="status_uploading">Mengunggah save…</string>
     <string name="status_checking">Memeriksa save di cloud…</string>
     <string name="status_syncing">Menyinkronkan…</string>
     <string name="status_line_conflict">Konflik: save berubah di sini dan di cloud</string>
-    <string name="status_line_error">Galat: %1$s</string>
-    <string name="status_line_changed">Berubah di perangkat ini sejak sinkronisasi terakhir</string>
+    <string name="status_line_error">Galat sinkron: %1$s</string>
+    <string name="status_line_changed">Belum diunggah: berubah di perangkat ini sejak sinkronisasi terakhir</string>
     <string name="status_line_synced">Disinkronkan %1$s</string>
     <string name="status_line_never">Belum pernah disinkronkan di perangkat ini</string>
     <string name="time_just_now">baru saja</string>
-    <string name="status_line_not_set_up">Belum diatur di perangkat ini</string>
+    <string name="status_line_not_set_up">Perlu diatur di perangkat ini</string>
 
     <!-- Game -->
     <string name="game_missing">Game ini sudah tidak ada di pustaka.</string>
@@ -225,7 +231,8 @@
     </plurals>
     <string name="emulators_hide_others">Sembunyikan emulator tanpa aplikasi Android</string>
     <string name="emulators_others_hint">Dipakai di perangkat Anda yang lain; game-nya disembunyikan di sini.</string>
-    <string name="emulators_empty">Belum ada emulator. Tambahkan di sini atau di aplikasi desktop.</string>
+    <string name="emulators_empty_title">Belum ada emulator</string>
+    <string name="emulators_empty">Tambahkan di sini atau di aplikasi desktop.</string>
     <string name="action_add_emulator">Tambah emulator</string>
     <string name="emulators_choose_app">Pilih aplikasi emulator</string>
     <string name="emulator_app">Aplikasi di perangkat ini</string>
@@ -298,7 +305,8 @@
     <!-- Cloud -->
     <string name="cloud_intro">Pakai akun cloud dan folder yang sama dengan perangkat Anda yang lain, agar semuanya berbagi satu pustaka dan save yang sama.</string>
     <string name="cloud_accounts">Akun cloud</string>
-    <string name="cloud_none">Belum ada.</string>
+    <string name="cloud_none">Belum ada akun cloud</string>
+    <string name="cloud_none_text">Tambahkan satu (Google Drive, Dropbox, OneDrive, WebDAV, SFTP atau SMB), atau impor akun dari rclone.conf di PC Anda.</string>
     <string name="cloud_signin_unfinished">Proses masuk belum selesai. Hapus lalu tambahkan akunnya lagi.</string>
     <string name="cloud_in_use">Dipakai</string>
     <string name="action_delete_remote">Hapus %1$s</string>
@@ -393,7 +401,7 @@
     <string name="trash_intro">Game dan emulator yang dihapus tersimpan di sini selama %1$d hari, lalu pengaturannya dihapus permanen. Save-nya di cloud tetap ada sampai Anda menghapusnya.</string>
     <string name="trash_games">Game</string>
     <string name="trash_emulators">Emulator</string>
-    <string name="trash_empty">Tidak ada apa pun di sini</string>
+    <string name="trash_empty">Tempat sampah kosong</string>
     <string name="trash_item_info">Dihapus %1$s · %2$s</string>
     <string name="trash_expiring">segera dihapus permanen</string>
     <plurals name="trash_days_left">
@@ -478,6 +486,7 @@
     <string name="action_backup_now">Cadangkan sekarang</string>
     <string name="backups_making">Mencadangkan…</string>
     <string name="backups_none">Belum ada cadangan.</string>
+    <string name="backups_none_text">Cadangkan sekarang untuk menyimpan salinan save game ini.</string>
     <string name="backups_need_cloud">Siapkan penyimpanan cloud untuk menyimpan cadangan di cloud.</string>
     <string name="backups_need_folders">Atur folder save game ini di perangkat ini untuk mencadangkan savenya.</string>
     <string name="backups_load_failed">Tidak dapat membaca cadangan.</string>

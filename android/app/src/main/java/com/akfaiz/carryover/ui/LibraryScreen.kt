@@ -1,12 +1,9 @@
 package com.akfaiz.carryover.ui
 
-import com.akfaiz.carryover.data.FindProgress
-import androidx.compose.material.icons.outlined.ImageSearch
 import android.os.Build
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -21,20 +18,23 @@ import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.outlined.Add
 import androidx.compose.material.icons.outlined.Close
 import androidx.compose.material.icons.outlined.Cloud
+import androidx.compose.material.icons.outlined.ExpandLess
+import androidx.compose.material.icons.outlined.ExpandMore
 import androidx.compose.material.icons.outlined.FolderOpen
+import androidx.compose.material.icons.outlined.ImageSearch
 import androidx.compose.material.icons.outlined.Notifications
 import androidx.compose.material.icons.outlined.QueryStats
 import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material.icons.outlined.Sync
 import androidx.compose.material.icons.outlined.VideoLibrary
-import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExtendedFloatingActionButton
 import androidx.compose.material3.FilterChip
@@ -42,13 +42,11 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextFieldDefaults
-import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -60,19 +58,20 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.akfaiz.carryover.R
 import com.akfaiz.carryover.core.GameView
-import com.akfaiz.carryover.core.needsAttention
-import com.akfaiz.carryover.core.ready
+import com.akfaiz.carryover.core.Storage
 import com.akfaiz.carryover.core.SyncAllProgress
 import com.akfaiz.carryover.core.SyncEvent
-import com.akfaiz.carryover.core.Storage
 import com.akfaiz.carryover.core.appInfoIntent
+import com.akfaiz.carryover.core.needsAttention
+import com.akfaiz.carryover.core.ready
+import com.akfaiz.carryover.data.FindProgress
 
 /** The desktop's filters: all games, those ready to play here, those that need attention. */
 private enum class Filter(val label: Int) { All(R.string.filter_all), Ready(R.string.filter_ready), Attention(R.string.filter_attention) }
@@ -101,8 +100,8 @@ fun LibraryScreen(state: UiState, vm: AppViewModel, nav: Nav) {
     Scaffold(
         contentWindowInsets = LocalPageInsets.current,
         topBar = {
-            TopAppBar(
-                title = { Text(stringResource(R.string.nav_library)) },
+            PageTopBar(
+                stringResource(R.string.nav_library),
                 actions = {
                     if (state.hasGridKey && state.games.any { it.coverPath.isEmpty() }) {
                         IconButton(onClick = vm::findCovers, enabled = state.findingCovers == null) {
@@ -113,13 +112,13 @@ fun LibraryScreen(state: UiState, vm: AppViewModel, nav: Nav) {
                         Icon(Icons.Outlined.Sync, contentDescription = stringResource(R.string.action_sync_all))
                     }
                 },
-                windowInsets = pageBarInsets(),
             )
         },
         floatingActionButton = {
-            ExtendedFloatingActionButton(
+            // With no games the empty page has the button already.
+            if (!state.loaded || state.games.isNotEmpty()) ExtendedFloatingActionButton(
                 onClick = { nav.go(Screen.AddGame) },
-                icon = { Icon(Icons.Filled.Add, contentDescription = null) },
+                icon = { Icon(Icons.Outlined.Add, contentDescription = null) },
                 text = { Text(stringResource(R.string.library_add_game)) },
             )
         },
@@ -150,13 +149,14 @@ fun LibraryScreen(state: UiState, vm: AppViewModel, nav: Nav) {
                         Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                             SearchField(query) { query = it }
                             // Scrolls sideways when the labels are long (Bahasa Indonesia on a phone).
-                            Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                if (showFilters) {
+                            if (showFilters) {
+                                Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                                     for (f in Filter.entries) {
                                         FilterChip(
                                             selected = filter == f,
                                             onClick = { filter = f },
                                             label = { Text(stringResource(f.label, counts.getValue(f)), maxLines = 1) },
+                                            shape = MaterialTheme.shapes.extraLarge,
                                         )
                                     }
                                 }
@@ -170,21 +170,35 @@ fun LibraryScreen(state: UiState, vm: AppViewModel, nav: Nav) {
                             Icons.Outlined.VideoLibrary,
                             stringResource(R.string.library_empty_title),
                             stringResource(R.string.library_empty_text),
+                            actions = {
+                                AppButton(onClick = { nav.go(Screen.AddGame) }, icon = Icons.Outlined.Add) {
+                                    Text(stringResource(R.string.library_add_first))
+                                }
+                            },
                         )
                     }
                 } else if (state.loaded && shown.isEmpty()) {
                     item(span = { GridItemSpan(maxLineSpan) }) {
-                        Text(
-                            stringResource(
-                                when {
-                                    query.isNotBlank() -> R.string.library_no_match
-                                    filter == Filter.Ready -> R.string.library_none_ready
-                                    else -> R.string.library_none_attention
-                                },
-                            ),
-                            Modifier.padding(vertical = 32.dp),
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
+                        Column(
+                            Modifier.fillMaxWidth().padding(vertical = 24.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.spacedBy(12.dp),
+                        ) {
+                            Hint(
+                                stringResource(
+                                    when {
+                                        query.isNotBlank() -> R.string.library_no_match
+                                        filter == Filter.Ready -> R.string.library_none_ready
+                                        else -> R.string.library_none_attention
+                                    },
+                                ),
+                            )
+                            if (query.isNotBlank()) {
+                                AppButton(onClick = { query = "" }, kind = BtnKind.Secondary) { Text(stringResource(R.string.library_clear_search)) }
+                            } else {
+                                AppButton(onClick = { filter = Filter.All }, kind = BtnKind.Secondary) { Text(stringResource(R.string.library_show_all)) }
+                            }
+                        }
                     }
                 }
                 items(shown, key = { it.id }) { g ->
@@ -245,12 +259,12 @@ private fun SearchField(query: String, onChange: (String) -> Unit) {
             null
         },
         singleLine = true,
-        shape = CircleShape,
+        shape = MaterialTheme.shapes.small,
         keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
         colors = TextFieldDefaults.colors(
             unfocusedContainerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
             focusedContainerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
-            unfocusedIndicatorColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+            unfocusedIndicatorColor = MaterialTheme.colorScheme.outline,
         ),
         modifier = Modifier.fillMaxWidth().dpadExit(),
     )
@@ -259,16 +273,16 @@ private fun SearchField(query: String, onChange: (String) -> Unit) {
 /** A game as a cover with its name and how its saves stand. */
 @Composable
 private fun GameTile(g: GameView, badge: Badge, open: () -> Unit) {
-    val shape = RoundedCornerShape(14.dp)
+    val shape = MaterialTheme.shapes.medium
     Column(
         Modifier.fillMaxWidth().focusRing(shape).clip(shape).clickable(onClick = open).padding(4.dp),
         verticalArrangement = Arrangement.spacedBy(6.dp),
     ) {
-        Box(Modifier.fillMaxWidth().aspectRatio(2f / 3f).clip(RoundedCornerShape(10.dp))) {
+        Box(Modifier.fillMaxWidth().aspectRatio(2f / 3f).clip(MaterialTheme.shapes.small)) {
             CoverImage(g, Modifier.fillMaxSize())
             // Only states that ask for something; the others are the line below.
             if (badge < Badge.Synced) {
-                StatusPill(badge, Modifier.align(Alignment.TopStart).padding(6.dp), iconOnly = true)
+                StatusDot(badge, Modifier.align(Alignment.TopStart).padding(6.dp))
             }
         }
         Text(
@@ -311,22 +325,38 @@ private fun SetupCard(state: UiState, vm: AppViewModel, nav: Nav) {
     val needNotify = playable && Permissions.notificationsAsked && !perms.notifications
     if (!needCloud && !needStorage && !needUsage && !needNotify) return
 
-    SectionCard(stringResource(R.string.setup_title)) {
-        if (needCloud) {
+    // With games to show, the card folds to one line (it is taller than a screen with every step open).
+    val foldable = state.games.isNotEmpty()
+    var open by rememberSaveable { mutableStateOf(false) }
+    val showing = !foldable || open
+    val steps = listOf(needCloud, needStorage, needUsage, needNotify).count { it }
+    SectionCard(null) {
+        val shape = MaterialTheme.shapes.small
+        Row(
+            Modifier.fillMaxWidth().then(if (foldable) Modifier.focusRing(shape).clip(shape).clickable { open = !open } else Modifier),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Column(Modifier.weight(1f)) {
+                Text(stringResource(R.string.setup_title), style = MaterialTheme.typography.titleMedium)
+                if (!showing) Hint(pluralStringResource(R.plurals.setup_steps_left, steps, steps))
+            }
+            if (foldable) Icon(if (open) Icons.Outlined.ExpandLess else Icons.Outlined.ExpandMore, null)
+        }
+        if (showing && needCloud) {
             SetupItem(Icons.Outlined.Cloud, R.string.setup_cloud_title, stringResource(R.string.setup_cloud_text)) {
-                Button(onClick = { nav.go(Screen.Cloud) }) { Text(stringResource(R.string.setup_cloud_action)) }
+                AppButton(onClick = { nav.go(Screen.Cloud) }) { Text(stringResource(R.string.setup_cloud_action)) }
             }
         }
-        if (needStorage) {
+        if (showing && needStorage) {
             SetupItem(
                 Icons.Outlined.FolderOpen,
                 R.string.setup_storage_title,
                 stringResource(if (Storage.usesAllFilesAccess) R.string.setup_storage_text else R.string.setup_storage_text_legacy),
             ) {
-                Button(onClick = perms.askStorage) { Text(stringResource(R.string.action_allow)) }
+                AppButton(onClick = perms.askStorage) { Text(stringResource(R.string.action_allow)) }
             }
         }
-        if (needUsage) {
+        if (showing && needUsage) {
             // Android 13+ greys the switch out ("Restricted setting") for an app installed
             // from a downloaded APK until it is unlocked in the app's own info page.
             val restricted = Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU
@@ -336,17 +366,17 @@ private fun SetupCard(state: UiState, vm: AppViewModel, nav: Nav) {
                 stringResource(R.string.setup_usage_text),
                 note = if (restricted) stringResource(R.string.setup_usage_restricted) else null,
             ) {
-                Button(onClick = perms.askUsage) { Text(stringResource(R.string.action_allow)) }
+                AppButton(onClick = perms.askUsage) { Text(stringResource(R.string.action_allow)) }
                 if (restricted) {
-                    OutlinedButton(onClick = { ctx.startActivity(appInfoIntent(ctx)) }) {
+                    AppButton(onClick = { ctx.startActivity(appInfoIntent(ctx)) }, kind = BtnKind.Secondary) {
                         Text(stringResource(R.string.action_app_info))
                     }
                 }
             }
         }
-        if (needNotify) {
+        if (showing && needNotify) {
             SetupItem(Icons.Outlined.Notifications, R.string.setup_notifications_title, stringResource(R.string.setup_notifications_text)) {
-                Button(onClick = perms.askNotifications) { Text(stringResource(R.string.action_allow)) }
+                AppButton(onClick = perms.askNotifications) { Text(stringResource(R.string.action_allow)) }
             }
         }
     }
@@ -361,15 +391,16 @@ private fun SetupItem(
     actions: @Composable () -> Unit,
 ) {
     Row(horizontalArrangement = Arrangement.spacedBy(14.dp)) {
-        Surface(Modifier.size(40.dp), shape = CircleShape, color = MaterialTheme.colorScheme.primaryContainer) {
+        // The empty state's tint: a soft circle with the accent icon.
+        Surface(Modifier.size(40.dp), shape = CircleShape, color = MaterialTheme.colorScheme.primary.copy(alpha = 0.14f)) {
             Box(contentAlignment = Alignment.Center) {
-                Icon(icon, null, Modifier.size(22.dp), tint = MaterialTheme.colorScheme.onPrimaryContainer)
+                Icon(icon, null, Modifier.size(22.dp), tint = MaterialTheme.colorScheme.primary)
             }
         }
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
             Text(stringResource(title), style = MaterialTheme.typography.titleSmall)
-            Text(text, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            note?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
+            Hint(text)
+            note?.let { Hint(it) }
             Row(Modifier.padding(top = 4.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) { actions() }
         }
     }

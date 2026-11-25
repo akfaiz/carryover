@@ -8,10 +8,6 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.viewModels
-import androidx.lifecycle.viewmodel.initializer
-import androidx.lifecycle.viewmodel.viewModelFactory
-import com.akfaiz.carryover.core.Core
-import com.akfaiz.carryover.data.AndroidTexts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -21,33 +17,34 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.Button
-import androidx.compose.material3.Card
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.core.content.pm.ShortcutInfoCompat
 import androidx.core.content.pm.ShortcutManagerCompat
 import androidx.core.graphics.drawable.IconCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.viewmodel.initializer
+import androidx.lifecycle.viewmodel.viewModelFactory
 import com.akfaiz.carryover.R
-import com.akfaiz.carryover.ui.CarryoverTheme
 import com.akfaiz.carryover.core.AppLanguage
 import com.akfaiz.carryover.core.AppPrefs
-import androidx.compose.ui.res.stringResource
+import com.akfaiz.carryover.core.Core
+import com.akfaiz.carryover.data.AndroidTexts
+import com.akfaiz.carryover.ui.AppButton
+import com.akfaiz.carryover.ui.BtnKind
+import com.akfaiz.carryover.ui.CarryoverTheme
 import com.akfaiz.carryover.ui.PromptDialog
+import com.akfaiz.carryover.ui.SectionCard
+import com.akfaiz.carryover.ui.Spinner
 
 /**
  * Starts a game for a frontend (ES-DE, Daijisho, …) or a home-screen
@@ -149,19 +146,19 @@ private fun LaunchScreen(vm: LaunchViewModel, close: () -> Unit) {
     val state by vm.state.collectAsStateWithLifecycle()
     val prompts by vm.prompts.collectAsStateWithLifecycle()
     LaunchedEffect(state) { if (state is LaunchState.Done) close() }
-    Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.5f)), contentAlignment = Alignment.Center) {
-        Card(Modifier.padding(24.dp).fillMaxWidth()) {
-            Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+    Box(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.scrim.copy(alpha = 0.5f)), contentAlignment = Alignment.Center) {
+        SectionCard(null, Modifier.padding(24.dp)) {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 when (val s = state) {
                     is LaunchState.Working -> Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-                        CircularProgressIndicator(Modifier.size(28.dp))
+                        Spinner()
                         Text(s.message)
                     }
                     is LaunchState.Choose -> Choose(s, vm, close)
                     is LaunchState.Error -> {
                         Text(stringResource(R.string.app_name), style = MaterialTheme.typography.titleMedium)
                         Text(s.message)
-                        Button(onClick = close) { Text(stringResource(R.string.action_close)) }
+                        AppButton(onClick = close) { Text(stringResource(R.string.action_close)) }
                     }
                     LaunchState.Done -> {}
                 }
@@ -183,11 +180,11 @@ private fun Choose(s: LaunchState.Choose, vm: LaunchViewModel, close: () -> Unit
     }
     Column(Modifier.heightIn(max = 320.dp).verticalScroll(rememberScrollState())) {
         for (c in s.candidates) {
-            TextButton(onClick = { vm.choose(c) }, modifier = Modifier.fillMaxWidth()) { Text(c.title) }
+            AppButton(onClick = { vm.choose(c) }, modifier = Modifier.fillMaxWidth(), kind = BtnKind.Ghost) { Text(c.title) }
         }
     }
     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        OutlinedButton(onClick = { vm.choose(null) }) { Text(stringResource(R.string.action_play_no_sync)) }
-        TextButton(onClick = close) { Text(stringResource(R.string.action_cancel)) }
+        AppButton(onClick = { vm.choose(null) }, kind = BtnKind.Secondary) { Text(stringResource(R.string.action_play_no_sync)) }
+        AppButton(onClick = close, kind = BtnKind.Ghost) { Text(stringResource(R.string.action_cancel)) }
     }
 }

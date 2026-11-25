@@ -9,6 +9,11 @@ All notable changes to Carryover are listed here. The format follows
 
 ### Changed
 
+- The Android app has the desktop's new look: the same corner radii and card, badge and empty-state styles, one
+  button style with icons, highlighted boxes for what needs a look (a conflict, an error, saves not uploaded), and
+  empty pages that offer the button that fills them. Every page now has the same bar, width and spacing.
+  A game's status uses the desktop's words: Running, Needs setup, Conflict (now red), Sync error, Not uploaded,
+  Synced and Not synced. The app's own background now follows the theme chosen in Settings from the first frame.
 - The desktop app has a new interface toolkit, [MyGo](https://mygo.run), in place of Fyne. It builds without a C compiler
   or GUI libraries, and the downloads are smaller (the macOS app zip is about 30 MB,
   the Windows exe about 38 MB). Linux needs GTK 3 installed, which the Steam Deck has. Pressing A on a text field in

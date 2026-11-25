@@ -2,29 +2,25 @@ package com.akfaiz.carryover.ui
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.outlined.Add
 import androidx.compose.material.icons.outlined.Delete
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
-import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -58,33 +54,15 @@ fun EditGameScreen(id: String, state: UiState, vm: AppViewModel, nav: Nav) {
     val g by produceState<GameView?>(null, id, state.games) { value = vm.fullGame(id) }
     Scaffold(
         contentWindowInsets = LocalPageInsets.current,
-        topBar = {
-            TopAppBar(
-                title = { Text(stringResource(R.string.edit_game)) },
-                navigationIcon = {
-                    IconButton(onClick = nav::back) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.action_back))
-                    }
-                },
-                windowInsets = pageBarInsets(),
-            )
-        },
+        topBar = { PageTopBar(stringResource(R.string.edit_game), nav::back) },
     ) { padding ->
         val game = g ?: return@Scaffold
-        Column(
-            Modifier.fillMaxSize().padding(padding).verticalScroll(rememberScrollState()),
-            horizontalAlignment = Alignment.CenterHorizontally,
-        ) {
-            Column(
-                Modifier.widthIn(max = 760.dp).fillMaxWidth().padding(16.dp),
-                verticalArrangement = Arrangement.spacedBy(16.dp),
-            ) {
-                NameCard(game, vm)
-                EmulatorsCard(game, state, vm)
-                // Each way it is played here: where its saves are and how it starts.
-                for (p in androidProfiles(game, state)) {
-                    ProfileEditCard(game, p, state, vm, nav)
-                }
+        PageColumn(padding) {
+            NameCard(game, vm)
+            EmulatorsCard(game, state, vm)
+            // Each way it is played here: where its saves are and how it starts.
+            for (p in androidProfiles(game, state)) {
+                ProfileEditCard(game, p, state, vm, nav)
             }
         }
     }
@@ -93,9 +71,15 @@ fun EditGameScreen(id: String, state: UiState, vm: AppViewModel, nav: Nav) {
 @Composable
 private fun NameCard(g: GameView, vm: AppViewModel) {
     var name by remember(g.id, g.name) { mutableStateOf(g.name) }
-    SectionCard(stringResource(R.string.field_name)) {
-        OutlinedTextField(name, { name = it }, singleLine = true, modifier = Modifier.fillMaxWidth().dpadExit())
-        Button(onClick = { vm.renameGame(g.id, name) }, enabled = name.isNotBlank() && name.trim() != g.name) {
+    SectionCard(null) {
+        OutlinedTextField(
+            name,
+            { name = it },
+            label = { Text(stringResource(R.string.field_name)) },
+            singleLine = true,
+            modifier = Modifier.fillMaxWidth().dpadExit(),
+        )
+        AppButton(onClick = { vm.renameGame(g.id, name) }, enabled = name.isNotBlank() && name.trim() != g.name) {
             Text(stringResource(R.string.action_save))
         }
     }
@@ -111,23 +95,24 @@ private fun EmulatorsCard(g: GameView, state: UiState, vm: AppViewModel) {
     val nameOf = { emuId: String -> byId[emuId]?.name ?: g.emulators.firstOrNull { it.emulatorId == emuId }?.name ?: emuId }
 
     SectionCard(stringResource(R.string.edit_played_with)) {
-        for (p in here) {
+        if (here.isNotEmpty()) ListRows(here) { p ->
             val exe = byId[p.emulatorId]?.device?.exe.orEmpty()
-            SettingRow(
-                icon = null,
-                title = p.name,
-                detail = when {
-                    p.shareWith.isNotEmpty() -> stringResource(R.string.edit_shares, nameOf(p.shareWith))
-                    exe.isNotBlank() -> appLabel(ctx, exe)
-                    else -> stringResource(R.string.emulator_not_set_up)
-                },
-                leading = { AppIcon(exe.substringBefore('/'), 36) },
-                trailing = {
-                    IconButton(onClick = { removing = p }) {
-                        Icon(Icons.Outlined.Delete, contentDescription = stringResource(R.string.action_remove))
-                    }
-                },
-            )
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                AppIcon(exe.substringBefore('/'), 36)
+                Column(Modifier.weight(1f)) {
+                    Text(p.name, style = MaterialTheme.typography.bodyLarge)
+                    Hint(
+                        when {
+                            p.shareWith.isNotEmpty() -> stringResource(R.string.edit_shares, nameOf(p.shareWith))
+                            exe.isNotBlank() -> appLabel(ctx, exe)
+                            else -> stringResource(R.string.emulator_not_set_up)
+                        },
+                    )
+                }
+                IconButton(onClick = { removing = p }) {
+                    Icon(Icons.Outlined.Delete, contentDescription = stringResource(R.string.action_remove))
+                }
+            }
         }
         // The game's own (PC) saves and emulators without an Android app stay on the other devices.
         val others = buildList {
@@ -137,16 +122,10 @@ private fun EmulatorsCard(g: GameView, state: UiState, vm: AppViewModel) {
             addAll(elsewhere.map { it.name })
         }
         if (others.isNotEmpty()) {
-            Text(
-                stringResource(R.string.edit_elsewhere, others.joinToString(", ")),
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(horizontal = 16.dp),
-            )
+            Hint(stringResource(R.string.edit_elsewhere, others.joinToString(", ")))
         }
-        OutlinedButton(onClick = { adding = true }) {
-            Icon(Icons.Filled.Add, null)
-            Text(stringResource(R.string.action_add_emulator), Modifier.padding(start = 8.dp))
+        AppButton(onClick = { adding = true }, kind = BtnKind.Secondary, icon = Icons.Outlined.Add) {
+            Text(stringResource(R.string.action_add_emulator))
         }
     }
 
@@ -172,18 +151,18 @@ private fun EmulatorsCard(g: GameView, state: UiState, vm: AppViewModel) {
             text = { Text(blocked ?: stringResource(R.string.edit_remove_text, p.name)) },
             confirmButton = {
                 if (blocked != null) {
-                    TextButton(onClick = { removing = null }) { Text(stringResource(R.string.action_ok)) }
+                    AppButton(onClick = { removing = null }) { Text(stringResource(R.string.action_ok)) }
                 } else {
-                    TextButton(onClick = {
+                    AppButton(onClick = {
                         removing = null
                         vm.removeGameEmulator(g.id, p.emulatorId, p.name)
-                    }) { Text(stringResource(R.string.action_remove)) }
+                    }, kind = BtnKind.Danger) { Text(stringResource(R.string.action_remove)) }
                 }
             },
             dismissButton = if (blocked != null) {
                 null
             } else {
-                { TextButton(onClick = { removing = null }) { Text(stringResource(R.string.action_cancel)) } }
+                { AppButton(onClick = { removing = null }, kind = BtnKind.Ghost) { Text(stringResource(R.string.action_cancel)) } }
             },
         )
     }
@@ -219,7 +198,7 @@ private fun AddEmulatorDialog(
         text = {
             Column(Modifier.heightIn(max = 480.dp).verticalScroll(rememberScrollState())) {
                 if (candidates.isEmpty()) {
-                    Text(stringResource(R.string.edit_add_none), style = MaterialTheme.typography.bodyMedium)
+                    Hint(stringResource(R.string.edit_add_none))
                 }
                 for (e in candidates) {
                     ChoiceRow(chosen == e.id, { chosen = e.id }) {
@@ -249,11 +228,11 @@ private fun AddEmulatorDialog(
             }
         },
         confirmButton = {
-            TextButton(onClick = { emu?.let { onAdd(it, shareWith) } }, enabled = emu != null) {
+            AppButton(onClick = { emu?.let { onAdd(it, shareWith) } }, enabled = emu != null) {
                 Text(stringResource(R.string.action_add))
             }
         },
-        dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.action_cancel)) } },
+        dismissButton = { AppButton(onClick = onDismiss, kind = BtnKind.Ghost) { Text(stringResource(R.string.action_cancel)) } },
     )
 }
 
@@ -262,7 +241,7 @@ private fun SavesChoice(title: String, hint: String, selected: Boolean, onClick:
     ChoiceRow(selected, onClick) {
         Column(Modifier.weight(1f)) {
             Text(title, style = MaterialTheme.typography.bodyMedium)
-            Text(hint, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Hint(hint)
         }
     }
 }

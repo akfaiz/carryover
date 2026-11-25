@@ -10,19 +10,17 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.outlined.Add
 import androidx.compose.material.icons.outlined.Apps
 import androidx.compose.material.icons.outlined.Delete
 import androidx.compose.material.icons.outlined.Edit
 import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Button
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateMapOf
@@ -108,23 +106,21 @@ fun ProfileEditCard(g: GameView, p: Profile, state: UiState, vm: AppViewModel, n
                 },
             )
         }
-        FlowRow(horizontalArrangement = Arrangement.spacedBy(4.dp), itemVerticalAlignment = Alignment.CenterVertically) {
+        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), itemVerticalAlignment = Alignment.CenterVertically) {
             AnimatedVisibility(dirty) {
-                Button(onClick = { vm.setPaths(p.key, p.slots.associate { it.key to (edits[it.key] ?: "") }) }) {
+                AppButton(onClick = { vm.setPaths(p.key, p.slots.associate { it.key to (edits[it.key] ?: "") }) }) {
                     Text(stringResource(R.string.action_save))
                 }
             }
             // Where the emulator keeps this game's saves, from its manifest (needs its type and data folder).
             if (state.emulators.firstOrNull { it.id == p.emulatorId }?.preset.orEmpty().isNotEmpty()) {
-                TextButton(onClick = { suggest.open(p.key) }) {
-                    Icon(Icons.Outlined.Search, null, Modifier.size(18.dp))
-                    Text(stringResource(R.string.game_suggest_saves), Modifier.padding(start = 6.dp))
+                AppButton(onClick = { suggest.open(p.key) }, kind = BtnKind.Ghost, icon = Icons.Outlined.Search) {
+                    Text(stringResource(R.string.game_suggest_saves))
                 }
             }
             if (!sharing) {
-                TextButton(onClick = { editing = "" }) {
-                    Icon(Icons.Filled.Add, null, Modifier.size(18.dp))
-                    Text(stringResource(R.string.action_add_slot), Modifier.padding(start = 6.dp))
+                AppButton(onClick = { editing = "" }, kind = BtnKind.Ghost, icon = Icons.Outlined.Add) {
+                    Text(stringResource(R.string.action_add_slot))
                 }
             }
         }
@@ -150,12 +146,12 @@ fun ProfileEditCard(g: GameView, p: Profile, state: UiState, vm: AppViewModel, n
             title = { Text(stringResource(R.string.edit_slot_remove_title, sl.title)) },
             text = { Text(stringResource(R.string.edit_slot_remove_text, sl.title)) },
             confirmButton = {
-                TextButton(onClick = {
+                AppButton(onClick = {
                     removing = null
                     vm.setSlots(p.key, p.slots.filter { it.key != sl.key })
-                }) { Text(stringResource(R.string.action_remove)) }
+                }, kind = BtnKind.Danger) { Text(stringResource(R.string.action_remove)) }
             },
-            dismissButton = { TextButton(onClick = { removing = null }) { Text(stringResource(R.string.action_cancel)) } },
+            dismissButton = { AppButton(onClick = { removing = null }, kind = BtnKind.Ghost) { Text(stringResource(R.string.action_cancel)) } },
         )
     }
 }
@@ -167,20 +163,20 @@ private fun LaunchEditor(g: GameView, p: Profile, state: UiState, vm: AppViewMod
     Text(stringResource(R.string.game_launch), style = MaterialTheme.typography.labelLarge)
     ProfileAppLine(p, state)
     if (p.emulatorId == null) {
-        OutlinedButton(onClick = { picking = true }) {
+        AppButton(onClick = { picking = true }, kind = BtnKind.Secondary) {
             Text(stringResource(if (p.app.isBlank()) R.string.action_choose_game_app else R.string.action_change_app))
         }
     } else {
         val emu = state.emulators.firstOrNull { it.id == p.emulatorId }
         if (emu == null || emu.device.exe.isBlank()) {
-            OutlinedButton(onClick = { nav.go(if (emu != null) Screen.Emulator(emu.id) else Screen.Emulators) }) {
+            AppButton(onClick = { nav.go(if (emu != null) Screen.Emulator(emu.id) else Screen.Emulators) }, kind = BtnKind.Secondary) {
                 Text(stringResource(R.string.action_set_up_emulators))
             }
         } else if (emu.device.args.isNotBlank()) {
             var rom by remember(p.key, p.rom) { mutableStateOf(p.rom) }
             GameFileField(rom, { rom = it }, stringResource(R.string.game_file))
             AnimatedVisibility(rom != p.rom) {
-                Button(onClick = { vm.setRom(p.key, rom) }) { Text(stringResource(R.string.action_save_game_file)) }
+                AppButton(onClick = { vm.setRom(p.key, rom) }) { Text(stringResource(R.string.action_save_game_file)) }
             }
         }
     }
@@ -228,9 +224,4 @@ private fun AppLine(pkg: String, text: String) {
         }
         Text(text, style = MaterialTheme.typography.bodyMedium)
     }
-}
-
-@Composable
-private fun Hint(text: String) {
-    Text(text, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
 }

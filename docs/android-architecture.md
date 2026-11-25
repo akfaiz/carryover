@@ -15,6 +15,20 @@ background work needs a foreground service.
 So the app is a **launcher plus listener**: it starts the game itself after syncing, and watches for the game
 leaving the screen to upload.
 
+## Look
+
+The app looks like the desktop's launcher look ([Look and feel](architecture.md#desktop-gui)): the same palette, corner
+radii (6, 8 and 12dp), card and badge styles, one empty-state style and the desktop's words for a game's status
+(Running, Needs setup, Conflict, Sync error, Not uploaded, Synced, Not synced). It keeps Android's own navigation: a
+bottom bar (a rail on wide landscape screens), Material 3 text fields and a floating button for adding.
+
+`ui/Theme.kt` holds the palette, shapes and type, and `ui/Kit.kt` the building blocks, the twin of the desktop's `ui/kit`:
+`AppButton` (primary, secondary, danger, ghost), `Callout`, `Pill`/`StatusBadge`, `EmptyState`, `SectionCard`/`SubCard`,
+`ListRows`, `ChoiceRow`, `PageTopBar` and `PageColumn` (centered, at most 760dp wide, one set of gutters). Screens use these and
+not Material's raw buttons and cards, radii or colours of their own: `StyleTest` fails on those (a line that has a
+reason says `style:ok`). The one place Android differs on purpose from the desktop palette is the dark theme's text on
+the accent, which is dark so it stays readable.
+
 ## Layers
 
 ```mermaid
