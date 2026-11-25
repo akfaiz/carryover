@@ -193,3 +193,37 @@ func TestProgress(t *testing.T) {
 	_, ok = vm.Progress()
 	assert.False(t, ok, "a finished run shows nothing, whatever it left behind")
 }
+
+// The page asks for the visible games in every frame it builds: while nothing
+// they depend on changed, the answer is the one kept, not worked out again.
+func TestVisibleIsKeptWhileNothingChanges(t *testing.T) {
+	vm, src, prefs := newVM(game("Hades", ""), game("Celeste", ""), game("Abzu", ""))
+	first := vm.Visible()
+	require.Equal(t, []string{"Abzu", "Celeste", "Hades"}, names(first))
+	same := func(a, b []services.GameView) bool { return len(a) > 0 && len(b) > 0 && &a[0] == &b[0] }
+
+	assert.True(t, same(first, vm.Visible()), "nothing changed: the answer is kept")
+
+	vm.SetQuery("ce")
+	assert.Equal(t, []string{"Celeste"}, names(vm.Visible()), "a new search")
+	vm.SetQuery("")
+	assert.Equal(t, []string{"Abzu", "Celeste", "Hades"}, names(vm.Visible()), "the search cleared")
+
+	prefs[prefSort] = string(SortRecent)
+	assert.Equal(t, []string{"Hades", "Celeste", "Abzu"}, names(vm.Visible()), "a new order keeps the order the games had, none was synced")
+	prefs[prefSort] = string(SortName)
+
+	src.games = append(src.games, game("Bastion", ""))
+	assert.Equal(t, []string{"Abzu", "Bastion", "Celeste", "Hades"}, names(vm.Visible()), "a game was added")
+
+	src.games = []services.GameView{game("Zelda", "")}
+	assert.Equal(t, []string{"Zelda"}, names(vm.Visible()), "the store read the library again")
+	src.games = nil
+	assert.Empty(t, vm.Visible(), "no games")
+
+	src.games = []services.GameView{game("Hades", ""), game("Ori", "")}
+	prefs[prefFilter] = string(FilterAttention)
+	assert.Empty(t, vm.Visible(), "a filter nothing passes")
+	prefs[prefFilter] = string(FilterAll)
+	assert.Equal(t, []string{"Hades", "Ori"}, names(vm.Visible()), "the filter off")
+}
