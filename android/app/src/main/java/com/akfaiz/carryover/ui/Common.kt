@@ -20,7 +20,6 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -56,7 +55,7 @@ fun GameFileField(value: String, onChange: (String) -> Unit, label: String, hint
         onChange(uri.toString())
     }
     val browse = @Composable {
-        TextButton(onClick = { picker.launch(arrayOf("*/*")) }) { Text(stringResource(R.string.action_browse)) }
+        AppButton(onClick = { picker.launch(arrayOf("*/*")) }, kind = BtnKind.Ghost) { Text(stringResource(R.string.action_browse)) }
     }
     val supporting = hint ?: if (value.isBlank()) stringResource(R.string.game_file_hint) else null
     if (isContentUri(value)) {
@@ -168,7 +167,7 @@ fun FolderField(
             isError = isError || pickError != null,
             supportingText = (pickError ?: supporting)?.let { { Text(it) } },
             trailingIcon = {
-                TextButton(onClick = { picker.launch(null) }) { Text(stringResource(R.string.action_browse)) }
+                AppButton(onClick = { picker.launch(null) }, kind = BtnKind.Ghost) { Text(stringResource(R.string.action_browse)) }
             },
             modifier = Modifier.fillMaxWidth().dpadExit(),
         )

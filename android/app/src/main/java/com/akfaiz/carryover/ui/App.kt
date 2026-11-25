@@ -1,6 +1,5 @@
 package com.akfaiz.carryover.ui
 
-import com.akfaiz.carryover.core.ArtKind
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.fadeIn
@@ -10,16 +9,16 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.WindowInsetsSides
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.safeDrawingPadding
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.height
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.SportsEsports
@@ -34,11 +33,11 @@ import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.NavigationRail
 import androidx.compose.material3.NavigationRailItem
+import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
@@ -59,6 +58,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.akfaiz.carryover.R
 import com.akfaiz.carryover.core.Answer
+import com.akfaiz.carryover.core.ArtKind
 import com.akfaiz.carryover.core.Prompt
 import com.akfaiz.carryover.core.PromptKind
 import com.akfaiz.carryover.core.Resolution
@@ -91,6 +91,9 @@ class Nav {
     var tab by mutableStateOf<Screen>(Screen.Library)
         private set
     val stack = mutableStateListOf<Screen>()
+
+    /** Set by a page that needs the SteamGridDB key: Settings opens its dialog once and clears it. */
+    var askGridKey by mutableStateOf(false)
     val current: Screen get() = stack.lastOrNull() ?: tab
     val canGoBack: Boolean get() = stack.isNotEmpty() || tab != Screen.Library
 
@@ -273,9 +276,9 @@ fun CarryoverApp(vm: AppViewModel) {
             // can cut the last one off.
             confirmButton = {
                 Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.End) {
-                    TextButton(onClick = { vm.resolveConflict(Resolution.Local) }) { Text(stringResource(R.string.action_keep_local)) }
-                    TextButton(onClick = { vm.resolveConflict(Resolution.Cloud) }) { Text(stringResource(R.string.action_keep_cloud)) }
-                    TextButton(onClick = { vm.resolveConflict(null) }) { Text(stringResource(R.string.action_decide_later)) }
+                    AppButton(onClick = { vm.resolveConflict(Resolution.Local) }) { Text(stringResource(R.string.action_keep_local)) }
+                    AppButton(onClick = { vm.resolveConflict(Resolution.Cloud) }, kind = BtnKind.Secondary) { Text(stringResource(R.string.action_keep_cloud)) }
+                    AppButton(onClick = { vm.resolveConflict(null) }, kind = BtnKind.Ghost) { Text(stringResource(R.string.action_decide_later)) }
                 }
             },
         )
@@ -319,10 +322,10 @@ fun PromptDialog(p: Prompt, onAnswer: (String) -> Unit) {
             },
             confirmButton = {
                 Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.End) {
-                    TextButton(onClick = { onAnswer(Answer.Local.wire) }) { Text(stringResource(R.string.action_keep_local)) }
-                    TextButton(onClick = { onAnswer(Answer.Cloud.wire) }) { Text(stringResource(R.string.action_keep_cloud)) }
+                    AppButton(onClick = { onAnswer(Answer.Local.wire) }) { Text(stringResource(R.string.action_keep_local)) }
+                    AppButton(onClick = { onAnswer(Answer.Cloud.wire) }, kind = BtnKind.Secondary) { Text(stringResource(R.string.action_keep_cloud)) }
                     // Skip leaves both sides as they are: before playing, the game starts with this device's saves.
-                    TextButton(onClick = { onAnswer(Answer.Skip.wire) }) {
+                    AppButton(onClick = { onAnswer(Answer.Skip.wire) }, kind = BtnKind.Ghost) {
                         Text(stringResource(if (p.beforePlay) R.string.action_play_no_sync else R.string.action_decide_later))
                     }
                 }
@@ -340,8 +343,8 @@ fun PromptDialog(p: Prompt, onAnswer: (String) -> Unit) {
                 )
             },
             text = { Text(stringResource(R.string.prompt_lock_text)) },
-            confirmButton = { TextButton(onClick = { onAnswer(Answer.Yes.wire) }) { Text(stringResource(R.string.action_play_anyway)) } },
-            dismissButton = { TextButton(onClick = { onAnswer(Answer.No.wire) }) { Text(stringResource(R.string.action_dont_play)) } },
+            confirmButton = { AppButton(onClick = { onAnswer(Answer.Yes.wire) }) { Text(stringResource(R.string.action_play_anyway)) } },
+            dismissButton = { AppButton(onClick = { onAnswer(Answer.No.wire) }, kind = BtnKind.Ghost) { Text(stringResource(R.string.action_dont_play)) } },
         )
         PromptKind.SyncError -> AlertDialog(
             onDismissRequest = {},
@@ -356,12 +359,12 @@ fun PromptDialog(p: Prompt, onAnswer: (String) -> Unit) {
                 }
             },
             confirmButton = {
-                TextButton(onClick = { onAnswer(Answer.Yes.wire) }) {
+                AppButton(onClick = { onAnswer(Answer.Yes.wire) }) {
                     Text(stringResource(if (p.beforePlay) R.string.action_play_anyway else R.string.action_ok))
                 }
             },
             dismissButton = if (p.beforePlay) {
-                { TextButton(onClick = { onAnswer(Answer.No.wire) }) { Text(stringResource(R.string.action_dont_play)) } }
+                { AppButton(onClick = { onAnswer(Answer.No.wire) }, kind = BtnKind.Ghost) { Text(stringResource(R.string.action_dont_play)) } }
             } else {
                 null
             },
@@ -372,12 +375,12 @@ fun PromptDialog(p: Prompt, onAnswer: (String) -> Unit) {
             text = {
                 Column {
                     for (c in p.choices) {
-                        TextButton(onClick = { onAnswer(c.id) }, Modifier.fillMaxWidth()) { Text(c.name) }
+                        AppButton(onClick = { onAnswer(c.id) }, Modifier.fillMaxWidth(), BtnKind.Secondary) { Text(c.name) }
                     }
                 }
             },
             confirmButton = {},
-            dismissButton = { TextButton(onClick = { onAnswer(Answer.Cancel.wire) }) { Text(stringResource(R.string.action_cancel)) } },
+            dismissButton = { AppButton(onClick = { onAnswer(Answer.Cancel.wire) }, kind = BtnKind.Ghost) { Text(stringResource(R.string.action_cancel)) } },
         )
         PromptKind.Unknown -> onAnswer(Answer.No.wire)
     }

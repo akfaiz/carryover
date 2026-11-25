@@ -1,11 +1,5 @@
 package com.akfaiz.carryover.ui
 
-import com.akfaiz.carryover.core.ArtKind
-import androidx.compose.material.icons.outlined.Close
-import androidx.compose.material.icons.outlined.Wallpaper
-import com.akfaiz.carryover.core.TrashView
-import androidx.compose.material.icons.outlined.Delete
-import androidx.compose.material3.AlertDialog
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
@@ -20,6 +14,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -28,17 +23,21 @@ import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.automirrored.outlined.AddToHomeScreen
+import androidx.compose.material.icons.automirrored.outlined.ArrowBack
+import androidx.compose.material.icons.outlined.Close
+import androidx.compose.material.icons.outlined.CloudUpload
+import androidx.compose.material.icons.outlined.Delete
 import androidx.compose.material.icons.outlined.Devices
 import androidx.compose.material.icons.outlined.Edit
+import androidx.compose.material.icons.outlined.ErrorOutline
 import androidx.compose.material.icons.outlined.ExpandLess
 import androidx.compose.material.icons.outlined.ExpandMore
 import androidx.compose.material.icons.outlined.History
@@ -47,25 +46,19 @@ import androidx.compose.material.icons.outlined.MoreVert
 import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material.icons.outlined.StopCircle
 import androidx.compose.material.icons.outlined.Sync
+import androidx.compose.material.icons.outlined.Wallpaper
 import androidx.compose.material.icons.outlined.WarningAmber
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
-import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -80,16 +73,18 @@ import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.platform.LocalWindowInfo
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalWindowInfo
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.akfaiz.carryover.R
-import com.akfaiz.carryover.core.SaveSlot
+import com.akfaiz.carryover.core.ArtKind
 import com.akfaiz.carryover.core.GameView
 import com.akfaiz.carryover.core.Profile
 import com.akfaiz.carryover.core.Resolution
+import com.akfaiz.carryover.core.SaveSlot
+import com.akfaiz.carryover.core.TrashView
 
 @Composable
 fun GameScreen(id: String, state: UiState, vm: AppViewModel, nav: Nav) {
@@ -123,10 +118,9 @@ fun GameScreen(id: String, state: UiState, vm: AppViewModel, nav: Nav) {
                     if (p.status.conflict && p.key !in state.syncing && p.canSync) ConflictCard(g, p, vm)
                 }
                 if (profiles.isEmpty()) {
-                    Text(stringResource(R.string.game_no_profiles), color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    OutlinedButton(onClick = { nav.go(Screen.EditGame(g.id)) }) {
-                        Icon(Icons.Outlined.Edit, null, Modifier.size(18.dp))
-                        Text(stringResource(R.string.edit_game), Modifier.padding(start = 8.dp))
+                    Hint(stringResource(R.string.game_no_profiles))
+                    AppButton(onClick = { nav.go(Screen.EditGame(g.id)) }, kind = BtnKind.Secondary, icon = Icons.Outlined.Edit) {
+                        Text(stringResource(R.string.edit_game))
                     }
                 }
                 for (p in profiles) {
@@ -150,7 +144,7 @@ private fun BackButton(nav: Nav, modifier: Modifier = Modifier) {
             contentColor = MaterialTheme.colorScheme.onSurface,
         ),
     ) {
-        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.action_back))
+        Icon(Icons.AutoMirrored.Outlined.ArrowBack, contentDescription = stringResource(R.string.action_back))
     }
 }
 
@@ -245,24 +239,25 @@ private fun Header(g: GameView, badge: Badge, vm: AppViewModel, nav: Nav) {
                         title = { Text(stringResource(R.string.dialog_delete_game_title, g.name)) },
                         text = { Text(stringResource(R.string.dialog_delete_game_text, TrashView().days)) },
                         confirmButton = {
-                            TextButton(
+                            AppButton(
                                 onClick = {
                                     deleting = false
                                     vm.deleteGame(g.id, g.name) { nav.back() }
                                 },
-                            ) { Text(stringResource(R.string.action_delete), color = MaterialTheme.colorScheme.error) }
+                                kind = BtnKind.Danger,
+                            ) { Text(stringResource(R.string.action_delete)) }
                         },
-                        dismissButton = { TextButton(onClick = { deleting = false }) { Text(stringResource(R.string.action_cancel)) } },
+                        dismissButton = { AppButton(onClick = { deleting = false }, kind = BtnKind.Ghost) { Text(stringResource(R.string.action_cancel)) } },
                     )
                 }
             }
         }
         Row(
-            Modifier.align(Alignment.BottomStart).widthIn(max = 760.dp).padding(horizontal = 16.dp),
+            Modifier.align(Alignment.BottomCenter).widthIn(max = 760.dp).fillMaxWidth().padding(horizontal = 16.dp),
             verticalAlignment = Alignment.Bottom,
             horizontalArrangement = Arrangement.spacedBy(16.dp),
         ) {
-            val shape = RoundedCornerShape(10.dp)
+            val shape = MaterialTheme.shapes.small
             Box(
                 Modifier
                     .size(width = 104.dp, height = 156.dp)
@@ -280,7 +275,7 @@ private fun Header(g: GameView, badge: Badge, vm: AppViewModel, nav: Nav) {
                     maxLines = 3,
                     overflow = TextOverflow.Ellipsis,
                 )
-                StatusPill(badge)
+                StatusBadge(badge)
             }
         }
     }
@@ -298,21 +293,20 @@ private fun PlayRow(g: GameView, profiles: List<Profile>, state: UiState, vm: Ap
     when {
         uploading != null -> Busy(stringResource(R.string.status_uploading))
         running != null -> Surface(
-            shape = RoundedCornerShape(14.dp),
+            shape = MaterialTheme.shapes.medium,
             color = MaterialTheme.colorScheme.primaryContainer,
             modifier = Modifier.fillMaxWidth(),
         ) {
             Row(Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
-                Icon(Icons.Filled.PlayArrow, null, tint = MaterialTheme.colorScheme.onPrimaryContainer)
+                Icon(PlayIcon, null, tint = MaterialTheme.colorScheme.onPrimaryContainer)
                 Text(
                     stringResource(R.string.status_playing) + (running.emulator?.let { " · $it" } ?: ""),
                     style = MaterialTheme.typography.titleSmall,
                     color = MaterialTheme.colorScheme.onPrimaryContainer,
                     modifier = Modifier.weight(1f).padding(start = 8.dp),
                 )
-                Button(onClick = { vm.donePlaying(running.key) }) {
-                    Icon(Icons.Outlined.StopCircle, null, Modifier.size(18.dp))
-                    Text(stringResource(R.string.action_done_playing), Modifier.padding(start = 6.dp))
+                AppButton(onClick = { vm.donePlaying(running.key) }, icon = Icons.Outlined.StopCircle) {
+                    Text(stringResource(R.string.action_done_playing))
                 }
             }
         }
@@ -330,11 +324,7 @@ private fun PlayRow(g: GameView, profiles: List<Profile>, state: UiState, vm: Ap
                 }
                 // Play waits for Sync all: say so rather than only greying it out.
                 if (playable.isNotEmpty() && state.syncAll != null) {
-                    Text(
-                        stringResource(R.string.play_wait_sync_all),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
+                    Hint(stringResource(R.string.play_wait_sync_all))
                 }
             }
         }
@@ -344,7 +334,7 @@ private fun PlayRow(g: GameView, profiles: List<Profile>, state: UiState, vm: Ap
 @Composable
 private fun Busy(text: String) {
     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-        CircularProgressIndicator(Modifier.size(22.dp), strokeWidth = 2.dp)
+        Spinner()
         Text(text, style = MaterialTheme.typography.bodyMedium)
     }
 }
@@ -353,14 +343,14 @@ private fun Busy(text: String) {
 private fun PlayButton(g: GameView, playable: List<Profile>, state: UiState, vm: AppViewModel, modifier: Modifier) {
     var choosing by remember { mutableStateOf(false) }
     Box(modifier) {
-        Button(
+        AppButton(
             onClick = { if (playable.size == 1) vm.play(g, playable[0]) else choosing = true },
             enabled = state.syncAll == null,
-            modifier = Modifier.fillMaxWidth().height(52.dp),
-            contentPadding = ButtonDefaults.ButtonWithIconContentPadding,
+            modifier = Modifier.fillMaxWidth(),
+            icon = PlayIcon,
+            large = true,
         ) {
-            Icon(Icons.Filled.PlayArrow, null)
-            Text(stringResource(R.string.action_play), Modifier.padding(start = 8.dp), style = MaterialTheme.typography.titleMedium)
+            Text(stringResource(R.string.action_play), style = MaterialTheme.typography.titleMedium)
         }
         DropdownMenu(expanded = choosing, onDismissRequest = { choosing = false }) {
             Text(
@@ -372,7 +362,7 @@ private fun PlayButton(g: GameView, playable: List<Profile>, state: UiState, vm:
             for (p in playable) {
                 DropdownMenuItem(
                     text = { Text(p.emulator ?: stringResource(R.string.game_profile_own)) },
-                    leadingIcon = { Icon(Icons.Filled.PlayArrow, null) },
+                    leadingIcon = { Icon(PlayIcon, null) },
                     onClick = {
                         choosing = false
                         vm.play(g, p)
@@ -387,19 +377,22 @@ private fun PlayButton(g: GameView, playable: List<Profile>, state: UiState, vm:
 private fun SyncButton(g: GameView, p: Profile, state: UiState, vm: AppViewModel, modifier: Modifier = Modifier) {
     val syncing = p.key in state.syncing
     if (syncing) {
-        OutlinedButton(onClick = { vm.cancelSync(p.key) }, modifier = modifier.height(52.dp)) {
-            CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp)
-            Text(stringResource(R.string.action_cancel), Modifier.padding(start = 8.dp))
+        AppButton(onClick = { vm.cancelSync(p.key) }, modifier, BtnKind.Secondary, large = true) {
+            Spinner(small = true)
+            Spacer(Modifier.width(8.dp))
+            Text(stringResource(R.string.action_cancel))
         }
         return
     }
-    FilledTonalButton(
+    AppButton(
         onClick = { vm.sync(p.key, profileTitle(g, p)) },
+        modifier = modifier,
+        kind = BtnKind.Secondary,
+        icon = Icons.Outlined.Sync,
         enabled = state.cloudReady && state.syncAll == null,
-        modifier = modifier.height(52.dp),
+        large = true,
     ) {
-        Icon(Icons.Outlined.Sync, null, Modifier.size(18.dp))
-        Text(stringResource(R.string.action_sync_now), Modifier.padding(start = 8.dp))
+        Text(stringResource(R.string.action_sync_now))
     }
 }
 
@@ -408,35 +401,24 @@ private fun SyncButton(g: GameView, p: Profile, state: UiState, vm: AppViewModel
 @Composable
 private fun ConflictCard(g: GameView, p: Profile, vm: AppViewModel) {
     val plan by produceState<com.akfaiz.carryover.core.PlanView?>(null, p.key, p.status) { value = vm.plan(p.key) }
-    val warn = LocalStatusColors.current.warn
-    Card(
-        colors = CardDefaults.cardColors(containerColor = warn.copy(alpha = 0.12f)),
-        border = androidx.compose.foundation.BorderStroke(1.dp, warn.copy(alpha = 0.5f)),
-        modifier = Modifier.fillMaxWidth(),
-    ) {
-        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Icon(Icons.Outlined.WarningAmber, null, tint = warn)
-                Text(
-                    stringResource(R.string.game_conflict_title) + (p.emulator?.let { " · $it" } ?: ""),
-                    style = MaterialTheme.typography.titleMedium,
-                )
-            }
-            Text(stringResource(R.string.game_conflict_text), style = MaterialTheme.typography.bodyMedium)
+    Callout(
+        Tone.Err,
+        Icons.Outlined.WarningAmber,
+        stringResource(R.string.game_conflict_title) + (p.emulator?.let { " · $it" } ?: "") + "\n" + stringResource(R.string.game_conflict_text),
+        content = {
             plan?.let {
-                Text(stringResource(R.string.conflict_this_device, describe(it.local)), style = MaterialTheme.typography.bodySmall)
-                Text(stringResource(R.string.conflict_cloud, describe(it.remote)), style = MaterialTheme.typography.bodySmall)
+                // What each side has, as on the desktop's two boxes.
+                SubCard { Text(stringResource(R.string.conflict_this_device, describe(it.local)), style = MaterialTheme.typography.bodySmall) }
+                SubCard { Text(stringResource(R.string.conflict_cloud, describe(it.remote)), style = MaterialTheme.typography.bodySmall) }
             }
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(top = 4.dp)) {
-                Button(onClick = { vm.sync(p.key, profileTitle(g, p), Resolution.Local) }) {
-                    Text(stringResource(R.string.action_keep_local))
-                }
-                OutlinedButton(onClick = { vm.sync(p.key, profileTitle(g, p), Resolution.Cloud) }) {
-                    Text(stringResource(R.string.action_keep_cloud))
-                }
+        },
+        actions = {
+            AppButton(onClick = { vm.sync(p.key, profileTitle(g, p), Resolution.Local) }) { Text(stringResource(R.string.action_keep_local)) }
+            AppButton(onClick = { vm.sync(p.key, profileTitle(g, p), Resolution.Cloud) }, kind = BtnKind.Secondary) {
+                Text(stringResource(R.string.action_keep_cloud))
             }
-        }
-    }
+        },
+    )
 }
 
 /**
@@ -452,21 +434,25 @@ private fun ProfileCard(g: GameView, p: Profile, state: UiState, vm: AppViewMode
         title = p.emulator ?: stringResource(R.string.game_profile_own),
         // With one profile, the header already shows its status.
         action = if (several) {
-            { StatusPill(badgeOf(p, state, ending)) }
+            { StatusBadge(badgeOf(p, state, ending)) }
         } else {
             null
         },
     ) {
-        Text(
-            when {
-                syncing -> state.syncing[p.key]?.message ?: stringResource(R.string.status_syncing)
-                !p.canSync && p.pathErrors.isNotEmpty() -> p.pathErrors.values.first()
-                !p.canSync -> stringResource(R.string.status_line_not_set_up)
-                else -> statusLine(p.status)
-            },
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
+        // What needs a look is a callout (as on the desktop); a quiet state is a line of grey text.
+        val line = when {
+            syncing -> state.syncing[p.key]?.message ?: stringResource(R.string.status_syncing)
+            !p.canSync && p.pathErrors.isNotEmpty() -> p.pathErrors.values.first()
+            !p.canSync -> stringResource(R.string.status_line_not_set_up)
+            else -> statusLine(p.status)
+        }
+        when {
+            syncing -> Hint(line)
+            !p.canSync -> Callout(Tone.Warn, Icons.Outlined.WarningAmber, line)
+            p.status.lastError.isNotEmpty() -> Callout(Tone.Err, Icons.Outlined.ErrorOutline, line)
+            p.status.localChanges -> Callout(Tone.Warn, Icons.Outlined.CloudUpload, line)
+            else -> Hint(line)
+        }
         if (several && p.canSync) {
             SyncButton(g, p, state, vm)
         }
@@ -477,35 +463,27 @@ private fun ProfileCard(g: GameView, p: Profile, state: UiState, vm: AppViewMode
         Text(stringResource(R.string.game_launch), style = MaterialTheme.typography.labelLarge, modifier = Modifier.padding(top = 4.dp))
         ProfileAppLine(p, state)
         if (p.emulatorId != null && p.rom.isNotBlank()) {
-            Text(
-                stringResource(R.string.game_file_line, if (isContentUri(p.rom)) rememberDocumentName(p.rom) else p.rom),
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
+            Hint(stringResource(R.string.game_file_line, if (isContentUri(p.rom)) rememberDocumentName(p.rom) else p.rom))
         }
-        FlowRow(horizontalArrangement = Arrangement.spacedBy(4.dp), itemVerticalAlignment = Alignment.CenterVertically) {
+        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), itemVerticalAlignment = Alignment.CenterVertically) {
             // Not ready to play here yet: setting it up is the thing to do, so it is the button that stands out.
             if (p.ready(state.emulators)) {
-                TextButton(onClick = { nav.go(Screen.EditGame(g.id)) }) {
-                    Icon(Icons.Outlined.Edit, null, Modifier.size(18.dp))
-                    Text(stringResource(R.string.action_edit), Modifier.padding(start = 6.dp))
+                AppButton(onClick = { nav.go(Screen.EditGame(g.id)) }, kind = BtnKind.Ghost, icon = Icons.Outlined.Edit) {
+                    Text(stringResource(R.string.action_edit))
                 }
             } else {
-                FilledTonalButton(onClick = { nav.go(Screen.EditGame(g.id)) }) {
-                    Icon(Icons.Outlined.Edit, null, Modifier.size(18.dp))
-                    Text(stringResource(R.string.action_set_up), Modifier.padding(start = 6.dp))
+                AppButton(onClick = { nav.go(Screen.EditGame(g.id)) }, icon = Icons.Outlined.Edit) {
+                    Text(stringResource(R.string.action_set_up))
                 }
             }
             if (state.cloudReady) {
-                TextButton(onClick = { nav.go(Screen.Backups(p.key)) }) {
-                    Icon(Icons.Outlined.History, null, Modifier.size(18.dp))
-                    Text(stringResource(R.string.game_backups), Modifier.padding(start = 6.dp))
+                AppButton(onClick = { nav.go(Screen.Backups(p.key)) }, kind = BtnKind.Ghost, icon = Icons.Outlined.History) {
+                    Text(stringResource(R.string.game_backups))
                 }
             }
             if (vm.launchSetup(p) != null) {
-                TextButton(onClick = { vm.addShortcut(g, p) }) {
-                    Icon(Icons.AutoMirrored.Outlined.AddToHomeScreen, null, Modifier.size(18.dp))
-                    Text(stringResource(R.string.action_add_shortcut), Modifier.padding(start = 6.dp))
+                AppButton(onClick = { vm.addShortcut(g, p) }, kind = BtnKind.Ghost, icon = Icons.AutoMirrored.Outlined.AddToHomeScreen) {
+                    Text(stringResource(R.string.action_add_shortcut))
                 }
             }
         }
@@ -526,10 +504,8 @@ private fun SaveFolderLine(slot: SaveSlot, p: Profile) {
             maxLines = 2,
             overflow = TextOverflow.Ellipsis,
         )
-        err?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error) }
-        filtersSummary(slot)?.let {
-            Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-        }
+        err?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = Tone.Err.color()) }
+        filtersSummary(slot)?.let { Hint(it) }
     }
 }
 
@@ -538,7 +514,7 @@ private fun OtherDevices(g: GameView) {
     var open by rememberSaveable { mutableStateOf(false) }
     SectionCard(null) {
         Row(
-            Modifier.fillMaxWidth().focusRing(RoundedCornerShape(8.dp)).clip(RoundedCornerShape(8.dp)).clickable { open = !open },
+            Modifier.fillMaxWidth().focusRing(MaterialTheme.shapes.small).clip(MaterialTheme.shapes.small).clickable { open = !open },
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(12.dp),
         ) {
@@ -553,11 +529,7 @@ private fun OtherDevices(g: GameView) {
                     Text(d.deviceName, style = MaterialTheme.typography.labelLarge)
                     for (slot in g.slots) {
                         d.paths[slot.key]?.let {
-                            Text(
-                                "${slot.title}: $it",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            )
+                            Hint("${slot.title}: $it")
                         }
                     }
                 }

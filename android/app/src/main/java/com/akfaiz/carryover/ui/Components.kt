@@ -16,15 +16,14 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.KeyboardArrowRight
+import androidx.compose.material.icons.outlined.Build
 import androidx.compose.material.icons.outlined.CloudDone
 import androidx.compose.material.icons.outlined.CloudOff
 import androidx.compose.material.icons.outlined.CloudUpload
@@ -32,9 +31,6 @@ import androidx.compose.material.icons.outlined.ErrorOutline
 import androidx.compose.material.icons.outlined.PlayArrow
 import androidx.compose.material.icons.outlined.Sync
 import androidx.compose.material.icons.outlined.WarningAmber
-import androidx.compose.material.icons.outlined.Build
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
@@ -51,22 +47,22 @@ import androidx.compose.ui.composed
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusDirection
 import androidx.compose.ui.focus.onFocusChanged
-import androidx.compose.ui.input.key.Key
-import androidx.compose.ui.input.key.KeyEventType
-import androidx.compose.ui.input.key.key
-import androidx.compose.ui.input.key.onPreviewKeyEvent
-import androidx.compose.ui.input.key.type
-import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.onPreviewKeyEvent
+import androidx.compose.ui.input.key.type
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
@@ -77,11 +73,10 @@ import androidx.core.graphics.drawable.toBitmap
 import com.akfaiz.carryover.R
 import com.akfaiz.carryover.core.GameStatus
 import com.akfaiz.carryover.core.GameView
-import com.akfaiz.carryover.core.Profile
 import com.akfaiz.carryover.core.Summary
+import java.io.File
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
-import java.io.File
 
 // Images
 
@@ -192,7 +187,7 @@ fun headerArt(g: GameView, maxWidth: Int): ImageBitmap? {
     return if (art != null) rememberImage(art.path, art.version, maxWidth) else rememberImage(g.coverPath, g.coverVersion, maxWidth)
 }
 
-/** A gradient in a hue taken from the name, with its initials (none for an empty name). */
+/** A gradient in a hue taken from the name, with its initials (none for an empty name). Per game, so outside the theme: style:ok */
 @Composable
 fun Placeholder(name: String, modifier: Modifier = Modifier) {
     val hue = ((name.hashCode() % 360) + 360) % 360f
@@ -201,7 +196,7 @@ fun Placeholder(name: String, modifier: Modifier = Modifier) {
     Box(modifier.background(Brush.verticalGradient(listOf(top, bottom))), contentAlignment = Alignment.Center) {
         if (name.isNotEmpty()) Text(
             initials(name),
-            color = Color.White.copy(alpha = 0.92f),
+            color = Color.White.copy(alpha = 0.92f), // style:ok
             fontSize = 28.sp,
             fontWeight = FontWeight.SemiBold,
         )
@@ -227,17 +222,18 @@ private fun appIcon(ctx: Context, pkg: String): Drawable? =
 
 // Status
 
-@Composable
-fun Badge.color(): Color {
-    val s = LocalStatusColors.current
-    return when (this) {
-        Badge.Playing, Badge.Busy -> s.info
-        Badge.Conflict, Badge.Changed -> s.warn
-        Badge.Error -> s.err
-        Badge.Synced -> s.ok
-        Badge.Never, Badge.NotSetUp -> MaterialTheme.colorScheme.onSurfaceVariant
+/** The colour of a status, as on the desktop (components/statusof.go): a conflict is an error, a game that needs setup a warning. */
+val Badge.tone: Tone
+    get() = when (this) {
+        Badge.Playing, Badge.Busy -> Tone.Info
+        Badge.Conflict, Badge.Error -> Tone.Err
+        Badge.Changed, Badge.NotSetUp -> Tone.Warn
+        Badge.Synced -> Tone.Ok
+        Badge.Never -> Tone.Neutral
     }
-}
+
+@Composable
+fun Badge.color(): Color = tone.color()
 
 val Badge.icon: ImageVector
     get() = when (this) {
@@ -265,30 +261,17 @@ fun Badge.label(): String = stringResource(
     },
 )
 
-/** A small pill with the status' icon and name, readable over a cover. */
+/** The status as the desktop's badge: a tinted pill with the icon and the word. */
 @Composable
-fun StatusPill(badge: Badge, modifier: Modifier = Modifier, iconOnly: Boolean = false) {
-    val color = badge.color()
+fun StatusBadge(badge: Badge, modifier: Modifier = Modifier) {
+    Pill(badge.label(), badge.tone, modifier, badge.icon)
+}
+
+/** The status as an icon alone on an opaque pill, readable over a cover (the words are in the line under it). */
+@Composable
+fun StatusDot(badge: Badge, modifier: Modifier = Modifier) {
     Surface(modifier, shape = CircleShape, color = MaterialTheme.colorScheme.surface.copy(alpha = 0.92f)) {
-        if (iconOnly) {
-            // On a cover: the words are in the line under it, and would not fit in every language.
-            Icon(badge.icon, contentDescription = badge.label(), Modifier.padding(5.dp).size(16.dp), tint = color)
-            return@Surface
-        }
-        Row(
-            Modifier.padding(horizontal = 8.dp, vertical = 3.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(4.dp),
-        ) {
-            Icon(badge.icon, contentDescription = null, Modifier.size(14.dp), tint = color)
-            Text(
-                badge.label(),
-                style = MaterialTheme.typography.labelSmall,
-                color = color,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
-        }
+        Icon(badge.icon, contentDescription = badge.label(), Modifier.padding(5.dp).size(16.dp), tint = badge.color())
     }
 }
 
@@ -339,7 +322,8 @@ fun describe(s: Summary): String {
  * A visible ring while focused (D-pad, gamepad, keyboard): Material's own
  * focus highlight is too faint to follow from a sofa.
  */
-fun Modifier.focusRing(shape: Shape = RoundedCornerShape(14.dp)): Modifier = composed {
+fun Modifier.focusRing(shape: Shape? = null): Modifier = composed {
+    val shape = shape ?: MaterialTheme.shapes.medium
     var focused by remember { mutableStateOf(false) }
     val ring = MaterialTheme.colorScheme.primary
     this
@@ -359,37 +343,6 @@ fun Modifier.dpadExit(): Modifier = composed {
             Key.DirectionDown -> focus.moveFocus(FocusDirection.Down)
             Key.DirectionUp -> focus.moveFocus(FocusDirection.Up)
             else -> false
-        }
-    }
-}
-
-/** A titled group of content on a card. */
-@Composable
-fun SectionCard(
-    title: String?,
-    modifier: Modifier = Modifier,
-    action: (@Composable RowScope.() -> Unit)? = null,
-    content: @Composable () -> Unit,
-) {
-    Card(
-        modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow),
-        border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
-    ) {
-        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            if (title != null || action != null) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(
-                        title.orEmpty(),
-                        style = MaterialTheme.typography.titleMedium,
-                        modifier = Modifier.weight(1f),
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                    )
-                    action?.invoke(this)
-                }
-            }
-            content()
         }
     }
 }
@@ -420,7 +373,7 @@ fun SettingRow(
         null
     },
 ) {
-    val shape = RoundedCornerShape(12.dp)
+    val shape = MaterialTheme.shapes.medium
     Row(
         Modifier
             .fillMaxWidth()
@@ -446,30 +399,5 @@ fun SettingRow(
             }
         }
         trailing?.invoke()
-    }
-}
-
-/** A centred message for an empty page, with an optional action under it. */
-@Composable
-fun EmptyState(icon: ImageVector, title: String, text: String, modifier: Modifier = Modifier, action: (@Composable () -> Unit)? = null) {
-    Column(
-        modifier.fillMaxWidth().padding(horizontal = 32.dp, vertical = 48.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(12.dp),
-    ) {
-        Box(
-            Modifier.size(72.dp).clip(CircleShape).background(MaterialTheme.colorScheme.primaryContainer),
-            contentAlignment = Alignment.Center,
-        ) {
-            Icon(icon, contentDescription = null, Modifier.size(36.dp), tint = MaterialTheme.colorScheme.onPrimaryContainer)
-        }
-        Text(title, style = MaterialTheme.typography.titleLarge)
-        Text(
-            text,
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            textAlign = androidx.compose.ui.text.style.TextAlign.Center,
-        )
-        action?.invoke()
     }
 }

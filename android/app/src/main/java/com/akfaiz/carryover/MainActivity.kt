@@ -1,7 +1,9 @@
 package com.akfaiz.carryover
 
 import android.content.Context
+import android.content.res.Configuration
 import android.graphics.Color
+import android.graphics.drawable.ColorDrawable
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.SystemBarStyle
@@ -12,6 +14,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.akfaiz.carryover.core.AppLanguage
+import com.akfaiz.carryover.core.AppPrefs
 import com.akfaiz.carryover.ui.AppViewModel
 import com.akfaiz.carryover.ui.CarryoverApp
 import com.akfaiz.carryover.ui.CarryoverTheme
@@ -28,6 +31,7 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        paintWindowBackground()
         enableEdgeToEdge()
         setContent {
             val state by settings.state.collectAsStateWithLifecycle()
@@ -45,6 +49,19 @@ class MainActivity : ComponentActivity() {
                 CarryoverApp(vm)
             }
         }
+    }
+
+    /**
+     * The window before Compose draws, in the app's own theme: the XML background only
+     * follows the system's night mode, so a theme chosen in Settings would flash the other one.
+     */
+    private fun paintWindowBackground() {
+        val dark = when (AppPrefs.theme(this)) {
+            "dark" -> true
+            "light" -> false
+            else -> (resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK) == Configuration.UI_MODE_NIGHT_YES
+        }
+        window.setBackgroundDrawable(ColorDrawable(if (dark) 0xFF0E0F14.toInt() else 0xFFF5F6F9.toInt()))
     }
 
     override fun onResume() {
