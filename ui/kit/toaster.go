@@ -105,12 +105,11 @@ func toastCard(c *ui.Context, t ui.Toast, closeLabel string, paused bool) {
 					}
 				})
 				cb := p.CloseButton().Label(closeLabel)
-				bg, ic := ui.Color{}, th.TextMuted
-				if cb.Hovered() {
-					bg, ic = col(ColHover), th.Text
-				}
-				cb.Padding(S1).Radius(RadiusSM).Background(bg).AlignSelf(ui.Start).Children(func() {
-					ui.Icon(c, IconX).FontSize(IconSM).TextColor(ic)
+				owner := cb
+				cb.Padding(S1).Radius(RadiusSM).AlignSelf(ui.Start).Draw(func(p *ui.Painter, r ui.Rect) {
+					paintFace(p, r, HoverColor(owner, ui.Color{}, col(ColHover)), ui.Color{}, 0, RadiusSM)
+				}).Children(func() {
+					HoverIcon(c, owner, IconX, IconSM, th.TextMuted, th.Text)
 				})
 			})
 			// The countdown along the bottom, between the rounded corners.

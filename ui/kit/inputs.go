@@ -23,14 +23,14 @@ func SelectOf(c *ui.Context, nav *Navigator, key any, title string, ch *Choice, 
 	toggle := func() { *open = !*open }
 
 	field := ui.ButtonBase(c.Key(k)).Label(title)
-	bg, border := t.Background, t.Border
-	switch {
-	case *open:
-		border = t.Accent
-	case field.Hovered():
-		border = t.TextMuted
+	border, hoverBorder := t.Border, t.TextMuted
+	if *open {
+		border, hoverBorder = t.Accent, t.Accent
 	}
-	field = field.Background(bg).Border(1, border).Radius(Radius).Padding(S2, S3).Gap(S2).MinWidth(160).Children(func() {
+	owner := field
+	field = field.Border(1, ui.Color{}).Radius(Radius).Padding(S2, S3).Gap(S2).MinWidth(160).Draw(func(p *ui.Painter, r ui.Rect) {
+		paintFace(p, r, t.Background, HoverColor(owner, border, hoverBorder), 1, Radius)
+	}).Children(func() {
 		ui.Text(c, label).SingleLine().Grow(1)
 		ui.Icon(c, IconChevronDown).FontSize(IconSM).TextColor(t.TextMuted)
 	})
@@ -69,11 +69,12 @@ func selectOption(c *ui.Context, nav *Navigator, key any, i int, label string, c
 	k := [3]any{"select-opt", key, i}
 	h := nav.Handle(k)
 	row := ui.ButtonBase(c.Key(k)).Label(label)
-	bg := ui.Color{}
-	if row.Hovered() || h.Focused(c) {
-		bg = t.SurfaceHover
-	}
-	row = row.Background(bg).Radius(RadiusSM).Padding(S2, S3).Gap(S2).AlignSelf(ui.Stretch).Justify(ui.Start).Children(func() {
+	focused, owner := h.Focused(c), row
+	row = row.Radius(RadiusSM).Padding(S2, S3).Gap(S2).AlignSelf(ui.Stretch).Justify(ui.Start).Draw(func(p *ui.Painter, r ui.Rect) {
+		if focused || owner.Hovered() {
+			paintFace(p, r, t.SurfaceHover, ui.Color{}, 0, RadiusSM)
+		}
+	}).Children(func() {
 		ui.Text(c, label).SingleLine().Grow(1)
 		if current {
 			ui.Icon(c, IconCheck).FontSize(IconSM).TextColor(t.Accent)
@@ -122,22 +123,32 @@ func Chips(c *ui.Context, nav *Navigator, key any, options []ChipOption, selecte
 			t := c.Theme()
 			b := ui.ButtonBase(c.Key(k)).Label(o.Label)
 			on := o.Value == selected
-			bg, fg := t.SurfaceHover, t.TextMuted
-			switch {
-			case on:
-				bg, fg = t.Accent.Alpha(0.18), t.Accent
-			case o.Warn && b.Hovered():
-				bg, fg = t.Warning.Alpha(0.24), t.Warning
-			case o.Warn:
-				bg, fg = t.Warning.Alpha(0.14), t.Warning
-			case b.Hovered():
-				bg, fg = col(ColBg4), t.Text
-			}
-			b = b.Background(bg).TextColor(fg).Radius(18).Gap(6).Padding(6, S3).Children(func() {
-				if o.Icon != nil {
-					ui.Icon(c, o.Icon).FontSize(IconSM)
+			// The look under the pointer is painted as the pill paints, not chosen
+			// as the view builds (see hoverpaint.go).
+			look := func(hovered bool) (bg, fg ui.Color) {
+				bg, fg = t.SurfaceHover, t.TextMuted
+				switch {
+				case on:
+					bg, fg = t.Accent.Alpha(0.18), t.Accent
+				case o.Warn && hovered:
+					bg, fg = t.Warning.Alpha(0.24), t.Warning
+				case o.Warn:
+					bg, fg = t.Warning.Alpha(0.14), t.Warning
+				case hovered:
+					bg, fg = col(ColBg4), t.Text
 				}
-				ui.Text(c, o.Label).SingleLine().FontWeight(600)
+				return bg, fg
+			}
+			bg0, fg0 := look(false)
+			bg1, fg1 := look(true)
+			owner := b
+			b = b.TextColor(fg0).Radius(18).Gap(6).Padding(6, S3).Draw(func(p *ui.Painter, r ui.Rect) {
+				paintFace(p, r, HoverColor(owner, bg0, bg1), ui.Color{}, 0, 18)
+			}).Children(func() {
+				if o.Icon != nil {
+					HoverIcon(c, owner, o.Icon, IconSM, fg0, fg1)
+				}
+				HoverText(c, owner, o.Label, 0, 600, fg0, fg1)
 			})
 			pick := func() { onSelect(o.Value) }
 			if nav.Item(nav.Handle(k), b, pick).Clicked() {
