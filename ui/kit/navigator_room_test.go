@@ -95,3 +95,18 @@ func TestPadMoveToAControlAboveTheAreaDoesNotScrollIt(t *testing.T) {
 	}
 	assert.InDelta(t, 200, p.scroll.Y, 0.5, "the area stays where it was")
 }
+
+// A control the D-pad moves to in a dialog is not in the page: the page is behind
+// the dialog, and its scroll is not for the control, though the dialog is over it.
+func TestPadMoveInADialogLeavesThePageAlone(t *testing.T) {
+	p, tt := newPage(t)
+	var scroll ui.ScrollState
+	p.nav.SetScroll(&scroll)
+	tt.Frame()
+	p.open = true
+	tt.Frame()
+	tt.Frame()
+	press(p, tt, PadRight) // Cancel to Upload, both in the dialog
+	require.True(t, tt.Focused("Upload"), "the pad moved in the dialog")
+	assert.Nil(t, p.nav.revealing, "no room is made in the page for it")
+}

@@ -371,7 +371,10 @@ func (n *Navigator) move(c *ui.Context, l *scope, a PadAction) {
 	}
 	if next := pickInDirection(nr[cur], a, nr); next >= 0 {
 		l.items[next].h.Focus(c) // focusing also scrolls it into view
-		n.revealing, n.frames = l.items[next].h, 4
+		// In a dialog the page is behind it: its scroll is not this control's.
+		if n.prevTop == nil {
+			n.revealing, n.frames = l.items[next].h, 4
+		}
 	}
 }
 
