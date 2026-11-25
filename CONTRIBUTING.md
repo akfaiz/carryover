@@ -124,8 +124,9 @@ scripts/android-build.sh --release --version 0.4.0
    GitHub (a saved draft does nothing).
 
 `.github/workflows/release.yml` builds the files, attaches them with a `SHA256SUMS.txt` and creates the release
-if needed. It doesn't run CI again, so tag a commit on `main`. A tag with a suffix, such as `v0.2.0-rc1`, becomes a
-pre-release; AppImage updates only see full releases.
+if needed. It doesn't run CI again, so tag a commit on `main`. A tag with a suffix, such as `v0.2.0-alpha.1` or `v0.2.0-beta.1`,
+becomes a pre-release; AppImage updates only see full releases. Number a pre-release from 1 (`-alpha.1`, `-alpha.2`,
+then `-beta.1`, …): the Android version code depends on it, as below.
 
 ### Release files
 
@@ -142,8 +143,8 @@ Each file is named `carryover-<version>-<os>-<arch>.<ext>`, `<version>` being th
 - `…-android-arm64-v8a.apk` and `…-android-x86_64.apk`: signed with the key in the repository secrets
   `CARRYOVER_KEYSTORE_BASE64` (`base64 -w0 carryover.jks`), `CARRYOVER_KEYSTORE_PASSWORD`, `CARRYOVER_KEY_ALIAS`
   and, if it differs, `CARRYOVER_KEY_PASSWORD`. Without them the release fails rather than publish unsigned APKs.
-  The version code is `x*1000000 + y*10000 + z*100 + build`, with `build` the pre-release number (`v0.5.0-rc2` → 2)
-  or 99 for the release, so an rc updates to its release.
+  The version code is `x*1000000 + y*10000 + z*100 + build`, with `build` the pre-release number for an alpha (`v0.6.0-alpha.2` → 2), 50 plus
+  it for a beta (`v0.6.0-beta.1` → 51) or 99 for the release, so an alpha updates to a beta and a beta to its release.
 
 The packaging scripts don't stamp the program's version; run `scripts/stamp-version.sh <tag>` first for that, and
 delete `internal/app/version/zz_release.go` afterwards.

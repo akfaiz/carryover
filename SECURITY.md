@@ -2,7 +2,7 @@
 
 ## Supported versions
 
-Only the latest release gets security fixes. Pre-releases (`-rc` versions) are replaced by the next release.
+Only the latest release gets security fixes. Pre-releases (`-alpha` and `-beta` versions) are replaced by the next release.
 
 ## Reporting a vulnerability
 

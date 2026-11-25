@@ -25,7 +25,7 @@ const RepoURL = "https://github.com/akfaiz/carryover"
 
 // Info describes the running build.
 type Info struct {
-	Version  string // "0.2.0", "0.2.0-rc1" or "dev"
+	Version  string // "0.2.0", "0.2.0-beta.1" or "dev"
 	Commit   string // short commit hash, "" if unknown
 	Modified bool   // built from a checkout with uncommitted changes
 }
