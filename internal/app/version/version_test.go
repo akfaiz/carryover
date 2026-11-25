@@ -13,7 +13,7 @@ func TestInfo(t *testing.T) {
 		wantRelease bool
 	}{
 		{Info{Version: "0.2.0", Commit: "abc1234"}, "0.2.0 (abc1234)", RepoURL + "/releases/tag/v0.2.0", true},
-		{Info{Version: "0.2.0-rc1"}, "0.2.0-rc1", RepoURL + "/releases/tag/v0.2.0-rc1", true},
+		{Info{Version: "0.2.0-beta.1"}, "0.2.0-beta.1", RepoURL + "/releases/tag/v0.2.0-beta.1", true},
 		{Info{Version: "dev", Commit: "abc1234", Modified: true}, "dev (abc1234, modified)", RepoURL + "/releases", false},
 		{Info{Version: "dev"}, "dev", RepoURL + "/releases", false},
 	}

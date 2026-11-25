@@ -18,10 +18,10 @@
 .EXAMPLE
   .\scripts\windows-package.ps1                     # version from `git describe`
   .\scripts\windows-package.ps1 -Version 0.3.0      # carryover-0.3.0-windows-amd64{.zip,-setup.exe}
-  .\scripts\windows-package.ps1 -Version 0.3.0-rc1
+  .\scripts\windows-package.ps1 -Version 0.3.0-beta.1
 #>
 param(
-    # Release version without the "v", as used in file names (0.3.0, 0.3.0-rc1).
+    # Release version without the "v", as used in file names (0.3.0, 0.3.0-beta.1).
     [string]$Version,
     [string]$OutDir
 )

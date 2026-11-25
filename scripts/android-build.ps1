@@ -29,7 +29,7 @@
 #>
 param(
     [switch]$Release,
-    # Version name without the "v" (0.4.0, 0.4.0-rc1).
+    # Version name without the "v" (0.4.0, 0.4.0-beta.1).
     [string]$Version,
     # Added to the version code (0-99, e.g. the CI run number).
     [ValidateRange(0, 99)][int]$Build = 0,
