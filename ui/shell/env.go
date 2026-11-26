@@ -21,6 +21,7 @@ func (u *Shell) Cloud() *services.CloudService           { return u.cloud }
 func (u *Shell) Steam() *services.SteamService           { return u.steam }
 func (u *Shell) Emus() *services.EmulatorService         { return u.emus }
 func (u *Shell) Sess() *services.SessionService          { return u.sess }
+func (u *Shell) Updates() *services.UpdateService        { return u.upd }
 func (u *Shell) Navigate(path string)                    { u.navigate(path) }
 func (u *Shell) Replace(path string)                     { u.replace(path) }
 func (u *Shell) Back()                                   { u.back() }

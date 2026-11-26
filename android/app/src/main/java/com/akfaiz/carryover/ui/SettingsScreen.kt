@@ -260,6 +260,8 @@ fun SettingsScreen(nav: Nav, vm: SettingsViewModel = viewModel()) {
                     )
                 }
 
+                UpdateSection(state, vm)
+
                 SectionHeader(stringResource(R.string.section_about))
                 Group {
                     SettingRow(
@@ -463,18 +465,26 @@ private class SaveInDownloads : ActivityResultContracts.CreateDocument("applicat
 
 /** Rows of one section on a card. */
 @Composable
-private fun Group(content: @Composable ColumnScope.() -> Unit) {
+internal fun Group(content: @Composable ColumnScope.() -> Unit) {
     SectionCard(null, contentPadding = PaddingValues(vertical = 4.dp), gap = 0.dp, content = content)
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun ThemeChoice(theme: String, onChange: (String) -> Unit) {
-    val options = listOf("" to R.string.theme_system, "light" to R.string.theme_light, "dark" to R.string.theme_dark)
+private fun ThemeChoice(theme: String, onChange: (String) -> Unit) = SegmentedChoice(
+    listOf("" to R.string.theme_system, "light" to R.string.theme_light, "dark" to R.string.theme_dark),
+    theme,
+    onChange,
+)
+
+/** A row of segments under a setting's text: [options] are values with their labels. */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+internal fun SegmentedChoice(options: List<Pair<String, Int>>, chosen: String, onChange: (String) -> Unit) {
     SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth().padding(start = 56.dp, end = 16.dp, bottom = 12.dp)) {
         options.forEachIndexed { i, (value, label) ->
             SegmentedButton(
-                selected = theme == value,
+                selected = chosen == value,
                 onClick = { onChange(value) },
                 shape = SegmentedButtonDefaults.itemShape(i, options.size),
                 // The accent's container: the default fill is barely visible in the dark theme.

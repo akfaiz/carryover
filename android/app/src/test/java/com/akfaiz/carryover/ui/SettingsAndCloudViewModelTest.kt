@@ -2,6 +2,9 @@ package com.akfaiz.carryover.ui
 
 import com.akfaiz.carryover.R
 import com.akfaiz.carryover.core.DeviceView
+import com.akfaiz.carryover.core.UpdateStatus
+import com.akfaiz.carryover.core.UpdateState
+import com.akfaiz.carryover.core.CoreEvent
 import com.akfaiz.carryover.core.ImportResult
 import com.akfaiz.carryover.core.Provider
 import com.akfaiz.carryover.core.Question
@@ -62,6 +65,79 @@ class SettingsAndCloudViewModelTest {
         h.core.settingsCore.updateError = IllegalStateException("no")
         settings().setDeviceName("X")
         assertEquals(listOf(error(h.text(R.string.err_save), "no")), h.said)
+    }
+
+    // Updating the app
+
+    private val newer = UpdateState(status = UpdateStatus.Available, supported = true, latest = "1.1.0", installable = true)
+
+    @Test
+    fun theUpdateStateIsReadAndFollowsTheCore() {
+        h.core.updates.state = newer
+        val vm = settings()
+        assertEquals(newer, vm.update.value)
+        h.core.events.tryEmit(CoreEvent.Update(newer.copy(status = UpdateStatus.Downloading, done = 5, total = 10)))
+        assertEquals(UpdateStatus.Downloading, vm.update.value.status)
+        assertEquals(5L, vm.update.value.done)
+    }
+
+    @Test
+    fun anotherChannelIsSavedAndChecked() {
+        val vm = settings()
+        vm.setUpdateChannel("prerelease")
+        assertEquals("prerelease", h.core.settingsCore.settings.updateChannel)
+        assertEquals("prerelease", vm.state.value.updateChannel)
+        assertEquals(listOf("check true"), h.core.updates.calls)
+        vm.setCheckUpdates(false)
+        assertTrue(h.core.settingsCore.settings.noUpdateCheck)
+        assertFalse(vm.state.value.checksUpdates)
+    }
+
+    @Test
+    fun aDownloadedUpdateGoesToTheInstaller() {
+        settings().installUpdate()
+        assertEquals(listOf("/cache/updates/app.apk"), h.platform.installed)
+        assertTrue(h.said.isEmpty())
+    }
+
+    @Test
+    fun installingAsksForThePermissionFirst() {
+        h.platform.mayInstall = false
+        settings().installUpdate()
+        assertEquals(1, h.platform.permissionAsked)
+        assertTrue(h.platform.installed.isEmpty())
+        assertEquals(listOf(h.text(R.string.msg_update_allow)), h.said)
+    }
+
+    @Test
+    fun nothingIsInstalledWhileAGameIsPlayedOrAfterAFailedDownload() {
+        h.core.updates.busy = true
+        val vm = settings()
+        vm.installUpdate()
+        assertEquals(listOf(h.text(R.string.msg_update_busy)), h.said)
+
+        h.core.updates.busy = false
+        h.core.updates.downloaded = newer.copy(error = "checksum")
+        vm.installUpdate()
+        assertTrue(h.platform.installed.isEmpty())
+        assertEquals("checksum", vm.update.value.error)
+        assertEquals(1, h.said.size)
+    }
+
+    @Test
+    fun anInstallerThatCannotOpenIsSaid() {
+        h.platform.canOpenInstaller = false
+        settings().installUpdate()
+        assertEquals(listOf(h.text(R.string.msg_update_no_installer)), h.said)
+    }
+
+    @Test
+    fun aNewerVersionIsAnnouncedAtTheStart() {
+        h.core.updates.state = newer
+        AppViewModel(h.services)
+        h.advance(200)
+        assertEquals(listOf("check false"), h.core.updates.calls)
+        assertTrue(h.said.contains(h.text(R.string.msg_update_available, "1.1.0")))
     }
 
     private val earlier = DeviceView(id = "old", name = "Phone", games = 3, sameName = true)

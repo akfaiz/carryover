@@ -42,3 +42,42 @@ func TestSettingsThemeSavesAtOnce(t *testing.T) {
 	h.Settle()
 	require.Equal(t, "light", h.Shell.Sync().GetSettings().Theme)
 }
+
+func TestSettingsUpdateChannel(t *testing.T) {
+	h := newHarness(t)
+	h.Tester.SetSize(1000, 3000)
+	h.Settle()
+	assert.Contains(t, h.Texts(), "Updates")
+	assert.Contains(t, h.Texts(), "Development builds don't update themselves.")
+	h.Click("Pre-release")
+	time.Sleep(100 * time.Millisecond)
+	h.Settle()
+	require.Equal(t, "prerelease", h.Shell.Sync().GetSettings().UpdateChannel)
+	require.False(t, h.Shell.Sync().GetSettings().NoUpdateCheck)
+}
+
+// A newer version shows on the card and in the sidebar, and its dialog says
+// what is in it. Nothing installs by itself.
+func TestSettingsNewerVersion(t *testing.T) {
+	h := newHarness(t)
+	h.Tester.SetSize(1000, 3000)
+	h.Shell.Store().Update = services.UpdateState{
+		Status: services.UpdateAvailable, Supported: true, Installable: true,
+		Current: "1.0.0", Latest: "1.1.0", Notes: "Faster library.",
+	}
+	h.Settle()
+	assert.Contains(t, h.Texts(), "Version 1.1.0 is available. You have 1.0.0.")
+	assert.Contains(t, h.Texts(), "Update available: 1.1.0")
+	h.Click("View update")
+	for _, want := range []string{"Update Carryover", "Faster library.", "Later", "Download and restart"} {
+		assert.Contains(t, h.Texts(), want)
+	}
+	h.Click("Later")
+	assert.NotContains(t, h.Texts(), "Update Carryover")
+
+	// An install that can't replace itself offers no download.
+	h.Shell.Store().Update.Installable = false
+	h.Click("Update available: 1.1.0")
+	assert.Contains(t, h.Texts(), "This install can't update itself. Download the new version from the release page.")
+	assert.NotContains(t, h.Texts(), "Download and restart")
+}

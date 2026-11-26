@@ -54,6 +54,25 @@ interface SettingsCore {
     suspend fun reuseDevice(id: String)
 }
 
+/** What updating the app needs of the Go core (services.UpdateService). */
+interface UpdateCore {
+    /** Where updating stands; changes also arrive as [CoreEvent.Update]. */
+    suspend fun updateState(): UpdateState
+
+    /**
+     * Looks for a newer version on the settings' channel. Without [force] it does nothing while automatic checks are
+     * off, and reuses a check of the last 12 hours. A failed check is said in [UpdateState.error].
+     */
+    suspend fun checkUpdate(force: Boolean): UpdateState
+
+    /** Downloads and verifies the newer version's APK; the state says how it ended. */
+    suspend fun downloadUpdate(): UpdateState
+    fun cancelUpdate(): Boolean
+
+    /** A game is played or synced: installing an update would cut it off. */
+    suspend fun updateBusy(): Boolean
+}
+
 /** What syncing a game (or all of them) needs of the Go core (see [com.akfaiz.carryover.data.SyncController]). */
 interface SyncCore {
     /** What a sync would do (for a conflict: what each side has). */
@@ -151,7 +170,7 @@ interface ArtCore {
  * errors arrive as exceptions whose message is the error. The view models take
  * this, not the [Core] object.
  */
-interface CoreApi : SessionCore, SettingsCore, SyncCore, BackupCore, SuggestCore, TrashCore, ArtCore {
+interface CoreApi : SessionCore, SettingsCore, SyncCore, BackupCore, SuggestCore, TrashCore, ArtCore, UpdateCore {
     /** Why the core couldn't start, or null when it runs. */
     val initError: String?
     val events: SharedFlow<CoreEvent>

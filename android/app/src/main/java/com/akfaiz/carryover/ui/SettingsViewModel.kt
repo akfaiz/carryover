@@ -4,9 +4,13 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.akfaiz.carryover.R
 import com.akfaiz.carryover.data.AppServices
+import com.akfaiz.carryover.core.CoreEvent
 import com.akfaiz.carryover.core.DeviceView
+import com.akfaiz.carryover.core.UpdateState
+import com.akfaiz.carryover.core.UpdateStatus
 import com.akfaiz.carryover.data.SettingsState
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -119,6 +123,79 @@ class SettingsViewModel(private val services: AppServices = AppServices.shared) 
             if (m.attempt(m.str(R.string.err_device_change)) { change() } != null) m.say(done)
             m.attempt(m.str(R.string.err_devices)) { _devices.value = repo.devices() }
         }
+    }
+
+    // Updating the app
+
+    private val _update = MutableStateFlow(UpdateState())
+
+    /** Where updating the app stands: the core's state, followed through its events. */
+    val update: StateFlow<UpdateState> = _update.asStateFlow()
+
+    private var installing: Job? = null
+
+    init {
+        if (services.core.initError == null) {
+            viewModelScope.launch {
+                services.core.events.collect { if (it is CoreEvent.Update) _update.value = it.state }
+            }
+            loadUpdate()
+        }
+    }
+
+    /** Reads where updating stands (a check may have run since the page was last open). */
+    fun loadUpdate() {
+        viewModelScope.launch { runCatching { services.core.updateState() }.onSuccess { _update.value = it } }
+    }
+
+    /** Looks for a newer version now. */
+    fun checkForUpdate() {
+        viewModelScope.launch {
+            m.attempt(m.str(R.string.err_update)) { _update.value = services.core.checkUpdate(true) }
+        }
+    }
+
+    /** Follows another channel ("" or "prerelease"), and looks at what it has. */
+    fun setUpdateChannel(channel: String) {
+        viewModelScope.launch {
+            if (m.attempt(m.str(R.string.err_save)) { repo.setUpdateChannel(channel) } != null) checkForUpdate()
+        }
+    }
+
+    fun setCheckUpdates(on: Boolean) {
+        viewModelScope.launch { m.attempt(m.str(R.string.err_save)) { repo.setCheckUpdates(on) } }
+    }
+
+    /**
+     * Downloads the newer version (unless it already is) and hands it to the system installer, which asks the user.
+     * Not while a game is played or synced: installing ends the app. Without the permission to install apps, the
+     * system page that gives it opens, and the user asks again (the download is kept).
+     */
+    fun installUpdate() {
+        if (installing?.isActive == true) return
+        installing = viewModelScope.launch {
+            m.attempt(m.str(R.string.err_update)) {
+                val st = services.core.downloadUpdate()
+                _update.value = st
+                // A failed or cancelled download: the state says why.
+                if (st.status == UpdateStatus.Ready) install(st.file)
+            }
+        }
+    }
+
+    private suspend fun install(apk: String) {
+        val platform = services.platform
+        when {
+            services.core.updateBusy() -> m.say(m.str(R.string.msg_update_busy))
+            !platform.canInstallPackages() -> m.say(
+                m.str(if (platform.openInstallPermission()) R.string.msg_update_allow else R.string.msg_update_no_installer),
+            )
+            !platform.installApk(apk) -> m.say(m.str(R.string.msg_update_no_installer))
+        }
+    }
+
+    fun cancelUpdate() {
+        services.core.cancelUpdate()
     }
 
     // Logs for a bug report

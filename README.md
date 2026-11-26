@@ -95,15 +95,40 @@ On Windows, pick the installer or the portable zip; both hold the same program.
 - **Check a download** against `SHA256SUMS.txt` from the same release: `sha256sum -c SHA256SUMS.txt --ignore-missing`
   on Linux, `shasum -a 256 -c SHA256SUMS.txt --ignore-missing` on macOS, or compare the output of
   `Get-FileHash <file>` in PowerShell on Windows.
-- **Updating:** run the new installer over the old install, or download the new version and put it over the old
-  file (`carryover.exe` from the zip, or the renamed `carryover.AppImage`), so Steam shortcuts keep working. The
-  AppImage can also update itself through [Gear Lever](https://flathub.org/apps/it.mijorus.gearlever) or
-  AppImageUpdate (full releases only, not pre-releases). For the tarball, run `install.sh` from the new version.
-  On macOS, replace `/Applications/Carryover.app` with the new one.
+- **Updating:** see [Updating](#updating) below.
 - **Uninstalling** (installer): Windows Settings → Apps. Your settings, library and cloud configuration in
   `%APPDATA%\Carryover` are kept; both Windows versions use that folder, so you can switch between them. On macOS,
   move Carryover.app to the Trash; settings stay in `~/Library/Application Support/Carryover`.
 - `carryover --version`, or Settings → About, shows which version you have.
+
+## Updating
+
+Carryover looks for a newer version when it starts and tells you when there is one. It installs it only when you
+say so: **Update available** in the sidebar, or **Settings → Updates**, shows what is new; **Download and restart**
+fetches it, checks it against the release's `SHA256SUMS.txt`, replaces the program where it is (so Steam shortcuts
+keep working) and starts it again. It never installs while a game is being played or a sync runs.
+
+**Settings → Updates** also chooses the channel:
+
+- **Stable** (default): finished releases only.
+- **Pre-release**: also alpha, beta and release candidate builds. They get new features first and may have bugs.
+  Switching back to Stable doesn't downgrade: you get the next stable release that is newer than what you run.
+
+Turn **Check for updates automatically** off to check only by hand. From a terminal, `carryover update` does the
+same (`--check` only looks, `--channel stable|prerelease` overrides the setting once).
+
+- **Windows:** the installed version runs the new installer silently; the portable zip replaces `carryover.exe`.
+- **Linux:** the AppImage file, or the binary installed from the tarball, is replaced. An install in a folder you
+  can't write (such as `/usr/local/bin` or a distro package) is told where to get the new version instead.
+- **macOS:** `Carryover.app` is replaced. Move it to Applications first: an app macOS still runs from its
+  quarantine copy can't replace itself.
+- **Android:** the APK is downloaded and handed to Android's installer, which asks you to confirm. The first time,
+  Android also asks you to let Carryover install apps. A new version installs over the old one and keeps your setup.
+
+Updating by hand still works: run the new installer over the old install, or put the new `carryover.exe`,
+`carryover.AppImage` or `Carryover.app` over the old one. [Gear Lever](https://flathub.org/apps/it.mijorus.gearlever)
+and AppImageUpdate can update the AppImage too (full releases only). Development builds don't update themselves.
+Versions before this feature can't update themselves, so install the first one that has it by hand.
 
 ## Getting started
 
@@ -155,6 +180,7 @@ carryover                       open the launcher
 carryover run <game> [-- cmd]   pull → play → push (used by Steam shortcuts)
 carryover sync <game>|--all     manual sync (exit code 3 = conflict)
 carryover list                  list games and their ids
+carryover update [--check]      install the newest version
 ```
 
 All options are in [docs/cli.md](docs/cli.md).

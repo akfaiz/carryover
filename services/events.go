@@ -72,6 +72,23 @@ type Bus struct {
 	closed  []func(promptID string)
 	sync    []func(syncer.Event)
 	syncAll []func(SyncAllProgress)
+	update  []func(UpdateState)
+}
+
+// OnUpdate subscribes to changes of the state of updating Carryover.
+func (b *Bus) OnUpdate(f func(UpdateState)) {
+	b.mu.Lock()
+	b.update = append(b.update, f)
+	b.mu.Unlock()
+}
+
+func (b *Bus) updateChanged(st UpdateState) {
+	if b == nil {
+		return
+	}
+	for _, f := range snapshot(b, &b.update) {
+		f(st)
+	}
 }
 
 // SyncAllProgress reports how far SyncAll is: Done of Total games finished,

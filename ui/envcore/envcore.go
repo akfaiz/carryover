@@ -21,4 +21,5 @@ type Services interface {
 	Steam() *services.SteamService
 	Emus() *services.EmulatorService
 	Sess() *services.SessionService
+	Updates() *services.UpdateService
 }

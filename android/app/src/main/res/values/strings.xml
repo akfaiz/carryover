@@ -618,4 +618,30 @@
     <string name="action_set_up">Set up</string>
     <string name="game_folder_not_set">Not set on this device</string>
     <string name="game_file_line">Game file: %1$s</string>
+    <!-- Updating the app -->
+    <string name="section_updates">Updates</string>
+    <string name="setting_update_channel">Update channel</string>
+    <string name="setting_update_channel_stable">Only finished releases.</string>
+    <string name="setting_update_channel_prerelease">Also alpha, beta and release candidate builds. They get new features first and may have bugs.</string>
+    <string name="channel_stable">Stable</string>
+    <string name="channel_prerelease">Pre-release</string>
+    <string name="setting_update_auto">Check for updates automatically</string>
+    <string name="setting_update_auto_hint">Carryover tells you when there is a new version. It never installs one without asking.</string>
+    <string name="update_dev_build">Development builds don\'t update themselves.</string>
+    <string name="update_check">Check for updates</string>
+    <string name="update_checking">Checking…</string>
+    <string name="update_current">Carryover is up to date.</string>
+    <string name="update_available">Version %1$s is available</string>
+    <string name="update_available_hint">You have %1$s. Tap to see what\'s new.</string>
+    <string name="update_title">Update Carryover</string>
+    <string name="update_downloading">Downloading…</string>
+    <string name="update_not_installable">This release has no app for this device. Download it from the release page.</string>
+    <string name="action_update_install">Download and install</string>
+    <string name="action_release_page">Release page</string>
+    <string name="action_later">Later</string>
+    <string name="msg_update_available">Carryover %1$s is available. Update it in Settings.</string>
+    <string name="msg_update_busy">A game is being played or a sync is running. Install the update once it is done.</string>
+    <string name="msg_update_allow">Allow Carryover to install apps, then install the update again.</string>
+    <string name="msg_update_no_installer">Android couldn\'t open the installer. Download the new version from the release page.</string>
+    <string name="err_update">Couldn\'t update</string>
 </resources>

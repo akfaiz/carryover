@@ -588,4 +588,30 @@
     <string name="action_set_up">Atur</string>
     <string name="game_folder_not_set">Belum diatur di perangkat ini</string>
     <string name="game_file_line">File game: %1$s</string>
+    <!-- Updating the app -->
+    <string name="section_updates">Pembaruan</string>
+    <string name="setting_update_channel">Kanal pembaruan</string>
+    <string name="setting_update_channel_stable">Hanya rilis yang sudah final.</string>
+    <string name="setting_update_channel_prerelease">Termasuk build alpha, beta, dan kandidat rilis. Fitur baru hadir lebih dulu, tetapi mungkin ada bug.</string>
+    <string name="channel_stable">Stabil</string>
+    <string name="channel_prerelease">Pra-rilis</string>
+    <string name="setting_update_auto">Periksa pembaruan secara otomatis</string>
+    <string name="setting_update_auto_hint">Carryover memberi tahu saat ada versi baru. Versi itu tidak pernah dipasang tanpa persetujuan Anda.</string>
+    <string name="update_dev_build">Build pengembangan tidak memperbarui dirinya sendiri.</string>
+    <string name="update_check">Periksa pembaruan</string>
+    <string name="update_checking">Memeriksa…</string>
+    <string name="update_current">Carryover sudah versi terbaru.</string>
+    <string name="update_available">Versi %1$s tersedia</string>
+    <string name="update_available_hint">Versi Anda %1$s. Ketuk untuk melihat yang baru.</string>
+    <string name="update_title">Perbarui Carryover</string>
+    <string name="update_downloading">Mengunduh…</string>
+    <string name="update_not_installable">Rilis ini tidak punya aplikasi untuk perangkat ini. Unduh dari halaman rilis.</string>
+    <string name="action_update_install">Unduh dan pasang</string>
+    <string name="action_release_page">Halaman rilis</string>
+    <string name="action_later">Nanti</string>
+    <string name="msg_update_available">Carryover %1$s tersedia. Perbarui di Pengaturan.</string>
+    <string name="msg_update_busy">Ada game yang sedang dimainkan atau sinkronisasi yang berjalan. Pasang pembaruan setelah selesai.</string>
+    <string name="msg_update_allow">Izinkan Carryover memasang aplikasi, lalu pasang pembaruan sekali lagi.</string>
+    <string name="msg_update_no_installer">Android tidak dapat membuka pemasang. Unduh versi baru dari halaman rilis.</string>
+    <string name="err_update">Tidak dapat memperbarui</string>
 </resources>

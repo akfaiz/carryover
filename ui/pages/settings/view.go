@@ -54,6 +54,8 @@ type formState struct {
 	retention string
 	theme     string // a kit.Theme* setting
 	language  string
+	channel   string // the update channel
+	autoCheck bool
 	share     bool
 	covers    bool
 	key       string
@@ -107,13 +109,16 @@ func (p *Page) load(st appdir.Settings, devs []services.DeviceView) {
 		},
 		Refresh:      u.Store().Refresh,
 		ThemeChanged: u.ApplyTheme,
-		Error:        func(err error) { u.ToastErr(words(err)) },
+		// The new channel may offer another version.
+		ChannelChanged: func() { p.checkUpdates(false) },
+		Error:          func(err error) { u.ToastErr(words(err)) },
 	}, st)
 	p.f = formState{
 		name: st.DeviceName, id: st.DeviceID,
 		backups: st.BackupRetention > 0, retention: strconv.Itoa(p.vm.InitialRetention()),
 		theme: st.Theme, language: st.Language,
 		share: st.SyncLibrary, covers: !st.CoversLocalOnly, key: st.SteamGridDBKey,
+		channel: st.UpdateChannel, autoCheck: !st.NoUpdateCheck,
 	}
 	p.later = kit.Debounce(AutosaveDelay, p.commit)
 	p.langs = kit.Choice{}
@@ -137,6 +142,7 @@ func (p *Page) read() Form {
 		DeviceName: p.f.name, BackupsOn: p.f.backups, Retention: p.f.retention,
 		ShareLibrary: p.f.share, UploadCovers: p.f.covers,
 		Language: p.f.language, Theme: p.f.theme, ThemeChosen: true,
+		UpdateChannel: p.f.channel, CheckUpdates: p.f.autoCheck,
 	}
 }
 
@@ -258,6 +264,7 @@ func (p *Page) form(c *ui.Context) {
 	if p.steam != nil {
 		p.steam.view(c)
 	}
+	p.updatesCard(c)
 	p.about(c)
 }
 

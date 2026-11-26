@@ -25,6 +25,7 @@ const (
 	Status                // the status of a play session changed
 	Progress              // a sync transfer moved on
 	SyncAll               // "Sync all" started, moved on or ended
+	Updates               // checking for, downloading or installing an update moved on
 )
 
 // SyncAllState is the "Sync all" run, which outlives the page that started it.
@@ -54,6 +55,8 @@ type Store struct {
 	Status   map[string]services.Status
 	Progress map[string]syncer.Event
 	SyncAll  SyncAllState
+	// Update is where updating Carryover stands.
+	Update services.UpdateState
 
 	load Loader
 	onUI func(func()) // runs work on the UI goroutine
@@ -102,6 +105,12 @@ func (s *Store) Attach(bus *services.Bus) {
 		s.onUI(func() {
 			s.Progress[ev.GameID] = ev
 			s.Publish(Progress)
+		})
+	})
+	bus.OnUpdate(func(st services.UpdateState) {
+		s.onUI(func() {
+			s.Update = st
+			s.Publish(Updates)
 		})
 	})
 	bus.OnSyncAll(func(p services.SyncAllProgress) {

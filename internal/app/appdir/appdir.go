@@ -50,6 +50,13 @@ func (d Dirs) CoversDir() string    { return filepath.Join(d.Root, "covers") }
 func (d Dirs) ManifestsDir() string { return filepath.Join(d.Root, "manifests") }
 func (d Dirs) LogsDir() string      { return filepath.Join(d.Root, "logs") }
 
+// UpdatesDir holds the downloaded files of newer versions of Carryover
+// (created when first needed).
+func (d Dirs) UpdatesDir() string { return filepath.Join(d.Root, "updates") }
+
+// UpdateStateFile remembers the last check for updates.
+func (d Dirs) UpdateStateFile() string { return filepath.Join(d.StateDir(), "update.json") }
+
 // SafetyDir holds the copies of saves taken on this device before a download
 // replaces them (created when first needed).
 func (d Dirs) SafetyDir() string { return filepath.Join(d.Root, "safety") }
@@ -73,6 +80,12 @@ type Settings struct {
 	// SteamGridDBKey is the user's own SteamGridDB API key (optional), used
 	// to find cover art. Stored only on this device.
 	SteamGridDBKey string `json:"steamGridDbKey,omitempty"`
+	// UpdateChannel is which releases updates come from: "" (stable releases
+	// only, default) or "prerelease" (also alpha, beta and rc builds).
+	UpdateChannel string `json:"updateChannel,omitempty"`
+	// NoUpdateCheck turns off looking for a newer version on its own; the
+	// default (false) looks. Checking by hand always works.
+	NoUpdateCheck bool `json:"noUpdateCheck,omitempty"`
 }
 
 // CloudBase returns the rclone path of Carryover's cloud folder, or "" if no remote is configured.
@@ -150,6 +163,9 @@ func (st *SettingsStore) Update(s Settings) error {
 		s.Theme = "" // follow the system
 	}
 	s.Language = cleanLanguage(s.Language)
+	if s.UpdateChannel != "prerelease" {
+		s.UpdateChannel = "" // stable
+	}
 	if s.BackupRetention < 0 {
 		s.BackupRetention = 0
 	}

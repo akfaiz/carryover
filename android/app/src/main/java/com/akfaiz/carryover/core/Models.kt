@@ -82,7 +82,50 @@ data class Settings(
     val theme: String = "",
     /** The user's own SteamGridDB API key (optional): needed to find covers and backgrounds. */
     val steamGridDbKey: String = "",
+    /** The releases updates come from: "" (finished ones only) or "prerelease". */
+    val updateChannel: String = "",
+    /** Carryover doesn't look for a newer version by itself. */
+    val noUpdateCheck: Boolean = false,
 )
+
+/** Where updating the app stands (services.UpdateStatus). A value this app doesn't know reads as [Idle]. */
+@Serializable
+enum class UpdateStatus {
+    @SerialName("idle") Idle,
+    @SerialName("checking") Checking,
+    @SerialName("current") Current,
+    @SerialName("available") Available,
+    @SerialName("downloading") Downloading,
+    @SerialName("ready") Ready,
+    @SerialName("installed") Installed,
+}
+
+/** What there is to know about updating the app (services.UpdateState). */
+@Serializable
+data class UpdateState(
+    val status: UpdateStatus = UpdateStatus.Idle,
+    /** False for a development build, which never updates. */
+    val supported: Boolean = false,
+    val current: String = "",
+    /** The newer version, when there is one, with its notes and release page. */
+    val latest: String = "",
+    val prerelease: Boolean = false,
+    val notes: String = "",
+    val url: String = "",
+    /** The release has an APK for this device. */
+    val installable: Boolean = false,
+    /** Bytes downloaded. */
+    val done: Long = 0,
+    val total: Long = 0,
+    /** The downloaded and verified APK while [status] is [UpdateStatus.Ready]. */
+    val file: String = "",
+    /** Why the last check or download failed. */
+    val error: String = "",
+) {
+    /** There is a newer version to tell the user about. */
+    val newer: Boolean
+        get() = status == UpdateStatus.Available || status == UpdateStatus.Downloading || status == UpdateStatus.Ready
+}
 
 /** What importing an rclone.conf did (the core's cloud.ImportResult). */
 @Serializable

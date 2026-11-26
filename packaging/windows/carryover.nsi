@@ -15,6 +15,10 @@
 ; are never touched, also not by the uninstaller.
 ;
 ; Silent install: setup.exe /S [/D=C:\path\to\Carryover]  (/D must come last)
+;
+; Carryover updates an install by running setup.exe /S /UPDATE and quitting:
+; the installer waits for it to exit, installs where it installed before, and
+; starts it again.
 
 Unicode true
 ManifestDPIAware true
@@ -65,14 +69,23 @@ VIAddVersionKey "LegalCopyright" "Copyright (c) 2026 Ahmad Faiz"
 !insertmacro MUI_LANGUAGE "English"
 
 ; The exe can't be replaced while Carryover, a game started through
-; "carryover run", or a session watcher is still running from it.
+; "carryover run", or a session watcher is still running from it. A silent
+; install gives it 30 seconds to exit: an update is started by the app just
+; before it quits.
 !macro RemoveExe un
   Function ${un}RemoveExe
+    StrCpy $R9 0
     retry:
       ClearErrors
       Delete "$INSTDIR\${APPEXE}"
       IfErrors 0 done
       IfFileExists "$INSTDIR\${APPEXE}" 0 done
+      IfSilent 0 ask
+      IntCmp $R9 60 ask 0 ask
+      IntOp $R9 $R9 + 1
+      Sleep 500
+      Goto retry
+    ask:
       MessageBox MB_RETRYCANCEL|MB_ICONEXCLAMATION \
         "${APP} is still running (or a game started from it is). Close it, then click Retry." \
         /SD IDCANCEL IDRETRY retry
@@ -118,6 +131,28 @@ Function .onInit
   IfFileExists "$DESKTOP\${APP}.lnk" done
   SectionSetFlags ${SecDesktop} 0
   done:
+FunctionEnd
+
+; Starts Carryover again after "setup.exe /S /UPDATE", also when the update
+; failed: the old version then says so (and if it never quit, it only shows
+; its window).
+Function RestartAfterUpdate
+  IfSilent 0 done
+  ${GetParameters} $R0
+  ClearErrors
+  ${GetOptions} $R0 "/UPDATE" $R1
+  IfErrors done
+  IfFileExists "$INSTDIR\${APPEXE}" 0 done
+  Exec '"$INSTDIR\${APPEXE}"'
+  done:
+FunctionEnd
+
+Function .onInstSuccess
+  Call RestartAfterUpdate
+FunctionEnd
+
+Function .onInstFailed
+  Call RestartAfterUpdate
 FunctionEnd
 
 Section "Uninstall"

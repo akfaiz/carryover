@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/akfaiz/carryover/internal/cloudsync/syncer"
 	"github.com/akfaiz/carryover/internal/library"
 )
 
@@ -62,6 +63,37 @@ func (c *Core) ReuseDevice(id string) error {
 	}
 	return c.Library.MoveDevice(id, own, time.Now().UTC())
 }
+
+// InUse reports whether a game is being played or synced on this device, by
+// this or another Carryover process (a "run" wrapper holds its game's local
+// lock), or a session started with StartSession is open: the program must not
+// be replaced then.
+func (c *Core) InUse() bool {
+	entries, err := os.ReadDir(c.Dirs.StateDir())
+	if err != nil {
+		return false
+	}
+	for _, e := range entries {
+		if e.IsDir() {
+			continue
+		}
+		if key, ok := strings.CutSuffix(e.Name(), sessionExt); ok && c.SessionOpen(key) {
+			return true
+		}
+		if key, ok := strings.CutSuffix(e.Name(), localLockExt); ok {
+			// Taking the lock is the test: a dead process's lock is taken over.
+			lock, err := syncer.AcquireLocalLock(c.Dirs.StateDir(), key)
+			if err != nil {
+				return true
+			}
+			lock.Release()
+		}
+	}
+	return false
+}
+
+// localLockExt ends the file name of a game's local lock (syncer.AcquireLocalLock).
+const localLockExt = ".lock"
 
 // anySession reports whether a session marker exists: a game is being played
 // on this device, or its session hasn't finished uploading.

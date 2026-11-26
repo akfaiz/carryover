@@ -17,6 +17,7 @@ import (
 	"github.com/egoist/mygo/ui"
 
 	"github.com/akfaiz/carryover/internal/app/gamemode"
+	"github.com/akfaiz/carryover/internal/app/singleinstance"
 	"github.com/akfaiz/carryover/internal/core"
 	"github.com/akfaiz/carryover/services"
 	"github.com/akfaiz/carryover/ui/env"
@@ -51,6 +52,12 @@ type Shell struct {
 	steam *services.SteamService
 	emus  *services.EmulatorService
 	sess  *services.SessionService
+	upd   *services.UpdateService
+
+	// instance is the single-instance guard of the main window, nil without one.
+	instance *singleinstance.Instance
+	// toldUpdate is the newer version a toast has already announced.
+	toldUpdate string
 
 	// store is the state shared by every page (see package store).
 	store *store.Store
@@ -117,6 +124,7 @@ func New(c *core.Core, bus *services.Bus, cfg Config) *Shell {
 	u.cloud = services.NewCloudService(c)
 	u.steam = services.NewSteamService(c, bus)
 	u.emus = services.NewEmulatorService(c, bus)
+	u.upd = services.NewUpdateService(c, bus, services.UpdateOptions{Target: updateTarget()})
 	u.nav = kit.NewNavigator(u.navOptions())
 
 	// A failed session is an event, not state: it toasts once, before the store
@@ -129,6 +137,7 @@ func New(c *core.Core, bus *services.Bus, cfg Config) *Shell {
 	u.store = store.New(store.Loader{Games: u.lib.List, Settings: u.sync.GetSettings, TrashCount: u.lib.TrashCount},
 		func(f func()) { kit.OnUI(f) }) // a closure: tests swap kit.OnUI
 	u.store.Attach(bus)
+	u.store.Update = u.upd.State()
 	u.store.Subscribe(u.onStore)
 	u.prompts = prompts.New(u)
 	bus.OnPrompt(func(p services.Prompt) { kit.OnUI(func() { u.prompts.Add(p) }) })
@@ -139,6 +148,10 @@ func New(c *core.Core, bus *services.Bus, cfg Config) *Shell {
 // onStore hands a change to the open page. Pages see "Sync all" as transfer
 // progress. The window redraws by itself: kit.OnUI invalidates it.
 func (u *Shell) onStore(t store.Topic) {
+	if t == store.Updates {
+		u.announceUpdate() // pages read the state as they draw
+		return
+	}
 	if t == store.SyncAll {
 		t = store.Progress
 	}
@@ -394,13 +407,20 @@ func (u *Shell) sidebar(c *ui.Context) {
 // opens the page it belongs to.
 func (u *Shell) activity(c *ui.Context) {
 	n := 0
-	entry := func(label string, to string, icon *ui.SVG) {
+	item := func(label string, icon *ui.SVG, action func()) {
 		if n >= len(u.activityH) {
 			return
 		}
 		h := &u.activityH[n]
 		n++
-		kit.NavItem(c, u.nav, h, [2]any{"act", n}, icon, label, false, 0, func() { u.navigate(to) })
+		kit.NavItem(c, u.nav, h, [2]any{"act", n}, icon, label, false, 0, action)
+	}
+	entry := func(label string, to string, icon *ui.SVG) {
+		item(label, icon, func() { u.navigate(to) })
+	}
+	// First, so that many running games can't push it out.
+	if text := u.updateEntry(); text != "" {
+		item(text, kit.IconDownload, u.ShowUpdate)
 	}
 	// The library shows "Sync all" progress itself; elsewhere it shows here.
 	if u.store.SyncAll.Running && u.route != "/" {

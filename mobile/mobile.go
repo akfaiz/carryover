@@ -15,6 +15,7 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"sync"
 
@@ -22,6 +23,7 @@ import (
 
 	"github.com/akfaiz/carryover/internal/app/appdir"
 	"github.com/akfaiz/carryover/internal/app/applog"
+	"github.com/akfaiz/carryover/internal/app/update"
 	"github.com/akfaiz/carryover/internal/app/version"
 	"github.com/akfaiz/carryover/internal/cloudsync/syncer"
 	"github.com/akfaiz/carryover/internal/core"
@@ -37,8 +39,9 @@ type Host interface {
 	// Event reports a change. kind is "library" (payload: game id, "" for
 	// all), "sync" (a syncer.Event), "syncAll" (a services.SyncAllProgress),
 	// "status" (a services.Status of a play session), "prompt" (a
-	// services.Prompt to show and answer with Respond) or "promptClosed" (the
-	// id of a prompt withdrawn without an answer).
+	// services.Prompt to show and answer with Respond), "promptClosed" (the
+	// id of a prompt withdrawn without an answer) or "update" (a
+	// services.UpdateState).
 	Event(kind, payload string)
 }
 
@@ -50,6 +53,7 @@ const (
 	EventStatus       = "status"
 	EventPrompt       = "prompt"
 	EventPromptClosed = "promptClosed"
+	EventUpdate       = "update"
 )
 
 type state struct {
@@ -60,6 +64,7 @@ type state struct {
 	emus     *services.EmulatorService
 	sync     *services.SyncService
 	sessions *services.SessionService
+	update   *services.UpdateService
 }
 
 var (
@@ -158,7 +163,13 @@ func Init(dataDir, cacheDir, homeDir, deviceName, deviceKey string, host Host) e
 		emus:     services.NewEmulatorService(c, bus),
 		sync:     services.NewSyncService(c, bus),
 		sessions: sessions,
+		// The app installs the APK itself; the download goes where its
+		// FileProvider can share it (res/xml/file_paths.xml).
+		update: services.NewUpdateService(c, bus, services.UpdateOptions{
+			Target: update.AndroidTarget(runtime.GOARCH), Dir: filepath.Join(cacheDir, "updates"),
+		}),
 	}
+	app.update.Startup() // drops the APK of an installed update
 	setHost(host)
 	bus.OnLibrary(func(id string) { emit(EventLibrary, id) })
 	bus.OnSync(func(ev syncer.Event) { emitJSON(EventSync, ev) })
@@ -166,6 +177,7 @@ func Init(dataDir, cacheDir, homeDir, deviceName, deviceKey string, host Host) e
 	bus.OnStatus(func(st services.Status) { emitJSON(EventStatus, st) })
 	bus.OnPrompt(func(p services.Prompt) { emitJSON(EventPrompt, p) })
 	bus.OnPromptClosed(func(id string) { emit(EventPromptClosed, id) })
+	bus.OnUpdate(func(st services.UpdateState) { emitJSON(EventUpdate, st) })
 	return nil
 }
 

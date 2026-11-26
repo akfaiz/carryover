@@ -12,22 +12,24 @@ import (
 
 // harness runs saves when the test says so, and records what the page was told.
 type harness struct {
-	vm      *ViewModel
-	saved   []appdir.Settings // what was sent to be saved
-	pending []func()          // saves waiting to finish
-	saveErr error
-	refresh int
-	notes   int
-	themes  []string
-	errs    []error
-	form    Form
-	stored  appdir.Settings
+	vm       *ViewModel
+	saved    []appdir.Settings // what was sent to be saved
+	pending  []func()          // saves waiting to finish
+	saveErr  error
+	refresh  int
+	notes    int
+	themes   []string
+	rechecks int
+	errs     []error
+	form     Form
+	stored   appdir.Settings
 }
 
 func newHarness(st appdir.Settings) *harness {
 	h := &harness{stored: st}
 	h.form = Form{DeviceName: st.DeviceName, BackupsOn: st.BackupRetention > 0, Retention: "5",
-		ShareLibrary: st.SyncLibrary, UploadCovers: !st.CoversLocalOnly, Theme: st.Theme, ThemeChosen: true, Language: st.Language}
+		ShareLibrary: st.SyncLibrary, UploadCovers: !st.CoversLocalOnly, Theme: st.Theme, ThemeChosen: true, Language: st.Language,
+		UpdateChannel: st.UpdateChannel, CheckUpdates: !st.NoUpdateCheck}
 	h.vm = NewViewModel(Deps{
 		Save: func(s appdir.Settings) (appdir.Settings, error) {
 			h.saved = append(h.saved, s)
@@ -38,10 +40,11 @@ func newHarness(st appdir.Settings) *harness {
 			s, err := work()
 			h.pending = append(h.pending, func() { done(s, err) })
 		},
-		Saved:        func() { h.notes++ },
-		Refresh:      func() { h.refresh++ },
-		ThemeChanged: func(t string) { h.themes = append(h.themes, t) },
-		Error:        func(err error) { h.errs = append(h.errs, err) },
+		Saved:          func() { h.notes++ },
+		ChannelChanged: func() { h.rechecks++ },
+		Refresh:        func() { h.refresh++ },
+		ThemeChanged:   func(t string) { h.themes = append(h.themes, t) },
+		Error:          func(err error) { h.errs = append(h.errs, err) },
 	}, st)
 	return h
 }
@@ -220,4 +223,21 @@ func TestChoosingTheSystemThemeIsAChoice(t *testing.T) {
 
 	next, _, _ = vm.Collect(Form{})
 	assert.Equal(t, "dark", next.Theme, "no choice leaves it")
+}
+
+// Another channel is checked once it is saved; other changes aren't.
+func TestUpdateSettings(t *testing.T) {
+	h := newHarness(appdir.Settings{DeviceName: "Deck"})
+	h.form.CheckUpdates = false
+	h.vm.Commit(h.read)
+	h.finish()
+	assert.True(t, h.saved[0].NoUpdateCheck)
+	assert.Zero(t, h.rechecks)
+
+	h.form.UpdateChannel = "prerelease"
+	h.vm.Commit(h.read)
+	assert.Zero(t, h.rechecks, "not before it is saved")
+	h.finish()
+	assert.Equal(t, "prerelease", h.saved[1].UpdateChannel)
+	assert.Equal(t, 1, h.rechecks)
 }

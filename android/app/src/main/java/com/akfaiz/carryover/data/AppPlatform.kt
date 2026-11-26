@@ -39,6 +39,15 @@ interface AppPlatform {
     /** An image the user picked ([uri], a content:// URI) as a cover file; the caller deletes it. */
     suspend fun prepareCover(uri: String): File
 
+    /** The system lets the app ask to install an APK ("Install unknown apps"). */
+    fun canInstallPackages(): Boolean
+
+    /** Opens the system page where that is allowed; false when there is none. */
+    fun openInstallPermission(): Boolean
+
+    /** Hands the APK at [path] to the system installer, which asks the user; false when it can't be opened. */
+    fun installApk(path: String): Boolean
+
     /** The logs for a bug report, as a zip. */
     suspend fun buildLogs(): File
 

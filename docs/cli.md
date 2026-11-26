@@ -7,6 +7,8 @@ carryover run <game> [--emulator <e>] [--headless] [--no-sync] [-- cmd]
 carryover sync <game>|--all [--emulator <e>] [--push|--pull] [--dry-run] [--yes]
                                              manual sync (exit code 3 = conflict)
 carryover list                               list games and their ids
+carryover update [--check] [--channel stable|prerelease]
+                                             install the newest version
 carryover --version                          print the version
 ```
 
@@ -20,6 +22,10 @@ carryover --version                          print the version
 - `--dry-run` shows what would happen without changing anything. `--all` with `--push` or `--pull` asks first;
   `--yes` (`-y`) skips the question.
 - Ctrl+C cancels a running `sync`.
+- `update` looks for a newer release and installs it (see "Updating" in the [README](../README.md#updating)).
+  `--check` only says whether there is one; `--channel` overrides the channel setting for this run. Close an open
+  Carryover window: on Windows the installer waits only half a minute for it to exit. Development builds don't
+  update.
 
 ## Environment variables
 

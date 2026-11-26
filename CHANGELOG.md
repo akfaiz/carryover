@@ -7,6 +7,16 @@ All notable changes to Carryover are listed here. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- Carryover updates itself on Windows, Linux (including the Steam Deck), macOS and Android. It tells you when a newer
+  version is out and shows what is new; **Download and restart** checks the download against the release's checksums,
+  replaces the program where it is, so Steam shortcuts keep working, and starts it again. On Android the new APK goes
+  to the system installer. It never installs while a game is being played or a sync runs.
+- Settings → Updates chooses the channel: **Stable** (finished releases) or **Pre-release** (also alpha, beta and
+  release candidate builds). Automatic checks can be turned off.
+- `carryover update` checks for and installs a newer version from the command line.
+
 ### Changed
 
 - The Android app has the desktop's new look: the same corner radii and card, badge and empty-state styles, one

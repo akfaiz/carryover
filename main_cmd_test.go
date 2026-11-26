@@ -348,3 +348,15 @@ func TestCmdFinishSessionKilled(t *testing.T) {
 	require.Len(t, sent, 1, "user not notified")
 	require.True(t, strings.HasPrefix(sent[0], "Game A: "), sent[0])
 }
+
+func TestCmdUpdate(t *testing.T) {
+	newCLIEnv(t)
+	for _, args := range [][]string{{"--channel", "nightly"}, {"extra"}, {"--nope"}} {
+		_, code := capture(t, func() int { return cmdUpdate(args) })
+		assert.Equal(t, 2, code, "%v", args)
+	}
+	// The test build is a development build: it never asks GitHub.
+	out, code := capture(t, func() int { return cmdUpdate([]string{"--check", "--channel", "prerelease"}) })
+	assert.Equal(t, 1, code)
+	assert.Contains(t, out, "development build")
+}

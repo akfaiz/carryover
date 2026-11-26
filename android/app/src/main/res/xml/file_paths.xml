@@ -1,5 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Files other apps may read when the user shares them: the bug report zips (core/BugReport.kt). -->
+<!-- Files other apps may read: the bug report zips the user shares (core/BugReport.kt), and the
+     downloaded update the system installer reads (AndroidPlatform.installApk). -->
 <paths>
     <cache-path name="reports" path="reports/" />
+    <cache-path name="updates" path="updates/" />
 </paths>

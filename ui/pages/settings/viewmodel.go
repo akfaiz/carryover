@@ -42,6 +42,9 @@ type Form struct {
 	Theme        string // a kit.Theme* setting (the system's is "")
 	ThemeChosen  bool   // Theme is a choice; otherwise the stored theme stays
 	Language     string // a language code, "" for the system's
+	// UpdateChannel is the releases updates come from ("" or "prerelease").
+	UpdateChannel string
+	CheckUpdates  bool // look for updates without being asked
 }
 
 // Runner does a save off the UI thread and then calls done on it.
@@ -59,6 +62,8 @@ type Deps struct {
 	// ThemeChanged applies a new theme. The page is built again afterwards, so
 	// the ViewModel does not save anything more after it.
 	ThemeChanged func(theme string)
+	// ChannelChanged is called once another update channel is saved.
+	ChannelChanged func()
 	// Error shows an error to the user.
 	Error func(error)
 }
@@ -118,6 +123,8 @@ func (vm *ViewModel) Collect(f Form) (next appdir.Settings, ok bool, err error) 
 		next.Theme = f.Theme
 	}
 	next.Language = f.Language
+	next.UpdateChannel = f.UpdateChannel
+	next.NoUpdateCheck = !f.CheckUpdates
 	next.SteamGridDBKey = vm.keyToSave
 	return next, true, nil
 }
@@ -144,10 +151,14 @@ func (vm *ViewModel) Commit(read func() Form) {
 			return
 		}
 		themeChanged := saved.Theme != vm.st.Theme
+		channelChanged := saved.UpdateChannel != vm.st.UpdateChannel
 		vm.st = saved
 		vm.keyToSave = saved.SteamGridDBKey
 		vm.d.Refresh()
 		vm.d.Saved()
+		if channelChanged {
+			vm.d.ChannelChanged()
+		}
 		if themeChanged {
 			vm.d.ThemeChanged(saved.Theme)
 			return // the page is built again

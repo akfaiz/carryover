@@ -164,3 +164,26 @@ func TestDeviceIDFrom(t *testing.T) {
 	assert.Equal(t, a, again.Get().DeviceID)
 	assert.Error(t, st.SetDeviceID(" "))
 }
+
+// The update channel is stable unless pre-releases are chosen, and automatic
+// checks are on until turned off.
+func TestSettingsUpdate(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "settings.json")
+	st, err := OpenSettings(path)
+	require.NoError(t, err)
+	require.Equal(t, "", st.Get().UpdateChannel)
+	require.False(t, st.Get().NoUpdateCheck)
+	for in, want := range map[string]string{"": "", "prerelease": "prerelease", "stable": "", "nightly": ""} {
+		s := st.Get()
+		s.UpdateChannel = in
+		require.NoError(t, st.Update(s))
+		assert.Equal(t, want, st.Get().UpdateChannel, "%q", in)
+	}
+	s := st.Get()
+	s.UpdateChannel, s.NoUpdateCheck = "prerelease", true
+	require.NoError(t, st.Update(s))
+	again, err := OpenSettings(path)
+	require.NoError(t, err)
+	assert.Equal(t, "prerelease", again.Get().UpdateChannel)
+	assert.True(t, again.Get().NoUpdateCheck)
+}
