@@ -44,6 +44,11 @@ const (
 	// as Lutris has it; it identifies the game and, by its name, the process
 	// to wait for.
 	LaunchLutris LaunchMode = "lutris"
+	// LaunchBottles starts a game through Bottles (Linux), so it runs in its
+	// bottle with the bottle's runner and settings. Exe is the game's
+	// executable on this device; it identifies the bottle (and the program
+	// added to it) and, by its name, the process to wait for.
+	LaunchBottles LaunchMode = "bottles"
 )
 
 // DeviceConfig is the per-device part of a game.

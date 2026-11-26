@@ -38,24 +38,25 @@ func TestPageForRoutes(t *testing.T) {
 	h := newHarness(t)
 	heroic := "/new/heroic/legendary/" + url.PathEscape("Some Game/1")
 	cases := map[string]string{
-		"/":                     "*library.Page",
-		"":                      "*library.Page",
-		"/nowhere":              "*library.Page",
-		"/game":                 "*library.Page", // no id: not a game page
-		"/game/abc":             "*game.Page",
-		"/edit/abc":             "*editor.Page",
-		"/edit":                 "*library.Page",
-		"/new":                  "*editor.Page",
-		"/new/steam/620":        "*editor.Page",
-		"/new/steam":            "*editor.Page", // plain "new"
-		"/new/lutris/cfg":       "*editor.Page",
-		"/new/emulator":         "*editor.Page",
-		heroic:                  "*editor.Page",
-		"/new/heroic/legendary": "*editor.Page", // no app name: plain "new"
-		"/emulators":            "*emulators.Page",
-		"/cloud":                "*cloud.Page",
-		"/trash":                "*trash.Page",
-		"/settings":             "*settings.Page",
+		"/":                          "*library.Page",
+		"":                           "*library.Page",
+		"/nowhere":                   "*library.Page",
+		"/game":                      "*library.Page", // no id: not a game page
+		"/game/abc":                  "*game.Page",
+		"/edit/abc":                  "*editor.Page",
+		"/edit":                      "*library.Page",
+		"/new":                       "*editor.Page",
+		"/new/steam/620":             "*editor.Page",
+		"/new/steam":                 "*editor.Page", // plain "new"
+		"/new/bottles/My%20Games/id": "*editor.Page",
+		"/new/lutris/cfg":            "*editor.Page",
+		"/new/emulator":              "*editor.Page",
+		heroic:                       "*editor.Page",
+		"/new/heroic/legendary":      "*editor.Page", // no app name: plain "new"
+		"/emulators":                 "*emulators.Page",
+		"/cloud":                     "*cloud.Page",
+		"/trash":                     "*trash.Page",
+		"/settings":                  "*settings.Page",
 	}
 	for route, want := range cases {
 		assert.Equal(t, want, fmt.Sprintf("%T", pageFor(h.Shell, route)), route)

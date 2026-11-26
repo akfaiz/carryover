@@ -188,6 +188,11 @@ func TestInitFromTheGamesLaunchMode(t *testing.T) {
 	assert.Equal(t, "lutris", vm.steamMode)
 
 	vm = newViewModel("g1", nil)
+	g.Device.LaunchMode = "bottles"
+	vm.initFrom(g)
+	assert.Equal(t, "bottles", vm.steamMode)
+
+	vm = newViewModel("g1", nil)
 	vm.initFrom(plainGame())
 	assert.Equal(t, "direct", vm.steamMode)
 }

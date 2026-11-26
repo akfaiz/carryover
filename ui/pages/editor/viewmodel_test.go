@@ -157,6 +157,18 @@ func TestPrefillFromLutris(t *testing.T) {
 	assert.False(t, vm.Dirty(), "the game picked in Lutris is where the form starts")
 }
 
+func TestPrefillFromBottles(t *testing.T) {
+	vm := newGame()
+	var bg services.BottlesLibraryGame
+	bg.Bottle, bg.Name, bg.Exe = "Games", "Hades", "/home/deck/bottles/Games/drive_c/Hades.exe"
+	vm.PrefillFromBottles(bg)
+
+	assert.Equal(t, "Hades", vm.name)
+	assert.Equal(t, "/home/deck/bottles/Games/drive_c/Hades.exe", vm.dev.Exe)
+	assert.Equal(t, services.LaunchBottles, vm.dev.LaunchMode, "Bottles starts it, in its bottle")
+	assert.False(t, vm.Dirty(), "the program picked in Bottles is where the form starts")
+}
+
 func TestPrefillFromHeroic(t *testing.T) {
 	vm := newGame()
 	var hg services.HeroicLibraryGame

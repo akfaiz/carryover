@@ -53,6 +53,9 @@ func New(u env.Env, id, steamAppID string) *Page {
 		if e.vm.id == "" && e.vm.heroicGame[1] != "" {
 			e.prefillFromHeroic(e.vm.heroicGame[0], e.vm.heroicGame[1])
 		}
+		if e.vm.id == "" && e.vm.bottlesID[1] != "" {
+			e.prefillFromBottles(e.vm.bottlesID[0], e.vm.bottlesID[1])
+		}
 	})
 	return e
 }
@@ -70,6 +73,14 @@ func NewFromLutris(u env.Env, configID string) *Page {
 func NewFromHeroic(u env.Env, runner, appName string) *Page {
 	e := New(u, "", "")
 	e.vm.heroicGame = [2]string{runner, appName}
+	return e
+}
+
+// NewFromBottles returns the editor for a new game, pre-filled from the
+// program with this id in the bottle of this name.
+func NewFromBottles(u env.Env, bottle, programID string) *Page {
+	e := New(u, "", "")
+	e.vm.bottlesID = [2]string{bottle, programID}
 	return e
 }
 
@@ -116,6 +127,18 @@ func (e *Page) prefillFromLutris(configID string) {
 		for _, g := range lib {
 			if g.ConfigID == configID {
 				e.vm.PrefillFromLutris(g)
+				e.suggestSaves(true)
+				return
+			}
+		}
+	})
+}
+
+func (e *Page) prefillFromBottles(bottle, programID string) {
+	kit.Async(func() ([]services.BottlesLibraryGame, error) { return e.vm.be.BottlesLibrary(), nil }, func(lib []services.BottlesLibraryGame, _ error) {
+		for _, g := range lib {
+			if g.Bottle == bottle && g.ProgramID == programID {
+				e.vm.PrefillFromBottles(g)
 				e.suggestSaves(true)
 				return
 			}

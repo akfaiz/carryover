@@ -13,8 +13,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"gopkg.in/yaml.v3"
-
+	"github.com/akfaiz/carryover/internal/stores/bottles"
 	"github.com/akfaiz/carryover/internal/stores/heroic"
 	"github.com/akfaiz/carryover/internal/stores/lutris"
 )
@@ -138,9 +137,7 @@ func Find(r Roots) []Prefix {
 		heroicParents = append(heroicParents, f.heroicConfig(dir.Path, home)...)
 	}
 	f.lutrisGames(home)
-	for _, dir := range bottlesDirs(home) {
-		f.bottles(dir)
-	}
+	f.bottles(home)
 
 	// Folders the launchers create prefixes in by default, here and on the
 	// other drives.
@@ -267,33 +264,14 @@ func (f *finder) lutrisGames(home string) {
 
 // --- Bottles ---
 
-func bottlesDirs(home string) []string {
-	return []string{
-		filepath.Join(home, ".local", "share", "bottles", "bottles"),
-		filepath.Join(home, ".var", "app", "com.usebottles.bottles", "data", "bottles", "bottles"),
-	}
-}
-
 // bottles adds each bottle, with the programs added to it as its games.
-func (f *finder) bottles(dir string) {
-	for _, sub := range subdirs(dir) {
-		p := filepath.Join(dir, sub)
-		var spec struct {
-			Name     string `yaml:"Name"`
-			Programs map[string]struct {
-				Name string `yaml:"name"`
-			} `yaml:"External_Programs"`
-		}
-		if b, err := os.ReadFile(filepath.Join(p, "bottle.yml")); err == nil {
-			_ = yaml.Unmarshal(b, &spec)
-		}
+func (f *finder) bottles(home string) {
+	for _, b := range bottles.List(home) {
 		var games []string
-		for _, prog := range spec.Programs {
-			if prog.Name != "" {
-				games = append(games, prog.Name)
-			}
+		for _, p := range b.Programs {
+			games = append(games, p.Name)
 		}
-		f.add(Bottles, spec.Name, p, games...)
+		f.add(Bottles, b.Name, b.Path, games...)
 	}
 }
 

@@ -32,6 +32,14 @@ func (b serviceBackend) LutrisGame(exe string) (string, bool) {
 func (b serviceBackend) LutrisLibrary() []services.LutrisLibraryGame {
 	return b.u.Lib().LutrisLibrary()
 }
+func (b serviceBackend) BottlesGame(exe string) (string, bool) {
+	return b.u.Lib().BottlesGame(exe)
+}
+
+func (b serviceBackend) BottlesLibrary() []services.BottlesLibraryGame {
+	return b.u.Lib().BottlesLibrary()
+}
+
 func (b serviceBackend) HeroicLibrary() []services.HeroicLibraryGame {
 	return b.u.Lib().HeroicLibrary()
 }
