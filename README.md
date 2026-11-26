@@ -26,8 +26,8 @@
 </p>
 
 A game launcher for Windows, macOS and Linux / Steam Deck, with an Android app, that keeps your save
-games in sync through your own cloud storage. Carryover pulls the latest saves before you play and pushes them when
-you quit, from its own launcher or from Steam, including Game Mode.
+games in sync through your own cloud storage. Carryover downloads the latest saves before you play and uploads them
+when you quit, from its own launcher or from Steam, including Game Mode.
 
 Cloud storage: Google Drive, Dropbox, OneDrive, WebDAV (Nextcloud, ownCloud, NAS), SFTP and SMB.
 [rclone](https://github.com/rclone/rclone) is built in, so there is nothing else to install.
@@ -40,111 +40,98 @@ Cloud storage: Google Drive, Dropbox, OneDrive, WebDAV (Nextcloud, ownCloud, NAS
 
 ## Features
 
-- **Per-device save paths** — one game, one cloud copy; each device maps it to its own folder
-  (`{appdata}/GameA` on Windows, `{proton:shortcut}/AppData/Roaming/GameA` on a Steam Deck).
-- **Save locations suggested** — known save folders for ~21,000 games, translated for each device, including
-  Proton, Heroic, Lutris and Bottles prefixes on Linux. Emulators get theirs from the emulator's own manifest, on
-  the desktop and in the Android app.
-- **Play from the launcher or from Steam** — "Add to Steam" creates a shortcut that syncs around every session,
-  even in Game Mode, with prompts that work on a controller. On Linux, Heroic and Lutris games are started
-  through their launcher so they keep its Wine prefix.
-- **Controller support** — added to Steam itself, the whole app works with a gamepad in Game Mode: the D-pad
-  moves between games and buttons, A presses, B goes back, and text fields open Steam's keyboard.
-- **Safe conflicts** — if saves changed on both sides, you choose which to keep, and the side being overwritten
-  is backed up first. Backups can be listed, pinned and restored from the game's page (on the desktop and in the
-  Android app).
-- **Emulators** — set up an emulator (Eden, Ryujinx, …) once per device and let a game use several; each keeps
-  its own saves in the cloud. Choosing a ROM suggests the game's name and save folders.
-- **Android** — play emulated games on a phone, handheld or TV with the same cloud saves as on your
-  PC: Play syncs, starts the emulator and uploads the saves when you leave the game. Frontends such as ES-DE and
-  Daijisho can start games through it, and an Android-only emulator such as Lemon can share Eden's saves with the PC.
+- **A save folder for each device** — the same game can keep its saves in a different place on each device, and
+  Carryover keeps them in step. See [Save paths](docs/save-paths.md).
+- **Save folders suggested** — Carryover can find the save folder of about 21,000 PC games and of many emulated
+  games, also for games run through Proton, Heroic, Lutris or Bottles.
+- **Play from Carryover or from Steam** — **Add to Steam** makes a shortcut that syncs every time you play, also in
+  Game Mode. On Linux, Heroic and Lutris games still run through Heroic or Lutris.
+- **Controller support** — add Carryover to Steam and you can use the whole app with a gamepad in Game Mode.
+- **Safe conflicts** — if saves changed on two devices, you choose which to keep. Before a download replaces the
+  saves on your device, Carryover keeps a copy of them there. Turn on cloud backups to also back up saves in the
+  cloud before they're replaced, and restore them from the game's page.
+- **Emulators** — set up Eden, Ryujinx and others once on each device. A game can use more than one, each with its
+  own saves. Choosing a game file suggests the game's name and save folders.
+- **Android** — play emulated games on a phone, handheld or TV with the same saves as on your PC. Press **Play**:
+  Carryover syncs, opens the emulator and uploads your saves when you leave the game. You can also start games from
+  ES-DE or Daijisho, and Lemon on Android can share Eden's saves with your PC.
 - **Played without Carryover?** — games whose saves changed outside Carryover are marked "not uploaded".
-- **Shared library** — the game list, covers and artwork sync between devices; a game added on the PC shows up on
-  the Deck as "needs setup". Titles come from Steam, covers from SteamGridDB (with your own free API key; the Android app finds covers and backgrounds too).
-- **Trash and cleanup** — deleted games and emulators can be restored for 30 days, and cloud saves no game uses
-  any more can be restored or deleted (on the desktop and in the Android app).
+- **Shared library** — your game list, covers and artwork appear on all your devices. A game added on your PC shows
+  up on your Steam Deck as "needs setup". Titles come from Steam, and covers from SteamGridDB (with your own free
+  API key).
+- **Trash** — restore deleted games and emulators for 30 days, and clean up cloud saves that no game uses any more.
 
 ## Download
 
 Get the latest version from the [Releases page](https://github.com/akfaiz/carryover/releases/latest).
 
-Every file is named `carryover-<version>-<os>-<arch>`, for example `carryover-0.5.1-windows-amd64.zip`.
-On Windows, pick the installer or the portable zip; both hold the same program.
+File names include the version, for example `carryover-0.5.1-windows-amd64.zip`. On Windows, pick the installer or
+the portable zip; both hold the same program.
 
 | Platform | File | How to run |
 |---|---|---|
-| Windows (installer) | `carryover-<version>-windows-amd64-setup.exe` | Run it. Installs for your user only (no admin needed) into `%LOCALAPPDATA%\Programs\Carryover`, with a Start menu entry and an uninstaller. |
+| Windows (installer) | `carryover-<version>-windows-amd64-setup.exe` | Run it. No admin rights needed. It adds Carryover to the Start menu. |
 | Windows (portable) | `carryover-<version>-windows-amd64.zip` | Extract `carryover.exe` and run it from any folder. |
-| Steam Deck, Linux | `carryover-<version>-linux-amd64.AppImage` | Rename it to `carryover.AppImage`, make it executable (file Properties → Permissions, or `chmod +x`) and run it. |
-| Linux | `carryover-<version>-linux-amd64.tar.gz` | Extract it and run `./install.sh` (installs into `~/.local` and adds a menu entry), or `sudo ./install.sh /usr/local` for every user. |
-| macOS 12+ (Apple Silicon and Intel) | `carryover-<version>-macos-universal.zip` | Open the zip and drag the extracted Carryover to Applications. |
+| Steam Deck, Linux | `carryover-<version>-linux-amd64.AppImage` | Rename it to `carryover.AppImage`, allow it to run as a program (right-click → Properties → Permissions) and open it. |
+| Linux | `carryover-<version>-linux-amd64.tar.gz` | Extract it and run `./install.sh` to add Carryover to your applications menu. |
+| macOS 12+ (Apple Silicon and Intel) | `carryover-<version>-macos-universal.zip` | Open the zip and drag Carryover to Applications. |
 | Android 8+ | `carryover-<version>-android-arm64-v8a.apk` (phones, handhelds, TV boxes; `…-x86_64.apk` for Chromebooks) | Open it on the device and allow your browser or file manager to install apps when Android asks. |
 
-- **Keep the app in one place, under one name.** Steam shortcuts made with "Add to Steam" point at the file's path,
-  which is why the exe and AppImage carry no version in their name. Put them in a folder you won't move them out
-  of (for example `~/Applications` on the Deck). On the Deck, run it from Desktop Mode the first time.
-- **Windows warns on first run.** The installer and exe aren't code-signed yet, so SmartScreen shows "Windows
-  protected your PC"; choose **More info → Run anyway**.
-- **macOS blocks the first start.** The app isn't signed with an Apple Developer ID or notarized, so macOS says it
-  can't check it for malware. Open it once, then go to System Settings → Privacy & Security and choose
-  **Open Anyway**. From Terminal, `xattr -dr com.apple.quarantine /Applications/Carryover.app` does the same.
+- **Keep the app in one place, under one name.** Steam shortcuts made with **Add to Steam** point at the file, so
+  don't move or rename it afterwards. Choose a folder it can stay in (for example `~/Applications` on the Deck). On
+  the Deck, run it from Desktop Mode the first time.
+- **Windows warns on first run.** Carryover isn't code-signed yet, so you may see "Windows protected your PC".
+  Choose **More info → Run anyway**.
+- **macOS blocks the first start.** Carryover isn't signed or notarized by Apple, so macOS says it can't check it
+  for malware. Open it once, then go to System Settings → Privacy & Security and choose **Open Anyway**.
 - **Android asks once for Usage access.** It lets Carryover see that you left a game, to upload its saves right away.
-  On Android 13+, an app installed from a downloaded file must be unlocked for it first: App info → ⋮ → **Allow
-  restricted settings**; the app shows you where. A new version installs over the old one and keeps your setup;
-  uninstalling removes the app's settings on the phone, not your cloud saves.
-- **Check a download** against `SHA256SUMS.txt` from the same release: `sha256sum -c SHA256SUMS.txt --ignore-missing`
-  on Linux, `shasum -a 256 -c SHA256SUMS.txt --ignore-missing` on macOS, or compare the output of
-  `Get-FileHash <file>` in PowerShell on Windows.
-- **Updating:** see [Updating](#updating) below.
-- **Uninstalling** (installer): Windows Settings → Apps. Your settings, library and cloud configuration in
-  `%APPDATA%\Carryover` are kept; both Windows versions use that folder, so you can switch between them. On macOS,
-  move Carryover.app to the Trash; settings stay in `~/Library/Application Support/Carryover`.
-- `carryover --version`, or Settings → About, shows which version you have.
+  On Android 13+, you must first allow it for an app installed from a downloaded file: App info → ⋮ → **Allow
+  restricted settings**. The app shows you where.
+- **Uninstalling:** on Windows (installer), use Settings → Apps; on macOS, move Carryover to the Trash. Your settings
+  and library are kept. On Android, uninstalling removes the app's settings on the phone, not your cloud saves.
+- **Your version** is shown in Settings → About.
+
+For checking a download, more Linux install options and where your settings are kept, see
+[Troubleshooting](docs/troubleshooting.md).
 
 ## Updating
 
-Carryover looks for a newer version when it starts and tells you when there is one. It installs it only when you
-say so: **Update available** in the sidebar, or **Settings → Updates**, shows what is new; **Download and restart**
-fetches it, checks it against the release's `SHA256SUMS.txt`, replaces the program where it is (so Steam shortcuts
-keep working) and starts it again. It never installs while a game is being played or a sync runs.
+Carryover tells you when a new version is available. On a computer, select **Update available** in the sidebar,
+then **Download and restart**. On Android, open **Settings → Updates** and tap the new version. You can read what's
+new before you install it. Carryover never installs an update without asking, or while a game is being played or a
+sync is running.
 
-**Settings → Updates** also chooses the channel:
+In **Settings → Updates**, you can choose:
 
-- **Stable** (default): finished releases only.
-- **Pre-release**: also alpha, beta and release candidate builds. They get new features first and may have bugs.
-  Switching back to Stable doesn't downgrade: you get the next stable release that is newer than what you run.
+- **Stable** (recommended): finished versions only.
+- **Pre-release**: new features earlier, but they may have more bugs. Switching back to Stable doesn't install an
+  older version.
 
-Turn **Check for updates automatically** off to check only by hand. From a terminal, `carryover update` does the
-same (`--check` only looks, `--channel stable|prerelease` overrides the setting once).
+You can also turn off automatic checks.
 
-- **Windows:** the installed version runs the new installer silently; the portable zip replaces `carryover.exe`.
-- **Linux:** the AppImage file, or the binary installed from the tarball, is replaced. An install in a folder you
-  can't write (such as `/usr/local/bin` or a distro package) is told where to get the new version instead.
-- **macOS:** `Carryover.app` is replaced. Move it to Applications first: an app macOS still runs from its
-  quarantine copy can't replace itself.
-- **Android:** the APK is downloaded and handed to Android's installer, which asks you to confirm. The first time,
-  Android also asks you to let Carryover install apps. A new version installs over the old one and keeps your setup.
+- **macOS:** move Carryover to Applications first.
+- **Android:** Android asks you to confirm the install. The first time, it also asks you to let Carryover install
+  apps. Your setup is kept.
+- **Version 0.5.1 and older** can't update themselves. Install a newer version yourself once: run the new installer,
+  or replace the old file with the new one under the same name.
 
-Updating by hand still works: run the new installer over the old install, or put the new `carryover.exe`,
-`carryover.AppImage` or `Carryover.app` over the old one. [Gear Lever](https://flathub.org/apps/it.mijorus.gearlever)
-and AppImageUpdate can update the AppImage too (full releases only). Development builds don't update themselves.
-Versions before this feature can't update themselves, so install the first one that has it by hand.
+If Carryover can't update itself, see [Troubleshooting](docs/troubleshooting.md#carryover-cant-update-itself).
 
 ## Getting started
 
 On each device:
 
-1. **Cloud storage** — add a remote with "＋ Add remote" (or import your existing rclone config, on the desktop and in the Android app). The first one
-   becomes the sync location; check its folder under "Sync location". Every device must use the same remote and
-   folder.
-2. **＋ Add game** — choose "From Steam", "PC game" or "Emulated game", then set how it starts and its save folder
-   on this device. Suggested save locations are listed for known games.
-3. **▶ Play**, or use "Add to Steam" and start the game from Steam. On the other device, the game shows up as
-   "needs setup": set its save folder there, and the saves follow you. For Proton and Heroic games, see
+1. **Connect your cloud storage** — select **＋ Add remote** (a "remote" is a connection to your cloud account). If
+   you already use rclone, you can import its settings instead. The first one you add is where your saves are synced;
+   check the folder under **Sync location**. Use the same account and folder on every device.
+2. **Add a game** — select **＋ Add game** and choose "From Steam", "PC game" or "Emulated game". Then set how it
+   starts and where its saves are on this device. Carryover suggests the save folder for games it knows.
+3. **Play** — press **▶ Play**, or use **Add to Steam** and start the game from Steam. On another device, the game
+   shows up as "needs setup": set its save folder there, and your saves follow you. For Proton and Heroic games, see
    [Steam and Steam Deck](docs/steam-deck.md).
 
 **On Android**, add the same cloud account and folder under Settings → Cloud. Games your PC plays with an emulator
-that has an Android app show up. On the Emulators tab, choose which app each emulator is; on a game's page, pick its
+that has an Android app show up. On the Emulators tab, choose which app each emulator is. Then open a game, pick its
 save folder (**Suggest save folders** finds it for emulators it knows) and press **Play**. To start games from
 ES-DE or Daijisho, see [Android: start games from a frontend](docs/android-frontends.md).
 
@@ -152,26 +139,27 @@ ES-DE or Daijisho, see [Android: start games from a frontend](docs/android-front
 
 ```mermaid
 flowchart LR
-    Play([Play]) --> Compare{"Compare local saves,<br/>cloud and last sync"}
-    Compare -->|cloud newer| Pull[Pull saves]
+    Play([Play]) --> Compare{"Compare saves on this device,<br/>in the cloud and at the last sync"}
+    Compare -->|cloud is newer| Pull[Download saves]
     Compare -->|both changed| Choose[You choose]
-    Compare -->|local newer| Push[Push saves]
+    Compare -->|device is newer| Push[Upload saves]
     Compare -->|no change| Game
     Pull --> Game([Game runs])
     Choose --> Game
     Push --> Game
-    Game -->|quit| Upload[Push new saves]
+    Game -->|quit| Upload[Upload new saves]
 ```
 
-Each game has one copy of its saves in the cloud. Before you play, Carryover compares the local saves, the cloud
-copy and what it saw at the last sync, then pulls, pushes, or asks you when both sides changed. Only changed files
-are transferred, and a cloud lock shows when the game is being played on another device. After you quit, the new
-saves are pushed. See [How Carryover syncs saves](docs/how-it-works.md) for the details and the backup options.
+Carryover keeps one copy of each game's saves in the cloud. Before you play, it compares the saves on this device
+with that copy and with what it saw at the last sync. Then it downloads or uploads them, or asks you which to keep if
+both changed. Only changed files are transferred, and you get a warning if the game is being played on another
+device. After you quit, your new saves are uploaded. See [How Carryover syncs saves](docs/how-it-works.md) for the
+details and the backup options.
 
 > [!NOTE]
 > **Steam's "Exit game" / "Stop" is fine.** Carryover still uploads your saves a few seconds later and lets you
-> know with a notification (in Steam Deck Game Mode, the next time you open Carryover). On Linux this needs systemd,
-> which SteamOS has; without it (e.g. Flatpak Steam), press "Sync now" before you play on another device.
+> know with a notification (in Steam Deck Game Mode, the next time you open Carryover). With Flatpak Steam, or on
+> Linux without systemd, press "Sync now" before you play on another device.
 
 ## Command line
 
@@ -192,7 +180,7 @@ All options are in [docs/cli.md](docs/cli.md).
 - [Save paths](docs/save-paths.md) — every path variable (`{appdata}`, `{proton:shortcut}`, …)
 - [Command line](docs/cli.md) — commands, options and environment variables
 - [Android: start games from a frontend](docs/android-frontends.md) — ES-DE, Daijisho, home-screen shortcuts
-- [Troubleshooting](docs/troubleshooting.md) — logs, SmartScreen, missing uploads, Android
+- [Troubleshooting](docs/troubleshooting.md) — logs, installing and updating, checking a download, missing uploads, Android
 - [Compared with other tools](docs/comparison.md)
 - [Privacy policy](PRIVACY.md)
 

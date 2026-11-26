@@ -22,7 +22,8 @@ carryover --version                          print the version
 - `--dry-run` shows what would happen without changing anything. `--all` with `--push` or `--pull` asks first;
   `--yes` (`-y`) skips the question.
 - Ctrl+C cancels a running `sync`.
-- `update` looks for a newer release and installs it (see "Updating" in the [README](../README.md#updating)).
+- `update` looks for a newer release and installs it (see "Updating" in the [README](../README.md#updating) and
+  [Troubleshooting](troubleshooting.md#carryover-cant-update-itself)).
   `--check` only says whether there is one; `--channel` overrides the channel setting for this run. Close an open
   Carryover window: on Windows the installer waits only half a minute for it to exit. Development builds don't
   update.

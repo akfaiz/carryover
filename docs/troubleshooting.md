@@ -9,6 +9,39 @@ On Android, use Settings → About → **Logs for a bug report** → **Share** o
 Carryover's logs, Android's log of the app and its version, device and permissions. Do it soon after the problem:
 Android's log only covers the app since it last started.
 
+## Checking a download
+
+Each release has a `SHA256SUMS.txt`. Download it next to the file, then run `sha256sum -c SHA256SUMS.txt
+--ignore-missing` on Linux or `shasum -a 256 -c SHA256SUMS.txt --ignore-missing` on macOS. On Windows, compare the
+output of `Get-FileHash <file>` in PowerShell with the file's line in `SHA256SUMS.txt`. Updates installed by
+Carryover are checked this way automatically.
+
+## Linux: installing and running
+
+If the AppImage doesn't start, make it executable: `chmod +x carryover.AppImage`. The tarball's `./install.sh`
+installs for your user, into `~/.local`; run `sudo ./install.sh /usr/local` to install it for every user.
+
+## Where Carryover keeps its settings
+
+Settings, library and cloud configuration are in `%APPDATA%\Carryover` on Windows (the installer and the portable
+version use the same folder, so you can switch between them) and in `~/Library/Application Support/Carryover` on
+macOS. On Linux they are in `~/.config/Carryover`. Uninstalling doesn't delete these folders. The Windows installer
+installs the program into `%LOCALAPPDATA%\Programs\Carryover`.
+
+## Carryover can't update itself
+
+Carryover offers the release page instead of installing when it can't replace its own program:
+
+- It is in a folder you can't write to, such as `/usr/local/bin`, or it was installed by a distro package. Update it
+  the way you installed it (for `sudo ./install.sh /usr/local`, run the new version's script the same way).
+- On macOS, it still runs from the read-only copy macOS makes of a downloaded app. Move it to Applications and open
+  it from there.
+- The release has no file for this device.
+
+To update by hand, run the new installer over the old install, or put the new `carryover.exe`, `carryover.AppImage`
+or `Carryover.app` over the old one. [Gear Lever](https://flathub.org/apps/it.mijorus.gearlever) and AppImageUpdate
+can update the AppImage too (full releases only). Development builds don't update themselves.
+
 ## Windows says "Windows protected your PC"
 
 The exe isn't code-signed yet, so SmartScreen warns on first run. Choose **More info → Run anyway**.
