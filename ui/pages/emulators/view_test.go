@@ -160,3 +160,22 @@ func TestAndroidOnlyEmulatorIsLabelled(t *testing.T) {
 	assert.NotContains(t, h.Texts(), "Edit", "its setup is on Android")
 	assert.Contains(t, h.Texts(), "More", "it can still be deleted")
 }
+
+// Back closes the form in the middle of the frame that draws it.
+func TestFormBack(t *testing.T) {
+	h := newHarness(t)
+	_, err := h.Shell.Emus().Save(services.EmulatorSetup{Name: "Eden", Exe: "/bin/true"})
+	require.NoError(t, err)
+	h.Open("/emulators")
+	h.Click("Edit")
+	h.Click("Back")
+	assert.Contains(t, h.Texts(), "Add emulator", "an untouched form closes at once")
+
+	h.Click("Add emulator")
+	typeName(t, h, "X")
+	h.Click("Back")
+	assert.Contains(t, h.Texts(), "Discard changes", "a changed form asks first")
+	h.Click("Discard changes")
+	assert.NotContains(t, h.Texts(), "Discard changes")
+	assert.Len(t, h.Shell.Emus().List(), 1)
+}
