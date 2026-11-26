@@ -7,73 +7,66 @@ All notable changes to Carryover are listed here. The format follows
 
 ## [Unreleased]
 
+## [0.6.0] - 2026-11-27
+
 ### Added
 
-- Carryover updates itself on Windows, Linux (including the Steam Deck), macOS and Android. It tells you when a newer
-  version is out and shows what is new; **Download and restart** checks the download against the release's checksums,
-  replaces the program where it is, so Steam shortcuts keep working, and starts it again. On Android the new APK goes
-  to the system installer. It never installs while a game is being played or a sync runs.
-- Settings → Updates chooses the channel: **Stable** (finished releases) or **Pre-release** (also alpha, beta and
-  release candidate builds). Automatic checks can be turned off.
+- Carryover updates itself on Windows, Linux (including the Steam Deck), macOS and Android. It shows what's new in a
+  newer version; **Download and restart** verifies the download with the release's checksums, replaces the program
+  in place (so Steam shortcuts keep working) and restarts it. On Android, the system installer installs the new APK.
+  Updates are never installed while you're playing or syncing.
+- Settings → Updates lets you choose the **Stable** channel (finished releases) or **Pre-release** (also alpha, beta
+  and release candidate builds), and turn off automatic checks.
 - `carryover update` checks for and installs a newer version from the command line.
-- Bottles (Linux, native and Flatpak): **Add a game → From Bottles** picks a program of one of your bottles, and the
-  **Bottles** launch mode starts the game in its bottle and syncs when it closes, also from its Steam shortcut. Save
-  suggestions now also find bottles you moved to another folder or drive.
+- Bottles support (Linux, native and Flatpak): **Add a game → From Bottles** adds a program from one of your
+  bottles. The **Bottles** launch mode starts it in its bottle and syncs when it closes, also from its Steam
+  shortcut. Save suggestions now find bottles you moved to another folder or drive.
 
 ### Changed
 
-- The Android app has the desktop's new look: the same corner radii and card, badge and empty-state styles, one
-  button style with icons, highlighted boxes for what needs a look (a conflict, an error, saves not uploaded), and
-  empty pages that offer the button that fills them. Every page now has the same bar, width and spacing.
-  A game's status uses the desktop's words: Running, Needs setup, Conflict (now red), Sync error, Not uploaded,
-  Synced and Not synced. The app's own background now follows the theme chosen in Settings from the first frame.
-- The desktop app has a new interface toolkit, [MyGo](https://mygo.run), in place of Fyne. It builds without a C compiler
-  or GUI libraries, and the downloads are smaller (the macOS app zip is about 30 MB,
-  the Windows exe about 38 MB). Linux needs GTK 3 installed, which the Steam Deck has. Pressing A on a text field in
-  Game Mode opens Steam's keyboard as before. The choices Fyne kept (full screen, the library's filter and sort order)
-  start from their defaults once.
-- A new look for every page: an icon sidebar, flat buttons with icons, one card and list style, one set of text sizes,
-  and a Back button above the page title. Lists of choices (sort order, language, launch mode) are one drop-down that
-  works the same with the mouse, the keyboard and a controller: A opens it, the D-pad moves, A picks and B closes.
-- Carryover on macOS is now named `Carryover` inside its app bundle.
-- Notifications appear in the bottom-right corner as cards: an icon for their kind, a close button and a bar that
-  counts down. Errors stay longer.
-- The window shown before and after a game started from a Steam shortcut has a new look: the game's artwork behind
-  it, the steps of the session (sync saves, play, upload saves) and the transfer with its percentage. In Steam Deck
-  Game Mode and Big Picture it opens full screen. Its prompts show which controller buttons to press.
-- The game page shows the game's artwork behind its header and a bigger Play button. What needs a look (a missing
-  setup, an error, saves changed outside Carryover) shows once, in a highlighted box. A game not set up on this device
-  offers **Set up saves for this device** in place of buttons that could not be used yet. A save location with
-  include or exclude filters shows them under its folder, so it's clear which files sync. Every game lists the other
-  devices that have it the same way, in an **Other devices** card with their save paths: for a game played through
-  emulators, those of the emulator shown.
-- Library: the search box has a search icon and a button that clears it, **Needs attention** is highlighted when a
-  game needs it, the Play buttons of a row line up when a name takes two lines, and the grid uses the whole width of
-  the window.
-- Settings has a **Backups** and a **Library sharing** card; each switch has a short description, and the longer
-  explanations fold behind **More**.
+- The desktop app is rebuilt with [MyGo](https://mygo.run) instead of Fyne. Downloads are smaller (about 30 MB for
+  the macOS zip, 38 MB for the Windows exe), and building needs no C compiler or GUI libraries. Linux needs GTK 3,
+  which the Steam Deck has. Full screen and the library's filter and sort order reset to their defaults once.
+- Every page has a new look: an icon sidebar, flat buttons with icons, consistent cards, lists and text sizes, and a
+  Back button above the page title. Drop-downs work the same with a mouse, keyboard or controller (A opens, the
+  D-pad moves, A picks, B closes).
+- The Android app matches the desktop's new look and status names (Conflict is now red). Problems are highlighted,
+  empty pages have a button to add what's missing, and the app's background follows your theme from the start.
+- The game page has artwork behind its header and a bigger Play button. Problems (missing setup, an error, saves
+  changed outside Carryover) appear once, in a highlighted box.
+- On the game page, a game not set up on this device shows **Set up saves for this device** instead of buttons you
+  can't use yet. Save locations show their include and exclude filters, and an **Other devices** card lists the save
+  paths on your other devices (for emulated games, those of the selected emulator).
+- The library's search box has a search icon and a clear button, **Needs attention** is highlighted when a game
+  needs it, and Play buttons stay aligned when a game name takes two lines.
+- The library grid fills the window: covers grow with it (never smaller than before), and a column is added when it
+  fits.
+- Settings has new **Backups** and **Library sharing** cards. Each switch has a short description, with longer
+  explanations under **More**.
 - An emulator's **Remove from this device** and **Delete** are in its **⋯** menu. An empty library, emulator list,
-  trash or list of remotes says what to do next.
-- On a wide window, pages are centered. The window can't be made smaller than 900×600.
-- An emulator that only has an Android version, as Lemon, is marked **Android only** on the desktop: it isn't one of
-  a game's ways to play there, doesn't make the game need setup, and isn't offered to set up or add to a game. The
-  Android app stores which platforms Lemon runs on; a Lemon set up before this version is recognized by its name.
-- The library's game grid fills the window: the covers grow with it (at least as wide as before) and another column is
-  added once it fits, so there is no empty strip at the right of the grid.
-- The main window opens where it was left: its position, size and maximized state are remembered (full screen still
-  follows how Carryover was started).
-- Buttons that show only an icon show their name in a tooltip when the pointer rests on them or the keyboard reaches
-  them.
-- Game covers use less memory: once a cover has been drawn, its copy in RAM is released.
+  trash or remote list tells you what to do next.
+- The window shown before and after playing from a Steam shortcut has a new look, with the game's artwork, the
+  session steps (sync, play, upload) and the transfer progress. Its prompts show which controller buttons to press,
+  and it opens full screen in Steam Deck Game Mode and Big Picture.
+- Notifications are cards in the bottom-right corner, with an icon, a close button and a countdown bar. Errors stay
+  longer.
+- On wide windows, pages are centered. The window can't be smaller than 900×600.
+- The main window remembers its position, size and maximized state. Full screen still depends on how Carryover was
+  started.
+- On the desktop, emulators that exist only on Android, such as Lemon, are marked **Android only**. They can't be
+  set up or added to a game there, and don't make a game need setup. The Android app records which platforms Lemon
+  runs on; a Lemon set up before this version is recognized by its name.
+- Icon-only buttons show a tooltip with their name on hover or keyboard focus.
+- Game covers use less memory.
+- The macOS program inside the app bundle is now named `Carryover`.
 
 ### Fixed
 
-- A long save path of another device (a folder named by a long id, as an emulator's) ran past the edge of its card.
-- Picking a SteamGridDB icon that is an `.ico` file failed with "downloaded file is not a PNG, JPEG or WebP image".
-  The icon's largest image is now saved as a PNG.
-- On Linux under X11, the window's title bar showed no Carryover icon when run as an AppImage (the taskbar had it).
-  Both the main window and the one a Steam shortcut shows now set their icon themselves. Under Wayland the title bar's
-  icon is still chosen by the desktop, which may not find it for an AppImage.
+- Long save paths from other devices, such as emulator folders named by a long ID, no longer overflow their cards.
+- Picking an `.ico` icon from SteamGridDB no longer fails with "downloaded file is not a PNG, JPEG or WebP image".
+  Its largest image is saved as a PNG.
+- On Linux under X11, the AppImage now shows the Carryover icon in its title bars, including the window opened from
+  a Steam shortcut. Under Wayland, the desktop chooses the title bar icon and may not find it for an AppImage.
 
 ## [0.5.1] - 2026-11-23
 
@@ -86,25 +79,25 @@ All notable changes to Carryover are listed here. The format follows
 - Android: a clean install (reinstalling, or clearing the app's data) keeps the device's ID, so the library knows the
   phone again and its games stay set up. The ID comes from the system's identifier of the device, of which only a hash
   is stored. Installs from before this version keep their ID: after their next reinstall, use **This is me** once.
-- Forgetting a device writes the library in a newer format (version 3). Update Carryover on every device first:
-  older versions refuse to change such a library.
 - The library keeps each device's name and platform once, so renaming a device shows the new name everywhere.
-- Android: a game's page now only shows how the game stands: each save folder with the files it syncs (its include
+- Android: a game's page now only shows the game's status: each save folder with the files it syncs (its include
   and exclude filters), the app and the game file. Everything is changed on its edit page: each save location's
   folder, name and filters (as on the desktop), adding and removing locations, suggested save folders and the game
   file. The game file shows by its name instead of a content:// link.
+
+### Changed
+
+- Forgetting a device writes the library in a newer format (version 3). Update Carryover on every device first:
+  older versions refuse to change such a library.
+- The library file is smaller: empty fields are left out, and an emulator that shares another's cloud save no longer
+  stores a copy of its save slots.
+- Carryover is now licensed under the GNU General Public License v3.0 or later (GPL-3.0-or-later) instead of MIT.
+  Releases up to 0.5.0 stay under the MIT License.
 
 ### Fixed
 
 - Changing only this device's setup of a game or emulator no longer undoes a rename, slot change or other shared
   change made on another device that this one hadn't merged yet.
-
-### Changed
-
-- The library file is smaller: empty fields are left out, and an emulator that shares another's cloud save no longer
-  stores a copy of its save slots.
-- Carryover is now licensed under the GNU General Public License v3.0 or later (GPL-3.0-or-later) instead of MIT.
-  Releases up to 0.5.0 stay under the MIT License.
 
 ## [0.5.0] - 2026-11-23
 
@@ -236,8 +229,7 @@ All notable changes to Carryover are listed here. The format follows
 ### Changed
 
 - A tidier library: the sort menu sits next to the search field, the games are spaced further apart, and long
-  names get a second line instead of being cut off. Play on each game is tinted rather than solid blue, so a
-  full library is no longer a wall of blue buttons.
+  names get a second line instead of being cut off. Play on each game is tinted rather than solid blue.
 - A game's page fits more on screen: a smaller cover, Back on its own row, and the emulator switch above both
   columns, so they start level. Save folders show on one line, shortened in the middle when they don't fit, in
   plain text instead of three blue lines. The sync state of the chosen emulator is only repeated when it differs
@@ -376,38 +368,18 @@ First stable release.
 
 ### Added
 
-- New launch mode, "Carryover starts it through Heroic", for games installed by Heroic Games Launcher (GOG, Epic,
-  Amazon, or added by hand), on Linux and Windows. Carryover launches the game with Heroic's
-  `heroic://launch` link and waits for the game's executable to exit. On Linux the game keeps Heroic's Wine prefix;
-  before, a "Run the game exe" Steam shortcut made Steam create a new, empty Proton prefix for it. On Windows,
-  Heroic handles the Epic login some games need. Choosing an executable inside a Heroic install folder picks this
-  mode automatically, and "Add to Steam" then makes a shortcut that runs Carryover.
-
-### Changed
-
-- Release files share one naming scheme, `carryover-<version>-<os>-<arch>`, with the version written without its
-  `v` (for example `carryover-0.1.0-windows-amd64.exe`). The AppImage, previously `Carryover-x86_64.AppImage`, is
-  now `carryover-<version>-linux-amd64.AppImage`; rename it to `carryover.AppImage` so Steam shortcuts survive
-  updates.
-- The README explains how to download, install, verify and update each release file.
-
-### Upgrading from 0.1.0-rc1
-
-- An AppImage from 0.1.0-rc1 looks for update files under the old name, so it can't update itself to the new
-  release. Download the new AppImage once by hand; later updates work again.
-
-## [0.1.0-rc1] - 2026-11-11
-
-First public pre-release.
-
-### Added
-
 - Game launcher for Windows and Linux (including the Steam Deck) that syncs save folders through Google Drive,
   Dropbox, OneDrive, WebDAV, SFTP or SMB. rclone is built in, so nothing else needs installing.
 - Per-device save paths: one cloud copy per game, mapped to a different folder on each device, with placeholders
   such as `{appdata}` and `{proton:shortcut}`.
 - Syncs before and after every play session, from the launcher or from Steam: "Add to Steam" creates a non-Steam
   shortcut that runs `carryover run <game>`, so saves sync even in Game Mode.
+- Launch mode "Carryover starts it through Heroic", for games installed by Heroic Games Launcher (GOG, Epic,
+  Amazon, or added by hand), on Linux and Windows. Carryover launches the game with Heroic's
+  `heroic://launch` link and waits for the game's executable to exit. On Linux the game keeps Heroic's Wine prefix,
+  where a "Run the game exe" Steam shortcut would make Steam create a new, empty Proton prefix for it. On Windows,
+  Heroic handles the Epic login some games need. Choosing an executable inside a Heroic install folder picks this
+  mode automatically, and "Add to Steam" then makes a shortcut that runs Carryover.
 - Transfers only the files whose contents changed (size and SHA-256), with progress shown, and syncs, restores and
   play-session transfers can be cancelled.
 - Conflict handling: when saves changed on both sides, you choose which to keep.
@@ -424,14 +396,17 @@ First public pre-release.
 - Command line: `carryover sync` (with `--dry-run` and a confirmation), `carryover run` and `carryover --version`.
 - Dark and light themes.
 - Downloads: a Windows exe, a Linux AppImage with in-place updates through Gear Lever or AppImageUpdate, and a
-  Linux tarball with an `install.sh`, plus `SHA256SUMS.txt`.
+  Linux tarball with an `install.sh`, plus `SHA256SUMS.txt`. Release files are named
+  `carryover-<version>-<os>-<arch>`, with the version written without its `v` (for example
+  `carryover-0.1.0-windows-amd64.exe`). Rename the AppImage to `carryover.AppImage` so Steam shortcuts survive
+  updates. The README explains how to download, install, verify and update each release file.
 
-[Unreleased]: https://github.com/akfaiz/carryover/compare/v0.5.1...HEAD
+[Unreleased]: https://github.com/akfaiz/carryover/compare/v0.6.0...HEAD
+[0.6.0]: https://github.com/akfaiz/carryover/compare/v0.5.1...v0.6.0
 [0.5.1]: https://github.com/akfaiz/carryover/compare/v0.5.0...v0.5.1
 [0.5.0]: https://github.com/akfaiz/carryover/compare/v0.4.0...v0.5.0
 [0.4.0]: https://github.com/akfaiz/carryover/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/akfaiz/carryover/compare/v0.2.1...v0.3.0
 [0.2.1]: https://github.com/akfaiz/carryover/compare/v0.2.0...v0.2.1
 [0.2.0]: https://github.com/akfaiz/carryover/compare/v0.1.0...v0.2.0
-[0.1.0]: https://github.com/akfaiz/carryover/compare/v0.1.0-rc1...v0.1.0
-[0.1.0-rc1]: https://github.com/akfaiz/carryover/releases/tag/v0.1.0-rc1
+[0.1.0]: https://github.com/akfaiz/carryover/releases/tag/v0.1.0
