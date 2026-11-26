@@ -57,8 +57,9 @@ func (p *Page) View(c *ui.Context) {
 			kit.PageHead(c, nav, nil, "", i18n.L("Emulators"), nil)
 			kit.Muted(c, i18n.L("Loading…"))
 		case p.editing != nil:
-			kit.PageHead(c, nav, p.closeForm, i18n.L("Back"), p.editing.Title(), nil)
-			p.editing.View(c)
+			form := p.editing // Back clears p.editing while this frame is drawn
+			kit.PageHead(c, nav, p.closeForm, i18n.L("Back"), form.Title(), nil)
+			form.View(c)
 		default:
 			p.list(c)
 		}
