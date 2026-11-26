@@ -37,6 +37,8 @@ Usage:
                                              --dry-run shows what would happen; with --all,
                                              --push/--pull ask first unless --yes is given
   carryover list                             list games and their ids
+  carryover update [--check] [--channel stable|prerelease]
+                                             install the newest version
   carryover --version                        print the version
 
 <game> is a game id or its exact name. With "-- cmd" (e.g. Steam's
@@ -60,6 +62,8 @@ func main() {
 		applog.Exit(cmdSync(args[1:]))
 	case "list":
 		applog.Exit(cmdList())
+	case "update":
+		applog.Exit(cmdUpdate(args[1:]))
 	case finishSessionCmd: // internal: started by a play session, see watchSessions
 		applog.Exit(cmdFinishSession(args[1:]))
 	case "--version", "version":

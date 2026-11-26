@@ -30,6 +30,9 @@ import com.akfaiz.carryover.core.SettingsCore
 import com.akfaiz.carryover.core.SyncOutcome
 import com.akfaiz.carryover.core.TrashCore
 import com.akfaiz.carryover.core.TrashView
+import com.akfaiz.carryover.core.UpdateCore
+import com.akfaiz.carryover.core.UpdateState
+import com.akfaiz.carryover.core.UpdateStatus
 import com.akfaiz.carryover.core.SyncCore
 import com.akfaiz.carryover.data.AppPlatform
 import com.akfaiz.carryover.data.AppServices
@@ -280,6 +283,44 @@ internal class FakeSuggestCore : SuggestCore {
     }
 }
 
+/** Updating the app: what the core knows, and every call recorded. */
+internal class FakeUpdateCore : UpdateCore {
+    var state = UpdateState()
+
+    /** What a download ends as. */
+    var downloaded = UpdateState(status = UpdateStatus.Ready, latest = "1.1.0", file = "/cache/updates/app.apk")
+    var busy = false
+    val calls = mutableListOf<String>()
+
+    /** Names of the calls that fail with "<name> failed". */
+    val failing = mutableSetOf<String>()
+
+    private fun call(name: String, detail: String = "") {
+        calls += "$name $detail".trim()
+        if (name in failing) throw IllegalStateException("$name failed")
+    }
+
+    override suspend fun updateState(): UpdateState = state
+
+    override suspend fun checkUpdate(force: Boolean): UpdateState {
+        call("check", "$force")
+        return state
+    }
+
+    override suspend fun downloadUpdate(): UpdateState {
+        call("download")
+        state = downloaded
+        return state
+    }
+
+    override fun cancelUpdate(): Boolean {
+        calls += "cancel"
+        return true
+    }
+
+    override suspend fun updateBusy(): Boolean = busy
+}
+
 /** The whole Go bridge as a fake: the partial fakes of each area, and the library calls recorded here. */
 internal class FakeCoreApi(
     val session: FakeCore = FakeCore(),
@@ -289,7 +330,8 @@ internal class FakeCoreApi(
     val art: FakeArtCore = FakeArtCore(),
     val backup: FakeBackupCore = FakeBackupCore(),
     val suggest: FakeSuggestCore = FakeSuggestCore(),
-) : CoreApi, SessionCore by session, SettingsCore by settingsCore, SyncCore by sync, BackupCore by backup, SuggestCore by suggest, TrashCore by trash, ArtCore by art {
+    val updates: FakeUpdateCore = FakeUpdateCore(),
+) : CoreApi, UpdateCore by updates, SessionCore by session, SettingsCore by settingsCore, SyncCore by sync, BackupCore by backup, SuggestCore by suggest, TrashCore by trash, ArtCore by art {
     override var initError: String? = null
     override val events = MutableSharedFlow<CoreEvent>(extraBufferCapacity = 64)
     override val authUrl = MutableStateFlow<String?>(null)
@@ -452,6 +494,10 @@ internal class FakeAppPlatform : AppPlatform {
     val pinned = mutableListOf<Triple<String, String, String>>()
     val done = mutableListOf<String>()
     var resumed = 0
+    var mayInstall = true
+    var canOpenInstaller = true
+    var permissionAsked = 0
+    val installed = mutableListOf<String>()
     var cover: File? = null
     var coverError: Exception? = null
     var logs: File? = null
@@ -485,6 +531,18 @@ internal class FakeAppPlatform : AppPlatform {
     override suspend fun prepareCover(uri: String): File {
         coverError?.let { throw it }
         return cover ?: File.createTempFile("cover", ".jpg")
+    }
+
+    override fun canInstallPackages(): Boolean = mayInstall
+
+    override fun openInstallPermission(): Boolean {
+        permissionAsked++
+        return true
+    }
+
+    override fun installApk(path: String): Boolean {
+        if (canOpenInstaller) installed += path
+        return canOpenInstaller
     }
 
     override suspend fun buildLogs(): File {

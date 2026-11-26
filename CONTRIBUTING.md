@@ -128,6 +128,12 @@ if needed. It doesn't run CI again, so tag a commit on `main`. A tag with a suff
 becomes a pre-release; AppImage updates only see full releases. Number a pre-release from 1 (`-alpha.1`, `-alpha.2`,
 then `-beta.1`, …): the Android version code depends on it, as below.
 
+The app's own updater (`internal/app/update`) depends on what the workflow publishes: the file names below, a
+`SHA256SUMS.txt` listing every file (it won't install one that isn't listed), and the pre-release flag on suffixed
+tags, which is what separates the **Stable** and **Pre-release** channels. Renaming a release file breaks updating
+for every installed version. Releases keep the layout inside the files too: `carryover.exe` at the zip's root,
+`<name>/bin/carryover` in the tarball and `Carryover.app` at the root of the macOS zip.
+
 ### Release files
 
 Each file is named `carryover-<version>-<os>-<arch>.<ext>`, `<version>` being the tag without its `v`:

@@ -26,6 +26,9 @@
         tools:ignore="ProtectedPermissions" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+    <!-- Updating itself from the GitHub releases (Settings, Updates): the system installer
+         asks the user, after they allow Carryover to install apps. -->
+    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
 
     <!-- Phones, handhelds and Android TV (the LEANBACK_LAUNCHER entry below): the D-pad
          reaches every control, so neither a touchscreen nor TV support is required. -->

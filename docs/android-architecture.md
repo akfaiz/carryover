@@ -287,6 +287,7 @@ fetches thumbnails itself only from `*.steamgriddb.com` over https (`rememberRem
 | Foreground service (`specialUse`) | watching a session until it is uploaded |
 | Boot completed | ending sessions left open by a reboot |
 | Network state (WorkManager) | finishing uploads after being offline; the optional background sync |
+| Install unknown apps (`REQUEST_INSTALL_PACKAGES`, optional) | installing a newer version of Carryover |
 
 On Android 13+ an app installed from a downloaded APK must unlock Usage access first (App info → ⋮ → Allow
 restricted settings); the app explains this.
@@ -296,6 +297,17 @@ restricted settings); the app explains this.
 Off by default (Settings → Play sessions → Sync in the background). When on, WorkManager syncs every game every
 6 hours, only while the device is charging, idle and on an unmetered network, so no game is being played. It is the
 same as **Sync all**: it also downloads saves that changed on another device, and a conflict is flagged on the game.
+
+## Updating
+
+The core does what the desktop does (`services.UpdateService`: the channel setting, the 12-hour check, the
+download checked against `SHA256SUMS.txt`); only installing differs. Its ABI is the one the Go core was built for
+(`update.AndroidTarget(runtime.GOARCH)`): gomobile builds one core per ABI and each APK holds one. The APK goes to
+`cacheDir/updates/`, which `res/xml/file_paths.xml` lets the app's `FileProvider` share, and the app hands it to the
+system installer (`AppPlatform.installApk`), which asks the user. Installing ends the app, so the app doesn't start
+the installer while a game is played or synced (`Mobile.updateBusy`). Android only accepts an update signed with the
+same key and with a higher version code, which release builds have (see CONTRIBUTING.md, "Releases"). Debug builds
+report "dev" and never update.
 
 ## Limits
 

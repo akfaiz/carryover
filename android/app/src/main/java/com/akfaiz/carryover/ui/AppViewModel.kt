@@ -123,6 +123,15 @@ class AppViewModel(private val services: AppServices = AppServices.shared) : Vie
                 _state.update { it.copy(prompts = (it.prompts + waiting).distinctBy { p -> p.id }) }
             }
             refresh()
+            announceUpdate()
+        }
+    }
+
+    /** Says there is a newer version (at most every 12 hours does the core ask for it; off in the settings). */
+    private fun announceUpdate() {
+        viewModelScope.launch {
+            val st = runCatching { core.checkUpdate(false) }.getOrNull() ?: return@launch
+            if (st.newer) m.say(m.str(R.string.msg_update_available, st.latest))
         }
     }
 
@@ -140,6 +149,7 @@ class AppViewModel(private val services: AppServices = AppServices.shared) : Vie
             }
             is CoreEvent.PromptOpened -> _state.update { it.copy(prompts = it.prompts + ev.prompt) }
             is CoreEvent.PromptClosed -> _state.update { it.copy(prompts = it.prompts.filter { p -> p.id != ev.id }) }
+            is CoreEvent.Update -> Unit // the settings page follows it
         }
     }
 

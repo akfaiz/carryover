@@ -16,8 +16,10 @@ import (
 // returns. inst (nil without a single-instance guard) is asked to show the
 // window when a second launch finds this one running.
 func (u *Shell) RunMain(inst *singleinstance.Instance) {
+	u.instance = inst
 	mygo.App.WhenReady(func() {
 		u.BuildMain()
+		u.startUpdates()
 		if inst != nil {
 			inst.OnShow(func() { kit.OnUI(func() { u.win.Show(); u.win.Focus() }) })
 		}

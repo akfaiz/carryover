@@ -54,6 +54,12 @@ data class SettingsState(
     /** The library is shared with the other devices through the cloud. */
     val sharesLibrary: Boolean get() = settings.syncLibrary
 
+    /** The releases updates come from: "" (finished ones only) or "prerelease". */
+    val updateChannel: String get() = settings.updateChannel
+
+    /** Newer versions are looked for without being asked. */
+    val checksUpdates: Boolean get() = !settings.noUpdateCheck
+
     /** Covers and artwork go to the cloud and come from it (only meaningful while the library is shared). */
     val syncsCovers: Boolean get() = !settings.coversLocalOnly
 }
@@ -196,6 +202,18 @@ class SettingsRepository(
     suspend fun setBackupsKept(keep: Int) {
         require(keep in 0..MAX_BACKUPS) { "backups to keep must be a number from 0 to $MAX_BACKUPS" }
         val st = core.updateSettings(mapOf("backupRetention" to JsonPrimitive(keep)))
+        _state.update { it.copy(settings = st) }
+    }
+
+    /** The releases updates come from: "" (finished ones only) or "prerelease" (the core's setting). */
+    suspend fun setUpdateChannel(channel: String) {
+        val st = core.updateSettings(mapOf("updateChannel" to JsonPrimitive(channel)))
+        _state.update { it.copy(settings = st) }
+    }
+
+    /** Looks for newer versions without being asked, or not. */
+    suspend fun setCheckUpdates(on: Boolean) {
+        val st = core.updateSettings(mapOf("noUpdateCheck" to JsonPrimitive(!on)))
         _state.update { it.copy(settings = st) }
     }
 

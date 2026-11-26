@@ -54,4 +54,13 @@ type Env interface {
 	ShowNotices()
 	// HelpOpen holds which help texts are unfolded this session, by summary.
 	HelpOpen() map[string]bool
+
+	// ShowUpdate opens the dialog about the newer version of Carryover.
+	ShowUpdate()
+	// Busy reports whether a game is being played or a sync runs, i.e. whether
+	// quitting now would cut off an upload.
+	Busy() bool
+	// RestartForUpdate quits for an installed update, calling finish (see
+	// services.UpdateService.Install) to start the new version.
+	RestartForUpdate(finish func(restart bool) error)
 }

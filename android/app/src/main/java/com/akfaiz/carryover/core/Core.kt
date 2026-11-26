@@ -32,6 +32,7 @@ sealed interface CoreEvent {
     data class Status(val status: SessionStatus) : CoreEvent
     data class PromptOpened(val prompt: Prompt) : CoreEvent
     data class PromptClosed(val id: String) : CoreEvent
+    data class Update(val state: UpdateState) : CoreEvent
 }
 
 /**
@@ -110,6 +111,7 @@ object Core : CoreApi {
                     Mobile.EventStatus -> CoreEvent.Status(json.decodeFromString(payload))
                     Mobile.EventPrompt -> CoreEvent.PromptOpened(json.decodeFromString(payload))
                     Mobile.EventPromptClosed -> CoreEvent.PromptClosed(payload)
+                    Mobile.EventUpdate -> CoreEvent.Update(json.decodeFromString(payload))
                     else -> return
                 }
             } catch (e: Exception) {
@@ -152,6 +154,14 @@ object Core : CoreApi {
     override suspend fun reuseDevice(id: String) = io { Mobile.reuseDevice(id) }
 
     val logFile: String get() = runCatching { Mobile.logFile() }.getOrDefault("")
+
+    // Updating the app
+
+    override suspend fun updateState(): UpdateState = io { Mobile.updateState().decode() }
+    override suspend fun checkUpdate(force: Boolean): UpdateState = io { Mobile.checkUpdate(force).decode() }
+    override suspend fun downloadUpdate(): UpdateState = io { Mobile.downloadUpdate().decode() }
+    override fun cancelUpdate(): Boolean = Mobile.cancelUpdate()
+    override suspend fun updateBusy(): Boolean = io { Mobile.updateBusy() }
 
     // Cloud
 

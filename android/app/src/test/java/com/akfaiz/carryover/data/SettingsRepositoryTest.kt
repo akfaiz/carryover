@@ -49,6 +49,8 @@ internal class FakeSettingsCore : SettingsCore {
             steamGridDbKey = changes["steamGridDbKey"]?.jsonPrimitive?.contentOrNull ?: settings.steamGridDbKey,
             backupRetention = changes["backupRetention"]?.jsonPrimitive?.intOrNull ?: settings.backupRetention,
             coversLocalOnly = changes["coversLocalOnly"]?.jsonPrimitive?.booleanOrNull ?: settings.coversLocalOnly,
+            updateChannel = changes["updateChannel"]?.jsonPrimitive?.contentOrNull ?: settings.updateChannel,
+            noUpdateCheck = changes["noUpdateCheck"]?.jsonPrimitive?.booleanOrNull ?: settings.noUpdateCheck,
         )
         return settings
     }
