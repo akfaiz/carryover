@@ -9,6 +9,11 @@ Folders that already hold saves are shown first. On Linux, the Wine prefixes of 
 the **Wine prefix** set in the game's options in Lutris, or else the first prefix Lutris finds above the game's
 executable. Every save location of the game in that prefix is suggested, even before it holds a save.
 
+For emulated games, suggestions come from community lists of where each emulator keeps its saves (downloaded when
+you first use them, see the credits in the [README](../README.md#credits)) and, for some Switch emulators, from the
+emulator's own files. This works in the desktop app and the Android app. Choosing a game file also suggests the
+game's name.
+
 ## Variables
 
 Save paths can use variables, so one entry works on every device. The `{ }` button next to a path field lists
