@@ -30,6 +30,9 @@ func prefillHarness(t *testing.T) (*uitest.Harness, map[string]*editor.Page) {
 				p = editor.New(e, "", strings.TrimPrefix(route, "/new/steam/"))
 			case strings.HasPrefix(route, "/new/lutris/"):
 				p = editor.NewFromLutris(e, strings.TrimPrefix(route, "/new/lutris/"))
+			case strings.HasPrefix(route, "/new/bottles/"):
+				parts := strings.Split(strings.TrimPrefix(route, "/new/bottles/"), "/")
+				p = editor.NewFromBottles(e, parts[0], parts[1])
 			case strings.HasPrefix(route, "/new/heroic/"):
 				parts := strings.Split(strings.TrimPrefix(route, "/new/heroic/"), "/")
 				p = editor.NewFromHeroic(e, parts[0], parts[1])
@@ -73,7 +76,8 @@ func TestEditorFromAMissingLauncherGame(t *testing.T) {
 	h.Open("/new/lutris/none")
 	h.Open("/new/heroic/legendary/none")
 	h.Open("/new/steam/999")
-	for _, route := range []string{"/new/lutris/none", "/new/heroic/legendary/none", "/new/steam/999"} {
+	h.Open("/new/bottles/none/none")
+	for _, route := range []string{"/new/bottles/none/none", "/new/lutris/none", "/new/heroic/legendary/none", "/new/steam/999"} {
 		require.NotNil(t, pages[route], route)
 		assert.Empty(t, pages[route].Name(), route)
 	}

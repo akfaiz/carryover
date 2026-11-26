@@ -11,9 +11,10 @@ import (
 	"github.com/akfaiz/carryover/ui/kit"
 )
 
-// ShowAddGame asks what kind of game to add: one installed by Steam (or by
-// Heroic or Lutris, when installed on this device), another PC game, or a
-// game played through an emulator. Each opens the editor set up for it.
+// ShowAddGame asks what kind of game to add: one installed by Steam (or one
+// Heroic, Lutris or Bottles has, when installed on this device), another PC
+// game, or a game played through an emulator. Each opens the editor set up for
+// it.
 func ShowAddGame(u env.Env) {
 	kit.Async(func() (services.Launchers, error) { return u.Lib().Launchers(), nil }, func(l services.Launchers, _ error) {
 		showAddGame(u, l)
@@ -40,8 +41,14 @@ func showAddGame(u env.Env, l services.Launchers) {
 		tiles = append(tiles, addTile{i18n.L("From Lutris"), kit.IconFolder, i18n.L("From Lutris: a game Lutris installed."),
 			func() { ShowLutrisImport(u) }})
 	}
+	if l.Bottles {
+		tiles = append(tiles, addTile{i18n.L("From Bottles"), kit.IconComputer, i18n.L("From Bottles: a program added to one of your bottles."),
+			func() { ShowBottlesImport(u) }})
+	}
 	pc := i18n.L("PC game: any other game, started from its executable.")
 	switch {
+	case l.Bottles:
+		pc = i18n.L("PC game: any other game, started from its executable or through another launcher.")
 	case heroic && lutris:
 		pc = i18n.L("PC game: any other game, started from its executable or through Heroic or Lutris.")
 	case heroic:

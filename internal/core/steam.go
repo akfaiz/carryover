@@ -80,6 +80,7 @@ type AddToSteamResult struct {
 // mode LaunchHeroic: like LaunchDirect, but Carryover starts the game through
 // Heroic, so it keeps Heroic's Wine prefix instead of getting a Proton prefix.
 // mode LaunchLutris: the same through Lutris (Linux).
+// mode LaunchBottles: the same through Bottles (Linux), in the game's bottle.
 func (c *Core) AddToSteam(gameID, userID string, mode library.LaunchMode) (AddToSteamResult, error) {
 	return c.AddToSteamFor(gameID, "", userID, mode)
 }
@@ -101,8 +102,8 @@ func (c *Core) AddToSteamFor(gameID, emuID, userID string, mode library.LaunchMo
 	if err != nil {
 		return res, err
 	}
-	// A Heroic or Lutris game's direct shortcut must stay a launch through
-	// that launcher: started directly, it would leave the launcher's prefix.
+	// A Heroic, Lutris or Bottles game's direct shortcut must stay a launch
+	// through that launcher: started directly, it would leave its prefix.
 	if mode == library.LaunchDirect && throughLauncher(dev.LaunchMode) {
 		mode = dev.LaunchMode
 	}
@@ -216,7 +217,7 @@ func (c *Core) RemoveFromSteamFor(gameID, emuID, userID string) (int, error) {
 }
 
 // throughLauncher reports whether the mode makes another launcher (Heroic,
-// Lutris) start the game, in its own Wine prefix.
+// Lutris, Bottles) start the game, in its own Wine prefix.
 func throughLauncher(m library.LaunchMode) bool {
-	return m == library.LaunchHeroic || m == library.LaunchLutris
+	return m == library.LaunchHeroic || m == library.LaunchLutris || m == library.LaunchBottles
 }

@@ -16,6 +16,7 @@ import (
 	"github.com/akfaiz/carryover/internal/cloudsync/syncer"
 	"github.com/akfaiz/carryover/internal/launcher"
 	"github.com/akfaiz/carryover/internal/library"
+	"github.com/akfaiz/carryover/internal/stores/bottles"
 	"github.com/akfaiz/carryover/internal/stores/heroic"
 	"github.com/akfaiz/carryover/internal/stores/lutris"
 )
@@ -686,6 +687,8 @@ func (c *Core) launchSpec(game library.Game, dev library.DeviceConfig, opt RunOp
 		return heroicSpec(spec, exe)
 	case library.LaunchLutris:
 		return lutrisSpec(spec, exe)
+	case library.LaunchBottles:
+		return bottlesSpec(spec, exe)
 	}
 	spec.Exe = exe
 	if dev.WorkDir != "" {
@@ -759,6 +762,27 @@ func lutrisSpec(spec launcher.Spec, exe string) (launcher.Spec, error) {
 	g, ok := lutris.ForExe(home, exe)
 	if !ok {
 		return spec, fmt.Errorf("%s is not in a game Lutris has installed on this device", exe)
+	}
+	cmd := g.Command()
+	spec.Exe, spec.Args = cmd[0], cmd[1:]
+	spec.WorkDir = home
+	if spec.WaitProcess == "" {
+		spec.WaitProcess = filepath.Base(exe)
+	}
+	spec.Detach, spec.WaitAppear = true, launcherAppear
+	return spec, nil
+}
+
+// bottlesSpec launches exe through Bottles, in the bottle it belongs to, and
+// waits for exe's process: bottles-cli may return before the game has closed.
+func bottlesSpec(spec launcher.Spec, exe string) (launcher.Spec, error) {
+	if runtime.GOOS != "linux" {
+		return spec, errors.New("starting a game through Bottles is only possible on Linux")
+	}
+	home, _ := os.UserHomeDir()
+	g, ok := bottles.ForExe(home, exe)
+	if !ok {
+		return spec, fmt.Errorf("%s is not in a bottle on this device", exe)
 	}
 	cmd := g.Command()
 	spec.Exe, spec.Args = cmd[0], cmd[1:]

@@ -24,6 +24,7 @@ type ViewModel struct {
 	steamAppID string    // pre-fill from the installed Steam library
 	lutrisID   string    // pre-fill from a game configured in Lutris (its config id)
 	heroicGame [2]string // pre-fill from a game Heroic installed: runner, app name
+	bottlesID  [2]string // pre-fill from a program of a bottle: bottle name, program id
 
 	name         string
 	slots        []*slotForm

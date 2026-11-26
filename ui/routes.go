@@ -14,6 +14,14 @@ import (
 	"github.com/akfaiz/carryover/ui/pages/trash"
 )
 
+// unescape reads a path-escaped part of a route.
+func unescape(s string) string {
+	if v, err := url.PathUnescape(s); err == nil {
+		return v
+	}
+	return s
+}
+
 // pageFor builds the page of a route. Anything unknown is the library.
 //
 //	/                      library
@@ -21,7 +29,8 @@ import (
 //	/edit/<id>             edit a game
 //	/new, /new/emulator    add a game; /new/steam/<app id> from Steam,
 //	                       /new/lutris/<config id> from Lutris,
-//	                       /new/heroic/<runner>/<app name, path-escaped> from Heroic
+//	                       /new/heroic/<runner>/<app name, path-escaped> from Heroic,
+//	                       /new/bottles/<bottle>/<program id>, path-escaped, from Bottles
 //	/emulators /cloud /trash /settings
 func pageFor(u env.Env, path string) env.Page {
 	parts := strings.Split(strings.Trim(path, "/"), "/")
@@ -39,13 +48,11 @@ func pageFor(u env.Env, path string) env.Page {
 	case arg(0) == "new" && arg(1) == "steam" && arg(2) != "":
 		return editor.New(u, "", arg(2))
 	case arg(0) == "new" && arg(1) == "heroic" && arg(3) != "":
-		app, err := url.PathUnescape(arg(3))
-		if err != nil {
-			app = arg(3)
-		}
-		return editor.NewFromHeroic(u, arg(2), app)
+		return editor.NewFromHeroic(u, arg(2), unescape(arg(3)))
 	case arg(0) == "new" && arg(1) == "lutris" && arg(2) != "":
 		return editor.NewFromLutris(u, arg(2))
+	case arg(0) == "new" && arg(1) == "bottles" && arg(3) != "":
+		return editor.NewFromBottles(u, unescape(arg(2)), unescape(arg(3)))
 	case arg(0) == "new" && arg(1) == "emulator":
 		return editor.NewEmulated(u)
 	case arg(0) == "new":

@@ -601,5 +601,16 @@
   "Carryover tells you when there is a new version. It never installs one without asking.": "Carryover memberi tahu saat ada versi baru. Versi itu tidak pernah dipasang tanpa persetujuan Anda.",
   "Development builds don't update themselves.": "Build pengembangan tidak memperbarui dirinya sendiri.",
   "View update": "Lihat pembaruan",
-  "Check for updates": "Periksa pembaruan"
+  "Check for updates": "Periksa pembaruan",
+  "Bottles": "Bottles",
+  "Bottles starts the game in its bottle. Pick the game's executable (a program added to a bottle, or any .exe inside one); Carryover waits for it to close, then syncs.": "Bottles menjalankan game di bottle-nya. Pilih file exe game (program yang ditambahkan ke sebuah bottle, atau .exe apa pun di dalamnya); Carryover menunggunya ditutup, lalu menyinkronkan.",
+  "{{.Game}} is in Bottles — it will be started through Bottles.": "{{.Game}} ada di Bottles — game ini akan dijalankan lewat Bottles.",
+  "Steam runs Carryover, which starts the game through Bottles, in the game's bottle. Don't force a Proton version on this shortcut.": "Steam menjalankan Carryover, yang memulai game lewat Bottles, di bottle game tersebut. Jangan paksa versi Proton pada pintasan ini.",
+  "From Bottles": "Dari Bottles",
+  "From Bottles: a program added to one of your bottles.": "Dari Bottles: program yang ditambahkan ke salah satu bottle Anda.",
+  "PC game: any other game, started from its executable or through another launcher.": "Game PC: game lain, dijalankan dari file exe-nya atau lewat launcher lain.",
+  "Add from Bottles": "Tambah dari Bottles",
+  "Programs added to your bottles on this device. Carryover starts them through Bottles, in their bottle; you still set the save locations. For a game that isn't listed, add it to its bottle's programs in Bottles, or add a PC game and pick its executable.": "Program yang ditambahkan ke bottle Anda di perangkat ini. Carryover menjalankannya lewat Bottles, di bottle masing-masing; lokasi save tetap Anda atur sendiri. Jika sebuah game tidak ada di daftar, tambahkan ke daftar program bottle-nya di Bottles, atau tambahkan sebagai game PC dan pilih file exe-nya.",
+  "Reading your bottles…": "Membaca bottle Anda…",
+  "No programs found in your bottles on this device.": "Tidak ada program di bottle Anda pada perangkat ini."
 }

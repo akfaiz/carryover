@@ -80,6 +80,26 @@ don't force a Proton version on it. Pick the save folder from the Lutris prefix 
 Only games with an executable (Wine and Linux runners) can be started this way. Games you start from Lutris's own
 window aren't synced; start them from Carryover or its Steam shortcut.
 
+## Bottles games
+
+Games in **Bottles** (native or Flatpak) should run in their own bottle, with its runner and settings. Use
+**Add a game → From Bottles** to pick a program you added to a bottle, or choose **"Bottles"** as the game's launch
+mode and select an `.exe`; picking one inside a bottle selects the mode automatically. Carryover starts a program
+with `bottles-cli run -b <bottle> -p <program>`, and any other executable of a bottle with `-e <path>`
+(`flatpak run --command=bottles-cli com.usebottles.bottles …` for the Flatpak build), then waits for that
+executable to exit. A program's launch options apply when it is started by name; the arguments and environment
+variables set in Carryover don't reach the game. The Steam shortcut runs Carryover, so don't force a Proton version
+on it. Pick the save folder from the Bottles prefix suggestions.
+
+**From Bottles** lists the programs added to your bottles, not everything installed in them. For a game that isn't
+listed, add it to the bottle's programs in Bottles, or add a **PC game** and select its `.exe`. If two programs of
+a bottle have the same name, Carryover starts the one you picked by its path. Bottles and bottles you moved to
+another folder or drive are found too, as long as the drive is mounted. Games you start from Bottles's own window
+aren't synced; start them from Carryover or its Steam shortcut.
+
+If a Flatpak Bottles game is outside its sandbox (for example on the SD card), allow Bottles the folder with
+Flatseal or `flatpak override --user --filesystem=/run/media com.usebottles.bottles`.
+
 ## Flatpak emulators
 
 Emulators installed from Discover or Flathub are Flatpaks. On the Emulators page, add the emulator and choose it under

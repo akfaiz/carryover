@@ -31,7 +31,9 @@ func (f *fakeBackend) Emulators() []services.EmulatorView {
 func (f *fakeBackend) Game(id string) (services.GameView, error) {
 	return f.game, f.do("game " + id)
 }
-func (f *fakeBackend) SteamLibrary() []services.SteamLibraryGame { return nil }
+func (f *fakeBackend) SteamLibrary() []services.SteamLibraryGame     { return nil }
+func (f *fakeBackend) BottlesGame(string) (string, bool)             { return "", false }
+func (f *fakeBackend) BottlesLibrary() []services.BottlesLibraryGame { return nil }
 func (f *fakeBackend) SearchSteam(string) ([]services.StoreMatch, error) {
 	return nil, nil
 }

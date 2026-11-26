@@ -155,3 +155,22 @@ func ShowLutrisImport(u env.Env) {
 		return rows
 	})
 }
+
+// ShowBottlesImport lists the programs added to this device's bottles
+// (Linux); picking one opens the editor pre-filled (or the existing game).
+func ShowBottlesImport(u env.Env) {
+	showImport(u, importText{
+		title:   i18n.L("Add from Bottles"),
+		intro:   i18n.L("Programs added to your bottles on this device. Carryover starts them through Bottles, in their bottle; you still set the save locations. For a game that isn't listed, add it to its bottle's programs in Bottles, or add a PC game and pick its executable."),
+		reading: i18n.L("Reading your bottles…"),
+		empty:   i18n.L("No programs found in your bottles on this device."),
+	}, func() []importRow {
+		var rows []importRow
+		for _, g := range u.Lib().BottlesLibrary() {
+			name := g.Name + " (" + g.Bottle + ")"
+			rows = append(rows, importRow{name: name, gameID: g.GameID,
+				route: "/new/bottles/" + url.PathEscape(g.Bottle) + "/" + url.PathEscape(g.ProgramID)})
+		}
+		return rows
+	})
+}

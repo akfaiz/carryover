@@ -45,7 +45,8 @@ Cloud storage: Google Drive, Dropbox, OneDrive, WebDAV (Nextcloud, ownCloud, NAS
 - **Save folders suggested** — Carryover can find the save folder of about 21,000 PC games and of many emulated
   games, also for games run through Proton, Heroic, Lutris or Bottles.
 - **Play from Carryover or from Steam** — **Add to Steam** makes a shortcut that syncs every time you play, also in
-  Game Mode. On Linux, Heroic and Lutris games still run through Heroic or Lutris.
+  Game Mode. Heroic games still run through Heroic, and on Linux, Lutris and Bottles games through Lutris and
+  Bottles.
 - **Controller support** — add Carryover to Steam and you can use the whole app with a gamepad in Game Mode.
 - **Safe conflicts** — if saves changed on two devices, you choose which to keep. Before a download replaces the
   saves on your device, Carryover keeps a copy of them there. Turn on cloud backups to also back up saves in the
@@ -127,8 +128,8 @@ On each device:
 2. **Add a game** — select **＋ Add game** and choose "From Steam", "PC game" or "Emulated game". Then set how it
    starts and where its saves are on this device. Carryover suggests the save folder for games it knows.
 3. **Play** — press **▶ Play**, or use **Add to Steam** and start the game from Steam. On another device, the game
-   shows up as "needs setup": set its save folder there, and your saves follow you. For Proton and Heroic games, see
-   [Steam and Steam Deck](docs/steam-deck.md).
+   shows up as "needs setup": set its save folder there, and your saves follow you. For Proton, Heroic, Lutris and
+   Bottles games, see [Steam and Steam Deck](docs/steam-deck.md).
 
 **On Android**, add the same cloud account and folder under Settings → Cloud. Games your PC plays with an emulator
 that has an Android app show up. On the Emulators tab, choose which app each emulator is. Then open a game, pick its
@@ -176,7 +177,7 @@ All options are in [docs/cli.md](docs/cli.md).
 ## Documentation
 
 - [How Carryover syncs saves](docs/how-it-works.md) — conflicts, backups, the cloud lock
-- [Steam and Steam Deck](docs/steam-deck.md) — Proton shortcuts, Heroic games, Game Mode
+- [Steam and Steam Deck](docs/steam-deck.md) — Proton shortcuts, Heroic, Lutris and Bottles games, Game Mode
 - [Save paths](docs/save-paths.md) — every path variable (`{appdata}`, `{proton:shortcut}`, …)
 - [Command line](docs/cli.md) — commands, options and environment variables
 - [Android: start games from a frontend](docs/android-frontends.md) — ES-DE, Daijisho, home-screen shortcuts

@@ -25,6 +25,7 @@ import (
 	"github.com/akfaiz/carryover/internal/library"
 	"github.com/akfaiz/carryover/internal/saves/ludusavi"
 	"github.com/akfaiz/carryover/internal/saves/pathvar"
+	"github.com/akfaiz/carryover/internal/stores/bottles"
 	"github.com/akfaiz/carryover/internal/stores/heroic"
 	"github.com/akfaiz/carryover/internal/stores/lutris"
 	"github.com/akfaiz/carryover/internal/stores/steam"
@@ -1082,14 +1083,15 @@ func (s *LibraryService) SuggestSaves(in SuggestInput) (SuggestResult, error) {
 		if steamInstalled && dev.SteamAppID == "" {
 			env.Proton = "{proton:" + in.StoreAppID + "}"
 		}
-		// Started through Heroic or Lutris, it runs in that launcher's prefix,
-		// never Steam's.
-		if in.LaunchMode == library.LaunchHeroic || in.LaunchMode == library.LaunchLutris {
+		// Started through Heroic, Lutris or Bottles, it runs in that
+		// launcher's prefix, never Steam's.
+		switch in.LaunchMode {
+		case library.LaunchHeroic, library.LaunchLutris, library.LaunchBottles:
 			env.Proton = ""
 		}
 	}
 	names := []string{g.Name, in.Name}
-	ownPrefix := "" // the prefix Lutris runs the game in, whatever it is named
+	ownPrefix := "" // the prefix Lutris or Bottles runs the game in, whatever it is named
 	if exe != "" {
 		if hg, ok := s.heroicGame(exe); ok && hg.Title != "" {
 			names = append(names, hg.Title)
@@ -1099,6 +1101,10 @@ func (s *LibraryService) SuggestSaves(in SuggestInput) (SuggestResult, error) {
 				names = append(names, lg.Name)
 			}
 			ownPrefix = lg.Prefix
+		}
+		if bg, ok := s.bottlesGame(exe); ok {
+			names = append(names, bg.Name)
+			ownPrefix = bg.Prefix
 		}
 	}
 
@@ -1206,16 +1212,7 @@ func (s *LibraryService) LutrisLibrary() []LutrisLibraryGame {
 	if runtime.GOOS != "linux" {
 		return out
 	}
-	known := map[string]string{} // expanded exe -> library game id
-	for _, g := range s.c.Library.List() {
-		dev, ok := g.Device(s.c.DeviceID())
-		if !ok || dev.Exe == "" {
-			continue
-		}
-		if exe, err := s.c.PathContext(g).Expand(dev.Exe); err == nil {
-			known[filepath.Clean(exe)] = g.ID
-		}
-	}
+	known := s.exeGames()
 	home, _ := os.UserHomeDir()
 	for _, g := range lutris.Installed(home) {
 		if g.Exe != "" {
@@ -1226,11 +1223,71 @@ func (s *LibraryService) LutrisLibrary() []LutrisLibraryGame {
 	return out
 }
 
+// bottlesGame returns how Bottles starts exe (Linux only).
+func (s *LibraryService) bottlesGame(exe string) (bottles.Game, bool) {
+	if runtime.GOOS != "linux" {
+		return bottles.Game{}, false
+	}
+	home, _ := os.UserHomeDir()
+	return bottles.ForExe(home, exe)
+}
+
+// BottlesGame returns the name of the program (or, for one not added to it, the
+// bottle) Bottles starts exe as, and whether exe is in a bottle (Linux only).
+func (s *LibraryService) BottlesGame(exe string) (string, bool) {
+	g, ok := s.bottlesGame(strings.TrimSpace(exe))
+	if !ok {
+		return "", false
+	}
+	return g.Name, true
+}
+
+// BottlesLibraryGame is a program added to a bottle on this device.
+type BottlesLibraryGame struct {
+	bottles.Game
+	// GameID is set when the library already has a game with this executable
+	// on this device.
+	GameID string `json:"gameId"`
+}
+
+// BottlesLibrary lists the Windows programs added to this device's bottles
+// (Linux only), by name. What was installed in a bottle but never added to its
+// programs isn't listed: add it as a PC game and pick its executable.
+func (s *LibraryService) BottlesLibrary() []BottlesLibraryGame {
+	out := []BottlesLibraryGame{}
+	if runtime.GOOS != "linux" {
+		return out
+	}
+	known := s.exeGames()
+	home, _ := os.UserHomeDir()
+	for _, g := range bottles.Games(home) {
+		out = append(out, BottlesLibraryGame{Game: g, GameID: known[g.Exe]})
+	}
+	sort.SliceStable(out, func(i, j int) bool { return strings.ToLower(out[i].Name) < strings.ToLower(out[j].Name) })
+	return out
+}
+
+// exeGames maps each game's executable on this device to the game's id.
+func (s *LibraryService) exeGames() map[string]string {
+	out := map[string]string{}
+	for _, g := range s.c.Library.List() {
+		dev, ok := g.Device(s.c.DeviceID())
+		if !ok || dev.Exe == "" {
+			continue
+		}
+		if exe, err := s.c.PathContext(g).Expand(dev.Exe); err == nil {
+			out[filepath.Clean(exe)] = g.ID
+		}
+	}
+	return out
+}
+
 // Launchers says which other game launchers are installed on this device and
 // can start games for Carryover.
 type Launchers struct {
-	Heroic bool `json:"heroic"` // Linux and Windows
-	Lutris bool `json:"lutris"` // Linux
+	Heroic  bool `json:"heroic"`  // Linux and Windows
+	Lutris  bool `json:"lutris"`  // Linux
+	Bottles bool `json:"bottles"` // Linux
 }
 
 // Launchers reports which other game launchers are installed on this device.
@@ -1242,6 +1299,7 @@ func (s *LibraryService) Launchers() Launchers {
 	}
 	if runtime.GOOS == "linux" {
 		l.Lutris = lutris.Present(home)
+		l.Bottles = bottles.Present(home)
 	}
 	return l
 }
@@ -1263,16 +1321,7 @@ func (s *LibraryService) HeroicLibrary() []HeroicLibraryGame {
 	if runtime.GOOS != "linux" && runtime.GOOS != "windows" {
 		return out
 	}
-	exes := map[string]string{} // expanded exe -> library game id
-	for _, g := range s.c.Library.List() {
-		dev, ok := g.Device(s.c.DeviceID())
-		if !ok || dev.Exe == "" {
-			continue
-		}
-		if exe, err := s.c.PathContext(g).Expand(dev.Exe); err == nil {
-			exes[filepath.Clean(exe)] = g.ID
-		}
-	}
+	exes := s.exeGames()
 	home, _ := os.UserHomeDir()
 	for _, g := range heroic.Installed(home) {
 		hg := HeroicLibraryGame{Game: g, Name: g.Title}

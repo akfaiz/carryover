@@ -155,6 +155,8 @@ func (p *Page) steamForm(c *ui.Context, o steamFormOpts) {
 			kit.Muted(c, i18n.L("Steam runs Carryover, which starts the game through Heroic Games Launcher, so it keeps Heroic's settings (and, on Linux, its Wine prefix). Don't force a Proton version on this shortcut."))
 		case g.Device.LaunchMode == "lutris":
 			kit.Muted(c, i18n.L("Steam runs Carryover, which starts the game through Lutris, so it keeps Lutris's runner and Wine prefix. Don't force a Proton version on this shortcut."))
+		case g.Device.LaunchMode == "bottles":
+			kit.Muted(c, i18n.L("Steam runs Carryover, which starts the game through Bottles, in the game's bottle. Don't force a Proton version on this shortcut."))
 		default:
 			modes := &kit.Choice{}
 			modes.Add("direct", i18n.L("Run Carryover (it starts the game)"))
@@ -167,7 +169,8 @@ func (p *Page) steamForm(c *ui.Context, o steamFormOpts) {
 				kit.SelectOf(c, nav, "steam-mode", i18n.L("Shortcut type"), modes, o.Mode, o.OnMode)
 			})
 		}
-		if o.Mode == "steamwrap" && g.Device.LaunchMode != "heroic" && g.Device.LaunchMode != "lutris" && runtime.GOOS != "darwin" {
+		throughLauncher := g.Device.LaunchMode == "heroic" || g.Device.LaunchMode == "lutris" || g.Device.LaunchMode == "bottles"
+		if o.Mode == "steamwrap" && !throughLauncher && runtime.GOOS != "darwin" {
 			t := i18n.L("After adding, open the shortcut's Properties → Compatibility in Steam and force a Proton version. Its save prefix is available as {{.Token}}.",
 				map[string]any{"Token": "{proton:shortcut}"})
 			if g.Device.SteamAppID != "" {

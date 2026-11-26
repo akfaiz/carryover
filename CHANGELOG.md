@@ -16,6 +16,9 @@ All notable changes to Carryover are listed here. The format follows
 - Settings → Updates chooses the channel: **Stable** (finished releases) or **Pre-release** (also alpha, beta and
   release candidate builds). Automatic checks can be turned off.
 - `carryover update` checks for and installs a newer version from the command line.
+- Bottles (Linux, native and Flatpak): **Add a game → From Bottles** picks a program of one of your bottles, and the
+  **Bottles** launch mode starts the game in its bottle and syncs when it closes, also from its Steam shortcut. Save
+  suggestions now also find bottles you moved to another folder or drive.
 
 ### Changed
 

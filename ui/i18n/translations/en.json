@@ -601,5 +601,16 @@
   "Carryover tells you when there is a new version. It never installs one without asking.": "Carryover tells you when there is a new version. It never installs one without asking.",
   "Development builds don't update themselves.": "Development builds don't update themselves.",
   "View update": "View update",
-  "Check for updates": "Check for updates"
+  "Check for updates": "Check for updates",
+  "Bottles": "Bottles",
+  "Bottles starts the game in its bottle. Pick the game's executable (a program added to a bottle, or any .exe inside one); Carryover waits for it to close, then syncs.": "Bottles starts the game in its bottle. Pick the game's executable (a program added to a bottle, or any .exe inside one); Carryover waits for it to close, then syncs.",
+  "{{.Game}} is in Bottles — it will be started through Bottles.": "{{.Game}} is in Bottles — it will be started through Bottles.",
+  "Steam runs Carryover, which starts the game through Bottles, in the game's bottle. Don't force a Proton version on this shortcut.": "Steam runs Carryover, which starts the game through Bottles, in the game's bottle. Don't force a Proton version on this shortcut.",
+  "From Bottles": "From Bottles",
+  "From Bottles: a program added to one of your bottles.": "From Bottles: a program added to one of your bottles.",
+  "PC game: any other game, started from its executable or through another launcher.": "PC game: any other game, started from its executable or through another launcher.",
+  "Add from Bottles": "Add from Bottles",
+  "Programs added to your bottles on this device. Carryover starts them through Bottles, in their bottle; you still set the save locations. For a game that isn't listed, add it to its bottle's programs in Bottles, or add a PC game and pick its executable.": "Programs added to your bottles on this device. Carryover starts them through Bottles, in their bottle; you still set the save locations. For a game that isn't listed, add it to its bottle's programs in Bottles, or add a PC game and pick its executable.",
+  "Reading your bottles…": "Reading your bottles…",
+  "No programs found in your bottles on this device.": "No programs found in your bottles on this device."
 }

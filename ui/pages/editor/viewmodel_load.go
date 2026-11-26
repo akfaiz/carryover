@@ -24,6 +24,8 @@ type Backend interface {
 	HeroicGame(exe string) (title string, ok bool)
 	LutrisGame(exe string) (title string, ok bool)
 	LutrisLibrary() []services.LutrisLibraryGame
+	BottlesGame(exe string) (name string, ok bool)
+	BottlesLibrary() []services.BottlesLibraryGame
 	HeroicLibrary() []services.HeroicLibraryGame
 	GuessRomName(emulatorID, rom string) string
 	SuggestEmuSaves(emulatorID string, in services.EmuSuggestInput) (services.EmuSuggestResult, error)
@@ -191,6 +193,15 @@ func (e *ViewModel) PrefillFromLutris(g services.LutrisLibraryGame) {
 	e.name = g.Name
 	e.dev.Exe = g.Exe
 	e.dev.LaunchMode = services.LaunchLutris
+	e.orig = e.snapshot()
+}
+
+// PrefillFromBottles makes a program of a bottle the form's starting point:
+// its name and executable, started through Bottles so it runs in its bottle.
+func (e *ViewModel) PrefillFromBottles(g services.BottlesLibraryGame) {
+	e.name = g.Name
+	e.dev.Exe = g.Exe
+	e.dev.LaunchMode = services.LaunchBottles
 	e.orig = e.snapshot()
 }
 
