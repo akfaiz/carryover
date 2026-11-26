@@ -183,10 +183,14 @@ func btnIcon(c *ui.Context, icon *ui.SVG, busy bool, size float32) {
 // calls action on a click. key tells it from the other buttons on the page.
 func Btn(c *ui.Context, nav *Navigator, key any, kind BtnKind, icon *ui.SVG, label string, action func(), opts ...BtnOption) ui.Element {
 	cfg := btnConfigOf(opts)
-	return button(c, nav, key, kind, label, cfg, action, func(ui.Color) {
+	b := button(c, nav, key, kind, label, cfg, action, func(ui.Color) {
 		btnIcon(c, icon, cfg.busy, cfg.size.icon())
 		ui.Text(c, label).SingleLine().FontWeight(600).FontSize(cfg.size.text())
 	})
+	if cfg.size == btnNormal {
+		b = b.MinHeight(ControlHeight)
+	}
+	return b
 }
 
 // IconBtn is a square button with only an icon; label names it for assistive

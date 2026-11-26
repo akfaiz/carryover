@@ -26,6 +26,11 @@ const (
 	S8 float32 = 32
 )
 
+// ControlHeight is the height (DIPs) of a text field, a select and a button of
+// the normal size, so that those side by side line up. Their padding alone
+// doesn't do that: a monospaced line is lower, and only some have a border.
+const ControlHeight float32 = 36
+
 // Corner radii (DIPs).
 const (
 	RadiusSM float32 = 6
