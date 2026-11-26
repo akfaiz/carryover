@@ -28,7 +28,7 @@ func SelectOf(c *ui.Context, nav *Navigator, key any, title string, ch *Choice, 
 		border, hoverBorder = t.Accent, t.Accent
 	}
 	owner := field
-	field = field.Border(1, ui.Color{}).Radius(Radius).Padding(S2, S3).Gap(S2).MinWidth(160).Draw(func(p *ui.Painter, r ui.Rect) {
+	field = field.Border(1, ui.Color{}).Radius(Radius).Padding(0, S3).Gap(S2).Height(ControlHeight).MinWidth(160).Draw(func(p *ui.Painter, r ui.Rect) {
 		paintFace(p, r, t.Background, HoverColor(owner, border, hoverBorder), 1, Radius)
 	}).Children(func() {
 		ui.Text(c, label).SingleLine().Grow(1)
@@ -94,7 +94,7 @@ func selectOption(c *ui.Context, nav *Navigator, key any, i int, label string, c
 // focuses it. placeholder shows while it is empty and names it for assistive
 // technology. Chain more styling on the result (Font, Password, Grow, Width).
 func Field(c *ui.Context, nav *Navigator, key any, v *string, placeholder string) ui.Element {
-	in := ui.TextInput(c.Key(key), v).Placeholder(placeholder).Label(placeholder)
+	in := ui.TextInput(c.Key(key), v).Placeholder(placeholder).Label(placeholder).Height(ControlHeight)
 	return nav.Item(nav.Handle(key), in, nil, TextField)
 }
 

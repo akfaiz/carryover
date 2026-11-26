@@ -441,3 +441,28 @@ func TestCoverFillIsDecodedOnceWhateverItsWidth(t *testing.T) {
 	assert.Equal(t, 1, copies, "one decoded copy of the cover, whatever the width")
 	assert.Empty(t, Images.loads, "nothing is loading again")
 }
+
+// A field, a select and a button put side by side line up.
+func TestControlsShareOneHeight(t *testing.T) {
+	plain, mono := "Carryover", "Carryover"
+	var choice Choice
+	choice.Add("a", "Alpha")
+	var els [4]ui.Handle
+	var got [4]float32
+	tt, _ := draw(t, func(c *ui.Context, nav *Navigator) {
+		for i := range els {
+			got[i] = els[i].Bounds(c).H // of the frame before
+		}
+		ui.Column(c).Gap(S2).AlignItems(ui.Start).Children(func() {
+			SelectOf(c, nav, "sel", "Pick one", &choice, "a", nil).Bind(&els[0])
+			Field(c, nav, "plain", &plain, "Plain").Bind(&els[1])
+			Field(c, nav, "mono", &mono, "Mono").Font("monospace").Bind(&els[2])
+			Btn(c, nav, "btn", BtnSecondary, IconPlay, "Button", func() {}).Bind(&els[3])
+		})
+	})
+	tt.Frame()
+	t.Logf("select, field, monospace field, button: %v", got)
+	for i := 1; i < len(got); i++ {
+		assert.InDelta(t, got[0], got[i], 0.5, "control %d", i)
+	}
+}
