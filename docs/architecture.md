@@ -109,13 +109,13 @@ flowchart LR
 
 | Package | Role |
 | --- | --- |
-| `ui/kit` | Reusable MyGo building blocks: design tokens (`tokens.go`: type, spacing, radii, page widths), the palette and theme, icons, buttons (`Btn`, `IconBtn`, `Toggle`, `ToggleRow`), inputs (`Field`, `TextArea`, `SearchField`, `SelectOf`, `Chips`), page layout (`Page`, `PageHead`, `Card`, `ListRow`, `Footer`), blocks (`Callout`, `EmptyState`, `ArtBackdrop`), badges, text styles, the dialog host, the toaster, the gamepad Navigator and its hints, image cache, progress line. Pure toolkit: no `i18n`, `services` or `core` imports and no user-visible text (callers pass labels in). |
+| `ui/kit` | Reusable MyGo building blocks: design tokens (`tokens.go`: type, spacing, radii, page widths), the palette and theme, icons, buttons (`Btn`, `IconBtn`, `Toggle`, `ToggleRow`), inputs (`Field`, `TextArea`, `SearchField`, `SelectOf`, `Chips`), the dropdown action menu (`MenuButton`), page layout (`Page`, `PageHead`, `Card`, `ListRow`, `Footer`), blocks (`Callout`, `EmptyState`, `ArtBackdrop`), badges, text styles, the dialog host, the toaster, the gamepad Navigator and its hints, image cache, progress line. Pure toolkit: no `i18n`, `services` or `core` imports and no user-visible text (callers pass labels in). |
 | `ui/i18n` | Translation catalogs (`translations/*.json`) and `i18n.L`/`i18n.N`, on its own go-i18n localizer (no toolkit import). |
 | `ui/textutil` | Plain string helpers the ViewModels share (`Slug`, `SplitLines`, `LabelOf`). |
 | `ui/store` | The state every page shares (games, settings, session status, transfer progress, "Sync all", updating). The only listener of `services.Bus`; pages subscribe by topic. The shell hands it the UI-goroutine runner (`store.New(load, onUI)`). |
 | `ui/envcore` | `envcore.Services`: the services and the store, the part of `env.Env` a ViewModel's backend holds. |
 | `ui/env` | What a page may use of the app: `env.Env` (`envcore.Services` plus window, navigation, toasts) and the page contracts (`Page`, `Stateful`, `Guarded`, `Searchable`, `Syncable`, `PadFocuser`, `Redrawable`). |
-| `ui/components` | Shared widgets and dialogs that know about the app (help text, confirm dialogs, the action menu, path input, status badges). `components/emulatorform` is the emulator form the Emulators page and the game editor share. |
+| `ui/components` | Shared widgets and dialogs that know about the app (help text, confirm dialogs, path input, status badges). `components/emulatorform` is the emulator form the Emulators page and the game editor share. |
 | `ui/flows` | Multi-step actions that open dialogs, call services and navigate: add a game, import from Steam, set the SteamGridDB key, open a game in Steam. |
 | `ui/prompts` | The session prompt dialogs (conflict, lock, error, which emulator). |
 | `ui/pages/<name>` | One page: `viewmodel.go` (state and rules, no widgets) and `view.go` (reads the ViewModel and draws it in every frame). The pages are `library`, `trash`, `settings`, `emulators`, `cloud`, `session`, `editor` and `game`; `library` is the reference. |
@@ -144,7 +144,8 @@ the keyboard and a gamepad; `kit.Chips` is a row of filter pills (`Warn` tints o
 What the user should notice goes in a `kit.Callout` (a tinted box with an icon, by badge kind), never a bare colored
 line. A page or list with nothing in it shows `kit.EmptyState` (icon, title, text and the buttons that fill it).
 Optional explanations fold behind `components.Help` (a summary and a small "More"). A row's or page's secondary
-actions sit behind a `kit.IconMore` button that opens `components.ActionMenu`. `kit.ArtPage` is `kit.Page` with a
+actions sit in a `kit.IconMore` `kit.MenuButton`, which drops them down below it in the same panel as a select's
+list. `kit.ArtPage` is `kit.Page` with a
 game's hero artwork faded behind its top, across the whole window. A page's content is `kit.PageFull` (a grid that
 fills any window), `kit.PageWide` or `kit.PageForm` wide, and centered in a wider window. Toasts are drawn by `kit.Toaster` (bottom right, kind by icon, a countdown bar); a
 controller's buttons are shown with `kit.PadHints`.

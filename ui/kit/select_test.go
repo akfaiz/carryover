@@ -1,6 +1,7 @@
 package kit
 
 import (
+	"fmt"
 	"testing"
 
 	"github.com/egoist/mygo/ui"
@@ -94,4 +95,34 @@ func TestSelectPickingTheCurrentChoiceChangesNothing(t *testing.T) {
 	tt.Frame()
 	p.press(tt, PadDown, PadAccept, PadAccept)
 	assert.Empty(t, p.changed)
+}
+
+func TestSelectOpenedByMouseFocusesNothing(t *testing.T) {
+	_, tt := newSelectPage()
+	tt.Frame()
+	require.NoError(t, tt.Click("Beta"))
+	tt.Frame()
+	tt.Frame()
+	require.True(t, tt.HasText("Alpha"))
+	for _, option := range []string{"Alpha", "Gamma"} {
+		assert.False(t, tt.Focused(option))
+	}
+}
+
+// A long list the mouse opens still shows the current choice.
+func TestSelectOpenedByMouseScrollsToTheCurrentChoice(t *testing.T) {
+	p, tt := newSelectPage()
+	p.ch = &Choice{}
+	for i := range 40 {
+		p.ch.Add(fmt.Sprint(i), fmt.Sprint("Option ", i))
+	}
+	p.value = "35"
+	tt.Frame()
+	require.NoError(t, tt.Click("Option 35"))
+	for range 4 {
+		tt.Frame()
+	}
+	require.NoError(t, tt.Click("Option 34"), "the rows around the current one are in view")
+	tt.Frame()
+	assert.Equal(t, []string{"34"}, p.changed)
 }

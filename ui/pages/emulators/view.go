@@ -128,20 +128,19 @@ func (p *Page) row(c *ui.Context, first bool, ev services.EmulatorView) {
 			if !ev.NoVersionHere { // its setup on this device is what Edit changes
 				kit.Btn(c, nav, [3]any{"emu-row", ev.ID, "edit"}, kit.BtnSecondary, kit.IconPencil, i18n.L("Edit"), func() { p.edit(SetupOf(ev)) })
 			}
-			kit.IconBtn(c, nav, [3]any{"emu-row", ev.ID, "more"}, kit.BtnSecondary, kit.IconMore, i18n.L("More"), func() { p.more(ev) })
+			kit.MenuButton(c, nav, [3]any{"emu-row", ev.ID, "more"}, kit.BtnSecondary, kit.IconMore, i18n.L("More"), p.menu(ev))
 		})
 	})
 }
 
-// more is the menu of an emulator's row: clear its setup on this device, or
+// menu is the menu of an emulator's row: clear its setup on this device, or
 // delete it.
-func (p *Page) more(ev services.EmulatorView) {
-	var items []components.MenuItem
+func (p *Page) menu(ev services.EmulatorView) []kit.MenuItem {
+	var items []kit.MenuItem
 	if ev.SetUp {
-		items = append(items, components.MenuItem{Key: [2]any{ev.ID, "unset"}, Label: i18n.L("Remove from this device…"), Icon: kit.IconExit, Action: func() { p.askUnset(ev) }})
+		items = append(items, kit.MenuItem{Key: "unset", Label: i18n.L("Remove from this device…"), Icon: kit.IconExit, Action: func() { p.askUnset(ev) }})
 	}
-	items = append(items, components.MenuItem{Key: [2]any{ev.ID, "delete"}, Label: i18n.L("Delete…"), Icon: kit.IconTrash, Danger: true, Action: func() { p.askDelete(ev) }})
-	components.ActionMenu(p.u, ev.Name, items)
+	return append(items, kit.MenuItem{Key: "delete", Label: i18n.L("Delete…"), Icon: kit.IconTrash, Danger: true, Action: func() { p.askDelete(ev) }})
 }
 
 // askUnset clears this device's setup of an emulator, keeping it everywhere else.

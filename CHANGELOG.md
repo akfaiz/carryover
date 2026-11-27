@@ -13,6 +13,15 @@ All notable changes to Carryover are listed here. The format follows
   will write to take less cloud space and upload faster. Update every device before that version arrives: older
   versions show an error for compressed saves instead of downloading them.
 
+### Changed
+
+- The **⋯** button of an emulator and of a game now opens a menu below it instead of a dialog. It works with the
+  mouse, the keyboard and a controller.
+
+### Fixed
+
+- A drop-down list opened with the mouse no longer keeps one option highlighted while the pointer is elsewhere.
+
 ## [0.6.0] - 2026-11-27
 
 ### Added
