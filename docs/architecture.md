@@ -188,8 +188,8 @@ Everything lives in one folder on the remote (`<remote>:<folder>`, set on the Cl
 ```
 library.json                                      the shared game list, emulators and device records
 covers/                                           cover and artwork images used by the library
-games/<id>/manifest.json                          revision + SHA-256 of every save file
-games/<id>/current/<slot>/…                       the saves
+games/<id>/manifest.json                          revision, format + size and SHA-256 of every save file
+games/<id>/current/<slot>/…                       the saves (format 1: each one as <name>.zst)
 games/<id>/lock.json                              "being played on <device>"
 games/<id>/backups/<time>_<device>_<kind>.zip     kind: local, cloud or manual; holds manifest.json + <slot>/…
 games/<id>/pinned.json                            names of pinned backups (never pruned)
@@ -198,6 +198,16 @@ games/<id>.<emulator id>/…                        the same files for one emula
 
 Safety copies taken before a download (when cloud backups are off) stay on the device, in
 `<data dir>/safety/<id>/`.
+
+**Compressed saves.** The manifest's `format` says how `current/` stores the files: 0 (or none) as they are, 1
+zstd-compressed per file (`syncer/compress.go`). In a format 1 folder *every* object is `<name>.zst`, never a mix,
+so a version that predates the format finds none of the files it would download and fails before writing
+anything into a save folder (pushing, it rewrites the folder as raw files, which is valid). The manifest always
+describes the files themselves (keys, `size`, `sha256`); `storedSize` is the object's size, which a push checks
+against the cloud listing. A push to a folder in another format uploads all of it in the new one and deletes the
+old objects only after writing the manifest. Pulls decompress into a temporary file and check it before it
+replaces a save. Backup archives always hold the files uncompressed. `Engine.WriteFormat` (set in `core.Engine`)
+is what pushes write; every format is read, and a newer one is refused (`ErrNewerSaveFormat`).
 
 **Emulators.** Every emulator stores saves differently, so a game gets one folder per emulator, next to its own
 `games/<id>/`:

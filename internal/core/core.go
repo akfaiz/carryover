@@ -149,7 +149,10 @@ func (c *Core) Engine() (*syncer.Engine, error) {
 		Device:    syncer.Device{ID: s.DeviceID, Name: s.DeviceName},
 		Retention: s.BackupRetention,
 		SafetyDir: c.Dirs.SafetyDir(),
-		OnEvent:   c.emit,
+		// Compressed cloud saves are read but not written yet, so that devices
+		// update to a version that reads them before any are written.
+		WriteFormat: syncer.FormatRaw,
+		OnEvent:     c.emit,
 	}, nil
 }
 

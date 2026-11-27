@@ -53,8 +53,12 @@ type zipEntry struct {
 	modTime time.Time
 }
 
-// backupCloud saves the current cloud version (listed: files under current/,
-// keyed "<slot>/<path>") as a backup before it's overwritten.
+// backupCloud saves the current cloud version (listed: objects under
+// current/, keyed "<slot>/<path>") as a backup before it's overwritten. The
+// archive holds the files as they are, whatever the cloud format (m.Format):
+// compressed ones are decompressed, so any version can restore it. Objects
+// named for another format (left by an interrupted push) aren't part of this
+// version and are left out.
 func (e *Engine) backupCloud(ctx context.Context, id string, m *Manifest, listed map[string]int64) error {
 	name := e.backupName("cloud")
 	e.emit(id, "backup", "Backing up cloud saves", cloud.Progress{})
@@ -63,17 +67,28 @@ func (e *Engine) backupCloud(ctx context.Context, id string, m *Manifest, listed
 		return err
 	}
 	defer os.RemoveAll(tmp)
-	files, total := sortedFiles(listed)
-	if err := e.Client.Download(ctx, currentDir(id), filepath.Join(tmp, "files"), files, total, e.progress(id, "backup", "Backing up cloud saves")); err != nil {
+	inCloud, _ := cloudView(listed, m.Format)
+	files, total := sortedFiles(inCloud)
+	objects := storedNames(files, m.Format)
+	if err := e.Client.Download(ctx, currentDir(id), filepath.Join(tmp, "files"), objects, total, e.progress(id, "backup", "Backing up cloud saves")); err != nil {
 		return err
 	}
 	entries := make([]zipEntry, 0, len(files))
-	for _, f := range files {
-		mt := time.Now()
-		if fi, ok := m.Files[f]; ok {
-			mt = fi.ModTime
+	for i, f := range files {
+		en := zipEntry{name: f, src: filepath.Join(tmp, "files", filepath.FromSlash(objects[i])), modTime: time.Now()}
+		if m.Format == FormatZstd {
+			plain := filepath.Join(tmp, "plain", filepath.FromSlash(f))
+			if err := decompressFile(en.src, plain); err == nil {
+				en.src = plain
+			} else {
+				// Keep what the cloud has: a backup must not fail on one file.
+				en.name = objects[i]
+			}
 		}
-		entries = append(entries, zipEntry{name: f, src: filepath.Join(tmp, "files", filepath.FromSlash(f)), modTime: mt})
+		if fi, ok := m.Files[en.name]; ok {
+			en.modTime = fi.ModTime
+		}
+		entries = append(entries, en)
 	}
 	return e.storeBackup(ctx, id, name, tmp, entries, m)
 }
@@ -488,6 +503,7 @@ func restoreZipFile(ctx context.Context, job Job, path string, local *Manifest) 
 		return fmt.Errorf("open backup archive: %w", err)
 	}
 	defer zr.Close()
+	known := zipManifestFiles(zr)
 	for _, s := range job.Slots {
 		flt, err := s.Filters.NewFilter()
 		if err != nil {
@@ -495,8 +511,14 @@ func restoreZipFile(ctx context.Context, job Job, path string, local *Manifest) 
 		}
 		inBackup := map[string]bool{}
 		for _, zf := range zr.File {
-			rel, ok := strings.CutPrefix(zf.Name, s.Key+"/")
-			if !ok || strings.HasSuffix(zf.Name, "/") || !flt.Include(rel, int64(zf.UncompressedSize64), time.Time{}, nil) {
+			entry, compressed := zf.Name, false
+			// A version that predates compressed cloud saves backs up their
+			// objects as they are: "<file>.zst" where its manifest has <file>.
+			if plain, ok := strings.CutSuffix(entry, zstdExt); ok && known[plain] && !known[entry] {
+				entry, compressed = plain, true
+			}
+			rel, ok := strings.CutPrefix(entry, s.Key+"/")
+			if !ok || strings.HasSuffix(entry, "/") || !flt.Include(rel, int64(zf.UncompressedSize64), time.Time{}, nil) {
 				continue
 			}
 			if err := ctx.Err(); err != nil {
@@ -505,7 +527,7 @@ func restoreZipFile(ctx context.Context, job Job, path string, local *Manifest) 
 			if !filepath.IsLocal(filepath.FromSlash(rel)) {
 				return fmt.Errorf("backup contains an unsafe path: %s", zf.Name)
 			}
-			if err := extractFile(zf, localfs.Join(s.LocalPath, rel)); err != nil {
+			if err := extractFile(zf, localfs.Join(s.LocalPath, rel), compressed); err != nil {
 				return fmt.Errorf("restore %s: %w", zf.Name, err)
 			}
 			inBackup[rel] = true
@@ -517,14 +539,61 @@ func restoreZipFile(ctx context.Context, job Job, path string, local *Manifest) 
 	return nil
 }
 
-func extractFile(zf *zip.File, dst string) error {
+// zipManifestFiles returns the file keys of a backup archive's manifest (nil
+// without a readable one).
+func zipManifestFiles(zr *zip.ReadCloser) map[string]bool {
+	for _, zf := range zr.File {
+		if zf.Name != backupManifestName {
+			continue
+		}
+		r, err := zf.Open()
+		if err != nil {
+			return nil
+		}
+		defer r.Close()
+		var m Manifest
+		if err := json.NewDecoder(r).Decode(&m); err != nil {
+			return nil
+		}
+		out := make(map[string]bool, len(m.Files))
+		for k := range m.Files {
+			out[k] = true
+		}
+		return out
+	}
+	return nil
+}
+
+// openEntry opens an archive entry, decompressing it when it holds a
+// zstd-compressed cloud object.
+func openEntry(zf *zip.File, compressed bool) (io.ReadCloser, error) {
+	r, err := zf.Open()
+	if err != nil || !compressed {
+		return r, err
+	}
+	dec, err := newDecoder(r)
+	if err != nil {
+		r.Close()
+		return nil, err
+	}
+	return struct {
+		io.Reader
+		io.Closer
+	}{dec, closerFunc(func() error { dec.Close(); return r.Close() })}, nil
+}
+
+type closerFunc func() error
+
+func (f closerFunc) Close() error { return f() }
+
+func extractFile(zf *zip.File, dst string, compressed bool) error {
 	if localfs.IsFS(dst) {
-		return extractFS(zf, dst)
+		return extractFS(zf, dst, compressed)
 	}
 	if err := os.MkdirAll(filepath.Dir(dst), 0o755); err != nil {
 		return err
 	}
-	r, err := zf.Open()
+	r, err := openEntry(zf, compressed)
 	if err != nil {
 		return err
 	}
@@ -558,8 +627,8 @@ func extractFile(zf *zip.File, dst string) error {
 // keeps the time it was written, as their modification times can't be set.
 // A restore that fails halfway can be undone from the safety copy or backup
 // taken before it.
-func extractFS(zf *zip.File, dst string) error {
-	r, err := zf.Open()
+func extractFS(zf *zip.File, dst string, compressed bool) error {
+	r, err := openEntry(zf, compressed)
 	if err != nil {
 		return err
 	}

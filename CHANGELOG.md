@@ -7,6 +7,12 @@ All notable changes to Carryover are listed here. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- Carryover can read cloud saves stored compressed (each save file on its own, with zstd), which a coming version
+  will write to take less cloud space and upload faster. Update every device before that version arrives: older
+  versions show an error for compressed saves instead of downloading them.
+
 ## [0.6.0] - 2026-11-27
 
 ### Added

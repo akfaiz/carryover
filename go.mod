@@ -7,6 +7,7 @@ require (
 	github.com/godbus/dbus/v5 v5.2.2
 	github.com/google/uuid v1.6.0
 	github.com/jeandeaual/go-locale v0.0.0-20250612000132-0ef82f21eade
+	github.com/klauspost/compress v1.20.3
 	github.com/nicksnyder/go-i18n/v2 v2.5.1
 	github.com/rclone/rclone v1.76.0
 	github.com/shirou/gopsutil/v4 v4.26.10
@@ -60,7 +61,6 @@ require (
 	github.com/jcmturner/rpc/v2 v2.0.3 // indirect
 	github.com/jtolds/gls v4.20.0+incompatible // indirect
 	github.com/jzelinskie/whirlpool v0.0.0-20201016144138-0675e54bb004 // indirect
-	github.com/klauspost/compress v1.20.3 // indirect
 	github.com/klauspost/cpuid/v2 v2.4.0 // indirect
 	github.com/kr/fs v0.1.0 // indirect
 	github.com/lanrat/extsort v1.5.0 // indirect
