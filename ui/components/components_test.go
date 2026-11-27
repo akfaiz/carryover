@@ -110,23 +110,6 @@ func TestHelpUnfoldsAndFolds(t *testing.T) {
 	assert.NotContains(t, h.Texts(), "The first detail")
 }
 
-func TestActionMenuRunsTheChosenItem(t *testing.T) {
-	h, _ := harness(t)
-	var ran []string
-	components.ActionMenu(h.Shell, "Game actions", []components.MenuItem{
-		{Key: "one", Label: "First thing", Icon: kit.IconPlay, Action: func() { ran = append(ran, "one") }},
-		{Key: "two", Label: "Remove it", Danger: true, Action: func() { ran = append(ran, "two") }},
-		{Key: "three", Label: "Can't do", Disabled: true, Action: func() { ran = append(ran, "three") }},
-	})
-	h.Settle()
-	assert.Contains(t, h.Texts(), "Game actions")
-	assert.True(t, h.Shell.Dialogs().Open())
-
-	h.Click("Remove it")
-	assert.Equal(t, []string{"two"}, ran)
-	assert.False(t, h.Shell.Dialogs().Open(), "choosing an item closes the menu")
-}
-
 func TestConfirmDangerAsksThenActs(t *testing.T) {
 	h, _ := harness(t)
 	var got []bool

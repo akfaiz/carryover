@@ -10,7 +10,8 @@ import (
 // current choice with a list of the options below it. It is the same for the
 // mouse, the keyboard and a gamepad: A on the field opens the list (which
 // starts on the current choice), the D-pad moves, A picks and B closes it.
-// title names the field for assistive technology; key tells it from the other
+// Opened with the mouse, the list ticks the current choice but lights only the
+// option under the pointer. title names the field for assistive technology; key tells it from the other
 // selects on the page.
 func SelectOf(c *ui.Context, nav *Navigator, key any, title string, ch *Choice, v string, onChange func(string)) ui.Element {
 	k := [2]any{"select", key}
@@ -19,12 +20,12 @@ func SelectOf(c *ui.Context, nav *Navigator, key any, title string, ch *Choice, 
 	if label == "" && len(ch.Labels) > 0 {
 		label = ch.Labels[0]
 	}
-	open := nav.popup(k)
-	toggle := func() { *open = !*open }
+	d := nav.dropdown(k)
+	toggle := func() { d.toggle(nav) }
 
 	field := ui.ButtonBase(c.Key(k)).Label(title)
 	border, hoverBorder := t.Border, t.TextMuted
-	if *open {
+	if d.open {
 		border, hoverBorder = t.Accent, t.Accent
 	}
 	owner := field
@@ -35,46 +36,36 @@ func SelectOf(c *ui.Context, nav *Navigator, key any, title string, ch *Choice, 
 		ui.Icon(c, IconChevronDown).FontSize(IconSM).TextColor(t.TextMuted)
 	})
 	if nav.Item(nav.Handle(k), field, toggle).Clicked() {
-		toggle()
+		nav.clicked(field, toggle)
 	}
 
-	close := func() { *open = false }
-	nav.Overlay(fmt.Sprint("select:", key), *open, close, func() {
-		ui.PopoverBase(c, field, open, func(panel ui.Element) {
-			panel.MinWidth(field.Bounds().W).Margin(S1, 0, 0, 0).Radius(Radius+2).
-				Background(t.Surface).Border(1, t.Border).Shadow(0, 6, 20, 0, ui.RGBA(0, 0, 0, 0.3))
-			ui.Scroll(c).MaxHeight(320).Children(func() {
-				// The padding is inside the scroll, which clips what it holds:
-				// the focus ring drawn outside a row needs the room.
-				ui.Column(c).Gap(2).Padding(S1).Children(func() {
-					for i, val := range ch.Values {
-						selectOption(c, nav, key, i, ch.Labels[i], val == v, func() {
-							close()
-							if val != v && onChange != nil {
-								onChange(val)
-							}
-						})
-					}
-				})
+	closeList := func() { d.open = false }
+	showDropdown(c, nav, fmt.Sprint("select:", key), field, d, closeList, func(panel ui.Element) {
+		panel.MinWidth(field.Bounds().W)
+	}, func() {
+		for i, val := range ch.Values {
+			row := selectOption(c, nav, key, i, ch.Labels[i], val == v, func() {
+				closeList()
+				if val != v && onChange != nil {
+					onChange(val)
+				}
 			})
-		})
+			if val == v && d.reveal {
+				d.reveal = false
+				row.ScrollIntoView()
+			}
+		}
 	})
 	return field
 }
 
 // selectOption is one row of a select's list: the label, a tick on the
 // current choice, a fill under the pointer or the gamepad's cursor.
-func selectOption(c *ui.Context, nav *Navigator, key any, i int, label string, current bool, pick func()) {
+func selectOption(c *ui.Context, nav *Navigator, key any, i int, label string, current bool, pick func()) ui.Element {
 	t := c.Theme()
 	k := [3]any{"select-opt", key, i}
 	h := nav.Handle(k)
-	row := ui.ButtonBase(c.Key(k)).Label(label)
-	focused, owner := h.Focused(c), row
-	row = row.Radius(RadiusSM).Padding(S2, S3).Gap(S2).AlignSelf(ui.Stretch).Justify(ui.Start).Draw(func(p *ui.Painter, r ui.Rect) {
-		if focused || owner.Hovered() {
-			paintFace(p, r, t.SurfaceHover, ui.Color{}, 0, RadiusSM)
-		}
-	}).Children(func() {
+	row := dropdownRow(c, h, k, label, t.SurfaceHover, func() {
 		ui.Text(c, label).SingleLine().Grow(1)
 		if current {
 			ui.Icon(c, IconCheck).FontSize(IconSM).TextColor(t.Accent)
@@ -87,6 +78,7 @@ func selectOption(c *ui.Context, nav *Navigator, key any, i int, label string, c
 	if nav.Item(h, row, pick, opts...).Clicked() {
 		pick()
 	}
+	return row
 }
 
 // Field is a one-line text input bound to v, registered with the Navigator

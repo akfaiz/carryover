@@ -54,7 +54,7 @@ func (p *Page) hero(c *ui.Context, orig, g services.GameView, profs []profileEnt
 		}
 		p.btn(c, "sync", kit.BtnSecondary, kit.IconRefresh, syncLabel, busy || !canSync(profs) || !hasRemote || g.Status.Running, func() { p.syncAll(profs) })
 		p.btn(c, "edit", kit.BtnSecondary, kit.IconPencil, i18n.L("Edit"), false, func() { u.Navigate("/edit/" + p.vm.id) })
-		p.iconBtn(c, "more", kit.BtnSecondary, kit.IconMore, i18n.L("More"), false, func() { p.showMore(orig, busy) })
+		kit.MenuButton(c, u.Navigator(), [2]any{"game", "more"}, kit.BtnSecondary, kit.IconMore, i18n.L("More"), p.moreMenu(orig, busy))
 	})
 	if steamLaunched && g.Ready && services.SteamRunURL(orig) == "" {
 		kit.Callout(c, kit.BadgeInfo, kit.IconInfo, i18n.L("This game is launched from Steam on this device (Proton). Use “Add to Steam” below, then start it from Steam."), nil)
@@ -92,24 +92,23 @@ func (p *Page) session(c *ui.Context, g services.GameView) {
 	}
 }
 
-// showMore is the menu behind the "⋯" button: open the save folders, and
+// moreMenu is the menu behind the "⋯" button: open the save folders, and
 // delete the game.
-func (p *Page) showMore(g services.GameView, busy bool) {
-	var items []components.MenuItem
+func (p *Page) moreMenu(g services.GameView, busy bool) []kit.MenuItem {
+	var items []kit.MenuItem
 	for _, sl := range g.Slots {
 		if dir := g.ResolvedPaths[sl.Key]; dir != "" && g.PathErrors[sl.Key] == "" {
 			label := i18n.L("Open save folder")
 			if len(g.Slots) > 1 {
 				label = i18n.L("Open save folder: {{.Label}}", map[string]any{"Label": textutil.LabelOf(sl.Label, sl.Key)})
 			}
-			items = append(items, components.MenuItem{Key: [2]any{"game-more", sl.Key}, Label: label, Icon: kit.IconFolderOpen, Action: func() { p.u.OpenFolder(dir) }})
+			items = append(items, kit.MenuItem{Key: [2]any{"slot", sl.Key}, Label: label, Icon: kit.IconFolderOpen, Action: func() { p.u.OpenFolder(dir) }})
 		}
 	}
-	items = append(items, components.MenuItem{
-		Key: [2]any{"game-more", "delete"}, Label: i18n.L("Delete from library…"), Icon: kit.IconTrash,
+	return append(items, kit.MenuItem{
+		Key: "delete", Label: i18n.L("Delete from library…"), Icon: kit.IconTrash,
 		Danger: true, Disabled: busy || g.Overall.Running, Action: p.askDelete,
 	})
-	components.ActionMenu(p.u, i18n.L("More"), items)
 }
 
 // askDelete asks whether to move the game to the trash or delete it with its

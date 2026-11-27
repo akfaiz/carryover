@@ -164,7 +164,7 @@ func button(c *ui.Context, nav *Navigator, key any, kind BtnKind, label string, 
 		return b.Disabled(true)
 	}
 	if nav.Item(nav.Handle(k), b, action, cfg.item...).Clicked() {
-		action()
+		nav.clicked(b, action)
 	}
 	return b
 }

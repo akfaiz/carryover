@@ -45,34 +45,6 @@ func Help(c *ui.Context, u env.Env, summary string, details ...string) ui.Elemen
 	})
 }
 
-// MenuItem is one entry of an ActionMenu. Danger draws it red; Icon may be nil.
-type MenuItem struct {
-	Key              any
-	Label            string
-	Icon             *ui.SVG
-	Danger, Disabled bool
-	Action           func()
-}
-
-// ActionMenu shows a small dialog with one full-width button per item, as the
-// "⋯" button of a page or a row opens: pressing one closes the menu, then runs
-// the item's action.
-func ActionMenu(u env.Env, title string, items []MenuItem) {
-	var d *kit.Dialog
-	d = u.Dialogs().Show(&kit.Dialog{Title: title, Width: 380, Body: func(c *ui.Context, nav *kit.Navigator) {
-		ui.Column(c).Gap(kit.S2).Children(func() {
-			for _, it := range items {
-				kind := kit.BtnSecondary
-				if it.Danger {
-					kind = kit.BtnDanger
-				}
-				kit.Btn(c, nav, [2]any{"menu", it.Key}, kind, it.Icon, it.Label, func() { d.Close(); it.Action() }, kit.BtnDisabled(it.Disabled)).
-					AlignSelf(ui.Stretch).Justify(ui.Start)
-			}
-		})
-	}})
-}
-
 // ConfirmDanger asks before something is deleted, in a dialog: the message, an
 // optional checkbox to delete more, Cancel and a red action button.
 func ConfirmDanger(u env.Env, o ConfirmOpts) {

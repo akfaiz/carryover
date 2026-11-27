@@ -43,8 +43,11 @@ type Navigator struct {
 	padUsed bool
 	ringed  *ui.Handle // the control the last frame drew the ring on
 
-	handles map[any]*ui.Handle
-	opened  map[any]*bool // whether each select's list is open (see SelectOf)
+	handles   map[any]*ui.Handle
+	dropdowns map[any]*dropdownState // see SelectOf and MenuButton
+	// byPointer is set while a click the pointer made runs its action (see
+	// clicked).
+	byPointer bool
 	// OnInput, when set, runs on every press the Navigator acts on (a prompt
 	// with a countdown stops it: whoever moves between the choices is choosing).
 	OnInput func()
@@ -69,11 +72,14 @@ type NavigatorOptions struct {
 
 // scope is the set of controls one layer (the page or a dialog) offers.
 type scope struct {
-	id     string
-	items  []navItem
-	back   func()
-	safe   int // index of the item that starts focused, -1 for the first
-	pageAt int // index of the first item of the page itself (after the window's own), -1 if unmarked
+	id    string
+	items []navItem
+	back  func()
+	safe  int // index of the item that starts focused, -1 for the first
+	// unfocused leaves the focus alone as the scope opens: a dropdown the
+	// pointer opened. The first D-pad or arrow press then picks where to start.
+	unfocused bool
+	pageAt    int // index of the first item of the page itself (after the window's own), -1 if unmarked
 }
 
 type navItem struct {
@@ -102,18 +108,26 @@ func (n *Navigator) Handle(key any) *ui.Handle {
 	return h
 }
 
-// popup returns the flag that says a select's list is open, made on first use:
-// the list stays open across frames until something picks or closes it.
-func (n *Navigator) popup(key any) *bool {
-	if n.opened == nil {
-		n.opened = map[any]*bool{}
+// dropdown returns the state of the dropdown kept under key, made on first
+// use: it stays open across frames until something picks or closes it.
+func (n *Navigator) dropdown(key any) *dropdownState {
+	if n.dropdowns == nil {
+		n.dropdowns = map[any]*dropdownState{}
 	}
-	p, ok := n.opened[key]
+	d, ok := n.dropdowns[key]
 	if !ok {
-		p = new(bool)
-		n.opened[key] = p
+		d = new(dropdownState)
+		n.dropdowns[key] = d
 	}
-	return p
+	return d
+}
+
+// clicked runs the action of a click on el, noting whether the pointer made
+// it: Enter and Space leave the focus visible, a press of the pointer does not.
+func (n *Navigator) clicked(el ui.Element, action func()) {
+	n.byPointer = !el.FocusVisible()
+	defer func() { n.byPointer = false }()
+	action()
 }
 
 // SetOptions replaces the hooks (the shell sets them once it exists).
@@ -184,9 +198,10 @@ func (n *Navigator) makeRoom(c *ui.Context) {
 
 // End finishes the frame's registry: a dialog that opened in it gets the
 // focus on its default control, next frame (Handle.Focus waits for the
-// control to exist). Call it last in the window's view.
+// control to exist), unless it is a dropdown the pointer opened. Call it last
+// in the window's view.
 func (n *Navigator) End(c *ui.Context) {
-	if top := n.top(n.overlays); top != nil && (n.prevTop == nil || n.prevTop.id != top.id) {
+	if top := n.top(n.overlays); top != nil && !top.unfocused && (n.prevTop == nil || n.prevTop.id != top.id) {
 		if it := top.defaultItem(); it != nil {
 			it.h.Focus(c)
 		}
