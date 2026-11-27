@@ -19,15 +19,23 @@ import (
 	"github.com/akfaiz/carryover/internal/cloudsync/localfs"
 )
 
-// FileInfo describes one save file.
+// FileInfo describes one save file: Size and Hash are of its content, never
+// of its compressed cloud copy.
 type FileInfo struct {
 	Size    int64     `json:"size"`
 	Hash    string    `json:"sha256"`
 	ModTime time.Time `json:"mtime"`
+	// StoredSize is the size of the file's cloud object when it differs from
+	// Size (a compressed format); 0 otherwise.
+	StoredSize int64 `json:"storedSize,omitempty"`
 }
 
 // Manifest describes a full save snapshot. File keys are "<slot>/<relative path>" using '/'.
 type Manifest struct {
+	// Format is how the files under current/ are stored (FormatRaw,
+	// FormatZstd). Clients that predate it ignore it; see FormatZstd for why
+	// they still can't misread a compressed folder.
+	Format     int                 `json:"format,omitempty"`
 	Revision   string              `json:"revision"`
 	Device     string              `json:"device"`
 	DeviceName string              `json:"deviceName"`
@@ -37,11 +45,13 @@ type Manifest struct {
 
 // Summary is a human-oriented overview of a manifest.
 type Summary struct {
-	Files      int       `json:"files"`
-	Bytes      int64     `json:"bytes"`
-	Newest     time.Time `json:"newest"`
-	DeviceName string    `json:"deviceName"`
-	Time       time.Time `json:"time"`
+	Files int   `json:"files"`
+	Bytes int64 `json:"bytes"`
+	// StoredBytes is what the files take in the cloud (compressed).
+	StoredBytes int64     `json:"storedBytes"`
+	Newest      time.Time `json:"newest"`
+	DeviceName  string    `json:"deviceName"`
+	Time        time.Time `json:"time"`
 }
 
 // Summarize returns a Summary of m (zero value for nil).
@@ -52,6 +62,7 @@ func (m *Manifest) Summarize() Summary {
 	s := Summary{Files: len(m.Files), DeviceName: m.DeviceName, Time: m.Time}
 	for _, f := range m.Files {
 		s.Bytes += f.Size
+		s.StoredBytes += f.stored()
 		if f.ModTime.After(s.Newest) {
 			s.Newest = f.ModTime
 		}
@@ -139,6 +150,7 @@ func ScanLocal(ctx context.Context, slots []Slot, prev *Manifest) (*Manifest, er
 			mt := info.ModTime().UTC().Truncate(time.Millisecond)
 			if prev != nil {
 				if pf, ok := prev.Files[key]; ok && pf.Size == info.Size() && pf.ModTime.Equal(mt) && pf.Hash != "" {
+					pf.StoredSize = 0 // a property of a cloud copy, not of this file
 					m.Files[key] = pf
 					return nil
 				}
@@ -182,6 +194,7 @@ func scanFS(ctx context.Context, sl Slot, flt *filter.Filter, prev *Manifest, m 
 		// gives nothing to tell a changed file from an unchanged one: hash it.
 		if prev != nil && info.ModTime.UnixMilli() > 0 {
 			if pf, ok := prev.Files[key]; ok && pf.Size == info.Size && pf.ModTime.Equal(mt) && pf.Hash != "" {
+				pf.StoredSize = 0
 				m.Files[key] = pf
 				return nil
 			}

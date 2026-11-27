@@ -10,6 +10,7 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strconv"
 	"time"
 
 	"github.com/google/uuid"
@@ -46,7 +47,11 @@ type Engine struct {
 	// SafetyDir holds safety copies of this device's saves, taken before a
 	// download replaces them while cloud backups are off ("" = none).
 	SafetyDir string
-	OnEvent   func(Event)
+	// WriteFormat is how a push stores the files (FormatRaw, FormatZstd).
+	// Every format is read; a push to a folder in another format uploads all
+	// of it again in this one.
+	WriteFormat int
+	OnEvent     func(Event)
 }
 
 // Job describes the saves of one game on this device.
@@ -190,6 +195,9 @@ func (e *Engine) plan(ctx context.Context, job Job) (*Plan, error) {
 	if manifestErr != nil {
 		return nil, fmt.Errorf("read cloud manifest: %w", manifestErr)
 	}
+	if found && remote.Format > maxFormat {
+		return nil, ErrNewerSaveFormat
+	}
 	// Compare like with like: the local scan only has what the slots' filters
 	// let through, so the manifests are cut down the same way.
 	p := &Plan{Job: job, Local: local, Last: filterManifest(st.LastSynced, job.Slots), HasRemote: found, plannedAt: cloudListedTime}
@@ -226,6 +234,9 @@ func logApply(p *Plan, res Resolution, action Action, summary string, err error,
 	cloud := "none"
 	if p.HasRemote {
 		cloud = fmt.Sprintf("%d files %d B", r.Files, r.Bytes)
+		if r.StoredBytes != r.Bytes {
+			cloud += fmt.Sprintf(" (%d B stored)", r.StoredBytes)
+		}
 	}
 	last := "never synced"
 	if p.Last != nil {
@@ -348,13 +359,45 @@ func (e *Engine) push(ctx context.Context, p *Plan) (*Manifest, string, error) {
 			return nil, "", fmt.Errorf("list cloud saves: %w", err)
 		}
 	}
+	format := e.WriteFormat
+	// A cloud folder in another format is uploaded whole in this one: none of
+	// its objects has the name a file gets now.
+	base := p.Remote
+	if base != nil && base.Format != format {
+		base = nil
+	}
+	inCloud, others := cloudView(listed, format)
+	// The objects of the previous format are deleted only once the new
+	// manifest is written, so an interrupted push leaves the folder the old
+	// manifest describes.
+	previous := map[string]bool{}
+	if p.Remote != nil && p.Remote.Format != format {
+		for k := range p.Remote.Files {
+			previous[storedName(k, p.Remote.Format)] = true
+		}
+	}
 	deltas := make([]delta, len(p.Job.Slots))
+	late := make([][]string, len(p.Job.Slots)) // object names to delete after the manifest
 	changes := false
 	for i, s := range p.Job.Slots {
-		d, err := pushDelta(p, s, cloudSlotFiles(listed, s.Key))
+		d, err := pushDelta(p.Local, base, s, cloudSlotFiles(inCloud, s.Key))
 		if err != nil {
 			return nil, "", fmt.Errorf("upload %s: %w", s.Key, err)
 		}
+		var now []string
+		for _, rel := range d.del {
+			if obj := storedName(rel, format); previous[s.Key+"/"+obj] {
+				late[i] = append(late[i], obj)
+			} else {
+				now = append(now, rel)
+			}
+		}
+		d.del = now
+		stray, err := includedObjects(s, cloudSlotFiles(others, s.Key))
+		if err != nil {
+			return nil, "", err
+		}
+		late[i] = append(late[i], stray...)
 		deltas[i] = d
 		changes = changes || !d.empty()
 	}
@@ -369,6 +412,15 @@ func (e *Engine) push(ctx context.Context, p *Plan) (*Manifest, string, error) {
 		}
 		defer e.pruneInBackground(ctx, id)()
 	}
+	var tmp string
+	if changes && format == FormatZstd {
+		var err error
+		if tmp, err = os.MkdirTemp("", "carryover-push-"); err != nil {
+			return nil, "", err
+		}
+		defer os.RemoveAll(tmp)
+	}
+	stored := map[string]int64{} // the uploaded files' object sizes
 	var copied, deleted int
 	for i, s := range p.Job.Slots {
 		d := deltas[i]
@@ -376,11 +428,20 @@ func (e *Engine) push(ctx context.Context, p *Plan) (*Manifest, string, error) {
 			continue
 		}
 		dir := currentDir(id) + "/" + s.Key
+		src, names, total := s.LocalPath, d.copy, d.bytes
+		if format == FormatZstd && len(d.copy) > 0 {
+			e.emit(id, "upload", "Compressing "+filesWord(len(d.copy))+" ("+s.Key+")", cloud.Progress{})
+			src = filepath.Join(tmp, strconv.Itoa(i))
+			var err error
+			if names, total, err = compressSlot(ctx, p.Local, s, d.copy, src, stored); err != nil {
+				return nil, "", fmt.Errorf("compress %s: %w", s.Key, err)
+			}
+		}
 		msg := "Uploading " + filesWord(len(d.copy)) + " (" + s.Key + ")"
-		if err := e.Client.Upload(ctx, s.LocalPath, dir, d.copy, d.bytes, e.progress(id, "upload", msg)); err != nil {
+		if err := e.Client.Upload(ctx, src, dir, names, total, e.progress(id, "upload", msg)); err != nil {
 			return nil, "", fmt.Errorf("upload %s: %w", s.Key, err)
 		}
-		if err := e.Client.DeleteFiles(ctx, dir, d.del); err != nil {
+		if err := e.Client.DeleteFiles(ctx, dir, storedNames(d.del, format)); err != nil {
 			return nil, "", fmt.Errorf("delete removed %s files from cloud: %w", s.Key, err)
 		}
 		copied += len(d.copy)
@@ -392,16 +453,98 @@ func (e *Engine) push(ctx context.Context, p *Plan) (*Manifest, string, error) {
 		return nil, "", err
 	}
 	m := &Manifest{
+		Format:     format,
 		Revision:   uuid.NewString(),
 		Device:     e.Device.ID,
 		DeviceName: e.Device.Name,
 		Time:       time.Now().UTC(),
-		Files:      p.Local.Files,
+		Files:      manifestFiles(p.Local, format, stored, inCloud),
 	}
 	if err := e.Client.WriteJSON(ctx, manifestPath(id), m); err != nil {
 		return nil, "", fmt.Errorf("write cloud manifest: %w", err)
 	}
+	// The push is complete: what is left of another format is only clutter,
+	// and the next push tries again if deleting it fails.
+	for i, s := range p.Job.Slots {
+		if err := e.Client.DeleteFiles(ctx, currentDir(id)+"/"+s.Key, late[i]); err != nil {
+			log.Printf("sync %s: delete files of the previous format: %v", p.Job.StateID(), err)
+		}
+	}
 	return m, transferSummary("Uploaded", "from cloud", copied, deleted), nil
+}
+
+// compressSlot compresses the slot's files (paths relative to it) into dir as
+// the objects to upload and returns their names and combined size. stored
+// gets each file's object size, keyed "<slot>/<path>".
+func compressSlot(ctx context.Context, local *Manifest, s Slot, files []string, dir string, stored map[string]int64) ([]string, int64, error) {
+	c, err := newCompressor()
+	if err != nil {
+		return nil, 0, err
+	}
+	names := make([]string, len(files))
+	var total int64
+	for i, rel := range files {
+		if err := ctx.Err(); err != nil {
+			return nil, 0, err
+		}
+		key := s.Key + "/" + rel
+		names[i] = storedName(rel, FormatZstd)
+		n, err := c.file(localfs.Join(s.LocalPath, rel), filepath.Join(dir, filepath.FromSlash(names[i])), local.Files[key].ModTime)
+		if err != nil {
+			return nil, 0, fmt.Errorf("%s: %w", rel, err)
+		}
+		stored[key] = n
+		total += n
+	}
+	return names, total, nil
+}
+
+// manifestFiles is the file list of a pushed manifest: the local scan, with
+// each object's size in a compressed format (uploaded now, or already in the
+// cloud as checked by pushDelta).
+func manifestFiles(local *Manifest, format int, stored, inCloud map[string]int64) map[string]FileInfo {
+	out := make(map[string]FileInfo, len(local.Files))
+	for k, f := range local.Files {
+		f.StoredSize = 0
+		if format != FormatRaw {
+			if n, ok := stored[k]; ok {
+				f.StoredSize = n
+			} else {
+				f.StoredSize = inCloud[k]
+			}
+		}
+		out[k] = f
+	}
+	return out
+}
+
+// storedNames are the object names of files in the given format.
+func storedNames(files []string, format int) []string {
+	out := make([]string, len(files))
+	for i, f := range files {
+		out[i] = storedName(f, format)
+	}
+	return out
+}
+
+// includedObjects returns the objects (paths relative to the slot) whose
+// names the slot's filters include: excluded files are left in the cloud.
+func includedObjects(s Slot, objects map[string]int64) ([]string, error) {
+	if len(objects) == 0 {
+		return nil, nil
+	}
+	flt, err := s.Filters.NewFilter()
+	if err != nil {
+		return nil, err
+	}
+	var out []string
+	for obj, size := range objects {
+		if flt.Include(obj, size, time.Time{}, nil) {
+			out = append(out, obj)
+		}
+	}
+	sort.Strings(out)
+	return out, nil
 }
 
 // checkCloudUnchanged returns errCloudChanged if the cloud manifest is no
@@ -452,26 +595,18 @@ func (e *Engine) pull(ctx context.Context, p *Plan) (string, error) {
 		if err := localfs.MkdirAll(s.LocalPath); err != nil {
 			return "", err
 		}
-		msg := "Downloading " + filesWord(len(d.copy)) + " (" + s.Key + ")"
-		if err := e.Client.Download(ctx, currentDir(id)+"/"+s.Key, s.LocalPath, d.copy, d.bytes, e.progress(id, "download", msg)); err != nil {
-			return "", fmt.Errorf("download %s: %w", s.Key, err)
+		var err error
+		if p.Remote.Format == FormatZstd {
+			err = e.downloadCompressed(ctx, p, s, d)
+		} else {
+			err = e.downloadRaw(ctx, p, s, d)
+		}
+		if err != nil {
+			return "", err
 		}
 		for _, rel := range d.del {
 			if err := localfs.Remove(localfs.Join(s.LocalPath, rel)); err != nil && !errors.Is(err, os.ErrNotExist) {
 				return "", fmt.Errorf("delete %s: %w", rel, err)
-			}
-		}
-		// A cloud folder can be ahead of its manifest (a push that was
-		// interrupted before writing it): don't record content we didn't
-		// expect as the synced state.
-		for _, rel := range d.copy {
-			want := p.Remote.Files[s.Key+"/"+rel]
-			got, err := hashFile(localfs.Join(s.LocalPath, rel))
-			if err != nil {
-				return "", fmt.Errorf("verify %s: %w", rel, err)
-			}
-			if got != want.Hash {
-				return "", fmt.Errorf("downloaded %s doesn't match the cloud manifest (another device may be uploading); try again", rel)
 			}
 		}
 		copied += len(d.copy)
@@ -480,12 +615,80 @@ func (e *Engine) pull(ctx context.Context, p *Plan) (string, error) {
 	return transferSummary("Downloaded", "on this device", copied, deleted), nil
 }
 
-// pushDelta works out what to upload and delete for one slot (listed: what
-// is in the slot's cloud folder, by path relative to it). It compares the
-// local scan with the cloud manifest, but checks the manifest against what is
-// really in the cloud folder: an interrupted upload can leave files there that
-// the manifest doesn't describe, and those are never trusted.
-func pushDelta(p *Plan, s Slot, listed map[string]int64) (delta, error) {
+// errNotAsManifest is the error for a downloaded file that isn't the one the
+// cloud manifest describes: the cloud folder can be ahead of its manifest (a
+// push that was interrupted before writing it, or one still running).
+func errNotAsManifest(rel string) error {
+	return fmt.Errorf("downloaded %s doesn't match the cloud manifest (another device may be uploading); try again", rel)
+}
+
+// downloadRaw downloads the slot's changed files of a FormatRaw folder
+// straight into the save folder and checks them against the manifest.
+func (e *Engine) downloadRaw(ctx context.Context, p *Plan, s Slot, d delta) error {
+	id := p.Job.GameID
+	msg := "Downloading " + filesWord(len(d.copy)) + " (" + s.Key + ")"
+	if err := e.Client.Download(ctx, currentDir(id)+"/"+s.Key, s.LocalPath, d.copy, d.bytes, e.progress(id, "download", msg)); err != nil {
+		return fmt.Errorf("download %s: %w", s.Key, err)
+	}
+	// Don't record content we didn't expect as the synced state.
+	for _, rel := range d.copy {
+		want := p.Remote.Files[s.Key+"/"+rel]
+		got, err := hashFile(localfs.Join(s.LocalPath, rel))
+		if err != nil {
+			return fmt.Errorf("verify %s: %w", rel, err)
+		}
+		if got != want.Hash {
+			return errNotAsManifest(rel)
+		}
+	}
+	return nil
+}
+
+// downloadCompressed downloads the slot's changed files of a FormatZstd
+// folder into a temporary folder and decompresses them into the save folder.
+// Each file is checked before it replaces a save, so one that doesn't match
+// the manifest leaves that save as it was.
+func (e *Engine) downloadCompressed(ctx context.Context, p *Plan, s Slot, d delta) error {
+	id := p.Job.GameID
+	tmp, err := os.MkdirTemp("", "carryover-pull-")
+	if err != nil {
+		return err
+	}
+	defer os.RemoveAll(tmp)
+	names := storedNames(d.copy, FormatZstd)
+	var total int64
+	for _, rel := range d.copy {
+		if !filepath.IsLocal(filepath.FromSlash(rel)) {
+			return fmt.Errorf("the cloud manifest has an unsafe path: %s", rel)
+		}
+		total += p.Remote.Files[s.Key+"/"+rel].stored()
+	}
+	msg := "Downloading " + filesWord(len(d.copy)) + " (" + s.Key + ")"
+	if err := e.Client.Download(ctx, currentDir(id)+"/"+s.Key, tmp, names, total, e.progress(id, "download", msg)); err != nil {
+		return fmt.Errorf("download %s: %w", s.Key, err)
+	}
+	for i, rel := range d.copy {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
+		err := decompressTo(filepath.Join(tmp, filepath.FromSlash(names[i])), localfs.Join(s.LocalPath, rel), p.Remote.Files[s.Key+"/"+rel])
+		if errors.Is(err, errNoMatch) {
+			return errNotAsManifest(rel)
+		}
+		if err != nil {
+			return fmt.Errorf("decompress %s: %w", rel, err)
+		}
+	}
+	return nil
+}
+
+// pushDelta works out what to upload and delete for one slot (listed: the
+// files in the slot's cloud folder, by path relative to it, with the size of
+// their objects). It compares the local scan with the cloud manifest (nil:
+// none usable), but checks the manifest against what is really in the cloud
+// folder: an interrupted upload can leave files there that the manifest
+// doesn't describe, and those are never trusted.
+func pushDelta(localScan, remoteManifest *Manifest, s Slot, listed map[string]int64) (delta, error) {
 	flt, err := s.Filters.NewFilter()
 	if err != nil {
 		return delta{}, err
@@ -493,13 +696,13 @@ func pushDelta(p *Plan, s Slot, listed map[string]int64) (delta, error) {
 	// The cloud side is filtered like the local one: a file the filters now
 	// exclude is neither uploaded nor deleted (the slot's filters may have just
 	// changed), it stays in the cloud as it is.
-	remote := slotFiles(p.Remote, s.Key, flt)
+	remote := slotFiles(remoteManifest, s.Key, flt)
 	for k, f := range remote {
-		if size, ok := listed[k]; !ok || size != f.Size {
+		if size, ok := listed[k]; !ok || size != f.stored() {
 			delete(remote, k)
 		}
 	}
-	local := slotFiles(p.Local, s.Key, nil)
+	local := slotFiles(localScan, s.Key, nil)
 	d := diff(local, remote)
 	// Files in the cloud folder the manifest doesn't know about. Excluded
 	// files are kept, like rclone sync does without --delete-excluded.
