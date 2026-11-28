@@ -79,7 +79,7 @@ func TestPersistKeepsOtherProcessWrites(t *testing.T) {
 	require.NoError(t, err)
 	c, _ := Open(path)
 	_, err = c.Get(ga.ID)
-	assert.NoError(t, err, "game A was lost")
+	require.NoError(t, err, "game A was lost")
 	_, err = c.Get(gb.ID)
 	assert.NoError(t, err, "game B was lost")
 }

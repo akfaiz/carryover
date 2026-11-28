@@ -1,8 +1,8 @@
 package editor
 
 import (
-	"fmt"
 	"path/filepath"
+	"strconv"
 	"strings"
 
 	"github.com/egoist/mygo/ui"
@@ -224,7 +224,7 @@ func (p *artPicker) gameList(c *ui.Context, nav *kit.Navigator) {
 	for _, g := range p.games {
 		info := ""
 		if g.Year > 0 {
-			info = fmt.Sprint(g.Year)
+			info = strconv.Itoa(g.Year)
 		}
 		pick := func() {
 			if p.onGame != nil {

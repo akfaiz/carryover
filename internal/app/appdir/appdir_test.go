@@ -36,7 +36,7 @@ func TestSettingsDefaultsAndRetention(t *testing.T) {
 func TestSettingsTheme(t *testing.T) {
 	st, err := OpenSettings(filepath.Join(t.TempDir(), "settings.json"))
 	require.NoError(t, err)
-	require.Equal(t, "", st.Get().Theme)
+	require.Empty(t, st.Get().Theme)
 	for in, want := range map[string]string{"": "", "dark": "dark", "light": "light", "bogus": ""} {
 		s := st.Get()
 		s.Theme = in
@@ -48,7 +48,7 @@ func TestSettingsTheme(t *testing.T) {
 func TestSettingsLanguage(t *testing.T) {
 	st, err := OpenSettings(filepath.Join(t.TempDir(), "settings.json"))
 	require.NoError(t, err)
-	require.Equal(t, "", st.Get().Language, "follows the system by default")
+	require.Empty(t, st.Get().Language, "follows the system by default")
 	for in, want := range map[string]string{"": "", "id": "id", " ID ": "id", "pt-br": "pt-br", "x y": "", "id/../": "", "waytoolonglanguagecode": ""} {
 		s := st.Get()
 		s.Language = in
@@ -119,7 +119,7 @@ func TestOpenSettingsErrors(t *testing.T) {
 	bad := filepath.Join(dir, "settings.json")
 	require.NoError(t, os.WriteFile(bad, []byte("{not json"), 0o644))
 	_, err := OpenSettings(bad)
-	assert.Error(t, err, "corrupt settings: want an error, not silently new defaults")
+	require.Error(t, err, "corrupt settings: want an error, not silently new defaults")
 	// A directory where the file should be can't be read.
 	_, err = OpenSettings(dir)
 	assert.Error(t, err, "settings path is a directory")
@@ -171,7 +171,7 @@ func TestSettingsUpdate(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "settings.json")
 	st, err := OpenSettings(path)
 	require.NoError(t, err)
-	require.Equal(t, "", st.Get().UpdateChannel)
+	require.Empty(t, st.Get().UpdateChannel)
 	require.False(t, st.Get().NoUpdateCheck)
 	for in, want := range map[string]string{"": "", "prerelease": "prerelease", "stable": "", "nightly": ""} {
 		s := st.Get()

@@ -173,14 +173,14 @@ func TestAddToSteamErrors(t *testing.T) {
 	// No Steam found (the real machine may have one, so force "none").
 	c.steamOnce.Do(func() { c.steamRoot = "" })
 	_, err := c.AddToSteam(id, "1", library.LaunchDirect)
-	assert.Error(t, err, "AddToSteam without Steam")
+	require.Error(t, err, "AddToSteam without Steam")
 	_, err = c.RemoveFromSteam(id, "1")
-	assert.Error(t, err, "RemoveFromSteam without Steam")
+	require.Error(t, err, "RemoveFromSteam without Steam")
 
 	c2, id2, _, _ := newPlayable(t)
 	steamEnv(t)
 	_, err = c2.AddToSteam("no-such-game", "1", library.LaunchDirect)
-	assert.Error(t, err, "unknown game")
+	require.Error(t, err, "unknown game")
 	// A game with no executable on this device can't be wrapped or run via Heroic.
 	_, err = c2.Library.UpdateDevice(id2, c2.DeviceID(), func(d *library.DeviceConfig) { d.Exe = "" })
 	require.NoError(t, err)

@@ -100,7 +100,7 @@ func TestFlow(t *testing.T) {
 	assert.Equal(t, appdir.DeviceIDFrom("android:0123456789abcdef"), st.DeviceID, "a first start takes the ID from the device's key")
 	assert.DirExists(t, filepath.Join(cache, "tmp"))
 	if runtime.GOOS != "windows" { // Windows takes it from TMP
-		assert.Equal(t, filepath.Join(cache, "tmp"), os.TempDir())
+		assert.Equal(t, filepath.Join(cache, "tmp"), os.TempDir()) //nolint:usetesting // checks the temp dir Init set
 	}
 
 	// OAuth providers open the authorisation page through the host.
@@ -218,7 +218,7 @@ func TestFlow(t *testing.T) {
 	host.setOnEvent(func(kind, payload string) {
 		if kind == EventPrompt {
 			var p services.Prompt
-			assert.NoError(t, json.Unmarshal([]byte(payload), &p))
+			assert.NoError(t, json.Unmarshal([]byte(payload), &p)) //nolint:testifylint // a callback, where require must not stop the test
 			assert.Equal(t, "lock", p.Kind)
 			assert.True(t, Respond(p.ID, "yes"))
 		}

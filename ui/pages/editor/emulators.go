@@ -161,7 +161,6 @@ func (e *Page) emulatorPanel(c *ui.Context, m *emuForm, onRemove func()) {
 						e.romPicked(m)
 					})
 				})
-
 			})
 		})
 		e.shareField(c, m)

@@ -55,7 +55,7 @@ func TestSearchAndName(t *testing.T) {
 	assert.Equal(t, "ELDEN RING", n)
 
 	_, err = AppName(ctx, "9")
-	assert.ErrorIs(t, err, ErrNotFound, "unknown app")
+	require.ErrorIs(t, err, ErrNotFound, "unknown app")
 
 	_, err = AppName(ctx, "../etc")
 	assert.Error(t, err, "non-numeric id accepted")

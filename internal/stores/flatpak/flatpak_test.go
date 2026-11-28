@@ -34,7 +34,7 @@ func TestApps(t *testing.T) {
 	}, Apps(home))
 
 	SystemDir = filepath.Join(t.TempDir(), "none")
-	assert.Len(t, Apps(""), 0, "no Flatpak at all")
+	assert.Empty(t, Apps(""), "no Flatpak at all")
 }
 
 func TestAppID(t *testing.T) {

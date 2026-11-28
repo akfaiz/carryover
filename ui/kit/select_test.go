@@ -2,6 +2,7 @@ package kit
 
 import (
 	"fmt"
+	"strconv"
 	"testing"
 
 	"github.com/egoist/mygo/ui"
@@ -114,7 +115,7 @@ func TestSelectOpenedByMouseScrollsToTheCurrentChoice(t *testing.T) {
 	p, tt := newSelectPage()
 	p.ch = &Choice{}
 	for i := range 40 {
-		p.ch.Add(fmt.Sprint(i), fmt.Sprint("Option ", i))
+		p.ch.Add(strconv.Itoa(i), fmt.Sprint("Option ", i))
 	}
 	p.value = "35"
 	tt.Frame()

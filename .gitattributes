@@ -1,2 +1,11 @@
+# Set default behavior to automatically normalize line endings to LF
+* text=auto eol=lf
+
+# Explicitly enforce LF for Linux/Unix files
+*.go text eol=lf
 *.sh text eol=lf
 *.desktop text eol=lf
+
+# Force CRLF only for Windows-specific scripts
+*.bat text eol=crlf
+*.cmd text eol=crlf

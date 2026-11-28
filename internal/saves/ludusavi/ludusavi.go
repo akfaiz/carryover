@@ -44,18 +44,18 @@ var (
 	games    []Game
 	bySteam  map[string]int
 	byName   map[string]int
-	loadErr  error
+	errLoad  error
 )
 
 func load() {
 	zr, err := gzip.NewReader(bytes.NewReader(indexGz))
 	if err != nil {
-		loadErr = err
+		errLoad = err
 		return
 	}
 	defer zr.Close()
 	if err := json.NewDecoder(zr).Decode(&games); err != nil {
-		loadErr = err
+		errLoad = err
 		return
 	}
 	bySteam = make(map[string]int, len(games))
@@ -93,8 +93,8 @@ func SameTitle(a, b string) bool {
 // match and falling back to the normalised name.
 func Find(steamID, name string) (*Game, error) {
 	loadOnce.Do(load)
-	if loadErr != nil {
-		return nil, loadErr
+	if errLoad != nil {
+		return nil, errLoad
 	}
 	if i, ok := bySteam[steamID]; ok && steamID != "" {
 		return &games[i], nil

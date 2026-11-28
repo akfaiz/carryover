@@ -27,6 +27,7 @@ func (f *fakeBackend) DeleteWithSaves(id string) error {
 
 type harness struct {
 	*fakeBackend
+
 	vm      *ViewModel
 	changed int
 	errs    []error

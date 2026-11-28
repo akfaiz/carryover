@@ -243,13 +243,13 @@ func TestBrowseFromFindsTheFolderToOpenAt(t *testing.T) {
 	show := func(d string) { got <- d }
 
 	components.BrowseFrom(h.Shell, "g", "  ", show)
-	assert.Equal(t, "", <-got, "nothing typed: the dialog's own default")
+	assert.Empty(t, <-got, "nothing typed: the dialog's own default")
 
 	components.BrowseFrom(h.Shell, "g", dir, show)
 	require.Equal(t, dir, wait(t, h, got))
 
 	components.BrowseFrom(h.Shell, "g", "{no-such-token}/x", show)
-	assert.Equal(t, "", wait(t, h, got), "a path that can't be expanded")
+	assert.Empty(t, wait(t, h, got), "a path that can't be expanded")
 }
 
 // wait settles the UI until the channel has something.

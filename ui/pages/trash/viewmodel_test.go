@@ -62,6 +62,7 @@ func (f fakeLeft) DeleteLeftover(key string) error { f.rec("delete leftover " + 
 // harness is a view model whose work runs at once, with what it told the page.
 type harness struct {
 	*fake
+
 	vm      *ViewModel
 	remote  bool
 	changed int

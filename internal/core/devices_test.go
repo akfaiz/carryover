@@ -48,15 +48,15 @@ func TestReuseDevice(t *testing.T) {
 
 func TestReuseDeviceRefused(t *testing.T) {
 	c, id, _, _ := newPlayable(t)
-	assert.ErrorIs(t, c.ReuseDevice(c.DeviceID()), ErrThisDevice)
-	assert.ErrorIs(t, c.ReuseDevice("nobody"), library.ErrUnknownDevice)
+	require.ErrorIs(t, c.ReuseDevice(c.DeviceID()), ErrThisDevice)
+	require.ErrorIs(t, c.ReuseDevice("nobody"), library.ErrUnknownDevice)
 
 	withOldInstall(t, c, id)
 	marker := filepath.Join(c.Dirs.StateDir(), id+sessionExt)
 	require.NoError(t, os.MkdirAll(c.Dirs.StateDir(), 0o755))
 	require.NoError(t, os.WriteFile(marker, []byte("{}"), 0o644))
 	own := c.DeviceID()
-	assert.ErrorIs(t, c.ReuseDevice("old-phone"), ErrSessionsOpen)
+	require.ErrorIs(t, c.ReuseDevice("old-phone"), ErrSessionsOpen)
 	assert.Equal(t, own, c.DeviceID())
 }
 
@@ -65,7 +65,7 @@ func TestForgetDevice(t *testing.T) {
 	withOldInstall(t, c, id)
 	require.NoError(t, c.SyncLibrary(context.Background()))
 
-	assert.ErrorIs(t, c.ForgetDevice(c.DeviceID()), ErrThisDevice)
+	require.ErrorIs(t, c.ForgetDevice(c.DeviceID()), ErrThisDevice)
 	require.NoError(t, c.ForgetDevice("old-phone"))
 	require.NoError(t, c.SyncLibrary(context.Background()))
 	assert.NotContains(t, mustFind(t, c, id).Devices, "old-phone")

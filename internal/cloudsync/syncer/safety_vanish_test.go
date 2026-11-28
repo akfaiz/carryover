@@ -74,10 +74,10 @@ func makeDirLink(t *testing.T, dir, link string) {
 // A save folder reached through a link scans and syncs like the real one
 // (WalkDir doesn't follow a link used as the root).
 func TestLinkedSaveFolder(t *testing.T) {
-	real := filepath.Join(t.TempDir(), "real")
-	write(t, real, "slot1.sav", "progress")
+	target := filepath.Join(t.TempDir(), "real")
+	write(t, target, "slot1.sav", "progress")
 	link := filepath.Join(t.TempDir(), "link")
-	makeDirLink(t, real, link)
+	makeDirLink(t, target, link)
 
 	m, err := ScanLocal(context.Background(), []Slot{{Key: "saves", LocalPath: link}}, nil)
 	require.NoError(t, err)

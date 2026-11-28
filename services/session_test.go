@@ -125,9 +125,9 @@ func TestPlayRefusesRunningGame(t *testing.T) {
 	s.mu.Lock()
 	s.running[id] = true
 	s.mu.Unlock()
-	assert.Error(t, s.Play(id), "Play of a running game")
+	require.Error(t, s.Play(id), "Play of a running game")
 	_, err = s.play(t.Context(), id, core.RunOptions{})
-	assert.Error(t, err, "play of a running game")
+	require.Error(t, err, "play of a running game")
 	assert.True(t, s.IsRunning(id), "IsRunning = false for a running game")
 }
 

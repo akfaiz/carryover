@@ -47,7 +47,7 @@ func TestExplainOAuthErrorPortInUse(t *testing.T) {
 	}
 	require.True(t, strings.HasPrefix(got.Error(), in.Error()), "message = %v", got)
 	require.Equal(t, got.Error(), explainOAuthError(got).Error(), "hint added twice")
-	require.Nil(t, explainOAuthError(nil), "nil error changed")
+	require.NoError(t, explainOAuthError(nil), "nil error changed")
 	// An error that doesn't mention the OAuth port is returned as is.
 	other := errors.New("address already in use")
 	require.Equal(t, other, explainOAuthError(other), "unrelated error changed")

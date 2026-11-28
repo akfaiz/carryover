@@ -1,7 +1,6 @@
 package localfs
 
 import (
-	"errors"
 	"io"
 	"io/fs"
 	"os"
@@ -49,7 +48,7 @@ func TestOSPaths(t *testing.T) {
 func TestUnregisteredSAF(t *testing.T) {
 	_, err := Open(root + "/a.sav")
 	require.Error(t, err)
-	assert.True(t, errors.Is(err, errNoFS))
+	assert.ErrorIs(t, err, errNoFS)
 }
 
 func TestMemAndWalk(t *testing.T) {

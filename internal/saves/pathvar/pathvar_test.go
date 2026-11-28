@@ -58,11 +58,11 @@ func TestExpandTokenErrors(t *testing.T) {
 	steamless := Context{}
 	for _, p := range []string{"{steam}/x", "{proton:123}/x", "{proton:shortcut}/x"} {
 		_, err := steamless.Expand(p)
-		assert.Error(t, err, "Expand(%q) without Steam", p)
+		require.Error(t, err, "Expand(%q) without Steam", p)
 	}
 	c := Context{SteamRoot: filepath.Join(t.TempDir(), "steam")}
 	_, err := c.Expand("{proton}/x")
-	assert.Error(t, err, "{proton} without an app id")
+	require.Error(t, err, "{proton} without an app id")
 	got, err := c.Expand("{steam}/steamapps")
 	require.NoError(t, err)
 	require.Equal(t, filepath.Join(c.SteamRoot, "steamapps"), got, "{steam}")

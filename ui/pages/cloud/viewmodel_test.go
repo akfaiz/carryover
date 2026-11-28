@@ -51,6 +51,7 @@ func (f *fakeSettings) SyncLibrary() error { f.syncs++; return f.syncErr }
 
 type harness struct {
 	*fakeCloud
+
 	set      *fakeSettings
 	vm       *ViewModel
 	changed  int
@@ -152,7 +153,7 @@ func TestSaveTargetWithNoRemoteTurnsSyncOffWithoutSyncing(t *testing.T) {
 	h.set.st = appdir.Settings{Remote: "gdrive"}
 	h.vm.SetRemote("")
 	h.vm.SaveTarget()
-	assert.Equal(t, "", h.set.saved[0].Remote)
+	assert.Empty(t, h.set.saved[0].Remote)
 	assert.Zero(t, h.set.syncs)
 }
 

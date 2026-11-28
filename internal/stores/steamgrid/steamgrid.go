@@ -196,6 +196,7 @@ func (k Kind) query() url.Values {
 func (c *Client) art(ctx context.Context, kind Kind, path string) ([]Grid, error) {
 	var raw []struct {
 		Grid
+
 		Author struct {
 			Name string `json:"name"`
 		} `json:"author"`

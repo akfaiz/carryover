@@ -1,20 +1,85 @@
 version: "2"
 
+# Some linters and settings come from https://github.com/maratori/golangci-lint-config
+
+issues:
+  max-issues-per-linter: 0
+  max-same-issues: 0 # the default of 3 hides repeated issues
+
 linters:
   default: standard # errcheck, govet, ineffassign, staticcheck, unused
   enable:
+    - asasalint
+    - asciicheck
+    - bidichk
     - bodyclose
+    - canonicalheader
+    - copyloopvar
     - depguard
+    - dupl
+    - durationcheck
+    - embeddedstructfieldcheck
+    - errname
     - errorlint
+    - exptostd
+    - fatcontext
+    - gocheckcompilerdirectives
     - gocritic
+    - godot
+    - gomoddirectives
+    - goprintffuncname
+    - intrange
+    - makezero
+    - mirror
     - misspell
     - modernize
     - nilerr
+    - nilnesserr
+    - nolintlint
+    - nosprintfhostport
+    - perfsprint
+    - predeclared
+    - testableexamples
+    - testifylint
+    - tparallel
     - unconvert
+    - unparam
     - usestdlibvars
+    - usetesting
+    - wastedassign
+    - whitespace
   settings:
+    govet:
+      enable-all: true
+      disable:
+        - fieldalignment # too strict
+        - shadow # too noisy
+    nolintlint:
+      require-explanation: true
+      require-specific: true
+    perfsprint:
+      strconcat: false
+      error-format: false
+    usetesting:
+      os-temp-dir: true
     depguard:
       rules:
+        deprecated:
+          list-mode: lax
+          files:
+            - "$all"
+          deny:
+            - pkg: github.com/golang/protobuf
+              desc: use google.golang.org/protobuf
+            - pkg: github.com/satori/go.uuid
+              desc: use github.com/google/uuid
+        randv2:
+          list-mode: lax
+          files:
+            - "!$test"
+          deny:
+            - pkg: math/rand$
+              desc: use math/rand/v2
         viewmodel:
           list-mode: lax
           files:
@@ -120,6 +185,7 @@ linters:
             - pkg: github.com/akfaiz/carryover/ui/shell
               desc: components sit below the shell
     errcheck:
+      check-type-assertions: true
       exclude-functions:
         - (*os.File).Close
         - os.Remove
@@ -130,6 +196,12 @@ linters:
   exclusions:
     presets:
       - std-error-handling
+    rules:
+      # A failed type assertion in a test panics, which fails the test anyway.
+      - path: '_test\.go'
+        source: '\.\([^)]'
+        linters:
+          - errcheck
 
 formatters:
   enable:

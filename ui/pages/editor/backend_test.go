@@ -106,7 +106,7 @@ func TestSubmitStoresTheGameThenCoverAndArt(t *testing.T) {
 func TestSubmitStopsWhenTheGameCannotBeSaved(t *testing.T) {
 	be := &fakeBackend{fail: map[string]error{"save": errors.New("disk full")}}
 	_, err := newViewModel("", "", be).Submit(services.GameInput{}, "/c.png", nil, nil)
-	assert.EqualError(t, err, "disk full")
+	require.EqualError(t, err, "disk full")
 	assert.Equal(t, []string{"save"}, be.calls, "no cover is tried")
 }
 
@@ -121,8 +121,8 @@ func TestSubmitReportsCoverAndArtErrorsWithoutLosingTheGame(t *testing.T) {
 	}
 	out, err := newViewModel("", "", be).Submit(services.GameInput{Name: "G"}, "", &services.ArtGrid{URL: "http://x/c.png"}, jobs)
 	require.NoError(t, err, "the game itself was saved")
-	assert.EqualError(t, out.CoverErr, "404")
-	assert.EqualError(t, out.ArtErr, "bad image")
+	require.EqualError(t, out.CoverErr, "404")
+	require.EqualError(t, out.ArtErr, "bad image")
 	assert.Contains(t, be.calls, "art g1 logo /l.png", "one bad image doesn't stop the others")
 }
 

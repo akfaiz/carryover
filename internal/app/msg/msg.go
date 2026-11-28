@@ -101,6 +101,7 @@ func (m *Message) UnmarshalJSON(data []byte) error {
 	type plain Message // without this method
 	var in struct {
 		plain
+
 		Args map[string]json.RawMessage `json:"args"`
 	}
 	if err := json.Unmarshal(data, &in); err != nil {
@@ -288,7 +289,7 @@ func Of(err error) Message {
 		return e.Message()
 	}
 	text := err.Error()
-	if two, ok := err.(interface{ Unwrap() []error }); ok { //nolint:errorlint // this error itself
+	if two, ok := err.(interface{ Unwrap() []error }); ok { // this error itself
 		// fmt.Errorf("%w: %w", a, b)
 		if parts := two.Unwrap(); len(parts) == 2 && text == parts[0].Error()+": "+parts[1].Error() {
 			return Of(parts[0]).followedBy(Of(parts[1]))

@@ -85,7 +85,7 @@ func TestOpenRotatesLargeLog(t *testing.T) {
 	assert.Equal(t, "previous run, long enough\n", readLog(t, dir, OldFileName))
 	got := readLog(t, dir, FileName)
 	assert.NotContains(t, got, "previous run")
-	assert.True(t, strings.Contains(got, "----- new run"))
+	assert.Contains(t, got, "----- new run")
 }
 
 func TestOpenKeepsSmallLog(t *testing.T) {

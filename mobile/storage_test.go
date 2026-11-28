@@ -30,6 +30,7 @@ type fakeStorage struct {
 // failing and the real one downloaded instead).
 var detached struct {
 	sync.Mutex
+
 	files []*os.File
 }
 

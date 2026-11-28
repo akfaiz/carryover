@@ -15,11 +15,11 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-type timeoutErr struct{}
+type timeoutError struct{}
 
-func (timeoutErr) Error() string   { return "timed out" }
-func (timeoutErr) Timeout() bool   { return true }
-func (timeoutErr) Temporary() bool { return true }
+func (timeoutError) Error() string   { return "timed out" }
+func (timeoutError) Timeout() bool   { return true }
+func (timeoutError) Temporary() bool { return true }
 
 func TestIsOffline(t *testing.T) {
 	dial := &net.OpError{Op: "dial", Net: "tcp", Err: os.NewSyscallError("connect", syscall.ENETUNREACH)}
@@ -33,7 +33,7 @@ func TestIsOffline(t *testing.T) {
 		"wrapped dial":       {fmt.Errorf("list: %w", &url.Error{Op: "Get", URL: "https://x", Err: dial}), true},
 		"dns":                {&net.DNSError{Err: "no such host", Name: "graph.microsoft.com", IsNotFound: true}, true},
 		"refused errno":      {fmt.Errorf("x: %w", syscall.ECONNREFUSED), true},
-		"url timeout":        {&url.Error{Op: "Get", URL: "https://x", Err: timeoutErr{}}, true},
+		"url timeout":        {&url.Error{Op: "Get", URL: "https://x", Err: timeoutError{}}, true},
 		"text only (oauth2)": {errors.New(`oauth2: cannot fetch token: Post "https://login": dial tcp: lookup login: no such host`), true},
 		"auth error":         {errors.New("couldn't fetch token: invalid_grant: token expired"), false},
 		"not found":          {errors.New("object not found"), false},
@@ -79,7 +79,7 @@ func TestProbeNoAnswer(t *testing.T) {
 
 	start := time.Now()
 	err = c.Probe(context.Background(), 300*time.Millisecond)
-	assert.ErrorIs(t, err, ErrOffline)
+	require.ErrorIs(t, err, ErrOffline)
 	assert.Less(t, time.Since(start), 3*time.Second)
 }
 
@@ -103,6 +103,6 @@ func TestProbeCancelled(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 	err := c.Probe(ctx, time.Second)
-	assert.ErrorIs(t, err, context.Canceled)
+	require.ErrorIs(t, err, context.Canceled)
 	assert.NotErrorIs(t, err, ErrOffline)
 }
