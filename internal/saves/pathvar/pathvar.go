@@ -232,9 +232,9 @@ func (c Context) Tokens() []Token {
 	if c.SteamRoot != "" {
 		out = append(out, described("steam", c.SteamRoot))
 	}
-	// macOS has no Proton; the tokens still expand there (Expand), for paths
-	// written on other devices.
-	if c.SteamRoot != "" && runtime.GOOS != "darwin" {
+	// Only Linux has Proton; the tokens still expand elsewhere (Expand), for
+	// paths written on other devices.
+	if c.SteamRoot != "" && runtime.GOOS == "linux" {
 		out = append(out, token("{proton:<appid>}", msg.TokenProtonApp.Msg(), ""))
 		v := ""
 		if c.ShortcutAppID != "" {

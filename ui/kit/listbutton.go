@@ -11,7 +11,10 @@ func ListButton(c *ui.Context, nav *Navigator, key any, label string, action fun
 	owner, hover := b, c.Theme().SurfaceHover
 	b = b.Radius(Radius).AlignSelf(ui.Stretch).Draw(func(p *ui.Painter, r ui.Rect) {
 		paintFace(p, r, HoverColor(owner, ui.Color{}, hover), ui.Color{}, 0, Radius)
-	}).Children(fn)
+	}).Children(func() {
+		// Fill the row: a button centers content only as wide as its text.
+		ui.Column(c).Grow(1).Children(fn)
+	})
 	if nav.Item(nav.Handle(key), b, action).Clicked() {
 		action()
 	}

@@ -73,3 +73,27 @@ func TestListButtonPicksWithPadAndMouse(t *testing.T) {
 	tt.Frame()
 	assert.Equal(t, []string{"First", "Second"}, p.picked, "a click picks once")
 }
+
+// A row's content fills the list and starts at its left, however wide it is:
+// the button would center content that is only as wide as its text.
+func TestListButtonRowsStartAtTheLeft(t *testing.T) {
+	nav := NewNavigator(NavigatorOptions{Back: func() {}})
+	texts := []string{"short path", "a very much longer path of a save folder"}
+	tt := ui.NewTester(func(c *ui.Context) {
+		nav.Begin(c)
+		ui.Column(c).Width(500).Children(func() {
+			for i, s := range texts {
+				ListButton(c, nav, i, []string{"one", "two"}[i], func() {}, func() {
+					ui.Row(c).Padding(6, 8).Children(func() { ui.Text(c, s) })
+				})
+			}
+		})
+	}, 600, 400)
+	tt.Frame()
+
+	for _, s := range texts {
+		r, ok := tt.Find(s)
+		require.True(t, ok, s)
+		assert.InDelta(t, 8, r.X, 0.5, "%q starts after the row's padding", s)
+	}
+}
