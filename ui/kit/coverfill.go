@@ -24,16 +24,30 @@ func CoverFill(c *ui.Context, src CoverSource, ratio float32) ui.Element {
 	return box.Children(func() {
 		if bm == nil {
 			if src.Name != "" {
-				ui.Column(c).Absolute().Top(0).Bottom(0).Left(0).Right(0).Center().Children(func() {
-					ui.Text(c, initial(src.Name)).FontSize(TextHero).Bold().TextColor(t.TextMuted)
-				})
+				coverInitial(c, src.Name, TextHero)
 			}
 			return
 		}
-		fit := ui.Cover
-		if src.Contain {
-			fit = ui.Contain
-		}
-		ui.Image(c, bm).Absolute().Top(0).Bottom(0).Left(0).Right(0).Fit(fit)
+		coverImage(c, src, bm).Absolute().Top(0).Bottom(0).Left(0).Right(0)
 	})
+}
+
+// coverInitial stands in for a cover: the first letter of the name, size tall.
+// It is keyed apart from the picture, which then fades in as it arrives.
+func coverInitial(c *ui.Context, name string, size float32) {
+	ui.Column(c.Key("cover-initial")).Absolute().Top(0).Bottom(0).Left(0).Right(0).Center().
+		Transition(placeholderMotion).Children(func() {
+		ui.Text(c, initial(name)).FontSize(size).Bold().TextColor(c.Theme().TextMuted)
+	})
+}
+
+// coverImage is a cover's picture. It fades in when it loads after its box has
+// shown (one already in the cache shows with it, at once), and crosses over
+// when another takes its place.
+func coverImage(c *ui.Context, src CoverSource, bm *ui.Bitmap) ui.Element {
+	fit := ui.Cover
+	if src.Contain {
+		fit = ui.Contain
+	}
+	return ui.Image(c.Key("cover-image"), bm).Fit(fit).Transition(imageMotion).ContentTransition(ui.ContentTransition{})
 }

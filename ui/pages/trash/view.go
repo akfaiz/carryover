@@ -1,6 +1,8 @@
 package trash
 
 import (
+	"fmt"
+	"strings"
 	"time"
 
 	"github.com/egoist/mygo/ui"
@@ -18,6 +20,7 @@ type Page struct {
 	u      env.Env
 	vm     *ViewModel
 	scroll ui.ScrollState
+	reflow kit.Reflow // rows leaving as they are restored or deleted
 }
 
 // New returns the Trash page.
@@ -58,6 +61,7 @@ func (p *Page) View(c *ui.Context) {
 			map[string]any{"Days": services.TrashDays})
 		games, emus := p.vm.Games(), p.vm.Emulators()
 		ls := p.vm.LeftoverState()
+		p.reflow.Watch(c, p.rowKeys())
 		if len(games) == 0 && len(emus) == 0 && (ls == LeftoverNone || ls == LeftoverNoRemote || ls == LeftoverLoading) {
 			// Nothing at all: one empty state, not a card per kind. It shows at
 			// once while the cloud is still searched for leftovers (most often
@@ -75,27 +79,44 @@ func (p *Page) View(c *ui.Context) {
 		// A card per kind that has something in it.
 		restored := func() { p.u.Toast(i18n.L("Restored"), kit.ToastOK) }
 		if len(games) > 0 {
-			kit.Card(c, i18n.L("Games"), func() {
+			p.reflow.Box(kit.Card(c.Key("trash-games"), i18n.L("Games"), func() {
 				for i, g := range games {
 					p.row(c, i == 0, "game:"+g.ID, g.Name, g.DeletedAt, g.ExpiresAt,
 						func() { p.vm.RestoreGame(g.ID, restored) },
 						i18n.L("Also delete its cloud saves and backups"),
 						func(saves bool) { p.vm.DeleteGame(g.ID, saves) })
 				}
-			})
+			}))
 		}
 		if len(emus) > 0 {
-			kit.Card(c, i18n.L("Emulators"), func() {
+			p.reflow.Box(kit.Card(c.Key("trash-emulators"), i18n.L("Emulators"), func() {
 				for i, e := range emus {
 					p.row(c, i == 0, "emu:"+e.ID, e.Name, e.DeletedAt, e.ExpiresAt,
 						func() { p.vm.RestoreEmulator(e.ID, restored) },
 						i18n.L("Also delete the cloud saves made with it"),
 						func(saves bool) { p.vm.DeleteEmulator(e.ID, saves) })
 				}
-			})
+			}))
 		}
 		p.leftovers(c)
 	})
+}
+
+// rowKeys differs whenever the page's rows do.
+func (p *Page) rowKeys() string {
+	var b strings.Builder
+	for _, g := range p.vm.Games() {
+		fmt.Fprintf(&b, "g:%s\n", g.ID)
+	}
+	for _, e := range p.vm.Emulators() {
+		fmt.Fprintf(&b, "e:%s\n", e.ID)
+	}
+	if p.vm.LeftoverState() == LeftoverFound {
+		for _, l := range p.vm.Leftovers() {
+			fmt.Fprintf(&b, "l:%s\n", l.Key)
+		}
+	}
+	return b.String()
 }
 
 // button draws a button that registers with the gamepad, disabled while the
@@ -107,7 +128,7 @@ func (p *Page) button(c *ui.Context, key any, kind kit.BtnKind, icon *ui.SVG, la
 // row is a restorable item: Restore, and Delete permanently with an optional
 // deletion of its cloud saves.
 func (p *Page) row(c *ui.Context, first bool, key, name string, deleted, expires time.Time, restore func(), checkLabel string, del func(saves bool)) {
-	kit.ListRow(c, first, name, func() {
+	p.reflow.Row(kit.ListRow(c, key, first, name, func() {
 		kit.Small(c, i18n.L("Deleted {{.When}} · settings kept until {{.Until}}", map[string]any{"When": components.FmtDate(deleted), "Until": components.FmtDate(expires)}))
 	}, func() {
 		p.button(c, key+"/restore", kit.BtnSecondary, kit.IconRestore, i18n.L("Restore"), restore)
@@ -121,7 +142,7 @@ func (p *Page) row(c *ui.Context, first bool, key, name string, deleted, expires
 				OnConfirm: del,
 			})
 		})
-	})
+	}))
 }
 
 // leftovers is the card of cloud save folders no game uses.
@@ -131,18 +152,22 @@ func (p *Page) leftovers(c *ui.Context) {
 		components.Help(c, p.u, i18n.L("Cloud saves that no game in your library uses."),
 			i18n.L("Saves and backups in your cloud that no game in the library uses, for example after a game was deleted for good or an emulator was removed from it. Restore one to add it back to the library, or delete it to free the space."))
 	}
+	// One card whatever it says, so that it stays the same element and slides
+	// along with the cards above it.
+	card := func(title string, fn func()) {
+		p.reflow.Box(kit.Card(c.Key("trash-leftovers"), title, func() { intro(); fn() }))
+	}
 	switch p.vm.LeftoverState() {
 	case LeftoverNoRemote:
-		kit.Card(c, title, func() { intro(); kit.Muted(c, i18n.L("Set up cloud storage to look for them.")) })
+		card(title, func() { kit.Muted(c, i18n.L("Set up cloud storage to look for them.")) })
 	case LeftoverLoading:
-		kit.Card(c, title, func() { intro(); kit.Muted(c, i18n.L("Looking in the cloud…")) })
+		card(title, func() { kit.Muted(c, i18n.L("Looking in the cloud…")) })
 	case LeftoverFailed:
-		kit.Card(c, title, func() { intro(); kit.Danger(c, i18n.Text(p.vm.LeftoverError(), p.vm.LeftoverErrorMsg())) })
+		card(title, func() { kit.Danger(c, i18n.Text(p.vm.LeftoverError(), p.vm.LeftoverErrorMsg())) })
 	case LeftoverNone:
-		kit.Card(c, title, func() { intro(); kit.Muted(c, i18n.L("Nothing left over.")) })
+		card(title, func() { kit.Muted(c, i18n.L("Nothing left over.")) })
 	default:
-		kit.Card(c, i18n.L("Leftover cloud saves ({{.Count}})", map[string]any{"Count": len(p.vm.Leftovers())}), func() {
-			intro()
+		card(i18n.L("Leftover cloud saves ({{.Count}})", map[string]any{"Count": len(p.vm.Leftovers())}), func() {
 			for i, l := range p.vm.Leftovers() {
 				p.leftoverRow(c, i == 0, l)
 			}
@@ -162,7 +187,7 @@ func (p *Page) leftoverRow(c *ui.Context, first bool, l services.LeftoverView) {
 		}
 		name += " · " + emu
 	}
-	kit.ListRow(c, first, name, func() {
+	p.reflow.Row(kit.ListRow(c, l.Key, first, name, func() {
 		kit.Small(c, i18n.L("{{.Count}} files, {{.Size}} · last synced {{.When}} · {{.Backups}} backups",
 			map[string]any{"Count": l.Files, "Size": kit.FormatBytes(l.Bytes), "When": components.FmtDate(l.Time), "Backups": l.Backups}))
 	}, func() {
@@ -179,5 +204,5 @@ func (p *Page) leftoverRow(c *ui.Context, first bool, l services.LeftoverView) {
 				OnConfirm: func(bool) { p.vm.DeleteLeftover(l.Key) },
 			})
 		})
-	})
+	}))
 }

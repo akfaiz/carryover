@@ -267,8 +267,12 @@ func (u *Shell) view(c *ui.Context) {
 				// No padding: a page's artwork reaches the divider; kit.Page pads the content.
 				ui.Column(c).Grow(1).Children(func() {
 					if u.page != nil {
-						u.nav.MarkPage()
-						u.page.View(c)
+						// Keyed by the route, so that each page opens as a new
+						// element and fades in.
+						ui.Column(c.Key(u.route)).Grow(1).Transition(kit.PageMotion).Children(func() {
+							u.nav.MarkPage()
+							u.page.View(c)
+						})
 					}
 				})
 			})
@@ -428,7 +432,7 @@ func (u *Shell) activity(c *ui.Context) {
 		if p := u.store.SyncAll.Progress; p.Total > 0 {
 			text = i18n.L("Syncing {{.Done}} of {{.Total}}", map[string]any{"Done": p.Done, "Total": p.Total})
 		}
-		entry(text, "/", kit.IconRefresh)
+		entry(text, "/", nil) // a spinner
 	}
 	for _, g := range u.store.Games {
 		if st, ok := u.store.Status[g.ID]; ok && st.Running {

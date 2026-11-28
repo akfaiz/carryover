@@ -68,11 +68,12 @@ func kindColor(c *ui.Context, kind int) ui.Color {
 	return c.Theme().TextMuted
 }
 
-// Badge is a small rounded label, tinted by its kind.
+// Badge is a small rounded label, tinted by its kind. A badge whose state
+// changes crosses over to the new text and tint.
 func Badge(c *ui.Context, text string, kind int) ui.Element {
 	fg := kindColor(c, kind)
-	return ui.Row(c).Padding(2, S2).Radius(RadiusLG).Background(fg.Alpha(0.15)).Children(func() {
-		ui.Text(c, text).FontSize(TextXS).FontWeight(600).TextColor(fg)
+	return ui.Row(c).Padding(2, S2).Radius(RadiusLG).Background(fg.Alpha(0.15)).Transition(badgeMotion).Children(func() {
+		ui.Text(c, text).FontSize(TextXS).FontWeight(600).TextColor(fg).ContentTransition(ui.ContentTransition{})
 	})
 }
 
@@ -96,9 +97,10 @@ func SubCard(c *ui.Context, fn func()) ui.Element {
 
 // ListRow is one row of a list inside a card: a name over an optional line of
 // details on the left, actions on the right. Rows are told apart by a divider
-// above every one but the first (first says which this is).
-func ListRow(c *ui.Context, first bool, name string, details func(), actions func()) ui.Element {
-	return ui.Column(c).Gap(S2).Children(func() {
+// above every one but the first (first says which this is). key tells the row
+// from the others of its list whatever its place in it (see Reflow).
+func ListRow(c *ui.Context, key any, first bool, name string, details func(), actions func()) ui.Element {
+	return ui.Column(c.Key(key)).Gap(S2).Children(func() {
 		if !first {
 			ui.Divider(c)
 		}
@@ -216,7 +218,7 @@ func PageHead(c *ui.Context, nav *Navigator, back func(), backLabel, text string
 func ProgressLine(c *ui.Context, msg string, bytes, total int64) {
 	ui.Column(c).Gap(4).Children(func() {
 		if total > 0 {
-			ui.Progress(c, pct(bytes, total))
+			progressBar(c, pct(bytes, total))
 			if msg != "" {
 				msg += " · "
 			}

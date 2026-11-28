@@ -100,6 +100,23 @@ func (h *Dialogs) Top() *Dialog {
 	return h.stack[len(h.stack)-1]
 }
 
+// modal is ui.Modal with its look, which fades in and out while its panel grows
+// into place. key tells the dialog from the others over the window: without
+// one, MyGo knows it by its place, and a dialog closing under another would
+// hand it its state.
+func modal(c *ui.Context, key string, open *bool, fn func()) ui.Element {
+	t := c.Theme()
+	w, h := c.Size()
+	return ui.DialogBase(c.Key(key), open, func(backdrop, panel ui.Element) {
+		backdrop.Background(ui.RGBA(0, 0, 0, 0.4)).Transition(backdropMotion)
+		panel.Padding(t.Space(5)).Gap(t.Space(3)).Radius(t.Space(2.5)).Background(t.Background).
+			MaxWidth(w-t.Space(10)).MaxHeight(h-t.Space(10)).
+			Shadow(0, 10, 30, 0, ui.RGBA(0, 0, 0, 0.3))
+		popIn(c, panel)
+		fn()
+	})
+}
+
 // View declares every dialog, in order, as a scope of nav.
 func (h *Dialogs) View(c *ui.Context, nav *Navigator) {
 	for _, d := range slices.Clone(h.stack) {
@@ -109,7 +126,7 @@ func (h *Dialogs) View(c *ui.Context, nav *Navigator) {
 		}
 		nav.Overlay(h.ids[d], true, back, func() {
 			open := true
-			m := ui.Modal(c, &open, func() {
+			m := modal(c, h.ids[d], &open, func() {
 				ww, _ := c.Size()
 				w := d.width(ww) // never wider than the window
 				ui.Column(c).Width(w).MaxWidth(w).Padding(S6).Gap(S3).Children(func() {

@@ -153,7 +153,7 @@ func button(c *ui.Context, nav *Navigator, key any, kind BtnKind, label string, 
 	pv, ph := cfg.size.padding()
 	b = b.TextColor(fg).Radius(Radius).Gap(S2).Padding(pv, ph).Draw(func(p *ui.Painter, r ui.Rect) {
 		face := bg
-		if b.Hovered() {
+		if Hovered(b) {
 			face = hoverBg
 		}
 		if face.A != 0 {

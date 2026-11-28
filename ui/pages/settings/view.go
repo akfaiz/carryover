@@ -45,6 +45,7 @@ type Page struct {
 	keyDirty bool
 	steam    *selfSteamCard
 	langs    kit.Choice
+	reflow   kit.Reflow // devices forgotten
 }
 
 // formState are the fields of the form.
@@ -220,7 +221,13 @@ func (p *Page) form(c *ui.Context) {
 	})
 
 	p.devicesCard(c)
+	// What follows slides along when a device is forgotten.
+	p.reflow.Box(ui.Column(c).Gap(kit.S4).Children(func() { p.moreCards(c) }))
+}
 
+// moreCards are the cards under the other devices.
+func (p *Page) moreCards(c *ui.Context) {
+	nav, f := p.u.Navigator(), &p.f
 	kit.Card(c, i18n.L("Backups"), func() {
 		// Cloud backups: a switch turns them on, then a count of 1-100. Off is
 		// stored as 0; turning them back on starts from the default count.

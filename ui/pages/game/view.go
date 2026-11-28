@@ -18,6 +18,7 @@ type Page struct {
 	u      env.Env
 	vm     *ViewModel
 	scroll ui.ScrollState
+	reflow kit.Reflow // backups taken and deleted
 }
 
 var (

@@ -181,6 +181,30 @@ controller's buttons are shown with `kit.PadHints`.
 split by topic into files of its package (`pages/game`: `hero.go`, `saves.go`, `backups.go`, `steam.go`;
 `pages/editor`: `cards.go`, `artwork.go`, `emulators.go`).
 
+### Motion
+
+Motion is short and comes from `ui/kit`, mostly the transitions in `ui/kit/motion.go`, so pages get it from the
+widgets they already use: pages and covers fade in, dialogs and dropdowns fade and move into place, toasts slide,
+badges cross over to a new state, the sidebar's marker travels between entries, and the gamepad's ring fades from
+control to control (`Navigator.PadLift` also raises the focused tile of the library). While the desktop asks for less
+motion, MyGo moves nothing and keeps the fades. Rules for adding more:
+
+- What loops or counts down moves from its `Draw` (`p.AnimationFrame`), or is a `ui.Spinner`. A value the view reads
+  (`Animate`, `Loop`) builds the whole window at every frame it moves, which is fine for a short change only.
+- An element on its way out is painted as a copy that still runs its old `Draw` callbacks, after the elements they
+  captured expired. A `Draw` asks about the pointer with `kit.Hovered` or `kit.HoverColor`, never `el.Hovered()`
+  (which panics there in development builds), and calls no other method of a captured element without `Valid()`.
+- Anything with an `Enter` or `Exit` has a key (`c.Key`), and so does its parent: MyGo otherwise knows an element by
+  its place, and hands one's state to whatever takes it.
+- A list whose rows come and go keeps a `kit.Reflow`: `Watch` once a frame, `Row` on each row (keyed, as
+  `kit.ListRow` asks), `Box` on the card and whatever it pushes along. It only animates right after the rows changed,
+  so cards don't trail behind other changes of layout. Rows of a `ui.GridView` or `ui.List` can't slide or collapse.
+- The Navigator picks the next control from the last frame's boxes, so controls move little: a page only fades.
+
+Tests see each motion where it starts or ends, since `ui.Tester`'s clock stands still; `Advance` steps through it
+(`ui/kit/motion_test.go`). A pose (`AnimatePose`) moves in frames that only paint, so call `Frame` before reading
+where it got.
+
 ### Immediate mode
 
 MyGo draws the window again from Go code every frame, so a page is `View(c *ui.Context)`: it keeps its ViewModel plus

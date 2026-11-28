@@ -21,6 +21,7 @@ type Page struct {
 	vm     *ViewModel
 	test   *kit.TestButton
 	scroll ui.ScrollState
+	reflow kit.Reflow // remotes added and deleted
 
 	root     string // the folder field
 	lastRoot string // the ViewModel's, as of the last frame
@@ -89,6 +90,7 @@ func (p *Page) View(c *ui.Context) {
 	kit.Page(c, kit.PageForm, &p.scroll, func() {
 		kit.PageHead(c, nav, nil, "", i18n.L("Cloud storage"), nil)
 		p.syncRoot()
+		p.reflow.Watch(c, p.remoteNames())
 		if !p.vm.HasRemote() {
 			// First run: the remote comes first; the first one added becomes the
 			// sync location by itself.
@@ -100,6 +102,15 @@ func (p *Page) View(c *ui.Context) {
 		p.location(c)
 		p.remotes(c)
 	})
+}
+
+// remoteNames differs whenever the list of remotes does.
+func (p *Page) remoteNames() string {
+	var b strings.Builder
+	for _, r := range p.vm.Remotes() {
+		fmt.Fprintln(&b, r.Name)
+	}
+	return b.String()
 }
 
 // btn draws a button that registers with the gamepad.
@@ -119,7 +130,7 @@ func (p *Page) location(c *ui.Context) {
 		remotes.Add(r.Name, l)
 	}
 	p.test.SetAllowed(vm.Remote() != "")
-	kit.Card(c, i18n.L("Sync location"), func() {
+	p.reflow.Box(kit.Card(c.Key("cloud-location"), i18n.L("Sync location"), func() {
 		kit.Muted(c, i18n.L("All devices must use the same remote storage and folder. Saves go to <folder>/games/<game>/."))
 		ui.Row(c).Gap(kit.S3).Children(func() {
 			ui.Column(c).Grow(1).Children(func() {
@@ -144,7 +155,7 @@ func (p *Page) location(c *ui.Context) {
 			p.test.Button(c, nav, "cloud")
 		})
 		p.test.Result(c)
-	})
+	}))
 }
 
 func (p *Page) remotes(c *ui.Context) {
@@ -158,13 +169,13 @@ func (p *Page) remotes(c *ui.Context) {
 	}
 	if len(vm.Remotes()) == 0 {
 		// The first step of the setup: one empty state with every way to start.
-		kit.Card(c, "", func() {
+		p.reflow.Box(kit.Card(c.Key("cloud-no-remotes"), "", func() {
 			kit.EmptyState(c, kit.IconCloud, i18n.L("No remotes yet"),
 				i18n.L("Add one (Google Drive, Dropbox, OneDrive, WebDAV/Nextcloud, SFTP or SMB) or import your existing rclone config."), actions)
-		})
+		}))
 		return
 	}
-	kit.Card(c, "", func() {
+	p.reflow.Box(kit.Card(c.Key("cloud-remotes"), "", func() {
 		kit.CardHead(c, i18n.L("Remotes"), actions)
 		for i, r := range vm.Remotes() {
 			p.remoteRow(c, i == 0, r, vm.IsActive(r.Name), func() {
@@ -177,13 +188,13 @@ func (p *Page) remotes(c *ui.Context) {
 				}})
 			})
 		}
-	})
+	}))
 }
 
 // remoteRow is one configured rclone remote: name (with an "active" badge),
 // type (with an "unsupported" badge) and a delete button.
 func (p *Page) remoteRow(c *ui.Context, first bool, r cloud.Remote, active bool, onDelete func()) {
-	kit.ListRow(c, first, r.Name, func() {
+	p.reflow.Row(kit.ListRow(c, r.Name, first, r.Name, func() {
 		ui.Row(c).Gap(kit.S2).AlignItems(ui.Center).Children(func() {
 			kit.Small(c, r.Type)
 			if active {
@@ -195,7 +206,7 @@ func (p *Page) remoteRow(c *ui.Context, first bool, r cloud.Remote, active bool,
 		})
 	}, func() {
 		p.btn(c, "remote-delete:"+r.Name, kit.BtnDanger, kit.IconTrash, i18n.L("Delete"), onDelete)
-	})
+	}))
 }
 
 func (p *Page) pickConf() {
