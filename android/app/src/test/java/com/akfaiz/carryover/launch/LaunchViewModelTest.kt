@@ -6,14 +6,15 @@ import com.akfaiz.carryover.core.DeviceConfig
 import com.akfaiz.carryover.core.EmulatorDevice
 import com.akfaiz.carryover.core.EmulatorView
 import com.akfaiz.carryover.core.GameView
+import com.akfaiz.carryover.core.ProfileView
 import com.akfaiz.carryover.core.Prompt
 import com.akfaiz.carryover.core.PromptKind
-import com.akfaiz.carryover.core.ProfileView
 import com.akfaiz.carryover.core.SaveSlot
 import com.akfaiz.carryover.core.SessionStatus
 import com.akfaiz.carryover.session.PlayOutcome
 import com.akfaiz.carryover.ui.FakeTexts
 import com.akfaiz.carryover.ui.Harness
+import com.akfaiz.carryover.ui.components.appLabel
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse

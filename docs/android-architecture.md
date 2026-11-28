@@ -22,7 +22,7 @@ radii (6, 8 and 12dp), card and badge styles, one empty-state style and the desk
 (Running, Needs setup, Conflict, Sync error, Not uploaded, Synced, Not synced). It keeps Android's own navigation: a
 bottom bar (a rail on wide landscape screens), Material 3 text fields and a floating button for adding.
 
-`ui/Theme.kt` holds the palette, shapes and type, and `ui/Kit.kt` the building blocks, the twin of the desktop's `ui/kit`:
+`ui/kit/Theme.kt` holds the palette, shapes and type, and `ui/kit/Kit.kt` the building blocks, the twin of the desktop's `ui/kit`:
 `AppButton` (primary, secondary, danger, ghost), `Callout`, `Pill`/`StatusBadge`, `EmptyState`, `SectionCard`/`SubCard`,
 `ListRows`, `ChoiceRow`, `PageTopBar` and `PageColumn` (centered, at most 760dp wide, one set of gutters). Screens use these and
 not Material's raw buttons and cards, radii or colours of their own: `StyleTest` fails on those (a line that has a
@@ -53,6 +53,11 @@ flowchart TD
     end
 ```
 
+- **`ui/`** has one folder per feature (`library/`, `game/`, `emulators/`, `settings/`, `cloud/`, `backups/`, `trash/`,
+  `art/`), each with its screens and their view model. Under them are `kit/` (building blocks and theme), `nav/` (the
+  pages and where the user is), `state/` (`AppViewModel` and how things are shown) and `components/` (widgets more than
+  one feature uses); `App.kt` is the shell. A feature never imports another one, and `components/` imports only `kit/`
+  and `state/` (`LayeringTest`).
 - **`mobile`** wraps `services` for gomobile, which passes only basic types and interfaces: every call takes and
   returns JSON. `services` is the same API the desktop GUI uses, so both apps follow the same rules; `mobile` may
   read `internal/core` directly but every change goes through `services` (`TestMobileWritesThroughServices`). `Host` (implemented in Kotlin) receives what `services.Bus` reports on the desktop (library changes,

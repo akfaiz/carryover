@@ -15,11 +15,11 @@ import androidx.compose.runtime.getValue
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.akfaiz.carryover.core.AppLanguage
 import com.akfaiz.carryover.core.AppPrefs
-import com.akfaiz.carryover.ui.AppViewModel
 import com.akfaiz.carryover.ui.CarryoverApp
-import com.akfaiz.carryover.ui.CarryoverTheme
-import com.akfaiz.carryover.ui.SettingsViewModel
-import com.akfaiz.carryover.ui.isDark
+import com.akfaiz.carryover.ui.kit.CarryoverTheme
+import com.akfaiz.carryover.ui.kit.isDark
+import com.akfaiz.carryover.ui.settings.SettingsViewModel
+import com.akfaiz.carryover.ui.state.AppViewModel
 
 class MainActivity : ComponentActivity() {
     private val vm: AppViewModel by viewModels()

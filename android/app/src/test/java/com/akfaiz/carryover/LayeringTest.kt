@@ -49,6 +49,19 @@ class LayeringTest {
     }
 
     @Test
+    fun uiFoldersImportOnlyDownward() {
+        // The shell (the files in ui/ itself) may use every folder. A feature folder (game, settings, ...)
+        // uses the shared ones and itself, never another feature or the shell: pages move with Nav.
+        val shared = mapOf("kit" to emptySet(), "nav" to emptySet(), "state" to emptySet(), "components" to setOf("kit", "state"))
+        val forAFeature = setOf("kit", "nav", "state", "components")
+        val bad = File(src, "ui").listFiles().orEmpty().filter { it.isDirectory }.flatMap { dir ->
+            val allowed = (shared[dir.name] ?: forAFeature) + dir.name
+            hits(files("ui/${dir.name}"), Regex("""import com\.akfaiz\.carryover\.ui\.(?!(${allowed.joinToString("|")})\.)"""))
+        }
+        assertEquals("a ui/ folder imports one it must not", emptyList<String>(), bad)
+    }
+
+    @Test
     fun theDataLayerKnowsNoScreens() {
         val bad = hits(files("data"), Regex("""import com\.akfaiz\.carryover\.(ui|launch)\."""))
         assertEquals("data/ must not import the screens", emptyList<String>(), bad)

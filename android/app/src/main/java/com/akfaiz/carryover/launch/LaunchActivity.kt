@@ -39,12 +39,12 @@ import com.akfaiz.carryover.core.AppLanguage
 import com.akfaiz.carryover.core.AppPrefs
 import com.akfaiz.carryover.core.Core
 import com.akfaiz.carryover.data.AndroidTexts
-import com.akfaiz.carryover.ui.AppButton
-import com.akfaiz.carryover.ui.BtnKind
-import com.akfaiz.carryover.ui.CarryoverTheme
-import com.akfaiz.carryover.ui.PromptDialog
-import com.akfaiz.carryover.ui.SectionCard
-import com.akfaiz.carryover.ui.Spinner
+import com.akfaiz.carryover.ui.components.PromptDialog
+import com.akfaiz.carryover.ui.kit.AppButton
+import com.akfaiz.carryover.ui.kit.BtnKind
+import com.akfaiz.carryover.ui.kit.CarryoverTheme
+import com.akfaiz.carryover.ui.kit.SectionCard
+import com.akfaiz.carryover.ui.kit.Spinner
 
 /**
  * Starts a game for a frontend (ES-DE, Daijisho, …) or a home-screen
