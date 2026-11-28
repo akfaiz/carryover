@@ -44,9 +44,10 @@ func Catalog(code string) ([]byte, bool) {
 type Option struct{ Code, Name string }
 
 // Options lists the languages with a catalog. Add one here when you add
-// translations/<code>.json.
+// translations/<code>.json. A code is lower case, as the settings save it
+// ("pt-br"), since the catalog's file name must match it exactly.
 func Options() []Option {
-	return []Option{{"en", "English"}, {"id", "Bahasa Indonesia"}}
+	return []Option{{"en", "English"}, {"es", "Español"}, {"id", "Bahasa Indonesia"}, {"pt-br", "Português (Brasil)"}}
 }
 
 var (
@@ -102,10 +103,13 @@ func Init(setting string) {
 	mu.Unlock()
 }
 
+// systemLocales lists the user's languages, preferred first; tests replace it.
+var systemLocales = locale.GetLocales
+
 // systemLanguage is the catalog closest to the user's locales, by the closest
 // match of the system's languages.
 func systemLanguage(tags []language.Tag) string {
-	locs, err := locale.GetLocales()
+	locs, err := systemLocales()
 	if err != nil || len(locs) == 0 {
 		return tags[0].String()
 	}

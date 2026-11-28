@@ -15,8 +15,10 @@ import (
 	"strings"
 	"testing"
 
+	goi18n "github.com/nicksnyder/go-i18n/v2/i18n"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/text/language"
 
 	"github.com/akfaiz/carryover/internal/app/msg"
 )
@@ -110,9 +112,86 @@ func TestPluralForms(t *testing.T) {
 	assert.Equal(t, "1 game synced.", N("{{.Count}} game synced.", 1, map[string]any{"Count": 1}))
 }
 
+// Every plural resolves in its own language for any count. Which forms that
+// takes is the language's rule (Indonesian has "other", Spanish also "one" and
+// "many"), so it is asked of go-i18n with only that catalog loaded: a missing
+// form is an error here, where the app would show the English text.
+func TestPluralsCoverEachLanguagesForms(t *testing.T) {
+	// Counts that reach each form of the usual rules: one, few, many (also
+	// the million of the Romance languages) and other.
+	counts := []int{0, 1, 2, 5, 11, 21, 22, 25, 100, 101, 1_000_000}
+	for _, o := range Options() {
+		t.Run(o.Code, func(t *testing.T) {
+			data, ok := Catalog(o.Code)
+			require.True(t, ok)
+			var cat map[string]json.RawMessage
+			require.NoError(t, json.Unmarshal(data, &cat))
+			bundle := goi18n.NewBundle(language.MustParse(o.Code))
+			bundle.RegisterUnmarshalFunc("json", json.Unmarshal)
+			_, err := bundle.ParseMessageFileBytes(data, o.Code+".json")
+			require.NoError(t, err)
+			l := goi18n.NewLocalizer(bundle, o.Code)
+			for key, raw := range cat {
+				if !strings.HasPrefix(string(raw), "{") {
+					continue // not a plural
+				}
+				for _, n := range counts {
+					_, err := l.Localize(&goi18n.LocalizeConfig{MessageID: key, PluralCount: n, TemplateData: map[string]any{}})
+					if !assert.NoError(t, err, "%q for %d", key, n) {
+						break
+					}
+				}
+			}
+		})
+	}
+}
+
+// Every language shows its own text, whether it is chosen in the settings or
+// the system's: a regional locale gets the language's catalog.
+func TestEveryLanguageApplies(t *testing.T) {
+	saved := systemLocales
+	t.Cleanup(func() {
+		systemLocales = saved
+		Init("en")
+	})
+	cancel := func(code string) string {
+		data, ok := Catalog(code)
+		require.True(t, ok, code)
+		var cat map[string]json.RawMessage
+		require.NoError(t, json.Unmarshal(data, &cat))
+		var s string
+		require.NoError(t, json.Unmarshal(cat["Cancel"], &s))
+		return s
+	}
+
+	systemLocales = func() ([]string, error) { return []string{"en-US"}, nil }
+	for _, o := range Options() {
+		Init(o.Code)
+		assert.Equal(t, cancel(o.Code), L("Cancel"), "chosen %q", o.Code)
+	}
+	for system, code := range map[string]string{
+		"en-GB": "en", "es-ES": "es", "es-MX": "es", "es-419": "es",
+		"id-ID": "id", "pt-BR": "pt-br", "pt-PT": "pt-br", "fr-FR": "en",
+	} {
+		systemLocales = func() ([]string, error) { return []string{system}, nil }
+		Init("")
+		assert.Equal(t, cancel(code), L("Cancel"), "system %q", system)
+	}
+}
+
+// A language's code is its catalog's file name, and the settings save it in
+// lower case.
+func TestOptionCodesAreLowerCase(t *testing.T) {
+	for _, o := range Options() {
+		assert.Equal(t, strings.ToLower(o.Code), o.Code)
+		_, ok := Catalog(o.Code)
+		assert.True(t, ok, "no catalog for %q", o.Code)
+	}
+}
+
 // Every language catalog has exactly the keys of en.json, the same
-// placeholders in every message, and the plural forms of the keys that have
-// them, so a translation can't drop a {{.Name}} or a count.
+// placeholders in every message, and plurals where English has them, so a
+// translation can't drop a {{.Name}} or a count.
 func TestLanguageCatalogsMatchEnglish(t *testing.T) {
 	load := func(name string) map[string]json.RawMessage {
 		data, err := translations.ReadFile("translations/" + name + ".json")
@@ -149,8 +228,16 @@ func TestLanguageCatalogsMatchEnglish(t *testing.T) {
 					continue
 				}
 				src, got := forms(raw), forms(tr)
-				assert.Equal(t, len(src), len(got), "plural forms of %q", key)
+				_, single := src[""]
+				_, translatedSingle := got[""]
+				assert.Equal(t, single, translatedSingle, "plural or not: %q", key)
+				if !single {
+					assert.Contains(t, got, "other", "plural %q", key)
+				}
 				for form, text := range got {
+					if !single {
+						assert.Contains(t, []string{"zero", "one", "two", "few", "many", "other"}, form, "plural form of %q", key)
+					}
 					assert.NotEmpty(t, text, "%q [%s]", key, form)
 					// A plural message is compared with the English "other" form: an
 					// English singular may leave the count out ("the last backup").

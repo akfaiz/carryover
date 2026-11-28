@@ -94,7 +94,7 @@ messages), the `Cause` it is about (shown after it and `": "`) and the whole Eng
   in front of them), technical errors nobody can act on, the log and the command line. A code an app doesn't know
   shows as its English text.
 
-To add a message, add it to `catalog.go`, then to `en.json` and every other desktop catalog, to both apps'
+To add a message, add it to `catalog.go`, then to `en.json` and every other desktop catalog, to the Android app's
 `strings.xml` files and to `CoreMessages.kt`. The tests below name whichever is missing.
 
 ## Syncing a game

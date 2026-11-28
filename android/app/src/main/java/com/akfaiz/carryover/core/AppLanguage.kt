@@ -19,7 +19,7 @@ import java.util.Locale
  */
 object AppLanguage {
     /** The languages the app has text in, as language tags ("" = the system's). */
-    val choices = listOf("", "en", "id")
+    val choices = listOf("", "en", "es", "id", "pt-BR")
 
     private val perApp: Boolean get() = Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU
 
@@ -64,10 +64,17 @@ object AppLanguage {
         return config
     }
 
-    /** Indonesian is "in" in old Java locales, "id" in language tags: one value for both. */
+    /**
+     * The choice a locale the system reports stands for: a region is dropped
+     * ("es-US" is "es", and any Portuguese the one the app has, "pt-BR").
+     * Indonesian is "in" in old Java locales, "id" in language tags: one value
+     * for both.
+     */
     private fun normalize(tag: String): String = when {
         tag.startsWith("in") || tag.startsWith("id") -> "id"
         tag.startsWith("en") -> "en"
+        tag.startsWith("es") -> "es"
+        tag.startsWith("pt") -> "pt-BR"
         else -> tag
     }
 }

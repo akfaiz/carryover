@@ -99,8 +99,11 @@ scripts/android-build.sh --release --version 0.4.0
   keep it safe: updates must be signed with the same key.
 - `cd android && ./gradlew testDebugUnitTest` runs the Kotlin unit tests. Android Studio opens `android/` after
   the first build.
-- UI text goes in `android/app/src/main/res/values/strings.xml`, with Bahasa Indonesia in `values-in/` (use the
-  desktop's terms from `ui/i18n/translations/id.json`). Text from the Go core is defined in
+- UI text goes in `android/app/src/main/res/values/strings.xml`, with Bahasa Indonesia in `values-in/`, Spanish in
+  `values-es/` and Brazilian Portuguese in `values-pt-rBR/` (use the desktop's terms from the language's
+  `ui/i18n/translations/*.json`; Spanish and Portuguese plurals need `one`, `many` and `other`). A new language also
+  goes in `AppLanguage` (`choices`, `normalize`), `languageName` and `res/xml/locales_config.xml`. Text from the Go
+  core is defined in
   `internal/app/msg/catalog.go` and translated by both apps (see "Translating the core's text" in
   [docs/architecture.md](docs/architecture.md)).
 - Install with `adb install -r <apk>`. To test the special permissions without the app's prompts:

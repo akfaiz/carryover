@@ -9,6 +9,8 @@ All notable changes to Carryover are listed here. The format follows
 
 ### Added
 
+- Spanish and Brazilian Portuguese, on the desktop and Android. Pick one under Settings → Appearance → Language,
+  or leave it on System to follow your device's language.
 - Sync progress, game status, errors, setup hints and save suggestions are now translated in Bahasa Indonesia, on
   the desktop and Android. Until now they were in English. Details that come from your cloud provider or the
   system stay in their original language.
