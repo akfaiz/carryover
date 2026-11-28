@@ -4,6 +4,8 @@ import android.content.Context
 import android.graphics.BitmapFactory
 import android.graphics.drawable.Drawable
 import android.util.LruCache
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
@@ -17,14 +19,19 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.produceState
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
@@ -33,6 +40,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.graphics.drawable.toBitmap
 import com.akfaiz.carryover.core.GameView
+import com.akfaiz.carryover.ui.kit.MotionBase
 import com.akfaiz.carryover.ui.state.initials
 import com.akfaiz.carryover.ui.state.isGridImageUrl
 import java.io.File
@@ -48,10 +56,21 @@ private object ImageCache {
         override fun sizeOf(key: String, value: ImageBitmap): Int = value.width * value.height * 4
     }
 
+    /** The key each file was last decoded under, whatever the size. */
+    private val latest = java.util.concurrent.ConcurrentHashMap<String, String>()
+
     fun get(key: String): ImageBitmap? = cache.get(key)
     fun put(key: String, value: ImageBitmap) {
         cache.put(key, value)
     }
+
+    fun put(file: String, key: String, value: ImageBitmap) {
+        put(key, value)
+        latest[file] = key
+    }
+
+    /** The file at any size it is at hand in, to show while the size asked for is decoded. */
+    fun anySize(file: String): ImageBitmap? = latest[file]?.let(::get)
 }
 
 /** Decodes an image file no larger than needed for [maxWidth] pixels; null if it can't be read. */
@@ -66,16 +85,49 @@ private fun decode(path: String, maxWidth: Int): ImageBitmap? {
     return BitmapFactory.decodeFile(path, opts)?.asImageBitmap()
 }
 
-/** An image file loaded off the main thread (null while loading or when there is none). */
+/** The widths images are decoded for are steps of this many pixels. */
+private const val WidthStep = 128
+
+/**
+ * [width] rounded up to a step, so that a cover changing size on its way
+ * between two pages isn't decoded again at every pixel of it.
+ */
+internal fun decodeWidth(width: Int): Int = (width.coerceAtLeast(1) + WidthStep - 1) / WidthStep * WidthStep
+
+/**
+ * An image file loaded off the main thread (null while loading or when there is
+ * none). While a size of it is being decoded, another size at hand shows.
+ */
 @Composable
 fun rememberImage(path: String, version: Long, maxWidth: Int): ImageBitmap? {
-    val key = "$path@$version@$maxWidth"
-    val image by produceState(ImageCache.get(key), key) {
-        if (value == null && path.isNotEmpty()) {
-            value = withContext(Dispatchers.IO) { decode(path, maxWidth) }?.also { ImageCache.put(key, it) }
+    val file = "$path@$version"
+    val width = decodeWidth(maxWidth)
+    val key = "$file@$width"
+    // Keyed to the file: another file starts from what is at hand of it, not from the one shown before.
+    return key(file) {
+        val image by produceState(ImageCache.get(key) ?: ImageCache.anySize(file), key) {
+            value = ImageCache.get(key)
+                ?: withContext(Dispatchers.IO) { decode(path, width) }?.also { ImageCache.put(file, key, it) }
+                ?: value
         }
+        image
     }
-    return image
+}
+
+/**
+ * [image] over [placeholder]. One that arrives after the placeholder has shown
+ * fades in over it; one at hand from the start just shows.
+ */
+@Composable
+fun Arriving(image: ImageBitmap?, placeholder: @Composable () -> Unit, content: @Composable (ImageBitmap, Modifier) -> Unit) {
+    val alpha = remember { Animatable(if (image != null) 1f else 0f) }
+    LaunchedEffect(image != null) {
+        if (image != null) alpha.animateTo(1f, tween(MotionBase)) else alpha.snapTo(0f)
+    }
+    // Derived, so that only the placeholder going recomposes, not every frame of the fade.
+    val covered by remember { derivedStateOf { alpha.value >= 1f } }
+    if (image == null || !covered) placeholder()
+    if (image != null) content(image, Modifier.graphicsLayer { this.alpha = alpha.value })
 }
 
 /** Reads at most [limit] bytes of a stream; null when there is more. */
@@ -131,10 +183,11 @@ fun CoverImage(g: GameView, modifier: Modifier = Modifier) {
     BoxWithConstraints(modifier) {
         val px = with(LocalDensity.current) { maxWidth.roundToPx() }.coerceAtLeast(64)
         val image = rememberImage(g.coverPath, g.coverVersion, px)
-        if (image != null) {
-            Image(image, contentDescription = null, Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
-        } else {
-            Placeholder(g.name, Modifier.fillMaxSize())
+        // Another game in this place is another picture: nothing of the last one's fade carries over.
+        key(g.id) {
+            Arriving(image, placeholder = { Placeholder(g.name, Modifier.fillMaxSize()) }) { bitmap, fade ->
+                Image(bitmap, contentDescription = null, fade.fillMaxSize(), contentScale = ContentScale.Crop)
+            }
         }
     }
 }

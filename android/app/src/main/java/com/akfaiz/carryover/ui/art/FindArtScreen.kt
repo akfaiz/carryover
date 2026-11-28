@@ -47,6 +47,7 @@ import com.akfaiz.carryover.R
 import com.akfaiz.carryover.core.ArtKind
 import com.akfaiz.carryover.core.GridArt
 import com.akfaiz.carryover.core.GridGame
+import com.akfaiz.carryover.ui.components.Arriving
 import com.akfaiz.carryover.ui.components.rememberRemoteImage
 import com.akfaiz.carryover.ui.kit.AppButton
 import com.akfaiz.carryover.ui.kit.Callout
@@ -214,6 +215,9 @@ private fun Images(kind: ArtKind, game: GridGame, grids: List<GridArt>, enabled:
 private fun RemoteImage(url: String, modifier: Modifier) {
     val image = rememberRemoteImage(url, maxWidth = 600)
     Box(modifier.background(MaterialTheme.colorScheme.surfaceVariant), contentAlignment = Alignment.Center) {
-        if (image != null) Image(image, contentDescription = null, Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
+        // The grey box under it is the placeholder.
+        Arriving(image, placeholder = {}) { bitmap, fade ->
+            Image(bitmap, contentDescription = null, fade.fillMaxSize(), contentScale = ContentScale.Crop)
+        }
     }
 }

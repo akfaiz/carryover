@@ -110,7 +110,7 @@ private fun EmulatorsCard(g: GameView, state: UiState, vm: AppViewModel) {
     val nameOf = { emuId: String -> byId[emuId]?.name ?: g.emulators.firstOrNull { it.emulatorId == emuId }?.name ?: emuId }
 
     SectionCard(stringResource(R.string.edit_played_with)) {
-        if (here.isNotEmpty()) ListRows(here) { p ->
+        ListRows(here, key = { it.emulatorId }) { p ->
             val exe = byId[p.emulatorId]?.device?.exe.orEmpty()
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 AppIcon(exe.substringBefore('/'), 36)

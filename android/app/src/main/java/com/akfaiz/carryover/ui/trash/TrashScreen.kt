@@ -36,6 +36,7 @@ import com.akfaiz.carryover.ui.kit.AppButton
 import com.akfaiz.carryover.ui.kit.BtnKind
 import com.akfaiz.carryover.ui.kit.EmptyState
 import com.akfaiz.carryover.ui.kit.Hint
+import com.akfaiz.carryover.ui.kit.ListCard
 import com.akfaiz.carryover.ui.kit.ListRows
 import com.akfaiz.carryover.ui.kit.LocalPageInsets
 import com.akfaiz.carryover.ui.kit.PageColumn
@@ -70,9 +71,9 @@ fun TrashScreen(nav: Nav, vm: TrashViewModel = viewModel()) {
                 Hint(intro)
             }
 
-            if (state.games.isNotEmpty()) {
+            ListCard(state.games.isNotEmpty()) {
                 SectionCard(stringResource(R.string.trash_games)) {
-                    ListRows(state.games) { g ->
+                    ListRows(state.games, key = { it.id }) { g ->
                         TrashItem(
                             name = g.name,
                             deletedAt = g.deletedAt,
@@ -85,9 +86,9 @@ fun TrashScreen(nav: Nav, vm: TrashViewModel = viewModel()) {
                 }
             }
 
-            if (state.emulators.isNotEmpty()) {
+            ListCard(state.emulators.isNotEmpty()) {
                 SectionCard(stringResource(R.string.trash_emulators)) {
-                    ListRows(state.emulators) { e ->
+                    ListRows(state.emulators, key = { it.id }) { e ->
                         TrashItem(
                             name = e.name,
                             deletedAt = e.deletedAt,
@@ -106,8 +107,8 @@ fun TrashScreen(nav: Nav, vm: TrashViewModel = viewModel()) {
                 if (leftovers != null && leftovers.isEmpty()) {
                     Hint(stringResource(R.string.trash_leftovers_none))
                 }
-                if (!leftovers.isNullOrEmpty()) {
-                    ListRows(leftovers) { l ->
+                if (leftovers != null) {
+                    ListRows(leftovers, key = { it.key }) { l ->
                         LeftoverItem(l, busy = l.key in state.busy, onBringBack = { vm.restoreLeftover(l) }, onDelete = { forLeftover = l })
                     }
                 }

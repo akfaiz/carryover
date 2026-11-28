@@ -29,6 +29,36 @@ not Material's raw buttons and cards, radii or colours of their own: `StyleTest`
 reason says `style:ok`). The one place Android differs on purpose from the desktop palette is the dark theme's text on
 the accent, which is dark so it stays readable.
 
+### Motion
+
+Motion is short and mostly lives in `ui/kit`, so screens get it from what they already use. Pages slide a little
+forward as they open and back on Back, tabs cross-fade, and a game's cover flies between the library and the game's
+page. Library tiles move to their places on a search or filter and grow while the D-pad is on them, the focus ring
+fades from control to control, rows of `ListRows` open and fold away, badges and the play area cross over, late images
+fade in and progress bars slide. Compose follows Android's animator duration scale, so turning animations off stops
+them. Rules for adding more:
+
+- Durations are `MotionFast` and `MotionBase` (`ui/kit/Motion.kt`), and `crossOver()` is how one thing takes
+  another's place.
+- What is on its way out is still drawn and can still be tapped or hold the focus. Give it `Modifier.inert()`, and in
+  an `AnimatedContent` draw it from the target state it is given, not from state that has moved on.
+- `ListRows` takes a key per row. To see the last row go, the list stays composed while empty (it takes no room),
+  inside a `ListCard` when its card goes with it.
+- `Modifier.sharedCover` marks a cover that flies between pages: at most once per game on a page. `rememberImage`
+  decodes in width steps and shows another size meanwhile, so a cover changing size neither decodes at every frame nor
+  shows its placeholder on the way.
+- Every item of a lazy list that uses `animateItem` has a key, the banners above the games too.
+- The pages are inside a `SharedTransitionLayout`, which makes a lazy list put its items straight where they will end
+  up while something above them is still growing. So every item below an item that `grows` (a `SectionCard`) takes
+  `animateItem(placementSpec = PlacementMotion)`, the same time and curve as the card: without it they jump ahead of
+  the card, and with a slower motion, as `animateItem`'s own spring, they are drawn over it.
+- A page keeps its saved state (scroll, search) while it can be returned to (`Pages` in `ui/App.kt`), which is what
+  puts the cover back where it flies to.
+- Read a value that changes every frame while drawing (`graphicsLayer`) where you can, not while composing.
+
+The unit tests cover only what is decided without Compose (`MergeRowsTest`, `PageMoveTest`): whether motion looks
+right needs a device. A larger animator duration scale (Developer options) slows it down enough to see.
+
 ## Layers
 
 ```mermaid

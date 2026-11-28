@@ -31,6 +31,22 @@ sealed interface Screen {
     data class Frontends(val emulatorId: String = "") : Screen
 }
 
+/** A page at its place: how many pages are open over the tab, itself included (0 is a tab). */
+data class Place(val screen: Screen, val depth: Int) {
+    /** What the page's saved state (scroll position, a search) is kept under while it can be returned to. */
+    val stateKey: String get() = "$depth/$screen"
+}
+
+/** Which way one page gives way to another. */
+enum class PageMove { Fade, Forward, Back }
+
+/** Opening a page over another goes forward and leaving it goes back; one tab for another is neither. */
+fun pageMove(from: Place, to: Place): PageMove = when {
+    to.depth > from.depth -> PageMove.Forward
+    to.depth < from.depth -> PageMove.Back
+    else -> PageMove.Fade
+}
+
 /** Where the user is: a tab, and the pages opened over it (the last one is shown). */
 class Nav {
     var tab by mutableStateOf<Screen>(Screen.Library)
@@ -41,6 +57,16 @@ class Nav {
     var askGridKey by mutableStateOf(false)
     val current: Screen get() = stack.lastOrNull() ?: tab
     val canGoBack: Boolean get() = stack.isNotEmpty() || tab != Screen.Library
+
+    /** The page shown, at its place. */
+    val place: Place get() = Place(current, stack.size)
+
+    /** The state keys of the pages still open: the tabs, and what can be gone back to. */
+    val openStateKeys: Set<String>
+        get() = buildSet {
+            for (t in listOf(Screen.Library, Screen.Emulators, Screen.Settings)) add(Place(t, 0).stateKey)
+            stack.forEachIndexed { i, s -> add(Place(s, i + 1).stateKey) }
+        }
 
     fun go(s: Screen) {
         if (s == Screen.Library || s == Screen.Emulators || s == Screen.Settings) {

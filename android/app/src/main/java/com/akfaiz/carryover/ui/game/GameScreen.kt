@@ -3,7 +3,9 @@ package com.akfaiz.carryover.ui.game
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.EnterExitState
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -61,6 +63,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
@@ -86,6 +89,7 @@ import com.akfaiz.carryover.core.Profile
 import com.akfaiz.carryover.core.Resolution
 import com.akfaiz.carryover.core.SaveSlot
 import com.akfaiz.carryover.core.TrashView
+import com.akfaiz.carryover.ui.components.Arriving
 import com.akfaiz.carryover.ui.components.CoverImage
 import com.akfaiz.carryover.ui.components.Placeholder
 import com.akfaiz.carryover.ui.components.StatusBadge
@@ -104,7 +108,10 @@ import com.akfaiz.carryover.ui.kit.Spinner
 import com.akfaiz.carryover.ui.kit.SubCard
 import com.akfaiz.carryover.ui.kit.Tone
 import com.akfaiz.carryover.ui.kit.color
+import com.akfaiz.carryover.ui.kit.crossOver
 import com.akfaiz.carryover.ui.kit.focusRing
+import com.akfaiz.carryover.ui.kit.inert
+import com.akfaiz.carryover.ui.kit.sharedCover
 import com.akfaiz.carryover.ui.nav.Nav
 import com.akfaiz.carryover.ui.nav.Screen
 import com.akfaiz.carryover.ui.state.AppViewModel
@@ -191,10 +198,14 @@ private fun Header(g: GameView, badge: Badge, vm: AppViewModel, nav: Nav) {
     // Shorter on a landscape phone or handheld, so the actions show without scrolling.
     val tall = with(LocalDensity.current) { window.height.toDp() } >= 560.dp
     Box(Modifier.fillMaxWidth().height(if (tall) 300.dp else 220.dp)) {
-        if (art != null) {
-            Image(art, null, Modifier.fillMaxSize(), contentScale = ContentScale.Crop, alpha = 0.85f)
-        } else {
-            Placeholder("", Modifier.fillMaxSize()) // colour only, the name is below
+        key(g.id) {
+            // Colour only while there is no artwork: the name is below.
+            Arriving(art, placeholder = { Placeholder("", Modifier.fillMaxSize()) }) { bitmap, fade ->
+                // The page's colour goes with the picture, which is faint: nothing of the placeholder shows through.
+                Box(fade.fillMaxSize().background(bg)) {
+                    Image(bitmap, null, Modifier.fillMaxSize(), contentScale = ContentScale.Crop, alpha = 0.85f)
+                }
+            }
         }
         Box(Modifier.fillMaxSize().background(Brush.verticalGradient(0f to Color.Transparent, 0.45f to bg.copy(alpha = 0.35f), 1f to bg)))
         Row(Modifier.fillMaxWidth().statusBarsPadding().padding(8.dp)) {
@@ -294,7 +305,7 @@ private fun Header(g: GameView, badge: Badge, vm: AppViewModel, nav: Nav) {
                     // Not a button: a stray tap while scrolling shouldn't open the photo picker (the ⋮ menu changes it).
                     .border(1.dp, MaterialTheme.colorScheme.outlineVariant, shape),
             ) {
-                CoverImage(g, Modifier.fillMaxSize())
+                CoverImage(g, Modifier.sharedCover(g.id, shape).fillMaxSize())
             }
             Column(Modifier.weight(1f).padding(bottom = 4.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text(
@@ -310,50 +321,86 @@ private fun Header(g: GameView, badge: Badge, vm: AppViewModel, nav: Nav) {
 }
 
 /**
+ * What the play area shows. Each carries what it is about: the one on its way
+ * out is still drawn after the state has moved on.
+ */
+private sealed interface PlayPhase {
+    data object Uploading : PlayPhase
+    data class Playing(val profile: Profile) : PlayPhase
+    data class Starting(val key: String) : PlayPhase
+    data object Ready : PlayPhase
+}
+
+/**
  * The main actions: Play (with a choice when the game is played in several
- * ways), Sync for a game with one way, or the session being played.
+ * ways), Sync for a game with one way, or the session being played. One gives
+ * way to the next as a session starts and ends.
  */
 @Composable
 private fun PlayRow(g: GameView, profiles: List<Profile>, state: UiState, vm: AppViewModel, ending: Set<String>) {
     val running = profiles.firstOrNull { it.status.running }
     val starting = profiles.firstOrNull { it.key in state.starting }
     val uploading = profiles.firstOrNull { it.key in ending }
-    when {
-        uploading != null -> Busy(stringResource(R.string.status_uploading))
-        running != null -> Surface(
-            shape = MaterialTheme.shapes.medium,
-            color = MaterialTheme.colorScheme.primaryContainer,
-            modifier = Modifier.fillMaxWidth(),
-        ) {
-            Row(Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
-                Icon(PlayIcon, null, tint = MaterialTheme.colorScheme.onPrimaryContainer)
-                Text(
-                    stringResource(R.string.status_playing) + (running.emulator?.let { " · $it" } ?: ""),
-                    style = MaterialTheme.typography.titleSmall,
-                    color = MaterialTheme.colorScheme.onPrimaryContainer,
-                    modifier = Modifier.weight(1f).padding(start = 8.dp),
-                )
-                AppButton(onClick = { vm.donePlaying(running.key) }, icon = Icons.Outlined.StopCircle) {
-                    Text(stringResource(R.string.action_done_playing))
+    val playable = profiles.filter { vm.launchSetup(it) != null }
+    val only = profiles.singleOrNull()
+    val phase = when {
+        uploading != null -> PlayPhase.Uploading
+        running != null -> PlayPhase.Playing(running)
+        starting != null -> PlayPhase.Starting(starting.key)
+        else -> PlayPhase.Ready
+    }
+    // Nothing to show: not even an empty box, which would take a gap in the page.
+    if (phase == PlayPhase.Ready && playable.isEmpty() && only == null) return
+    AnimatedContent(
+        phase,
+        Modifier.fillMaxWidth(),
+        transitionSpec = { crossOver() },
+        // A new phase crosses over; news within one just shows.
+        contentKey = { it::class },
+        label = "play",
+    ) { shown ->
+        val leaving = transition.targetState == EnterExitState.PostExit
+        Box(if (leaving) Modifier.inert() else Modifier) {
+            when (shown) {
+                PlayPhase.Uploading -> Busy(stringResource(R.string.status_uploading))
+                is PlayPhase.Playing -> PlayingCard(shown.profile, vm)
+                is PlayPhase.Starting ->
+                    Busy(state.sessions[shown.key]?.let { coreText(it.message, it.msg) } ?: stringResource(R.string.status_checking))
+                PlayPhase.Ready -> Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
+                        if (playable.isNotEmpty()) PlayButton(g, playable, state, vm, Modifier.weight(1f))
+                        if (only != null && only.canSync) {
+                            SyncButton(g, only, state, vm, if (playable.isEmpty()) Modifier.weight(1f) else Modifier)
+                        }
+                    }
+                    // Play waits for Sync all: say so rather than only greying it out.
+                    if (playable.isNotEmpty() && state.syncAll != null) {
+                        Hint(stringResource(R.string.play_wait_sync_all))
+                    }
                 }
             }
         }
-        starting != null -> Busy(state.sessions[starting.key]?.let { coreText(it.message, it.msg) } ?: stringResource(R.string.status_checking))
-        else -> {
-            val playable = profiles.filter { vm.launchSetup(it) != null }
-            val only = profiles.singleOrNull()
-            if (playable.isEmpty() && only == null) return
-            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
-                    if (playable.isNotEmpty()) PlayButton(g, playable, state, vm, Modifier.weight(1f))
-                    if (only != null && only.canSync) {
-                        SyncButton(g, only, state, vm, if (playable.isEmpty()) Modifier.weight(1f) else Modifier)
-                    }
-                }
-                // Play waits for Sync all: say so rather than only greying it out.
-                if (playable.isNotEmpty() && state.syncAll != null) {
-                    Hint(stringResource(R.string.play_wait_sync_all))
-                }
+    }
+}
+
+/** The session being played, with the button that ends it. */
+@Composable
+private fun PlayingCard(running: Profile, vm: AppViewModel) {
+    Surface(
+        shape = MaterialTheme.shapes.medium,
+        color = MaterialTheme.colorScheme.primaryContainer,
+        modifier = Modifier.fillMaxWidth(),
+    ) {
+        Row(Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
+            Icon(PlayIcon, null, tint = MaterialTheme.colorScheme.onPrimaryContainer)
+            Text(
+                stringResource(R.string.status_playing) + (running.emulator?.let { " · $it" } ?: ""),
+                style = MaterialTheme.typography.titleSmall,
+                color = MaterialTheme.colorScheme.onPrimaryContainer,
+                modifier = Modifier.weight(1f).padding(start = 8.dp),
+            )
+            AppButton(onClick = { vm.donePlaying(running.key) }, icon = Icons.Outlined.StopCircle) {
+                Text(stringResource(R.string.action_done_playing))
             }
         }
     }

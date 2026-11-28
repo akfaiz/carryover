@@ -21,6 +21,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -39,6 +40,7 @@ import com.akfaiz.carryover.ui.kit.BtnKind
 import com.akfaiz.carryover.ui.kit.Callout
 import com.akfaiz.carryover.ui.kit.EmptyState
 import com.akfaiz.carryover.ui.kit.Hint
+import com.akfaiz.carryover.ui.kit.ListCard
 import com.akfaiz.carryover.ui.kit.ListRows
 import com.akfaiz.carryover.ui.kit.LocalPageInsets
 import com.akfaiz.carryover.ui.kit.PageColumn
@@ -106,16 +108,23 @@ fun BackupsScreen(key: String, state: UiState, nav: Nav, vm: BackupsViewModel = 
                 )
                 !s.loaded -> Spinner()
                 s.backups.isEmpty() -> EmptyState(Icons.Outlined.History, stringResource(R.string.backups_none), stringResource(R.string.backups_none_text))
-                else -> SectionCard(null) {
-                    ListRows(s.backups) { b ->
-                        BackupItem(
-                            b,
-                            busy = s.acting == b.name,
-                            enabled = !s.busy,
-                            onRestore = { restoring = b },
-                            onPin = { vm.togglePinned(b) },
-                            onDelete = { deleting = b },
-                        )
+            }
+            // Until the view model has turned to this profile, it still holds another's list: that one is neither
+            // shown here nor seen leaving.
+            key(key) {
+                ListCard(s.key == key && state.cloudReady && s.loaded && s.backups.isNotEmpty()) {
+                    SectionCard(null) {
+                        // A copy kept on a device and a cloud backup may share a name.
+                        ListRows(s.backups, key = { it.local to it.name }) { b ->
+                            BackupItem(
+                                b,
+                                busy = s.acting == b.name,
+                                enabled = !s.busy,
+                                onRestore = { restoring = b },
+                                onPin = { vm.togglePinned(b) },
+                                onDelete = { deleting = b },
+                            )
+                        }
                     }
                 }
             }
