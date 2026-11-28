@@ -88,7 +88,7 @@ interface SyncCore {
 
 /**
  * Where an emulator keeps a game's saves, from the emulator's manifest and its data folder on this device (see
- * [com.akfaiz.carryover.ui.SuggestViewModel]).
+ * [com.akfaiz.carryover.ui.game.SuggestViewModel]).
  */
 interface SuggestCore {
     /**
@@ -105,7 +105,7 @@ interface SuggestCore {
 }
 
 /**
- * The backups of a game's saves, per profile key (see [com.akfaiz.carryover.ui.BackupsViewModel]); they live in the
+ * The backups of a game's saves, per profile key (see [com.akfaiz.carryover.ui.backups.BackupsViewModel]); they live in the
  * cloud, next to the saves, except the copies a device keeps for itself.
  */
 interface BackupCore {
@@ -125,7 +125,7 @@ interface BackupCore {
 
 /**
  * Deleting games and emulators: the trash (restorable for [TrashView.days]), deleting for good with or without
- * the cloud saves, and the cloud save folders no game uses (see [com.akfaiz.carryover.ui.TrashViewModel]).
+ * the cloud saves, and the cloud save folders no game uses (see [com.akfaiz.carryover.ui.trash.TrashViewModel]).
  */
 interface TrashCore {
     /** What can still be restored; first removes what has been in the trash too long. */

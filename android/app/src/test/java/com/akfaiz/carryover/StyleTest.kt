@@ -6,7 +6,7 @@ import java.io.File
 
 /**
  * The Android twin of the desktop's TestPagesUseTheKitStyle: screens build on the app's own
- * kit (`ui/Kit.kt`, with the look in `ui/Theme.kt`) instead of Material's raw pieces and
+ * kit (`ui/kit/Kit.kt`, with the look in `ui/kit/Theme.kt`) instead of Material's raw pieces and
  * numbers of their own, so every page looks like the others and like the desktop.
  *
  * A line that has a reason to break a rule says `style:ok` in a comment.
@@ -51,7 +51,7 @@ class StyleTest {
     @Test
     fun theKitStaysOutOfTheScreens() {
         // Kit.kt is the one place Material's raw pieces are wrapped: it must not reach for a screen's state.
-        val text = File(src, "ui/Kit.kt").readText()
+        val text = File(src, "ui/kit/Kit.kt").readText()
         val bad = listOf("AppViewModel", "UiState", "Nav\\b", "Core\\b").filter { Regex(it).containsMatchIn(text) }
         assertEquals("Kit.kt knows about screens", emptyList<String>(), bad)
     }
