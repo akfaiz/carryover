@@ -114,8 +114,8 @@ func TestTokens(t *testing.T) {
 		}
 	}
 	require.Equal(t, c.SteamRoot, steamTok.Value)
-	if runtime.GOOS == "darwin" {
-		require.Empty(t, shortcut.Token, "no Proton on macOS")
+	if runtime.GOOS != "linux" {
+		require.Empty(t, shortcut.Token, "Proton is only on Linux")
 		return
 	}
 	require.Contains(t, shortcut.Value, "42")

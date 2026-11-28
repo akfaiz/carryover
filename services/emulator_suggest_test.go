@@ -208,6 +208,72 @@ func TestSuggestSavesForEmulatorWithoutPerGameSaves(t *testing.T) {
 	assert.Equal(t, []string{"Profiles.json"}, byPath["system"].Include, "a file becomes a filter on its folder")
 }
 
+// A manifest lists a folder once per version of a game: each folder is one
+// suggestion, with every version's filter.
+func TestSuggestSavesMergesTheVersionsOfAGame(t *testing.T) {
+	e := newSyncEnv(t)
+	quiet(t, e)
+	const ppsspp = `---
+"FIFA Street 2 (PSP)":
+  files:
+    "<root>/PPSSPP_STATE/ULES00264_*":
+      tags:
+        - save
+    "<root>/PPSSPP_STATE/ULUS10067_*":
+      tags:
+        - save
+    "<root>/SAVEDATA/ULES00264*":
+      tags:
+        - save
+    "<root>/SAVEDATA/ULUS10067*":
+      tags:
+        - save
+`
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) { _, _ = w.Write([]byte(ppsspp)) }))
+	defer srv.Close()
+	svc := NewEmulatorService(e.c, NewBus())
+	svc.store = &emumanifest.Store{Dir: t.TempDir(), URL: srv.URL + "/"}
+
+	// Only the US version was played here.
+	root := t.TempDir()
+	save := filepath.Join(root, "SAVEDATA", "ULUS10067DATA")
+	require.NoError(t, os.MkdirAll(save, 0o755))
+	require.NoError(t, os.WriteFile(filepath.Join(save, "SECURE.BIN"), []byte("1"), 0o644))
+	em, err := svc.Save(EmulatorSetup{Name: "PPSSPP", Exe: "ppsspp", Preset: "ppsspp", DataDir: root})
+	require.NoError(t, err)
+
+	res, err := svc.SuggestSaves(em.ID, EmuSuggestInput{GameName: "FIFA Street 2"})
+	require.NoError(t, err)
+	require.Len(t, res.Suggestions, 2)
+
+	data, states := res.Suggestions[0], res.Suggestions[1]
+	assert.True(t, strings.HasSuffix(data.Path, "/SAVEDATA"), "the folder with files comes first: %s", data.Path)
+	assert.True(t, data.Exists)
+	assert.ElementsMatch(t, []string{"ULES00264*", "ULES00264*/**", "ULUS10067*", "ULUS10067*/**"}, data.Include)
+	assert.True(t, strings.HasSuffix(states.Path, "/PPSSPP_STATE"), states.Path)
+	assert.False(t, states.Exists)
+	assert.ElementsMatch(t, []string{"ULES00264_*", "ULES00264_*/**", "ULUS10067_*", "ULUS10067_*/**"}, states.Include)
+}
+
+func TestAddSuggestion(t *testing.T) {
+	var sgs []EmuSuggestion
+	for _, sg := range []EmuSuggestion{
+		{Game: "A", Path: "x", Include: []string{"1"}},
+		{Game: "B", Path: "x", Include: []string{"2"}},
+		{Game: "A", Path: "y", Include: []string{"3"}},
+		{Game: "A", Path: "x", Include: []string{"1", "4"}, Exists: true},
+		{Game: "A", Path: "y"}, // the whole folder
+		{Game: "A", Path: "y", Include: []string{"5"}},
+	} {
+		sgs = addSuggestion(sgs, sg)
+	}
+	assert.Equal(t, []EmuSuggestion{
+		{Game: "A", Path: "x", Include: []string{"1", "4"}, Exists: true},
+		{Game: "B", Path: "x", Include: []string{"2"}},
+		{Game: "A", Path: "y"},
+	}, sgs)
+}
+
 // Ryujinx's numbered save folders are found through its index, so one game's
 // saves can be synced instead of all of them.
 func TestSuggestRyujinxSavesForOneGame(t *testing.T) {

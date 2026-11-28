@@ -24,6 +24,10 @@ All notable changes to Carryover are listed here. The format follows
 ### Fixed
 
 - A drop-down list opened with the mouse no longer keeps one option highlighted while the pointer is elsewhere.
+- An emulator's save suggestions no longer repeat a folder for every version of a game (such as a PSP game's
+  European, US and Japanese discs): each folder is listed once and covers all of them.
+- Rows in lists of suggestions and search results now start at the left instead of being centred.
+- The Proton path tokens are now offered only on Linux, no longer on Windows.
 
 ## [0.6.0] - 2026-11-27
 

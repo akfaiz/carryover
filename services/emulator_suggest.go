@@ -199,7 +199,7 @@ func (s *EmulatorService) SuggestSaves(emulatorID string, in EmuSuggestInput) (E
 				// Through localfs, so a folder the user granted on Android is looked into too.
 				sg.Exists = localfs.Exists(expanded, rel)
 			}
-			res.Suggestions = append(res.Suggestions, sg)
+			res.Suggestions = addSuggestion(res.Suggestions, sg)
 		}
 	}
 	if !preset.PerGame && len(res.Suggestions) > 0 {
@@ -207,6 +207,29 @@ func (s *EmulatorService) SuggestSaves(emulatorID string, in EmuSuggestInput) (E
 	}
 	foundFirst(res.Suggestions)
 	return res, nil
+}
+
+// addSuggestion adds sg to the list. A manifest can name one folder once for
+// every version of a game (a PSP game's European, US and Japanese discs), each
+// with its own file filter: those become one suggestion with all the filters,
+// as the filters are all that tells them apart.
+func addSuggestion(sgs []EmuSuggestion, sg EmuSuggestion) []EmuSuggestion {
+	i := slices.IndexFunc(sgs, func(o EmuSuggestion) bool { return o.Kind == "" && o.Game == sg.Game && o.Path == sg.Path })
+	if i < 0 {
+		return append(sgs, sg)
+	}
+	o := &sgs[i]
+	o.Exists = o.Exists || sg.Exists
+	if len(o.Include) == 0 || len(sg.Include) == 0 {
+		o.Include = nil // one of them is the whole folder
+		return sgs
+	}
+	for _, f := range sg.Include {
+		if !slices.Contains(o.Include, f) {
+			o.Include = append(o.Include, f)
+		}
+	}
+	return sgs
 }
 
 // foundFirst puts the locations that exist on this device first, in place. The
