@@ -21,7 +21,14 @@ import (
 type Token struct {
 	Token       string `json:"token"`
 	Description string `json:"description"`
-	Value       string `json:"value"` // resolved value on this device ("" if unavailable)
+	// DescriptionMsg is Description to translate (nil: it is a path).
+	DescriptionMsg *msg.Message `json:"descriptionMsg,omitempty"`
+	Value          string       `json:"value"` // resolved value on this device ("" if unavailable)
+}
+
+// token is a Token described by m.
+func token(name string, m msg.Message, value string) Token {
+	return Token{Token: name, Description: m.Text, DescriptionMsg: m.Ptr(), Value: value}
 }
 
 // Context carries values needed to resolve tokens.
@@ -190,45 +197,50 @@ func baseTokens() map[string]string {
 	return m
 }
 
-var descriptions = map[string]string{
-	"home":            "User home directory",
-	"documents":       "Documents folder",
-	"appdata":         "Roaming AppData (Windows) / config dir",
-	"localappdata":    "Local AppData (Windows) / data dir",
-	"localappdatalow": "AppData\\LocalLow (Unity games)",
-	"savedgames":      "Saved Games folder",
-	"publicdocuments": "Public Documents",
-	"xdgdata":         "~/.local/share",
-	"xdgconfig":       "~/.config",
-	"steam":           "Steam installation",
+var descriptions = map[string]msg.Def{
+	"home":            msg.TokenHome,
+	"documents":       msg.TokenDocuments,
+	"appdata":         msg.TokenAppData,
+	"localappdata":    msg.TokenLocalAppData,
+	"localappdatalow": msg.TokenLocalAppDataLow,
+	"savedgames":      msg.TokenSavedGames,
+	"publicdocuments": msg.TokenPublicDocuments,
+	"steam":           msg.TokenSteam,
+}
+
+// pathDescriptions describe the tokens that are a usual path: nothing to translate.
+var pathDescriptions = map[string]string{
+	"xdgdata":   "~/.local/share",
+	"xdgconfig": "~/.config",
+}
+
+// described is the token {name} with its value on this device.
+func described(name, value string) Token {
+	if d, ok := descriptions[name]; ok {
+		return token("{"+name+"}", d.Msg(), value)
+	}
+	return Token{Token: "{" + name + "}", Description: pathDescriptions[name], Value: value}
 }
 
 // Tokens lists tokens available on this device with their resolved values.
 func (c Context) Tokens() []Token {
 	var out []Token
 	for k, v := range baseTokens() {
-		out = append(out, Token{Token: "{" + k + "}", Description: descriptions[k], Value: v})
+		out = append(out, described(k, v))
 	}
 	sort.Slice(out, func(i, j int) bool { return out[i].Token < out[j].Token })
 	if c.SteamRoot != "" {
-		out = append(out, Token{Token: "{steam}", Description: descriptions["steam"], Value: c.SteamRoot})
+		out = append(out, described("steam", c.SteamRoot))
 	}
 	// macOS has no Proton; the tokens still expand there (Expand), for paths
 	// written on other devices.
 	if c.SteamRoot != "" && runtime.GOOS != "darwin" {
-		out = append(out, Token{
-			Token:       "{proton:<appid>}",
-			Description: "Proton prefix user folder (drive_c/users/steamuser) for a Steam app id",
-		})
+		out = append(out, token("{proton:<appid>}", msg.TokenProtonApp.Msg(), ""))
 		v := ""
 		if c.ShortcutAppID != "" {
 			v = steam.CompatDataPrefix(c.SteamRoot, c.ShortcutAppID)
 		}
-		out = append(out, Token{
-			Token:       "{proton:shortcut}",
-			Description: "Proton prefix of this game's non-Steam shortcut",
-			Value:       v,
-		})
+		out = append(out, token("{proton:shortcut}", msg.TokenProtonShortcut.Msg(), v))
 	}
 	return out
 }

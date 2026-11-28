@@ -204,6 +204,20 @@ var (
 	PathRyujinxIndex  = define("path.ryujinx_index", "couldn't read Ryujinx's save index in {{.Path}}")
 )
 
+// What the path tokens stand for, shown where there is no folder to show.
+var (
+	TokenHome            = define("token.home", "User home directory")
+	TokenDocuments       = define("token.documents", "Documents folder")
+	TokenAppData         = define("token.appdata", "Roaming AppData (Windows) / config dir")
+	TokenLocalAppData    = define("token.localappdata", "Local AppData (Windows) / data dir")
+	TokenLocalAppDataLow = define("token.localappdatalow", "AppData\\LocalLow (Unity games)")
+	TokenSavedGames      = define("token.savedgames", "Saved Games folder")
+	TokenPublicDocuments = define("token.publicdocuments", "Public Documents")
+	TokenSteam           = define("token.steam", "Steam installation")
+	TokenProtonApp       = define("token.proton_app", "Proton prefix user folder (drive_c/users/steamuser) for a Steam app id")
+	TokenProtonShortcut  = define("token.proton_shortcut", "Proton prefix of this game's non-Steam shortcut")
+)
+
 // Emulator save suggestions and types.
 var (
 	SuggestChooseType    = define("suggest.choose_type", "choose the emulator type on the Emulators page first")

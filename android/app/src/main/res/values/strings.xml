@@ -898,4 +898,14 @@
     <string name="core_update_running">an update is already being downloaded</string>
     <string name="core_update_unsupported">this install can\'t update itself; download the new version from the release page</string>
     <string name="core_update_unverified">release %1$s can\'t be verified, so it isn\'t installed</string>
+    <string name="core_token_appdata">Roaming AppData (Windows) / config dir</string>
+    <string name="core_token_documents">Documents folder</string>
+    <string name="core_token_home">User home directory</string>
+    <string name="core_token_localappdata">Local AppData (Windows) / data dir</string>
+    <string name="core_token_localappdatalow">AppData\\LocalLow (Unity games)</string>
+    <string name="core_token_proton_app">Proton prefix user folder (drive_c/users/steamuser) for a Steam app id</string>
+    <string name="core_token_proton_shortcut">Proton prefix of this game\'s non-Steam shortcut</string>
+    <string name="core_token_publicdocuments">Public Documents</string>
+    <string name="core_token_savedgames">Saved Games folder</string>
+    <string name="core_token_steam">Steam installation</string>
 </resources>

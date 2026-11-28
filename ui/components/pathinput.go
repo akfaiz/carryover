@@ -88,7 +88,7 @@ func (p *PathInput) showTokens() {
 		for i, t := range p.tokens {
 			desc := t.Value
 			if desc == "" {
-				desc = t.Description
+				desc = i18n.Text(t.Description, t.DescriptionMsg)
 			}
 			kit.Btn(c, nav, [3]any{"path-token", p.gameID, i}, kit.BtnSecondary, nil, t.Token+"   "+desc, func() { d.Close(); p.insert(t.Token) }).
 				AlignSelf(ui.Stretch).Justify(ui.Start)

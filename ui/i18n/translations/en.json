@@ -863,5 +863,15 @@
   "GitHub refused the update check ({{.Status}}); try again later": "GitHub refused the update check ({{.Status}}); try again later",
   "an update is already being downloaded": "an update is already being downloaded",
   "this install can't update itself; download the new version from the release page": "this install can't update itself; download the new version from the release page",
-  "release {{.Version}} can't be verified, so it isn't installed": "release {{.Version}} can't be verified, so it isn't installed"
+  "release {{.Version}} can't be verified, so it isn't installed": "release {{.Version}} can't be verified, so it isn't installed",
+  "Roaming AppData (Windows) / config dir": "Roaming AppData (Windows) / config dir",
+  "Documents folder": "Documents folder",
+  "User home directory": "User home directory",
+  "Local AppData (Windows) / data dir": "Local AppData (Windows) / data dir",
+  "AppData\\LocalLow (Unity games)": "AppData\\LocalLow (Unity games)",
+  "Proton prefix user folder (drive_c/users/steamuser) for a Steam app id": "Proton prefix user folder (drive_c/users/steamuser) for a Steam app id",
+  "Proton prefix of this game's non-Steam shortcut": "Proton prefix of this game's non-Steam shortcut",
+  "Public Documents": "Public Documents",
+  "Saved Games folder": "Saved Games folder",
+  "Steam installation": "Steam installation"
 }
