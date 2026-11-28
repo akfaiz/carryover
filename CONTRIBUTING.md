@@ -124,9 +124,12 @@ scripts/android-build.sh --release --version 0.4.0
    GitHub (a saved draft does nothing).
 
 `.github/workflows/release.yml` builds the files, attaches them with a `SHA256SUMS.txt` and creates the release
-if needed. It doesn't run CI again, so tag a commit on `main`. A tag with a suffix, such as `v0.2.0-alpha.1` or `v0.2.0-beta.1`,
-becomes a pre-release; AppImage updates only see full releases. Number a pre-release from 1 (`-alpha.1`, `-alpha.2`,
-then `-beta.1`, …): the Android version code depends on it, as below.
+if needed. The release's description is the version's section of `CHANGELOG.md` with the wrapped lines joined
+(`scripts/release-notes.sh <tag>` prints it), replacing any description written on GitHub. A pre-release without a
+section of its own gets `## [Unreleased]`; a tag with no notes fails the release job. It doesn't run CI again, so
+tag a commit on `main`. A tag with a suffix, such as `v0.2.0-alpha.1` or `v0.2.0-beta.1`, becomes a pre-release;
+AppImage updates only see full releases. Number a pre-release from 1 (`-alpha.1`, `-alpha.2`, then `-beta.1`, …):
+the Android version code depends on it, as below.
 
 The app's own updater (`internal/app/update`) depends on what the workflow publishes: the file names below, a
 `SHA256SUMS.txt` listing every file (it won't install one that isn't listed), and the pre-release flag on suffixed

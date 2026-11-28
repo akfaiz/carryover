@@ -164,6 +164,11 @@ jobs:
     permissions:
       contents: write # create the release
     steps:
+      - uses: actions/checkout@v5 # first: it empties the workspace
+      # Before anything else is done, so a missing changelog section fails early.
+      # The file stays outside dist/, whose files are all attached.
+      - name: Release notes
+        run: scripts/release-notes.sh "$GITHUB_REF_NAME" > "$RUNNER_TEMP/release-notes.md"
       - uses: actions/download-artifact@v8
         with:
           # Only the release files: other run artifacts (e.g. Docker build records) aren't zips.
@@ -176,5 +181,5 @@ jobs:
       - uses: softprops/action-gh-release@v3
         with:
           files: dist/*
-          generate_release_notes: true
+          body_path: ${{ runner.temp }}/release-notes.md
           prerelease: ${{ contains(github.ref_name, '-') }}

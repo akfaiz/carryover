@@ -67,7 +67,7 @@ jobs:
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
           files: coverage.txt
-          fail_ci_if_error: false # forks and the release workflow have no token
+          fail_ci_if_error: false # forks have no token
 
   # The Android app: the Go core bound with gomobile (the runner's Android SDK
   # and newest NDK), the Kotlin unit tests and Android lint, and the debug APKs
