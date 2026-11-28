@@ -16,12 +16,13 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/akfaiz/carryover/internal/app/appdir"
+	"github.com/akfaiz/carryover/internal/app/msg"
 	"github.com/akfaiz/carryover/internal/cloudsync/cloud"
 	"github.com/akfaiz/carryover/internal/cloudsync/localfs"
 )
 
 // ErrConflict is returned by Apply when both sides changed and no resolution was given.
-var ErrConflict = errors.New("save conflict: both local and cloud saves changed")
+var ErrConflict = msg.SyncConflict.Err()
 
 // Device identifies this machine.
 type Device struct {
@@ -31,11 +32,13 @@ type Device struct {
 
 // Event reports sync progress.
 type Event struct {
-	GameID     string `json:"gameId"`
-	Phase      string `json:"phase"` // scan, backup, upload, download, done, error
-	Message    string `json:"message"`
-	Bytes      int64  `json:"bytes"`
-	TotalBytes int64  `json:"totalBytes"`
+	GameID  string `json:"gameId"`
+	Phase   string `json:"phase"` // scan, backup, upload, download, done, error
+	Message string `json:"message"`
+	// Msg is Message for the apps to translate (nil: it has no code).
+	Msg        *msg.Message `json:"msg,omitempty"`
+	Bytes      int64        `json:"bytes"`
+	TotalBytes int64        `json:"totalBytes"`
 }
 
 // Engine performs syncs against a cloud client.
@@ -105,7 +108,7 @@ const cloudListingMaxAge = 2 * time.Minute
 var planFreshFor = 10 * time.Second
 
 // errCloudChanged is returned by a push when another device synced meanwhile.
-var errCloudChanged = errors.New("the cloud saves changed while syncing (another device synced); sync again")
+var errCloudChanged = msg.SyncCloudChanged.Err()
 
 // Resolution decides what to do on conflict.
 type Resolution string
@@ -116,9 +119,9 @@ const (
 	ResolveCloud Resolution = "cloud" // force pull (keep cloud)
 )
 
-func (e *Engine) emit(gameID, phase, msg string, p cloud.Progress) {
+func (e *Engine) emit(gameID, phase string, text msg.Message, p cloud.Progress) {
 	if e.OnEvent != nil {
-		e.OnEvent(Event{GameID: gameID, Phase: phase, Message: msg, Bytes: p.Bytes, TotalBytes: p.TotalBytes})
+		e.OnEvent(Event{GameID: gameID, Phase: phase, Message: text.Text, Msg: text.Ptr(), Bytes: p.Bytes, TotalBytes: p.TotalBytes})
 	}
 }
 
@@ -133,14 +136,14 @@ func validateJob(job Job) error {
 		return errors.New("missing game id")
 	}
 	if len(job.Slots) == 0 {
-		return errors.New("game has no save locations configured")
+		return msg.SyncNoSlots.Err()
 	}
 	for _, s := range job.Slots {
 		if s.LocalPath == "" {
-			return fmt.Errorf("save location %q has no path on this device", s.Key)
+			return msg.SyncSlotNoPath.Err("Slot", s.Key)
 		}
 		if !localfs.IsAbs(s.LocalPath) {
-			return fmt.Errorf("save location %q must be an absolute path: %s", s.Key, s.LocalPath)
+			return msg.SyncSlotNotAbsolute.Err("Slot", s.Key, "Path", s.LocalPath)
 		}
 	}
 	return nil
@@ -184,16 +187,16 @@ func (e *Engine) plan(ctx context.Context, job Job) (*Plan, error) {
 		defer close(listDone)
 		listed, listErr = e.Client.ListFiles(ctx, currentDir(job.GameID))
 	}()
-	e.emit(job.GameID, "scan", "Scanning local saves", cloud.Progress{})
+	e.emit(job.GameID, "scan", msg.SyncScanning.Msg(), cloud.Progress{})
 	local, err := ScanLocal(ctx, job.Slots, st.LastSynced)
-	e.emit(job.GameID, "scan", "Checking cloud", cloud.Progress{})
+	e.emit(job.GameID, "scan", msg.SyncCheckingCloud.Msg(), cloud.Progress{})
 	<-manifestDone
 	<-listDone
 	if err != nil {
-		return nil, fmt.Errorf("scan local saves: %w", err)
+		return nil, msg.SyncScanFailed.Wrap(err)
 	}
 	if manifestErr != nil {
-		return nil, fmt.Errorf("read cloud manifest: %w", manifestErr)
+		return nil, msg.SyncManifestRead.Wrap(manifestErr)
 	}
 	if found && remote.Format > maxFormat {
 		return nil, ErrNewerSaveFormat
@@ -293,14 +296,14 @@ func (e *Engine) apply(ctx context.Context, p *Plan, res Resolution) (Action, st
 		st.LastSynced = p.Remote
 	}
 	st.Conflict = false
-	st.LastError = ""
+	st.LastError, st.LastErrorMsg = "", nil
 	st.LastSyncAt = time.Now().UTC()
 	st.LastAction = action
 	if err := e.States.Save(p.Job.StateID(), st); err != nil {
 		return action, "", err
 	}
 	e.emit(p.Job.GameID, "done", done, cloud.Progress{})
-	return action, done, nil
+	return action, done.Text, nil
 }
 
 // ActionFor returns what applying the plan with res would do: the plan's own
@@ -311,21 +314,21 @@ func (p *Plan) ActionFor(res Resolution) (Action, error) {
 		return ActionPush, nil
 	case ResolveCloud:
 		if p.Remote == nil {
-			return ActionNone, errors.New("there are no cloud saves to restore")
+			return ActionNone, msg.SyncNoCloudSaves.Err()
 		}
 		return ActionPull, nil
 	}
 	return p.Action, nil
 }
 
-func doneMessage(a Action) string {
+func doneMessage(a Action) msg.Message {
 	switch a {
 	case ActionPush:
-		return "Uploaded saves to cloud"
+		return msg.SyncUploaded.Msg()
 	case ActionPull:
-		return "Downloaded saves from cloud"
+		return msg.SyncDownloaded.Msg()
 	default:
-		return "Saves are up to date"
+		return msg.SyncUpToDate.Msg()
 	}
 }
 
@@ -339,15 +342,15 @@ func (e *Engine) Sync(ctx context.Context, job Job, res Resolution) (*Plan, Acti
 	return p, a, err
 }
 
-func (e *Engine) progress(gameID, phase, msg string) func(cloud.Progress) {
-	return func(pr cloud.Progress) { e.emit(gameID, phase, msg, pr) }
+func (e *Engine) progress(gameID, phase string, text msg.Message) func(cloud.Progress) {
+	return func(pr cloud.Progress) { e.emit(gameID, phase, text, pr) }
 }
 
-func (e *Engine) push(ctx context.Context, p *Plan) (*Manifest, string, error) {
+func (e *Engine) push(ctx context.Context, p *Plan) (*Manifest, msg.Message, error) {
 	id := p.Job.GameID
 	if time.Since(p.plannedAt) > planFreshFor {
 		if err := e.checkCloudUnchanged(ctx, p); err != nil {
-			return nil, "", err
+			return nil, msg.Message{}, err
 		}
 	}
 	// One listing of the cloud folder serves the delta and the backup; the
@@ -356,7 +359,7 @@ func (e *Engine) push(ctx context.Context, p *Plan) (*Manifest, string, error) {
 	if listed == nil || time.Since(p.cloudListedAt) > cloudListingMaxAge {
 		var err error
 		if listed, err = e.Client.ListFiles(ctx, currentDir(id)); err != nil {
-			return nil, "", fmt.Errorf("list cloud saves: %w", err)
+			return nil, msg.Message{}, msg.SyncListFailed.Wrap(err)
 		}
 	}
 	format := e.WriteFormat
@@ -382,7 +385,7 @@ func (e *Engine) push(ctx context.Context, p *Plan) (*Manifest, string, error) {
 	for i, s := range p.Job.Slots {
 		d, err := pushDelta(p.Local, base, s, cloudSlotFiles(inCloud, s.Key))
 		if err != nil {
-			return nil, "", fmt.Errorf("upload %s: %w", s.Key, err)
+			return nil, msg.Message{}, msg.SyncUploadFailed.Wrap(err, "Slot", s.Key)
 		}
 		var now []string
 		for _, rel := range d.del {
@@ -395,7 +398,7 @@ func (e *Engine) push(ctx context.Context, p *Plan) (*Manifest, string, error) {
 		d.del = now
 		stray, err := includedObjects(s, cloudSlotFiles(others, s.Key))
 		if err != nil {
-			return nil, "", err
+			return nil, msg.Message{}, err
 		}
 		late[i] = append(late[i], stray...)
 		deltas[i] = d
@@ -408,7 +411,7 @@ func (e *Engine) push(ctx context.Context, p *Plan) (*Manifest, string, error) {
 			remote = &Manifest{}
 		}
 		if err := e.backupCloud(ctx, id, remote, listed); err != nil {
-			return nil, "", fmt.Errorf("backup cloud saves: %w", err)
+			return nil, msg.Message{}, msg.BackupCloudFailed.Wrap(err)
 		}
 		defer e.pruneInBackground(ctx, id)()
 	}
@@ -416,7 +419,7 @@ func (e *Engine) push(ctx context.Context, p *Plan) (*Manifest, string, error) {
 	if changes && format == FormatZstd {
 		var err error
 		if tmp, err = os.MkdirTemp("", "carryover-push-"); err != nil {
-			return nil, "", err
+			return nil, msg.Message{}, err
 		}
 		defer os.RemoveAll(tmp)
 	}
@@ -430,19 +433,19 @@ func (e *Engine) push(ctx context.Context, p *Plan) (*Manifest, string, error) {
 		dir := currentDir(id) + "/" + s.Key
 		src, names, total := s.LocalPath, d.copy, d.bytes
 		if format == FormatZstd && len(d.copy) > 0 {
-			e.emit(id, "upload", "Compressing "+filesWord(len(d.copy))+" ("+s.Key+")", cloud.Progress{})
+			e.emit(id, "upload", msg.SyncCompressing.Msg(msg.CountArg, len(d.copy), "Slot", s.Key), cloud.Progress{})
 			src = filepath.Join(tmp, strconv.Itoa(i))
 			var err error
 			if names, total, err = compressSlot(ctx, p.Local, s, d.copy, src, stored); err != nil {
-				return nil, "", fmt.Errorf("compress %s: %w", s.Key, err)
+				return nil, msg.Message{}, msg.SyncCompressFailed.Wrap(err, "Slot", s.Key)
 			}
 		}
-		msg := "Uploading " + filesWord(len(d.copy)) + " (" + s.Key + ")"
-		if err := e.Client.Upload(ctx, src, dir, names, total, e.progress(id, "upload", msg)); err != nil {
-			return nil, "", fmt.Errorf("upload %s: %w", s.Key, err)
+		text := msg.SyncUploading.Msg(msg.CountArg, len(d.copy), "Slot", s.Key)
+		if err := e.Client.Upload(ctx, src, dir, names, total, e.progress(id, "upload", text)); err != nil {
+			return nil, msg.Message{}, msg.SyncUploadFailed.Wrap(err, "Slot", s.Key)
 		}
 		if err := e.Client.DeleteFiles(ctx, dir, storedNames(d.del, format)); err != nil {
-			return nil, "", fmt.Errorf("delete removed %s files from cloud: %w", s.Key, err)
+			return nil, msg.Message{}, msg.SyncCloudDeleteFailed.Wrap(err, "Slot", s.Key)
 		}
 		copied += len(d.copy)
 		deleted += len(d.del)
@@ -450,7 +453,7 @@ func (e *Engine) push(ctx context.Context, p *Plan) (*Manifest, string, error) {
 	// Another device may have pushed since this plan was made (a conflict
 	// prompt can keep a plan waiting): don't stack our files on top of theirs.
 	if err := e.checkCloudUnchanged(ctx, p); err != nil {
-		return nil, "", err
+		return nil, msg.Message{}, err
 	}
 	m := &Manifest{
 		Format:     format,
@@ -461,7 +464,7 @@ func (e *Engine) push(ctx context.Context, p *Plan) (*Manifest, string, error) {
 		Files:      manifestFiles(p.Local, format, stored, inCloud),
 	}
 	if err := e.Client.WriteJSON(ctx, manifestPath(id), m); err != nil {
-		return nil, "", fmt.Errorf("write cloud manifest: %w", err)
+		return nil, msg.Message{}, msg.SyncManifestWrite.Wrap(err)
 	}
 	// The push is complete: what is left of another format is only clutter,
 	// and the next push tries again if deleting it fails.
@@ -470,7 +473,7 @@ func (e *Engine) push(ctx context.Context, p *Plan) (*Manifest, string, error) {
 			log.Printf("sync %s: delete files of the previous format: %v", p.Job.StateID(), err)
 		}
 	}
-	return m, transferSummary("Uploaded", "from cloud", copied, deleted), nil
+	return m, transferSummary(msg.SyncDoneUploaded, msg.SyncDeletedCloud, msg.SyncAndDeletedCloud, copied, deleted), nil
 }
 
 // compressSlot compresses the slot's files (paths relative to it) into dir as
@@ -553,7 +556,7 @@ func (e *Engine) checkCloudUnchanged(ctx context.Context, p *Plan) error {
 	var cur Manifest
 	found, err := e.Client.ReadJSON(ctx, manifestPath(p.Job.GameID), &cur)
 	if err != nil {
-		return fmt.Errorf("read cloud manifest: %w", err)
+		return msg.SyncManifestRead.Wrap(err)
 	}
 	if found != (p.Remote != nil) || (found && cur.Revision != p.Remote.Revision) {
 		return errCloudChanged
@@ -561,14 +564,14 @@ func (e *Engine) checkCloudUnchanged(ctx context.Context, p *Plan) error {
 	return nil
 }
 
-func (e *Engine) pull(ctx context.Context, p *Plan) (string, error) {
+func (e *Engine) pull(ctx context.Context, p *Plan) (msg.Message, error) {
 	id := p.Job.GameID
 	deltas := make([]delta, len(p.Job.Slots))
 	changes := false
 	for i, s := range p.Job.Slots {
 		flt, err := s.Filters.NewFilter()
 		if err != nil {
-			return "", err
+			return msg.Message{}, err
 		}
 		// The local scan is fresh, so both sides' checksums are exact.
 		deltas[i] = diff(slotFiles(p.Remote, s.Key, flt), slotFiles(p.Local, s.Key, nil))
@@ -579,11 +582,11 @@ func (e *Engine) pull(ctx context.Context, p *Plan) (string, error) {
 	if changes && len(p.Local.Files) > 0 {
 		if e.Retention > 0 {
 			if _, err := e.backupLocal(ctx, p.Job, p.Local, "local"); err != nil {
-				return "", fmt.Errorf("backup local saves: %w", err)
+				return msg.Message{}, msg.BackupLocalFailed.Wrap(err)
 			}
 			defer e.pruneInBackground(ctx, id)()
 		} else if err := e.safetyCopy(p.Job, p.Local); err != nil {
-			return "", fmt.Errorf("keep a copy of local saves: %w", err)
+			return msg.Message{}, msg.BackupCopyFailed.Wrap(err)
 		}
 	}
 	var copied, deleted int
@@ -593,7 +596,7 @@ func (e *Engine) pull(ctx context.Context, p *Plan) (string, error) {
 			continue
 		}
 		if err := localfs.MkdirAll(s.LocalPath); err != nil {
-			return "", err
+			return msg.Message{}, err
 		}
 		var err error
 		if p.Remote.Format == FormatZstd {
@@ -602,40 +605,40 @@ func (e *Engine) pull(ctx context.Context, p *Plan) (string, error) {
 			err = e.downloadRaw(ctx, p, s, d)
 		}
 		if err != nil {
-			return "", err
+			return msg.Message{}, err
 		}
 		for _, rel := range d.del {
 			if err := localfs.Remove(localfs.Join(s.LocalPath, rel)); err != nil && !errors.Is(err, os.ErrNotExist) {
-				return "", fmt.Errorf("delete %s: %w", rel, err)
+				return msg.Message{}, msg.SyncDeleteFailed.Wrap(err, "File", rel)
 			}
 		}
 		copied += len(d.copy)
 		deleted += len(d.del)
 	}
-	return transferSummary("Downloaded", "on this device", copied, deleted), nil
+	return transferSummary(msg.SyncDoneDownloaded, msg.SyncDeletedDevice, msg.SyncAndDeletedDevice, copied, deleted), nil
 }
 
 // errNotAsManifest is the error for a downloaded file that isn't the one the
 // cloud manifest describes: the cloud folder can be ahead of its manifest (a
 // push that was interrupted before writing it, or one still running).
 func errNotAsManifest(rel string) error {
-	return fmt.Errorf("downloaded %s doesn't match the cloud manifest (another device may be uploading); try again", rel)
+	return msg.SyncMismatch.Err("File", rel)
 }
 
 // downloadRaw downloads the slot's changed files of a FormatRaw folder
 // straight into the save folder and checks them against the manifest.
 func (e *Engine) downloadRaw(ctx context.Context, p *Plan, s Slot, d delta) error {
 	id := p.Job.GameID
-	msg := "Downloading " + filesWord(len(d.copy)) + " (" + s.Key + ")"
-	if err := e.Client.Download(ctx, currentDir(id)+"/"+s.Key, s.LocalPath, d.copy, d.bytes, e.progress(id, "download", msg)); err != nil {
-		return fmt.Errorf("download %s: %w", s.Key, err)
+	text := msg.SyncDownloading.Msg(msg.CountArg, len(d.copy), "Slot", s.Key)
+	if err := e.Client.Download(ctx, currentDir(id)+"/"+s.Key, s.LocalPath, d.copy, d.bytes, e.progress(id, "download", text)); err != nil {
+		return msg.SyncDownloadFailed.Wrap(err, "Slot", s.Key)
 	}
 	// Don't record content we didn't expect as the synced state.
 	for _, rel := range d.copy {
 		want := p.Remote.Files[s.Key+"/"+rel]
 		got, err := hashFile(localfs.Join(s.LocalPath, rel))
 		if err != nil {
-			return fmt.Errorf("verify %s: %w", rel, err)
+			return msg.SyncVerifyFailed.Wrap(err, "File", rel)
 		}
 		if got != want.Hash {
 			return errNotAsManifest(rel)
@@ -659,13 +662,13 @@ func (e *Engine) downloadCompressed(ctx context.Context, p *Plan, s Slot, d delt
 	var total int64
 	for _, rel := range d.copy {
 		if !filepath.IsLocal(filepath.FromSlash(rel)) {
-			return fmt.Errorf("the cloud manifest has an unsafe path: %s", rel)
+			return msg.SyncUnsafeManifest.Err("Path", rel)
 		}
 		total += p.Remote.Files[s.Key+"/"+rel].stored()
 	}
-	msg := "Downloading " + filesWord(len(d.copy)) + " (" + s.Key + ")"
-	if err := e.Client.Download(ctx, currentDir(id)+"/"+s.Key, tmp, names, total, e.progress(id, "download", msg)); err != nil {
-		return fmt.Errorf("download %s: %w", s.Key, err)
+	text := msg.SyncDownloading.Msg(msg.CountArg, len(d.copy), "Slot", s.Key)
+	if err := e.Client.Download(ctx, currentDir(id)+"/"+s.Key, tmp, names, total, e.progress(id, "download", text)); err != nil {
+		return msg.SyncDownloadFailed.Wrap(err, "Slot", s.Key)
 	}
 	for i, rel := range d.copy {
 		if err := ctx.Err(); err != nil {
@@ -676,7 +679,7 @@ func (e *Engine) downloadCompressed(ctx context.Context, p *Plan, s Slot, d delt
 			return errNotAsManifest(rel)
 		}
 		if err != nil {
-			return fmt.Errorf("decompress %s: %w", rel, err)
+			return msg.SyncDecompressFailed.Wrap(err, "File", rel)
 		}
 	}
 	return nil
@@ -721,17 +724,19 @@ func pushDelta(localScan, remoteManifest *Manifest, s Slot, listed map[string]in
 	return d, nil
 }
 
-// transferSummary is the "done" message for a push or pull.
-func transferSummary(verb, where string, copied, deleted int) string {
+// transferSummary is the "done" message for a push or pull: copiedMsg counts
+// the files transferred and deletedMsg the ones removed where they went
+// (andDeleted is deletedMsg after something else).
+func transferSummary(copiedMsg, deletedMsg, andDeleted msg.Def, copied, deleted int) msg.Message {
 	switch {
 	case copied == 0 && deleted == 0:
-		return "Saves are up to date (nothing changed)"
+		return msg.SyncNothingChanged.Msg()
 	case deleted == 0:
-		return verb + " " + filesWord(copied)
+		return copiedMsg.Msg(msg.CountArg, copied)
 	case copied == 0:
-		return "Deleted " + filesWord(deleted) + " " + where
+		return deletedMsg.Msg(msg.CountArg, deleted)
 	}
-	return verb + " " + filesWord(copied) + ", deleted " + filesWord(deleted) + " " + where
+	return msg.SyncDoneParts.Msg("Parts", msg.List{copiedMsg.Msg(msg.CountArg, copied), andDeleted.Msg(msg.CountArg, deleted)})
 }
 
 // Lock marks a game as being played on a device.
@@ -779,6 +784,9 @@ type State struct {
 	LastAction Action    `json:"lastAction"`
 	Conflict   bool      `json:"conflict"`
 	LastError  string    `json:"lastError"`
+	// LastErrorMsg is LastError for the apps to translate (nil in older data,
+	// or for an error without a code).
+	LastErrorMsg *msg.Message `json:"lastErrorMsg,omitempty"`
 }
 
 // StateStore persists State per game in a directory.
@@ -817,11 +825,12 @@ func (s *StateStore) Delete(id string) error {
 }
 
 // SetError records the last error (or clears it with "").
-func (s *StateStore) SetError(id, msg string) {
+func (s *StateStore) SetError(id string, failure error) {
 	st, err := s.Load(id)
 	if err != nil {
 		return
 	}
-	st.LastError = msg
+	m := msg.Of(failure)
+	st.LastError, st.LastErrorMsg = m.Text, m.Ptr()
 	_ = s.Save(id, st)
 }

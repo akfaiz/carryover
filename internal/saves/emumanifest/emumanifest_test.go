@@ -63,7 +63,7 @@ func TestFindByNameAndID(t *testing.T) {
 
 func TestPresetArgs(t *testing.T) {
 	for _, p := range Presets() {
-		assert.True(t, p.Args != "" || p.ArgsNote != "", "%s has neither suggested arguments nor a note", p.ID)
+		assert.True(t, p.Args != "" || p.ArgsNote.Code != "", "%s has neither suggested arguments nor a note", p.ID)
 		if p.Args != "" {
 			assert.Contains(t, p.Args, "{rom}", p.ID)
 		}

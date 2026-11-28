@@ -29,7 +29,8 @@ func (s *state) answerBrowser(name string, q *cloud.Question, err error) (*cloud
 }
 
 // Providers lists the supported cloud providers ([]cloud.Provider) as JSON.
-func Providers() (string, error) {
+func Providers() (_ string, err error) {
+	defer wire(&err)
 	s, err := get()
 	if err != nil {
 		return "", err
@@ -38,7 +39,8 @@ func Providers() (string, error) {
 }
 
 // Remotes lists the configured rclone remotes ([]cloud.Remote) as JSON.
-func Remotes() (string, error) {
+func Remotes() (_ string, err error) {
+	defer wire(&err)
 	s, err := get()
 	if err != nil {
 		return "", err
@@ -51,7 +53,8 @@ func Remotes() (string, error) {
 // or a question to answer with ContinueRemote. For OAuth providers it calls
 // Host.OpenURL and blocks until the browser redirect arrives (up to 10
 // minutes) or CancelSignIn is called (then it fails with "sign-in cancelled").
-func CreateRemote(name, typ, paramsJSON string) (string, error) {
+func CreateRemote(name, typ, paramsJSON string) (_ string, err error) {
+	defer wire(&err)
 	s, err := get()
 	if err != nil {
 		return "", err
@@ -68,7 +71,8 @@ func CreateRemote(name, typ, paramsJSON string) (string, error) {
 
 // ContinueRemote answers a question from CreateRemote/ContinueRemote. Like
 // CreateRemote it can wait for the browser.
-func ContinueRemote(name, state, result string) (string, error) {
+func ContinueRemote(name, state, result string) (_ string, err error) {
+	defer wire(&err)
 	s, err := get()
 	if err != nil {
 		return "", err
@@ -89,7 +93,8 @@ func CancelSignIn() bool {
 }
 
 // DeleteRemote removes a remote; if it is the active one, syncing stops.
-func DeleteRemote(name string) error {
+func DeleteRemote(name string) (err error) {
+	defer wire(&err)
 	s, err := get()
 	if err != nil {
 		return err
@@ -98,7 +103,8 @@ func DeleteRemote(name string) error {
 }
 
 // TestRemote checks that remote:root can be listed and written.
-func TestRemote(remote, root string) error {
+func TestRemote(remote, root string) (err error) {
+	defer wire(&err)
 	s, err := get()
 	if err != nil {
 		return err
@@ -111,7 +117,8 @@ func TestRemote(remote, root string) error {
 // own config. An account of the same name is replaced; the others are left
 // out. It returns a cloud.ImportResult as JSON (imported, skipped, replaced);
 // an encrypted config is an error.
-func ImportRcloneConfig(contents string) (string, error) {
+func ImportRcloneConfig(contents string) (_ string, err error) {
+	defer wire(&err)
 	s, err := get()
 	if err != nil {
 		return "", err

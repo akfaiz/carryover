@@ -11,6 +11,7 @@ import (
 
 	"github.com/google/uuid"
 
+	"github.com/akfaiz/carryover/internal/app/msg"
 	"github.com/akfaiz/carryover/internal/cloudsync/syncer"
 	"github.com/akfaiz/carryover/internal/library"
 )
@@ -24,10 +25,18 @@ type Status struct {
 	Key     string `json:"key,omitempty"`
 	Phase   string `json:"phase"` // sync, playing, done, error
 	Message string `json:"message"`
-	Running bool   `json:"running"`
+	// Msg is Message for the apps to translate (nil: it has no code).
+	Msg     *msg.Message `json:"msg,omitempty"`
+	Running bool         `json:"running"`
 	// BeforePlay is set during the sync before the game starts (cancelling it
 	// cancels the launch); a sync after the game closed has it false.
 	BeforePlay bool `json:"beforePlay,omitempty"`
+}
+
+// saying is the status with m as its text.
+func (st Status) saying(m msg.Message) Status {
+	st.Message, st.Msg = m.Text, m.Ptr()
+	return st
 }
 
 // ConflictInfo is shown when local and cloud saves both changed.
@@ -47,6 +56,7 @@ type Prompt struct {
 	Conflict   *ConflictInfo `json:"conflict,omitempty"`
 	Lock       *syncer.Lock  `json:"lock,omitempty"`
 	Error      string        `json:"error,omitempty"`
+	ErrorMsg   *msg.Message  `json:"errorMsg,omitempty"`
 	// Choices, Default and Seconds are for Kind "emulator": the ways to play the
 	// game on this device, the one that starts if nobody answers, and after how
 	// many seconds. The answer is a choice's ID.
@@ -60,6 +70,8 @@ type Prompt struct {
 type ProfileChoice struct {
 	ID   string `json:"id"`
 	Name string `json:"name"`
+	// NameMsg is set when Name is a text to translate, not an emulator's name.
+	NameMsg *msg.Message `json:"nameMsg,omitempty"`
 }
 
 // Bus delivers service events to subscribers (the GUI). Handlers run on the
@@ -268,9 +280,9 @@ type guiUI struct {
 	played       bool // the game was started: later syncs are after playing
 }
 
-func (u *guiUI) Status(phase, message string) {
-	u.onStatus(Status{GameID: u.gameID, Profile: u.profile, Key: u.key, Phase: phase, Message: message,
-		Running: phase == "playing", BeforePlay: phase == "sync" && !u.played})
+func (u *guiUI) Status(phase string, message msg.Message) {
+	u.onStatus(Status{GameID: u.gameID, Profile: u.profile, Key: u.key, Phase: phase,
+		Running: phase == "playing", BeforePlay: phase == "sync" && !u.played}.saying(message))
 }
 
 func (u *guiUI) ResolveConflict(ctx context.Context, g library.Game, plan *syncer.Plan, before bool) syncer.Resolution {
@@ -292,7 +304,8 @@ func (u *guiUI) ConfirmLock(ctx context.Context, g library.Game, l *syncer.Lock)
 }
 
 func (u *guiUI) ConfirmSyncFailure(ctx context.Context, g library.Game, err error, before bool) bool {
-	return u.p.ask(ctx, Prompt{Kind: "syncError", GameID: g.ID, GameName: g.Name + u.suffix, Profile: u.profile, Error: err.Error(), BeforePlay: before}) == "yes"
+	failure := msg.Of(err)
+	return u.p.ask(ctx, Prompt{Kind: "syncError", GameID: g.ID, GameName: g.Name + u.suffix, Profile: u.profile, Error: failure.Text, ErrorMsg: failure.Ptr(), BeforePlay: before}) == "yes"
 }
 
 func (u *guiUI) SyncCancelable(cancel func()) {

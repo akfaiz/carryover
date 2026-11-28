@@ -17,6 +17,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import com.akfaiz.carryover.ui.components.coreText
 import com.akfaiz.carryover.R
 import com.akfaiz.carryover.core.SafPath
 import com.akfaiz.carryover.core.SaveKind
@@ -54,7 +55,7 @@ fun SaveSuggestDialog(state: SuggestState, onUse: (SaveSuggestion) -> Unit, onCl
                     }
                     state.error != null -> Callout(Tone.Err, Icons.Outlined.ErrorOutline, state.error)
                     result != null -> {
-                        if (result.note.isNotEmpty()) Hint(result.note)
+                        if (result.note.isNotEmpty()) Hint(coreText(result.note, result.noteMsg))
                         if (result.suggestions.isEmpty()) {
                             Text(stringResource(R.string.suggest_none), style = MaterialTheme.typography.bodyMedium)
                         } else {
@@ -74,7 +75,7 @@ fun SaveSuggestDialog(state: SuggestState, onUse: (SaveSuggestion) -> Unit, onCl
 private fun SuggestionItem(sg: SaveSuggestion, enabled: Boolean, onUse: () -> Unit) {
     val filters = suggestionFilters(sg.include)
     SubCard {
-        Text(sg.game, style = MaterialTheme.typography.titleSmall)
+        Text(coreText(sg.game, sg.gameMsg), style = MaterialTheme.typography.titleSmall)
         when (sg.kind) {
             SaveKind.Account -> Pill(stringResource(R.string.suggest_kind_account), Tone.Neutral)
             SaveKind.Device -> Pill(stringResource(R.string.suggest_kind_device), Tone.Neutral)

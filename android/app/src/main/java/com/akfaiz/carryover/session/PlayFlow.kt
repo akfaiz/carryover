@@ -28,7 +28,7 @@ class PlayFlow(
     /** Ends the session of key (the game didn't start). */
     private val stopWatching: (key: String) -> Unit,
     /** The message for a session that couldn't start. */
-    private val startFailed: (title: String, cause: String) -> String,
+    private val startFailed: (title: String, cause: Throwable) -> String,
 ) {
     /**
      * Plays profile [key] ([native]: the game's own profile) by running
@@ -76,6 +76,6 @@ class PlayFlow(
     } catch (e: CancellationException) {
         throw e
     } catch (e: Exception) {
-        Result.failure(IllegalStateException(startFailed(title, e.message ?: e.toString()), e))
+        Result.failure(IllegalStateException(startFailed(title, e), e))
     }
 }

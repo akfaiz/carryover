@@ -2,10 +2,10 @@ package services
 
 import (
 	"context"
-	"errors"
 	"strings"
 	"time"
 
+	"github.com/akfaiz/carryover/internal/app/msg"
 	"github.com/akfaiz/carryover/internal/library"
 )
 
@@ -142,7 +142,7 @@ func (s *EmulatorService) Restore(id string) error {
 	}
 	for _, o := range s.c.Library.Emulators() {
 		if o.ID != id && strings.EqualFold(o.Name, e.Name) {
-			return errors.New("an emulator with this name already exists: rename it first")
+			return msg.LibraryRenameEmulator.Err()
 		}
 	}
 	if _, err := s.c.Library.RestoreEmulator(id); err != nil {

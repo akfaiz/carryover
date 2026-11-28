@@ -25,7 +25,8 @@ const (
 // Update is what the window shows after a status change.
 type Update struct {
 	Message string
-	Failed  bool // the message is an error
+	Msg     *services.Message // Message to translate
+	Failed  bool              // the message is an error
 
 	// Step is the step the session is at (on a failure, the one that failed).
 	// Ended is set once nothing runs any more: done, cancelled or failed.
@@ -84,7 +85,7 @@ func (vm *ViewModel) advance(st services.Status) {
 // the window shows.
 func (vm *ViewModel) Apply(st services.Status, ev syncer.Event) Update {
 	vm.advance(st)
-	u := Update{Message: st.Message, Failed: st.Phase == "error", Step: vm.step}
+	u := Update{Message: st.Message, Msg: st.Msg, Failed: st.Phase == "error", Step: vm.step}
 	u.Ended = st.Phase == "done" || st.Phase == "error"
 	if st.Phase != "sync" {
 		vm.phase = ""

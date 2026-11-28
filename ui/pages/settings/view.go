@@ -128,7 +128,7 @@ func (p *Page) load(st appdir.Settings, devs []services.DeviceView) {
 	}
 	p.keyTest = kit.NewTestButton(i18n.L("Test"), i18n.L("Key works."), i18n.L("Testing…"), func() func() error {
 		k := p.f.key
-		return func() error { return u.Lib().TestSteamGridKey(k) }
+		return func() error { return i18n.Translated(u.Lib().TestSteamGridKey(k)) }
 	})
 	if p.opts.SteamArt != nil {
 		p.steam = newSelfSteamCard(u, p.opts.SteamArt)
@@ -230,7 +230,7 @@ func (p *Page) form(c *ui.Context) {
 			kit.Labeled(c, i18n.L("Backups to keep per game (1–100)"), func() {
 				p.field(c, "retention", &f.retention, "").Width(120)
 				if _, err := ParseRetention(f.retention); err != nil {
-					kit.Danger(c, words(err).Error())
+					kit.Danger(c, i18n.Err(words(err)))
 				}
 			})
 		}

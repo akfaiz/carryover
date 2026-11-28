@@ -134,7 +134,7 @@ func (f *Form) View(c *ui.Context) ui.Element {
 		})
 
 		if vm.ErrText() != "" {
-			kit.Danger(c, vm.ErrText())
+			kit.Danger(c, i18n.Text(vm.ErrText(), vm.ErrMsg()))
 		}
 		kit.Footer(c, func() {
 			kit.Btn(c, nav, "emu-cancel", kit.BtnSecondary, nil, i18n.L("Cancel"), f.onCancel, kit.BtnItem(kit.FocusSafe))
@@ -208,7 +208,7 @@ func (f *Form) argsHints(c *ui.Context, preset services.PresetView) {
 		})
 	}
 	if preset.ArgsNote != "" {
-		kit.Muted(c, preset.ArgsNote)
+		kit.Muted(c, i18n.Text(preset.ArgsNote, preset.ArgsNoteMsg))
 	}
 	if preset.Args != "" {
 		kit.Muted(c, i18n.L("Suggested arguments can differ between versions of the emulator; check its command line help."))
@@ -222,7 +222,7 @@ func (f *Form) dataFolderFields(c *ui.Context, preset services.PresetView) {
 		return
 	}
 	f.dataDir.Placeholder = f.vm.DefaultDataDir()
-	kit.Labeled(c, i18n.L("Data folder on this device: {{.Hint}}", map[string]any{"Hint": preset.RootHint}), func() { f.dataDir.View(c, "datadir") })
+	kit.Labeled(c, i18n.L("Data folder on this device: {{.Hint}}", map[string]any{"Hint": i18n.Text(preset.RootHint, preset.RootHintMsg)}), func() { f.dataDir.View(c, "datadir") })
 	if f.dataDir.Placeholder != "" {
 		kit.Muted(c, i18n.L("Left empty, the usual folder shown above is used."))
 	}

@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/akfaiz/carryover/internal/app/msg"
 	"github.com/akfaiz/carryover/internal/cloudsync/syncer"
 )
 
@@ -305,7 +306,8 @@ func (c *Core) uploadAfterKill(ctx context.Context, eng *syncer.Engine, info ses
 		}
 	}
 	log.Printf("finish session %s: %v", key, err)
-	c.States.SetError(key, err.Error())
-	n.Kind, n.Err = NoticeFailed, err.Error()
+	c.States.SetError(key, err)
+	failure := msg.Of(err)
+	n.Kind, n.Err, n.ErrMsg = NoticeFailed, failure.Text, failure.Ptr()
 	return n
 }

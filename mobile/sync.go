@@ -10,7 +10,8 @@ import (
 // Plan compares the local and cloud saves of key (a game id, or a sync key
 // for an emulator profile) without transferring anything, and returns a
 // services.PlanView as JSON.
-func Plan(key string) (string, error) {
+func Plan(key string) (_ string, err error) {
+	defer wire(&err)
 	s, err := get()
 	if err != nil {
 		return "", err
@@ -45,7 +46,8 @@ func outcome(err error) (offline, cancelled bool, rest error) {
 // Sync syncs key. resolution is "" (decide automatically), "local" (keep this
 // device's saves) or "cloud". It returns a SyncOutcome as JSON; on a conflict,
 // ask the user, then call Sync again with a resolution.
-func Sync(key, resolution string) (string, error) {
+func Sync(key, resolution string) (_ string, err error) {
+	defer wire(&err)
 	s, err := get()
 	if err != nil {
 		return "", err
@@ -66,7 +68,8 @@ type SyncAllOutcome struct {
 // SyncAll syncs the library catalog and every game set up on this device,
 // returning a SyncAllOutcome as JSON. A game's own failure is in its result;
 // the call fails only when the whole run does (no cloud remote, catalog error).
-func SyncAll() (string, error) {
+func SyncAll() (_ string, err error) {
+	defer wire(&err)
 	s, err := get()
 	if err != nil {
 		return "", err
@@ -81,7 +84,8 @@ func SyncAll() (string, error) {
 }
 
 // SyncLibrary merges the library catalog with the cloud.
-func SyncLibrary() error {
+func SyncLibrary() (err error) {
+	defer wire(&err)
 	s, err := get()
 	if err != nil {
 		return err

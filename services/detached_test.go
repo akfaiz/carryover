@@ -13,6 +13,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/akfaiz/carryover/internal/app/appdir"
+	"github.com/akfaiz/carryover/internal/app/msg"
 	"github.com/akfaiz/carryover/internal/cloudsync/syncer"
 	"github.com/akfaiz/carryover/internal/core"
 	"github.com/akfaiz/carryover/internal/library"
@@ -109,7 +110,7 @@ func TestBeginAndEnd(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, notice)
 	assert.Equal(t, core.NoticeUploaded, notice.Kind)
-	assert.Equal(t, Status{GameID: g.ID, Key: g.ID, Phase: "done", Message: "Game closed, saves synced"}, last())
+	assert.Equal(t, Status{GameID: g.ID, Key: g.ID, Phase: "done"}.saying(msg.SessionClosedSynced.Msg()), last())
 	assert.False(t, c.SessionOpen(g.ID))
 	assert.NoFileExists(t, lockFile, "cloud lock not released")
 

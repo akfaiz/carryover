@@ -13,13 +13,15 @@ import (
 	"path/filepath"
 	"strings"
 	"time"
+
+	"github.com/akfaiz/carryover/internal/app/msg"
 )
 
 // ChecksumFile is the release file listing the SHA-256 of every other one.
 const ChecksumFile = "SHA256SUMS.txt"
 
 // ErrChecksum means a downloaded file isn't the one the release lists.
-var ErrChecksum = errors.New("the downloaded file doesn't match the release's checksum")
+var ErrChecksum = msg.UpdateChecksum.Err()
 
 // stallTimeout ends a download that stopped receiving data. A variable for tests.
 var stallTimeout = time.Minute
@@ -37,7 +39,7 @@ func (c *Client) Download(ctx context.Context, rel Release, name, dir string, pr
 	}
 	asset, ok := rel.Asset(name)
 	if !ok {
-		return "", fmt.Errorf("release %s has no file %s", rel.Version, name)
+		return "", msg.UpdateNoFile.Err("Version", rel.Version, "File", name)
 	}
 	sum, err := c.checksum(ctx, rel, name)
 	if err != nil {
@@ -74,11 +76,11 @@ func (c *Client) get(ctx context.Context, url string) (*http.Response, error) {
 	req.Header.Set("User-Agent", userAgent)
 	resp, err := c.http().Do(req)
 	if err != nil {
-		return nil, fmt.Errorf("download: %w", err)
+		return nil, msg.UpdateDownload.Wrap(err)
 	}
 	if resp.StatusCode != http.StatusOK {
 		resp.Body.Close()
-		return nil, fmt.Errorf("download: %s", resp.Status)
+		return nil, msg.UpdateDownload.Wrap(errors.New(resp.Status))
 	}
 	return resp, nil
 }
@@ -87,7 +89,7 @@ func (c *Client) get(ctx context.Context, url string) (*http.Response, error) {
 func (c *Client) checksum(ctx context.Context, rel Release, name string) (string, error) {
 	list, ok := rel.Asset(ChecksumFile)
 	if !ok {
-		return "", fmt.Errorf("release %s has no %s: not installing a file that can't be verified", rel.Version, ChecksumFile)
+		return "", msg.UpdateUnverified.Wrap(errors.New("no "+ChecksumFile), "Version", rel.Version)
 	}
 	ctx, cancel := context.WithTimeout(ctx, apiTimeout)
 	defer cancel()
@@ -105,9 +107,9 @@ func (c *Client) checksum(ctx context.Context, rel Release, name string) (string
 		}
 	}
 	if err := lines.Err(); err != nil {
-		return "", fmt.Errorf("download %s: %w", ChecksumFile, err)
+		return "", msg.UpdateDownload.Wrap(fmt.Errorf("%s: %w", ChecksumFile, err))
 	}
-	return "", fmt.Errorf("%s doesn't list %s: not installing a file that can't be verified", ChecksumFile, name)
+	return "", msg.UpdateUnverified.Wrap(fmt.Errorf("%s doesn't list %s", ChecksumFile, name), "Version", rel.Version)
 }
 
 func (c *Client) fetch(ctx context.Context, asset Asset, path, sum string, progress func(done, total int64)) (err error) {
@@ -117,7 +119,7 @@ func (c *Client) fetch(ctx context.Context, asset Asset, path, sum string, progr
 	defer stalled.Stop()
 	defer func() {
 		if err != nil && ctx.Err() != nil {
-			err = fmt.Errorf("download %s: %w", asset.Name, context.Cause(ctx))
+			err = msg.UpdateDownload.Wrap(fmt.Errorf("%s: %w", asset.Name, context.Cause(ctx)))
 		}
 	}()
 	resp, err := c.get(ctx, asset.URL)
@@ -161,7 +163,7 @@ func (c *Client) fetch(ctx context.Context, asset Asset, path, sum string, progr
 			break
 		}
 		if rerr != nil {
-			return fmt.Errorf("download %s: %w", asset.Name, rerr)
+			return msg.UpdateDownload.Wrap(fmt.Errorf("%s: %w", asset.Name, rerr))
 		}
 	}
 	if hex.EncodeToString(h.Sum(nil)) != sum {

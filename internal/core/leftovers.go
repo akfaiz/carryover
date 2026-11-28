@@ -3,7 +3,6 @@ package core
 import (
 	"context"
 	"errors"
-	"fmt"
 	"log"
 	"path"
 	"slices"
@@ -11,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/akfaiz/carryover/internal/app/msg"
 	"github.com/akfaiz/carryover/internal/cloudsync/cloud"
 	"github.com/akfaiz/carryover/internal/cloudsync/syncer"
 	"github.com/akfaiz/carryover/internal/library"
@@ -64,7 +64,7 @@ func (c *Core) Leftovers(ctx context.Context) ([]Leftover, error) {
 	}
 	dirs, err := cl.ListDirs(ctx, gamesCloudDir)
 	if err != nil {
-		return nil, fmt.Errorf("list cloud saves: %w", err)
+		return nil, msg.SyncListFailed.Wrap(err)
 	}
 	var out []Leftover
 	for _, d := range dirs {
@@ -109,7 +109,7 @@ func (c *Core) CountLeftovers(ctx context.Context) (int, error) {
 	}
 	dirs, err := cl.ListDirs(ctx, gamesCloudDir)
 	if err != nil {
-		return 0, fmt.Errorf("list cloud saves: %w", err)
+		return 0, msg.SyncListFailed.Wrap(err)
 	}
 	n := 0
 	for _, d := range dirs {
@@ -142,7 +142,7 @@ func (c *Core) DeleteLeftover(ctx context.Context, key string) error {
 		return err
 	}
 	if !c.isLeftover(key) {
-		return errors.New("a game in the library uses these saves")
+		return msg.LibraryLeftoverInUse.Err()
 	}
 	return c.PurgeSaves(ctx, []string{key})
 }
@@ -161,13 +161,13 @@ func (c *Core) RestoreLeftover(ctx context.Context, key string) (string, error) 
 		return "", err
 	}
 	if !c.isLeftover(key) {
-		return "", errors.New("a game in the library uses these saves")
+		return "", msg.LibraryLeftoverInUse.Err()
 	}
 	// A stale list (the folder was deleted from another device) must not create an empty game.
 	if there, err := c.cloudFolderExists(ctx, key); err != nil {
 		return "", err
 	} else if !there {
-		return "", errors.New("these cloud saves no longer exist")
+		return "", msg.LibraryLeftoverGone.Err()
 	}
 	gameID, emuID := ParseKey(key)
 	slots, err := c.cloudSlots(ctx, key)
@@ -192,11 +192,11 @@ func (c *Core) RestoreLeftover(ctx context.Context, key string) (string, error) 
 	} else {
 		e, err := c.Library.EmulatorAny(emuID)
 		if err != nil {
-			return "", fmt.Errorf("the emulator of these saves no longer exists: create it again and add it to the game")
+			return "", msg.LibraryLeftoverNoEmulator.Err()
 		}
 		if e.Deleted {
 			if _, err := c.Library.RestoreEmulator(emuID); err != nil {
-				return "", fmt.Errorf("the emulator %s was deleted for good: create it again and add it to the game", e.Name)
+				return "", msg.LibraryLeftoverDeleted.Err("Name", e.Name)
 			}
 		}
 		if _, ok := g.Emulator(emuID); !ok {
@@ -225,7 +225,7 @@ func (c *Core) cloudFolderExists(ctx context.Context, key string) (bool, error) 
 	}
 	dirs, err := cl.ListDirs(ctx, gamesCloudDir)
 	if err != nil {
-		return false, fmt.Errorf("list cloud saves: %w", err)
+		return false, msg.SyncListFailed.Wrap(err)
 	}
 	return slices.Contains(dirs, key), nil
 }

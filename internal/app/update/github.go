@@ -4,12 +4,12 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"io"
 	"net/http"
 	"strings"
 	"time"
 
+	"github.com/akfaiz/carryover/internal/app/msg"
 	"github.com/akfaiz/carryover/internal/app/version"
 )
 
@@ -24,7 +24,7 @@ const (
 )
 
 // ErrNoRelease means the channel has no release at all.
-var ErrNoRelease = errors.New("no release found")
+var ErrNoRelease = msg.UpdateNoRelease.Err()
 
 // userAgent identifies the client; GitHub refuses requests without one.
 const userAgent = "carryover"
@@ -153,19 +153,19 @@ func (c *Client) getJSON(ctx context.Context, path string, v any) error {
 	req.Header.Set("Accept", "application/vnd.github+json")
 	resp, err := c.http().Do(req)
 	if err != nil {
-		return fmt.Errorf("check for updates: %w", err)
+		return msg.UpdateCheckFailed.Wrap(err)
 	}
 	defer resp.Body.Close()
 	switch {
 	case resp.StatusCode == http.StatusNotFound:
 		return ErrNoRelease
 	case resp.StatusCode == http.StatusForbidden || resp.StatusCode == http.StatusTooManyRequests:
-		return fmt.Errorf("check for updates: GitHub refused the request (%s); try again later", resp.Status)
+		return msg.UpdateRefused.Err("Status", resp.Status)
 	case resp.StatusCode != http.StatusOK:
-		return fmt.Errorf("check for updates: %s", resp.Status)
+		return msg.UpdateCheckFailed.Wrap(errors.New(resp.Status))
 	}
 	if err := json.NewDecoder(io.LimitReader(resp.Body, 16<<20)).Decode(v); err != nil {
-		return fmt.Errorf("check for updates: %w", err)
+		return msg.UpdateCheckFailed.Wrap(err)
 	}
 	return nil
 }

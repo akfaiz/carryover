@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/akfaiz/carryover/internal/cloudsync/cloud"
+	"github.com/akfaiz/carryover/services"
 )
 
 // WizardBackend is what the wizard needs of the cloud service: rclone's
@@ -30,7 +31,9 @@ const (
 type Result struct {
 	Kind ResultKind
 	Err  string // for ResultForm and ResultQuestion; "" if none
-	Name string // the new remote, for ResultCreated
+	// ErrMsg is Err to translate, if it is the core's.
+	ErrMsg *services.Message
+	Name   string // the new remote, for ResultCreated
 }
 
 // Wizard creates a remote: pick a provider, fill in its options, then answer
@@ -114,15 +117,18 @@ func (w *Wizard) Question() *cloud.Question { return w.question }
 func (w *Wizard) step(run StepRunner, work func() (*cloud.Question, error), done func(Result)) {
 	run(work, func(q *cloud.Question, err error) {
 		switch {
-		case err != nil && w.question != nil:
-			done(Result{Kind: ResultQuestion, Err: err.Error()})
 		case err != nil:
-			done(Result{Kind: ResultForm, Err: err.Error()})
+			res := Result{Kind: ResultForm}
+			if w.question != nil {
+				res.Kind = ResultQuestion
+			}
+			res.Err, res.ErrMsg = services.ErrorText(err)
+			done(res)
 		case q == nil || q.Done:
 			done(Result{Kind: ResultCreated, Name: strings.TrimSpace(w.name)})
 		default:
 			w.question = q
-			done(Result{Kind: ResultQuestion, Err: q.Error})
+			done(Result{Kind: ResultQuestion, Err: q.Error, ErrMsg: q.ErrorMsg})
 		}
 	})
 }

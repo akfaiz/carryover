@@ -14,6 +14,8 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+
+	"github.com/akfaiz/carryover/internal/app/msg"
 )
 
 // Kind is the type of a game's save data.
@@ -46,7 +48,7 @@ type Entry struct {
 }
 
 // ErrNotFound means the game has no save of that kind in the index.
-var ErrNotFound = errors.New("no save found in Ryujinx's save index")
+var ErrNotFound = msg.PathRyujinxNoSave.Err()
 
 const (
 	indexMagic   = "IMKV"
@@ -125,7 +127,7 @@ func ReadIndex(dataDir string) ([]Entry, error) {
 			firstErr = err
 		}
 	}
-	return nil, fmt.Errorf("read Ryujinx's save index in %s: %w", dataDir, firstErr)
+	return nil, msg.PathRyujinxIndex.Wrap(firstErr, "Path", dataDir)
 }
 
 // ParseTitleID reads a 16-digit hexadecimal title ID.
@@ -158,5 +160,5 @@ func SaveDir(dataDir, titleID string, kind Kind) (string, error) {
 			return filepath.Join(dataDir, "bis", "user", "save", fmt.Sprintf("%016X", e.SaveDataID), "0"), nil
 		}
 	}
-	return "", fmt.Errorf("%w: the %s save of %016X (start the game once in Ryujinx)", ErrNotFound, kind, id)
+	return "", fmt.Errorf("%w: %w", ErrNotFound, msg.PathRyujinxDetail.Err("Kind", string(kind), "Title", fmt.Sprintf("%016X", id)))
 }

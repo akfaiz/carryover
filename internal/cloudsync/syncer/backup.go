@@ -16,6 +16,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/akfaiz/carryover/internal/app/msg"
 	"github.com/akfaiz/carryover/internal/cloudsync/cloud"
 	"github.com/akfaiz/carryover/internal/cloudsync/localfs"
 )
@@ -61,7 +62,7 @@ type zipEntry struct {
 // version and are left out.
 func (e *Engine) backupCloud(ctx context.Context, id string, m *Manifest, listed map[string]int64) error {
 	name := e.backupName("cloud")
-	e.emit(id, "backup", "Backing up cloud saves", cloud.Progress{})
+	e.emit(id, "backup", msg.SyncBackingUpCloud.Msg(), cloud.Progress{})
 	tmp, err := os.MkdirTemp("", "carryover-backup-")
 	if err != nil {
 		return err
@@ -70,7 +71,7 @@ func (e *Engine) backupCloud(ctx context.Context, id string, m *Manifest, listed
 	inCloud, _ := cloudView(listed, m.Format)
 	files, total := sortedFiles(inCloud)
 	objects := storedNames(files, m.Format)
-	if err := e.Client.Download(ctx, currentDir(id), filepath.Join(tmp, "files"), objects, total, e.progress(id, "backup", "Backing up cloud saves")); err != nil {
+	if err := e.Client.Download(ctx, currentDir(id), filepath.Join(tmp, "files"), objects, total, e.progress(id, "backup", msg.SyncBackingUpCloud.Msg())); err != nil {
 		return err
 	}
 	entries := make([]zipEntry, 0, len(files))
@@ -98,7 +99,7 @@ func (e *Engine) backupCloud(ctx context.Context, id string, m *Manifest, listed
 // user) and returns its name.
 func (e *Engine) backupLocal(ctx context.Context, job Job, m *Manifest, kind string) (string, error) {
 	name := e.backupName(kind)
-	e.emit(job.GameID, "backup", "Backing up local saves", cloud.Progress{})
+	e.emit(job.GameID, "backup", msg.SyncBackingUpLocal.Msg(), cloud.Progress{})
 	tmp, err := os.MkdirTemp("", "carryover-backup-")
 	if err != nil {
 		return "", err
@@ -126,13 +127,13 @@ func localEntries(job Job, m *Manifest) []zipEntry {
 func (e *Engine) storeBackup(ctx context.Context, id, name, tmp string, entries []zipEntry, m *Manifest) error {
 	zipName := name + backupExt
 	if err := writeZip(filepath.Join(tmp, zipName), entries, m); err != nil {
-		return fmt.Errorf("write backup archive: %w", err)
+		return msg.BackupWriteFailed.Wrap(err)
 	}
 	fi, err := os.Stat(filepath.Join(tmp, zipName))
 	if err != nil {
 		return err
 	}
-	if err := e.Client.Upload(ctx, tmp, backupsDir(id), []string{zipName}, fi.Size(), e.progress(id, "backup", "Uploading backup")); err != nil {
+	if err := e.Client.Upload(ctx, tmp, backupsDir(id), []string{zipName}, fi.Size(), e.progress(id, "backup", msg.SyncUploadingBackup.Msg())); err != nil {
 		e.discardBackup(id, name)
 		return err
 	}
@@ -271,7 +272,7 @@ func (e *Engine) removeBackup(ctx context.Context, id, name string, isZip bool) 
 // or a safety copy on this device.
 func (e *Engine) DeleteBackup(ctx context.Context, gameID, name string) error {
 	if strings.ContainsAny(name, `/\`) || name == "" || name == "." || name == ".." {
-		return errors.New("invalid backup name")
+		return msg.BackupInvalidName.Err()
 	}
 	if e.isSafetyCopy(gameID, name) {
 		return os.Remove(e.safetyPath(gameID, name))
@@ -281,7 +282,7 @@ func (e *Engine) DeleteBackup(ctx context.Context, gameID, name string) error {
 		return err
 	}
 	if !slices.Contains(names, name) {
-		return fmt.Errorf("backup %s not found", name)
+		return msg.BackupNotFound.Err("Name", name)
 	}
 	pins, err := e.readPins(ctx, gameID)
 	if err != nil {
@@ -308,7 +309,7 @@ func pinsPath(id string) string { return gameDir(id) + "/pinned.json" }
 func (e *Engine) readPins(ctx context.Context, id string) (map[string]bool, error) {
 	var names []string
 	if _, err := e.Client.ReadJSON(ctx, pinsPath(id), &names); err != nil {
-		return nil, fmt.Errorf("read pinned backups: %w", err)
+		return nil, msg.BackupPinsFailed.Wrap(err)
 	}
 	pins := make(map[string]bool, len(names))
 	for _, n := range names {
@@ -320,14 +321,14 @@ func (e *Engine) readPins(ctx context.Context, id string) (map[string]bool, erro
 // SetBackupPinned pins or unpins a backup. Pruning never deletes a pinned one.
 func (e *Engine) SetBackupPinned(ctx context.Context, gameID, name string, pinned bool) error {
 	if e.isSafetyCopy(gameID, name) {
-		return errors.New("copies kept on this device can't be pinned")
+		return msg.BackupPinLocal.Err()
 	}
 	names, _, err := e.backupEntries(ctx, gameID)
 	if err != nil {
 		return err
 	}
 	if !slices.Contains(names, name) {
-		return fmt.Errorf("backup %s not found", name)
+		return msg.BackupNotFound.Err("Name", name)
 	}
 	pins, err := e.readPins(ctx, gameID)
 	if err != nil {
@@ -361,17 +362,17 @@ func (e *Engine) BackupNow(ctx context.Context, job Job) (string, error) {
 	}
 	local, err := ScanLocal(ctx, job.Slots, st.LastSynced)
 	if err != nil {
-		return "", fmt.Errorf("scan local saves: %w", err)
+		return "", msg.SyncScanFailed.Wrap(err)
 	}
 	if len(local.Files) == 0 {
-		return "", errors.New("there are no local saves to back up")
+		return "", msg.BackupNothing.Err()
 	}
 	name, err := e.backupLocal(ctx, job, local, "manual")
 	if err != nil {
-		return "", fmt.Errorf("back up local saves: %w", err)
+		return "", msg.BackupLocalFailed.Wrap(err)
 	}
 	if err := e.SetBackupPinned(ctx, job.GameID, name, true); err != nil {
-		return name, fmt.Errorf("pin backup: %w", err)
+		return name, msg.BackupPinFailed.Wrap(err)
 	}
 	_ = e.prune(ctx, job.GameID) // the backup is pinned, so it stays
 	return name, nil
@@ -434,7 +435,7 @@ func (e *Engine) RestoreBackup(ctx context.Context, job Job, name string) error 
 		return err
 	}
 	if strings.ContainsAny(name, `/\`) || name == "" || name == "." || name == ".." {
-		return errors.New("invalid backup name")
+		return msg.BackupInvalidName.Err()
 	}
 	names, isZip, err := e.backupEntries(ctx, job.GameID)
 	if err != nil {
@@ -442,7 +443,7 @@ func (e *Engine) RestoreBackup(ctx context.Context, job Job, name string) error 
 	}
 	inCloud := slices.Contains(names, name)
 	if !inCloud && !e.isSafetyCopy(job.GameID, name) {
-		return fmt.Errorf("backup %s not found", name)
+		return msg.BackupNotFound.Err("Name", name)
 	}
 	st, err := e.States.Load(job.StateID())
 	if err != nil {
@@ -457,7 +458,7 @@ func (e *Engine) RestoreBackup(ctx context.Context, job Job, name string) error 
 	// delete this very backup.
 	if len(local.Files) > 0 {
 		if _, err := e.backupLocal(ctx, job, local, "local"); err != nil {
-			return fmt.Errorf("backup local saves: %w", err)
+			return msg.BackupLocalFailed.Wrap(err)
 		}
 		if e.Retention > 0 {
 			if err := e.prune(ctx, job.GameID); err != nil {
@@ -490,7 +491,7 @@ func (e *Engine) restoreZip(ctx context.Context, job Job, name string, local *Ma
 	}
 	defer os.RemoveAll(tmp)
 	zipName := name + backupExt
-	if err := e.Client.Download(ctx, backupsDir(job.GameID), tmp, []string{zipName}, 0, e.progress(job.GameID, "download", "Downloading backup")); err != nil {
+	if err := e.Client.Download(ctx, backupsDir(job.GameID), tmp, []string{zipName}, 0, e.progress(job.GameID, "download", msg.SyncDownloadBackup.Msg())); err != nil {
 		return err
 	}
 	return restoreZipFile(ctx, job, filepath.Join(tmp, zipName), local)
@@ -500,7 +501,7 @@ func (e *Engine) restoreZip(ctx context.Context, job Job, name string, local *Ma
 func restoreZipFile(ctx context.Context, job Job, path string, local *Manifest) error {
 	zr, err := zip.OpenReader(path)
 	if err != nil {
-		return fmt.Errorf("open backup archive: %w", err)
+		return msg.BackupOpenFailed.Wrap(err)
 	}
 	defer zr.Close()
 	known := zipManifestFiles(zr)
@@ -525,10 +526,10 @@ func restoreZipFile(ctx context.Context, job Job, path string, local *Manifest) 
 				return err
 			}
 			if !filepath.IsLocal(filepath.FromSlash(rel)) {
-				return fmt.Errorf("backup contains an unsafe path: %s", zf.Name)
+				return msg.BackupUnsafePath.Err("Path", zf.Name)
 			}
 			if err := extractFile(zf, localfs.Join(s.LocalPath, rel), compressed); err != nil {
-				return fmt.Errorf("restore %s: %w", zf.Name, err)
+				return msg.BackupRestoreFailed.Wrap(err, "Name", zf.Name)
 			}
 			inBackup[rel] = true
 		}
@@ -668,8 +669,8 @@ func (e *Engine) restoreFolder(ctx context.Context, job Job, name string, local 
 			}
 		}
 		files, total := sortedFiles(listed)
-		if err := e.Client.Download(ctx, dir, s.LocalPath, files, total, e.progress(job.GameID, "download", "Restoring "+s.Key)); err != nil {
-			return fmt.Errorf("restore %s: %w", s.Key, err)
+		if err := e.Client.Download(ctx, dir, s.LocalPath, files, total, e.progress(job.GameID, "download", msg.SyncRestoring.Msg("Slot", s.Key))); err != nil {
+			return msg.BackupRestoreFailed.Wrap(err, "Name", s.Key)
 		}
 		if err := removeMissing(s, local, inBackup); err != nil {
 			return err

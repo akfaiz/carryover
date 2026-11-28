@@ -16,10 +16,10 @@ package yuzu
 import (
 	"encoding/hex"
 	"errors"
-	"fmt"
 	"io"
 	"strings"
 
+	"github.com/akfaiz/carryover/internal/app/msg"
 	"github.com/akfaiz/carryover/internal/cloudsync/localfs"
 )
 
@@ -98,12 +98,12 @@ func allZero(b []byte) bool {
 func ProfileIDs(dataDir string) ([]string, error) {
 	r, err := localfs.Open(profilesFile(dataDir))
 	if err != nil {
-		return nil, fmt.Errorf("read the emulator's profiles: %w", err)
+		return nil, msg.PathYuzuProfiles.Wrap(err)
 	}
 	defer r.Close()
 	b, err := io.ReadAll(r)
 	if err != nil {
-		return nil, fmt.Errorf("read the emulator's profiles: %w", err)
+		return nil, msg.PathYuzuProfiles.Wrap(err)
 	}
 	return ParseProfiles(b)
 }

@@ -2,7 +2,6 @@ package core
 
 import (
 	"context"
-	"fmt"
 	"log"
 	"os"
 	"path"
@@ -10,6 +9,7 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/akfaiz/carryover/internal/app/msg"
 	"github.com/akfaiz/carryover/internal/cloudsync/cloud"
 	"github.com/akfaiz/carryover/internal/cloudsync/syncer"
 	"github.com/akfaiz/carryover/internal/library"
@@ -35,7 +35,7 @@ func (c *Core) SaveKeysOf(ctx context.Context, gameID string) ([]string, error) 
 		}
 		dirs, err := cl.ListDirs(ctx, gamesCloudDir)
 		if err != nil {
-			return nil, fmt.Errorf("list cloud saves: %w", err)
+			return nil, msg.SyncListFailed.Wrap(err)
 		}
 		for _, d := range dirs {
 			if GameOf(d) == gameID {
@@ -68,7 +68,7 @@ func (c *Core) SaveKeysOfEmulator(ctx context.Context, emulatorID string) ([]str
 		}
 		dirs, err := cl.ListDirs(ctx, gamesCloudDir)
 		if err != nil {
-			return nil, fmt.Errorf("list cloud saves: %w", err)
+			return nil, msg.SyncListFailed.Wrap(err)
 		}
 		for _, d := range dirs {
 			if _, emu := ParseKey(d); emu == emulatorID {
@@ -102,7 +102,7 @@ func (c *Core) PurgeSaves(ctx context.Context, keys []string) error {
 				return err
 			}
 			if err := cl.Purge(ctx, path.Join(gamesCloudDir, k)); err != nil {
-				return fmt.Errorf("delete cloud saves: %w", err)
+				return msg.CloudDeleteFailed.Wrap(err)
 			}
 		}
 	}
@@ -115,7 +115,7 @@ func (c *Core) PurgeSaves(ctx context.Context, keys []string) error {
 // validKey guards against a key that would address something outside games/<key>.
 func validKey(k string) error {
 	if k == "" || k == "." || k == ".." || strings.ContainsAny(k, `/\`) {
-		return fmt.Errorf("invalid save folder %q", k)
+		return msg.CloudBadSaveFolder.Err("Folder", k)
 	}
 	return nil
 }

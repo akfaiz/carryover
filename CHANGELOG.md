@@ -9,6 +9,9 @@ All notable changes to Carryover are listed here. The format follows
 
 ### Added
 
+- Sync progress, game status, errors, setup hints and save suggestions are now translated in Bahasa Indonesia, on
+  the desktop and Android. Until now they were in English. Details that come from your cloud provider or the
+  system stay in their original language.
 - Carryover can read cloud saves stored compressed (each save file on its own, with zstd), which a coming version
   will write to take less cloud space and upload faster. Update every device before that version arrives: older
   versions show an error for compressed saves instead of downloading them.

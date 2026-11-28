@@ -24,7 +24,8 @@ type BeginOutcome struct {
 // the profile ("" = the one in key, else the one played last). It fails while
 // the game's previous session is still open (see SessionOpen). Once the game
 // has closed, call EndSession.
-func BeginSession(key, emulator string) (string, error) {
+func BeginSession(key, emulator string) (_ string, err error) {
+	defer wire(&err)
 	s, err := get()
 	if err != nil {
 		return "", err
@@ -52,7 +53,8 @@ type EndOutcome struct {
 // EndSession finishes the session of key started with BeginSession, once the
 // game has closed: it uploads the saves if only this device changed them,
 // never downloads, releases the cloud lock and returns an EndOutcome as JSON.
-func EndSession(key string) (string, error) {
+func EndSession(key string) (_ string, err error) {
+	defer wire(&err)
 	s, err := get()
 	if err != nil {
 		return "", err
@@ -64,7 +66,8 @@ func EndSession(key string) (string, error) {
 // but the cloud couldn't be reached then), like EndSession. It does nothing
 // when the session was finished meanwhile or its game was started again, so a
 // retry in the background never ends a game being played.
-func EndPendingSession(key string) (string, error) {
+func EndPendingSession(key string) (_ string, err error) {
+	defer wire(&err)
 	s, err := get()
 	if err != nil {
 		return "", err
@@ -93,7 +96,8 @@ func SessionOpen(key string) bool {
 // OpenSessions lists the sessions BeginSession started that EndSession hasn't
 // finished ([]core.OpenSession) as JSON: after the app's process was killed
 // while a game ran, the app ends those whose game is no longer in front.
-func OpenSessions() (string, error) {
+func OpenSessions() (_ string, err error) {
+	defer wire(&err)
 	s, err := get()
 	if err != nil {
 		return "", err
@@ -108,7 +112,8 @@ func OpenSessions() (string, error) {
 // PendingSessions lists the sessions whose game closed but whose saves
 // weren't uploaded (the cloud couldn't be reached: []core.PendingSession) as
 // JSON. EndSession on their key finishes them once the network is back.
-func PendingSessions() (string, error) {
+func PendingSessions() (_ string, err error) {
+	defer wire(&err)
 	s, err := get()
 	if err != nil {
 		return "", err
@@ -133,7 +138,8 @@ func Respond(promptID, answer string) bool {
 
 // Prompts lists the prompts waiting for an answer ([]services.Prompt) as JSON,
 // for an app that starts while one is open.
-func Prompts() (string, error) {
+func Prompts() (_ string, err error) {
+	defer wire(&err)
 	s, err := get()
 	if err != nil {
 		return "", err

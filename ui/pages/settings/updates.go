@@ -56,7 +56,7 @@ func (p *Page) updatesCard(c *ui.Context) {
 			kit.Muted(c, i18n.L("Carryover is up to date."))
 		}
 		if st.Error != "" {
-			kit.Callout(c, kit.BadgeErr, kit.IconAlert, st.Error, nil)
+			kit.Callout(c, kit.BadgeErr, kit.IconAlert, i18n.Text(st.Error, st.ErrorMsg), nil)
 		}
 		label := i18n.L("Check for updates")
 		checking := st.Status == services.UpdateChecking

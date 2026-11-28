@@ -151,7 +151,7 @@ func (p *PathInput) updatePreview() {
 		p.preview, p.previewErr = "", ""
 		switch {
 		case err != nil:
-			p.previewErr = err.Error()
+			p.previewErr = i18n.Err(err)
 		case out != "" && out != v:
 			p.preview = out
 		}

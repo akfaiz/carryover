@@ -317,7 +317,7 @@ func cmdSync(args []string) int {
 				code = 3
 			case err != nil:
 				log.Printf("%s: %v", name, err)
-				c.States.SetError(job.StateID(), err.Error())
+				c.States.SetError(job.StateID(), err)
 				code = 1
 			default:
 				fmt.Printf("  %s\n", action)

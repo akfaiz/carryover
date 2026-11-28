@@ -21,6 +21,8 @@ import (
 	"github.com/rclone/rclone/fs/operations"
 	"github.com/rclone/rclone/fs/rc"
 	"github.com/rclone/rclone/fs/walk"
+
+	"github.com/akfaiz/carryover/internal/app/msg"
 )
 
 // Client performs operations relative to a base rclone path such as
@@ -42,7 +44,7 @@ type Client struct {
 // NewClient returns a client for base.
 func NewClient(base string) (*Client, error) {
 	if base == "" {
-		return nil, errors.New("no cloud remote configured")
+		return nil, msg.CloudNotConfigured.Err()
 	}
 	return &Client{Base: strings.TrimRight(base, "/")}, nil
 }
@@ -85,7 +87,7 @@ func (c *Client) fs(ctx context.Context, rel string) (fs.Fs, string, error) {
 	}
 	f, err := cache.Get(ctx, c.root)
 	if errors.Is(err, fs.ErrorIsFile) {
-		err = errors.New(c.root + " is a file, not a folder")
+		err = msg.CloudIsFile.Err("Path", c.root)
 	}
 	if err != nil {
 		return nil, "", err

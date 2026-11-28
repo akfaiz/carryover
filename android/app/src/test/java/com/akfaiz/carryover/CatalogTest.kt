@@ -42,14 +42,23 @@ class CatalogTest {
 
     private fun placeholders(text: String): Set<String> = Regex("""%(\d+\$)?[sdf]""").findAll(text).map { it.value }.toSet()
 
+    /** The folders of the translations: every values-* with a strings.xml, so a new language is checked too. */
+    private fun translations(): List<String> = res.listFiles().orEmpty()
+        .filter { it.name.startsWith("values-") && File(it, "strings.xml").isFile }
+        .map { it.name }
+
     @Test
-    fun indonesianMatchesEnglish() {
+    fun everyLanguageMatchesEnglish() {
         val en = catalog("values")
-        val id = catalog("values-in")
-        assertEquals("texts missing in Bahasa Indonesia", emptySet<String>(), en.keys - id.keys)
-        assertEquals("texts only in Bahasa Indonesia", emptySet<String>(), id.keys - en.keys)
-        for ((name, ph) in en) {
-            assertEquals("placeholders of $name", ph, id[name])
+        val languages = translations()
+        assertTrue("Bahasa Indonesia is missing", "values-in" in languages)
+        for (folder in languages) {
+            val other = catalog(folder)
+            assertEquals("texts missing in $folder", emptySet<String>(), en.keys - other.keys)
+            assertEquals("texts only in $folder", emptySet<String>(), other.keys - en.keys)
+            for ((name, ph) in en) {
+                assertEquals("placeholders of $name in $folder", ph, other[name])
+            }
         }
     }
 

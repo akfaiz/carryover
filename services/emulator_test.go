@@ -1,6 +1,7 @@
 package services
 
 import (
+	"errors"
 	"os"
 	"path/filepath"
 	"testing"
@@ -197,7 +198,7 @@ func TestOverallStatusCombinesProfiles(t *testing.T) {
 	assert.NotEmpty(t, v.Overall.LastSyncAt, "both emulators have synced")
 
 	// An error in one emulator shows on the game.
-	e.c.States.SetError(core.SyncKey(e.id, b.ID), "boom")
+	e.c.States.SetError(core.SyncKey(e.id, b.ID), errors.New("boom"))
 	v, _ = lib.Get(e.id)
 	assert.Equal(t, "boom", v.Overall.LastError)
 }

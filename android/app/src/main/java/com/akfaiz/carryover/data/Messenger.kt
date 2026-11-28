@@ -1,9 +1,10 @@
 package com.akfaiz.carryover.data
 
-import android.app.Application
+import android.content.Context
 import androidx.annotation.PluralsRes
 import androidx.annotation.StringRes
 import com.akfaiz.carryover.R
+import com.akfaiz.carryover.core.CoreMessage
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.Flow
@@ -16,9 +17,9 @@ interface Texts {
 }
 
 /** [Texts] from the application's resources. */
-class AndroidTexts(private val app: Application) : Texts {
-    override fun string(id: Int, vararg args: Any): String = app.getString(id, *args)
-    override fun plural(id: Int, count: Int, vararg args: Any): String = app.resources.getQuantityString(id, count, *args)
+class AndroidTexts(private val context: Context) : Texts {
+    override fun string(id: Int, vararg args: Any): String = context.getString(id, *args)
+    override fun plural(id: Int, count: Int, vararg args: Any): String = context.resources.getQuantityString(id, count, *args)
 }
 
 /**
@@ -43,8 +44,14 @@ class Messenger(private val texts: Texts) {
     /** Says that [what] failed with [e] (cancellation is not a failure: it is thrown on). */
     fun failed(what: String, e: Exception) {
         if (e is CancellationException) throw e
-        say(str(R.string.msg_error, what, e.message ?: e.toString()))
+        say(str(R.string.msg_error, what, error(e)))
     }
+
+    /** What went wrong, in the app's language where the core said it with a code. */
+    fun error(e: Throwable): String = texts.error(e)
+
+    /** A field of the core ([english] with its [message]) in the app's language. */
+    fun core(english: String, message: CoreMessage?): String = texts.core(english, message)
 
     /** Runs [block]; if it fails, says that [what] failed and returns null. */
     suspend fun <T> attempt(what: String, block: suspend () -> T): T? = try {

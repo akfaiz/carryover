@@ -2,8 +2,6 @@ package services
 
 import (
 	"context"
-	"errors"
-	"fmt"
 	"io"
 	"io/fs"
 	"log"
@@ -20,6 +18,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/akfaiz/carryover/internal/app/msg"
 	"github.com/akfaiz/carryover/internal/cloudsync/syncer"
 	"github.com/akfaiz/carryover/internal/core"
 	"github.com/akfaiz/carryover/internal/library"
@@ -71,7 +70,9 @@ type GameStatus struct {
 	LastAction string `json:"lastAction"`
 	Conflict   bool   `json:"conflict"`
 	LastError  string `json:"lastError"`
-	Running    bool   `json:"running"`
+	// LastErrorMsg is LastError for the apps to translate.
+	LastErrorMsg *msg.Message `json:"lastErrorMsg,omitempty"`
+	Running      bool         `json:"running"`
 	// LocalChanges: this device's saves changed since its last sync and
 	// haven't been uploaded (e.g. the game was played without Carryover).
 	LocalChanges bool `json:"localChanges"`
@@ -90,10 +91,13 @@ type GameView struct {
 	HasDevice     bool                 `json:"hasDevice"`
 	Ready         bool                 `json:"ready"`     // all save paths + exe set on this device
 	SetupHint     string               `json:"setupHint"` // what's missing
+	SetupHintMsg  *msg.Message         `json:"setupHintMsg,omitempty"`
 	ResolvedPaths map[string]string    `json:"resolvedPaths"`
 	PathErrors    map[string]string    `json:"pathErrors"`
-	OtherDevices  []DevicePaths        `json:"otherDevices"`
-	Status        GameStatus           `json:"status"`
+	// PathErrorMsgs has the PathErrors the apps can translate.
+	PathErrorMsgs map[string]msg.Message `json:"pathErrorMsgs,omitempty"`
+	OtherDevices  []DevicePaths          `json:"otherDevices"`
+	Status        GameStatus             `json:"status"`
 	// SafetyDir is the folder of the game's safety copies on this device
 	// ("" if there are none).
 	SafetyDir string `json:"safetyDir"`
@@ -121,22 +125,24 @@ func (g GameView) NeedsAttention() bool {
 
 // ProfileView is one emulator profile of a game, from this device's perspective.
 type ProfileView struct {
-	EmulatorID    string             `json:"emulatorId"`
-	Name          string             `json:"name"`
-	Key           string             `json:"key"`       // core.SyncKey: what sync, backup and status calls take
-	ShareWith     string             `json:"shareWith"` // emulator whose cloud save this one uses ("" = its own)
-	Slots         []library.SaveSlot `json:"slots"`
-	SetUp         bool               `json:"setUp"`     // configured for this game on this device
-	Installed     bool               `json:"installed"` // the emulator has a program on this device
-	Rom           string             `json:"rom"`
-	Paths         map[string]string  `json:"paths"`
-	ResolvedPaths map[string]string  `json:"resolvedPaths"`
-	PathErrors    map[string]string  `json:"pathErrors"`
-	Ready         bool               `json:"ready"`
-	SetupHint     string             `json:"setupHint"`
-	SteamAppID    string             `json:"steamAppId"`
-	Status        GameStatus         `json:"status"`
-	SafetyDir     string             `json:"safetyDir"`
+	EmulatorID    string                 `json:"emulatorId"`
+	Name          string                 `json:"name"`
+	Key           string                 `json:"key"`       // core.SyncKey: what sync, backup and status calls take
+	ShareWith     string                 `json:"shareWith"` // emulator whose cloud save this one uses ("" = its own)
+	Slots         []library.SaveSlot     `json:"slots"`
+	SetUp         bool                   `json:"setUp"`     // configured for this game on this device
+	Installed     bool                   `json:"installed"` // the emulator has a program on this device
+	Rom           string                 `json:"rom"`
+	Paths         map[string]string      `json:"paths"`
+	ResolvedPaths map[string]string      `json:"resolvedPaths"`
+	PathErrors    map[string]string      `json:"pathErrors"`
+	PathErrorMsgs map[string]msg.Message `json:"pathErrorMsgs,omitempty"`
+	Ready         bool                   `json:"ready"`
+	SetupHint     string                 `json:"setupHint"`
+	SetupHintMsg  *msg.Message           `json:"setupHintMsg,omitempty"`
+	SteamAppID    string                 `json:"steamAppId"`
+	Status        GameStatus             `json:"status"`
+	SafetyDir     string                 `json:"safetyDir"`
 	// OtherDevices are the other devices that have the game, with this
 	// emulator's save paths there (none where it isn't set up).
 	OtherDevices []DevicePaths `json:"otherDevices"`
@@ -150,6 +156,22 @@ type ProfileView struct {
 type ArtFile struct {
 	Path    string `json:"path"`
 	Version int64  `json:"version"` // file mtime (image cache key)
+}
+
+// hint sets what the game still needs.
+func (v *GameView) hint(m msg.Message) { v.SetupHint, v.SetupHintMsg = m.Text, m.Ptr() }
+
+// setPathError records why the save folder of a slot can't be resolved.
+func setPathError(texts map[string]string, msgs *map[string]msg.Message, slot string, err error) {
+	m := msg.Of(err)
+	texts[slot] = m.Text
+	if !m.Translatable() {
+		return
+	}
+	if *msgs == nil {
+		*msgs = map[string]msg.Message{}
+	}
+	(*msgs)[slot] = m
 }
 
 // DevicePaths shows another device's config for reference.
@@ -186,25 +208,25 @@ func (s *LibraryService) view(g library.Game) GameView {
 		}
 	}
 	pctx := s.c.PathContext(g)
-	var missing []string
+	var missing msg.List
 	for _, sl := range g.Slots {
 		raw := d.Paths[sl.Key]
 		if raw == "" {
-			missing = append(missing, "save path for "+labelOf(sl))
+			missing = append(missing, msg.NeedSavePath.Msg("Slot", labelOf(sl)))
 			continue
 		}
 		if p, err := pctx.Expand(raw); err != nil {
-			v.PathErrors[sl.Key] = err.Error()
+			setPathError(v.PathErrors, &v.PathErrorMsgs, sl.Key, err)
 		} else {
 			v.ResolvedPaths[sl.Key] = p
 		}
 	}
 	if d.Exe == "" && d.LaunchMode != library.LaunchSteamWrap && len(g.Emulators) == 0 {
-		missing = append(missing, "game executable") // an emulator game needs none of its own
+		missing = append(missing, msg.NeedGameExe.Msg()) // an emulator game needs none of its own
 	}
 	v.Ready = len(missing) == 0 && len(v.PathErrors) == 0
 	if len(missing) > 0 {
-		v.SetupHint = "Missing " + strings.Join(missing, ", ")
+		v.hint(msg.SetupMissing.Msg("Items", missing))
 	}
 	v.OtherDevices = s.otherDevices(g, devID, func(od library.DeviceConfig) DevicePaths {
 		return DevicePaths{Paths: od.Paths, Exe: od.Exe}
@@ -217,7 +239,7 @@ func (s *LibraryService) view(g library.Game) GameView {
 		// A game played only through emulators is ready when one of them is.
 		// One that has no version for this device (Lemon on a PC) doesn't say
 		// what's missing here.
-		v.Ready, v.SetupHint = false, ""
+		v.Ready, v.SetupHint, v.SetupHintMsg = false, "", nil
 		var elsewhere []string
 		for _, pv := range v.Emulators {
 			if pv.NoVersionHere {
@@ -228,14 +250,14 @@ func (s *LibraryService) view(g library.Game) GameView {
 				v.Ready = true
 			}
 			if v.SetupHint == "" {
-				v.SetupHint = pv.SetupHint
+				v.SetupHint, v.SetupHintMsg = pv.SetupHint, pv.SetupHintMsg
 			}
 		}
 		if v.SetupHint == "" && len(elsewhere) == len(v.Emulators) {
-			v.SetupHint = "Played with " + strings.Join(elsewhere, ", ") + ", which doesn't run on this device"
+			v.hint(msg.SetupElsewhere.Msg("Names", strings.Join(elsewhere, ", ")))
 		}
 		if v.Ready {
-			v.SetupHint = ""
+			v.SetupHint, v.SetupHintMsg = "", nil
 		}
 	}
 	return v
@@ -277,7 +299,7 @@ func combineStatus(all []GameStatus, none GameStatus) GameStatus {
 		out.Conflict = out.Conflict || s.Conflict
 		out.LocalChanges = out.LocalChanges || s.LocalChanges
 		if out.LastError == "" {
-			out.LastError = s.LastError
+			out.LastError, out.LastErrorMsg = s.LastError, s.LastErrorMsg
 		}
 		if out.LastAction == "" {
 			out.LastAction = s.LastAction
@@ -303,7 +325,7 @@ func (s *LibraryService) statusOf(key string) (GameStatus, string) {
 	if st, err := s.c.States.Load(key); err == nil {
 		gs = GameStatus{
 			LastSyncAt: fmtTime(st.LastSyncAt), LastAction: string(st.LastAction),
-			Conflict: st.Conflict, LastError: st.LastError,
+			Conflict: st.Conflict, LastError: st.LastError, LastErrorMsg: st.LastErrorMsg,
 			LocalChanges: !st.Conflict && s.localChanged(key, st),
 		}
 	}
@@ -356,34 +378,35 @@ func (s *LibraryService) profiles(g library.Game, d library.DeviceConfig) []Prof
 		ec, set := d.Emulators[ge.EmulatorID]
 		pv.SetUp, pv.Rom, pv.SteamAppID = set, ec.Rom, ec.SteamAppID
 		maps.Copy(pv.Paths, ec.Paths)
-		var missing []string
+		var missing msg.List
 		if set {
 			pctx := s.c.PathContextFor(g, ge.EmulatorID)
 			for _, sl := range ge.Slots {
 				raw := ec.Paths[sl.Key]
 				if raw == "" {
-					missing = append(missing, "save path for "+labelOf(sl))
+					missing = append(missing, msg.NeedSavePath.Msg("Slot", labelOf(sl)))
 				} else if p, err := pctx.Expand(raw); err != nil {
-					pv.PathErrors[sl.Key] = err.Error()
+					setPathError(pv.PathErrors, &pv.PathErrorMsgs, sl.Key, err)
 				} else {
 					pv.ResolvedPaths[sl.Key] = p
 				}
 			}
 		} else {
-			missing = append(missing, "setup on this device")
+			missing = append(missing, msg.NeedSetup.Msg())
 		}
 		emu, err := s.c.Library.Emulator(ge.EmulatorID)
 		pv.NoVersionHere = err == nil && !emu.RunsOn(s.c.Platform())
 		if err != nil {
-			missing = append(missing, "emulator (deleted)")
+			missing = append(missing, msg.NeedEmulator.Msg())
 		} else if ed := emu.Devices[s.c.DeviceID()]; ed.Exe == "" {
-			missing = append(missing, "emulator executable on this device")
+			missing = append(missing, msg.NeedEmulatorExe.Msg())
 		} else {
 			pv.Installed = true
 		}
 		pv.Ready = len(missing) == 0 && len(pv.PathErrors) == 0
 		if len(missing) > 0 {
-			pv.SetupHint = "Missing " + strings.Join(missing, ", ")
+			hint := msg.SetupMissing.Msg("Items", missing)
+			pv.SetupHint, pv.SetupHintMsg = hint.Text, hint.Ptr()
 		}
 		pv.Status, pv.SafetyDir = s.statusOf(pv.Key)
 		out = append(out, pv)
@@ -517,7 +540,7 @@ func (s *LibraryService) Save(in GameInput) (GameView, error) {
 	devID := s.c.DeviceID()
 	in.StoreAppID = strings.TrimSpace(in.StoreAppID)
 	if in.StoreAppID != "" && !steamstore.ValidAppID(in.StoreAppID) {
-		return GameView{}, fmt.Errorf("invalid Steam app id %q", in.StoreAppID)
+		return GameView{}, msg.LibraryBadAppID.Err("ID", in.StoreAppID)
 	}
 	g := library.Game{ID: in.ID, Name: strings.TrimSpace(in.Name), StoreAppID: in.StoreAppID, Slots: in.Slots}
 	d := library.DeviceConfig{
@@ -544,7 +567,7 @@ func (s *LibraryService) Save(in GameInput) (GameView, error) {
 	keep := map[string]library.EmulatorConfig{}
 	for _, ei := range in.Emulators {
 		if _, err := s.c.Library.Emulator(ei.EmulatorID); err != nil {
-			return GameView{}, fmt.Errorf("unknown emulator %q", ei.EmulatorID)
+			return GameView{}, msg.LibraryUnknownEmulator.Err("Emulator", ei.EmulatorID)
 		}
 		cleanSlots(ei.Slots)
 		slots := ei.Slots
@@ -724,7 +747,7 @@ func (s *LibraryService) SetCover(id, src string) (GameView, error) {
 	switch ext {
 	case ".png", ".jpg", ".jpeg", ".webp":
 	default:
-		return GameView{}, errors.New("cover must be a PNG, JPEG or WebP image")
+		return GameView{}, msg.LibraryBadCover.Err()
 	}
 	name := g.ID + ext
 	dst := filepath.Join(s.c.Dirs.CoversDir(), name)
@@ -791,7 +814,7 @@ func (s *LibraryService) ContractPath(p string) string {
 // opening it in the file manager).
 func (s *LibraryService) CheckFolder(p string) error {
 	if fi, err := os.Stat(p); err != nil || !fi.IsDir() {
-		return fmt.Errorf("folder does not exist: %s", p)
+		return msg.LibraryNoFolder.Err("Path", p)
 	}
 	return nil
 }
@@ -852,7 +875,7 @@ func (s *LibraryService) storeCover(g library.Game, data []byte, ext string) (Ga
 func (s *LibraryService) gridClient() (*steamgrid.Client, error) {
 	key := s.c.Settings.Get().SteamGridDBKey
 	if key == "" {
-		return nil, errors.New("add your SteamGridDB API key in Settings first")
+		return nil, msg.LibraryNeedGridKey.Err()
 	}
 	return steamgrid.New(key), nil
 }
@@ -865,7 +888,7 @@ func (s *LibraryService) HasSteamGridKey() bool {
 // TestSteamGridKey checks a SteamGridDB API key without saving it.
 func (s *LibraryService) TestSteamGridKey(key string) error {
 	if strings.TrimSpace(key) == "" {
-		return errors.New("enter an API key")
+		return msg.LibraryEnterKey.Err()
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 	defer cancel()
@@ -919,7 +942,7 @@ func artKind(kind string) error {
 			return nil
 		}
 	}
-	return fmt.Errorf("unknown artwork kind %q", kind)
+	return msg.LibraryUnknownArtwork.Err("Kind", kind)
 }
 
 // storeArt saves image bytes as the game's artwork of a kind, replacing any previous one.
@@ -968,7 +991,7 @@ func (s *LibraryService) SetArt(id, kind, src string) (GameView, error) {
 	switch ext {
 	case ".png", ".jpg", ".jpeg", ".webp":
 	default:
-		return GameView{}, errors.New("image must be a PNG, JPEG or WebP file")
+		return GameView{}, msg.LibraryBadImage.Err()
 	}
 	data, err := os.ReadFile(src)
 	if err != nil {

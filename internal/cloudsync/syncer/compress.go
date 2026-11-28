@@ -13,6 +13,7 @@ import (
 
 	"github.com/klauspost/compress/zstd"
 
+	"github.com/akfaiz/carryover/internal/app/msg"
 	"github.com/akfaiz/carryover/internal/cloudsync/localfs"
 )
 
@@ -34,7 +35,7 @@ const (
 
 // ErrNewerSaveFormat is returned for cloud saves written in a format this
 // build doesn't know.
-var ErrNewerSaveFormat = errors.New("these cloud saves were written by a newer version of Carryover; update this device")
+var ErrNewerSaveFormat = msg.SyncNewerFormat.Err()
 
 // errNoMatch is returned when a downloaded file isn't the one the manifest
 // describes.

@@ -142,7 +142,7 @@ func (q *Queue) next() {
 			d.Title = i18n.L("Could not sync before playing")
 			back = "no"
 			body = func(c *ui.Context, nav *kit.Navigator) {
-				kit.Danger(c, p.Error).Font("monospace")
+				kit.Danger(c, i18n.Text(p.Error, p.ErrorMsg)).Font("monospace")
 				kit.Muted(c, i18n.L("You can play offline; your saves will be uploaded next time sync succeeds."))
 				kit.Footer(c, func() {
 					btn(c, nav, i18n.L("Cancel"), "no", false, true)
@@ -153,7 +153,7 @@ func (q *Queue) next() {
 			d.Title = i18n.L("Could not upload saves")
 			back = "yes"
 			body = func(c *ui.Context, nav *kit.Navigator) {
-				kit.Danger(c, p.Error).Font("monospace")
+				kit.Danger(c, i18n.Text(p.Error, p.ErrorMsg)).Font("monospace")
 				kit.Muted(c, i18n.L("Your saves are safe on this device and will upload on the next sync."))
 				kit.Footer(c, func() { btn(c, nav, i18n.L("OK"), "yes", true, true) })
 			}

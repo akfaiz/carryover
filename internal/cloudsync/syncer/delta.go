@@ -2,7 +2,6 @@ package syncer
 
 import (
 	"sort"
-	"strconv"
 	"strings"
 	"time"
 
@@ -94,12 +93,4 @@ func diff(src, dst map[string]FileInfo) delta {
 	sort.Strings(d.copy)
 	sort.Strings(d.del)
 	return d
-}
-
-// filesWord is "1 file" / "n files".
-func filesWord(n int) string {
-	if n == 1 {
-		return "1 file"
-	}
-	return strconv.Itoa(n) + " files"
 }

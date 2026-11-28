@@ -4,7 +4,6 @@ package core
 
 import (
 	"context"
-	"fmt"
 	"log"
 	"os"
 	"path/filepath"
@@ -13,6 +12,7 @@ import (
 	"time"
 
 	"github.com/akfaiz/carryover/internal/app/appdir"
+	"github.com/akfaiz/carryover/internal/app/msg"
 	"github.com/akfaiz/carryover/internal/cloudsync/cloud"
 	"github.com/akfaiz/carryover/internal/cloudsync/syncer"
 	"github.com/akfaiz/carryover/internal/library"
@@ -220,7 +220,7 @@ func (c *Core) syncCatalog(ctx context.Context, cl *cloud.Client) error {
 	var remote library.Catalog
 	found, err := cl.ReadJSON(ctx, catalogPath, &remote)
 	if err != nil {
-		return fmt.Errorf("read cloud library: %w", err)
+		return msg.CloudLibraryRead.Wrap(err)
 	}
 	if found {
 		if _, err := c.Library.MergeCatalog(remote); err != nil {

@@ -4,13 +4,14 @@ package steamstore
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"io"
 	"net/http"
 	"net/url"
 	"strconv"
 	"time"
+
+	"github.com/akfaiz/carryover/internal/app/msg"
 )
 
 // Endpoints are variables so tests can point them at a fake server.
@@ -25,7 +26,7 @@ const userAgent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 
 var client = &http.Client{Timeout: 8 * time.Second}
 
 // ErrNotFound means Steam answered and has no such game or image.
-var ErrNotFound = errors.New("not found on Steam")
+var ErrNotFound = msg.StoreNotFound.Err()
 
 // Match is a store search result.
 type Match struct {

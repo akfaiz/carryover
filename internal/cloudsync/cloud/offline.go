@@ -8,11 +8,13 @@ import (
 	"strings"
 	"syscall"
 	"time"
+
+	"github.com/akfaiz/carryover/internal/app/msg"
 )
 
 // ErrOffline is returned (wrapped) by Probe when the cloud can't be reached:
 // no network, no route, DNS failing, or no answer in time.
-var ErrOffline = errors.New("no internet connection")
+var ErrOffline = msg.CloudOffline.Err()
 
 // offlineHints are pieces of error text meaning the network is unusable. Some
 // backends (and oauth2's token refresh) format the cause with %v, which drops
@@ -101,7 +103,7 @@ func (c *Client) Probe(ctx context.Context, timeout time.Duration) error {
 	case ctx.Err() != nil:
 		return ctx.Err()
 	case pctx.Err() != nil:
-		return fmt.Errorf("%w: no answer from the cloud within %s", ErrOffline, timeout)
+		return fmt.Errorf("%w: %w", ErrOffline, msg.CloudNoAnswer.Err("Time", timeout.String()))
 	case IsOffline(err):
 		return fmt.Errorf("%w: %w", ErrOffline, err)
 	}

@@ -15,7 +15,8 @@ type TrashView struct {
 // Trash lists the deleted games and emulators that can still be restored
 // (TrashView) as JSON, newest first. It first removes what has been in the
 // trash too long.
-func Trash() (string, error) {
+func Trash() (_ string, err error) {
+	defer wire(&err)
 	s, err := get()
 	if err != nil {
 		return "", err
@@ -24,7 +25,8 @@ func Trash() (string, error) {
 }
 
 // DeleteGame moves a game to the trash on all devices. Its cloud saves stay.
-func DeleteGame(id string) error {
+func DeleteGame(id string) (err error) {
+	defer wire(&err)
 	s, err := get()
 	if err != nil {
 		return err
@@ -33,7 +35,8 @@ func DeleteGame(id string) error {
 }
 
 // RestoreGame takes a game out of the trash, with its settings as they were.
-func RestoreGame(id string) error {
+func RestoreGame(id string) (err error) {
+	defer wire(&err)
 	s, err := get()
 	if err != nil {
 		return err
@@ -44,7 +47,8 @@ func RestoreGame(id string) error {
 // DeleteGameForever deletes a game, live or in the trash, for good. With
 // withSaves everything it has in the cloud goes too (saves, backups, lock);
 // without, its cloud saves stay and show up in Leftovers.
-func DeleteGameForever(id string, withSaves bool) error {
+func DeleteGameForever(id string, withSaves bool) (err error) {
+	defer wire(&err)
 	s, err := get()
 	if err != nil {
 		return err
@@ -57,7 +61,8 @@ func DeleteGameForever(id string, withSaves bool) error {
 
 // DeleteEmulator moves an emulator to the trash on all devices. Games keep
 // their profile (it just can't be launched) and the cloud saves are kept.
-func DeleteEmulator(id string) error {
+func DeleteEmulator(id string) (err error) {
+	defer wire(&err)
 	s, err := get()
 	if err != nil {
 		return err
@@ -66,7 +71,8 @@ func DeleteEmulator(id string) error {
 }
 
 // RestoreEmulator takes an emulator out of the trash.
-func RestoreEmulator(id string) error {
+func RestoreEmulator(id string) (err error) {
+	defer wire(&err)
 	s, err := get()
 	if err != nil {
 		return err
@@ -77,7 +83,8 @@ func RestoreEmulator(id string) error {
 // DeleteEmulatorForever deletes an emulator, live or in the trash, for good:
 // it is taken out of every game that uses it. With withSaves the cloud saves
 // and backups made with it go too.
-func DeleteEmulatorForever(id string, withSaves bool) error {
+func DeleteEmulatorForever(id string, withSaves bool) (err error) {
+	defer wire(&err)
 	s, err := get()
 	if err != nil {
 		return err
@@ -90,7 +97,8 @@ func DeleteEmulatorForever(id string, withSaves bool) error {
 
 // Leftovers lists the cloud save folders no game in the library uses
 // ([]services.LeftoverView) as JSON. It needs the cloud.
-func Leftovers() (string, error) {
+func Leftovers() (_ string, err error) {
+	defer wire(&err)
 	s, err := get()
 	if err != nil {
 		return "", err
@@ -100,7 +108,8 @@ func Leftovers() (string, error) {
 
 // RestoreLeftover adds a leftover cloud folder back to the library and returns
 // the game's id. The game still needs its save locations on this device.
-func RestoreLeftover(key string) (string, error) {
+func RestoreLeftover(key string) (_ string, err error) {
+	defer wire(&err)
 	s, err := get()
 	if err != nil {
 		return "", err
@@ -109,7 +118,8 @@ func RestoreLeftover(key string) (string, error) {
 }
 
 // DeleteLeftover permanently deletes a leftover cloud folder.
-func DeleteLeftover(key string) error {
+func DeleteLeftover(key string) (err error) {
+	defer wire(&err)
 	s, err := get()
 	if err != nil {
 		return err

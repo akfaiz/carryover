@@ -1,9 +1,10 @@
 package library
 
 import (
-	"errors"
 	"sort"
 	"time"
+
+	"github.com/akfaiz/carryover/internal/app/msg"
 )
 
 // Device is a device's own record in the catalog (Catalog.Devices): what is
@@ -51,7 +52,7 @@ type DeviceInfo struct {
 }
 
 // ErrUnknownDevice is returned for a device the library doesn't know.
-var ErrUnknownDevice = errors.New("the library has no settings of that device")
+var ErrUnknownDevice = msg.LibraryUnknownDevice.Err()
 
 // RegisterDevice writes this device's record: its name and platform. It does
 // nothing when the record already says so (and the device isn't forgotten),

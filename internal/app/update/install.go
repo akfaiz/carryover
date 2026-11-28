@@ -13,10 +13,12 @@ import (
 	"path"
 	"path/filepath"
 	"strings"
+
+	"github.com/akfaiz/carryover/internal/app/msg"
 )
 
 // ErrUnsupported means this install can't replace itself.
-var ErrUnsupported = errors.New("this install can't update itself; download the new version from the release page")
+var ErrUnsupported = msg.UpdateUnsupported.Err()
 
 // The names of the files an update leaves next to the program for a while.
 // Cleanup removes them, so they must be ones nobody else would make.

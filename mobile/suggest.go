@@ -2,7 +2,6 @@ package mobile
 
 import (
 	"encoding/json"
-	"errors"
 	"fmt"
 	"net/url"
 	"regexp"
@@ -10,6 +9,7 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/akfaiz/carryover/internal/app/msg"
 	"github.com/akfaiz/carryover/internal/core"
 	"github.com/akfaiz/carryover/internal/library"
 	"github.com/akfaiz/carryover/services"
@@ -29,7 +29,8 @@ const (
 // the game file's name or path, which gives the most precise match (a Switch
 // title ID in its name); "" uses the one the profile has. It returns a
 // services.EmuSuggestResult as JSON; take a suggestion with UseSaveSuggestion.
-func SuggestSaves(key, rom string) (string, error) {
+func SuggestSaves(key, rom string) (_ string, err error) {
+	defer wire(&err)
 	s, err := get()
 	if err != nil {
 		return "", err
@@ -43,7 +44,7 @@ func SuggestSaves(key, rom string) (string, error) {
 func suggest(s *state, key, rom string) (services.EmuSuggestResult, library.Game, error) {
 	gameID, emuID := core.ParseKey(key)
 	if emuID == "" {
-		return services.EmuSuggestResult{}, library.Game{}, errors.New("only an emulator profile has save suggestions")
+		return services.EmuSuggestResult{}, library.Game{}, msg.SuggestOnlyEmulator.Err()
 	}
 	g, err := s.core.Library.Get(gameID)
 	if err != nil {
@@ -144,7 +145,8 @@ func hideSuggestion(g library.Game, emuID string, sg services.EmuSuggestion) boo
 // suggestion of a kind (account or device save) goes into the slot of that
 // name, which every device shares, and the others into the first slot with no
 // folder here, or into a new one. It returns the saved services.GameView.
-func UseSaveSuggestion(key, suggestionJSON string) (string, error) {
+func UseSaveSuggestion(key, suggestionJSON string) (_ string, err error) {
+	defer wire(&err)
 	s, err := get()
 	if err != nil {
 		return "", err
@@ -155,7 +157,7 @@ func UseSaveSuggestion(key, suggestionJSON string) (string, error) {
 	}
 	gameID, emuID := core.ParseKey(key)
 	if emuID == "" {
-		return "", errors.New("only an emulator profile has save suggestions")
+		return "", msg.SuggestOnlyEmulator.Err()
 	}
 	g, err := s.core.Library.Get(gameID)
 	if err != nil {
@@ -186,7 +188,8 @@ type AutofillSaveResult struct {
 // returns an AutofillSaveResult as JSON. A lookup that fails (no data folder
 // yet, no network for the manifest) is an error to tell the user only when
 // they asked: the caller may ignore it.
-func AutofillSaves(key, rom string) (string, error) {
+func AutofillSaves(key, rom string) (_ string, err error) {
+	defer wire(&err)
 	s, err := get()
 	if err != nil {
 		return "", err
@@ -249,8 +252,8 @@ func autofill(in *services.GameInput, g library.Game, thisDevice, emuID string, 
 }
 
 var (
-	errSharedSaves = errors.New("this emulator shares another emulator's saves, whose locations aren't marked as account or device save: suggest the locations on that emulator first, or enter the folder yourself")
-	errNoFolder    = errors.New("this suggestion has no folder")
+	errSharedSaves = msg.SuggestSharedSaves.Err()
+	errNoFolder    = msg.SuggestNoFolder.Err()
 )
 
 // useSuggestion puts sg into the emulator profile emuID of in (see
@@ -259,7 +262,7 @@ var (
 func useSuggestion(in *services.GameInput, g library.Game, thisDevice, emuID string, sg services.EmuSuggestion) error {
 	idx := slices.IndexFunc(in.Emulators, func(e services.GameEmulatorInput) bool { return e.EmulatorID == emuID })
 	if idx < 0 {
-		return fmt.Errorf("the game has no emulator %q", emuID)
+		return msg.EditNoEmulator.Err("Emulator", emuID)
 	}
 	if strings.TrimSpace(sg.Path) == "" {
 		return errNoFolder

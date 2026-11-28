@@ -196,9 +196,9 @@ func (w *wizardView) run(work func() (*cloud.Question, error), done func(*cloud.
 func (w *wizardView) next(r Result) {
 	switch r.Kind {
 	case ResultForm:
-		w.stage, w.err = stageForm, r.Err
+		w.stage, w.err = stageForm, i18n.Text(r.Err, r.ErrMsg)
 	case ResultQuestion:
-		w.stage, w.err = stageQuestion, r.Err
+		w.stage, w.err = stageQuestion, i18n.Text(r.Err, r.ErrMsg)
 		w.answer = w.vm.Question().Default
 	case ResultCreated:
 		w.close()

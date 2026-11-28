@@ -1,13 +1,13 @@
 package core
 
 import (
-	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
 	"strconv"
 	"strings"
 
+	"github.com/akfaiz/carryover/internal/app/msg"
 	"github.com/akfaiz/carryover/internal/library"
 	"github.com/akfaiz/carryover/internal/stores/steam"
 )
@@ -91,7 +91,7 @@ func (c *Core) AddToSteamFor(gameID, emuID, userID string, mode library.LaunchMo
 	var res AddToSteamResult
 	root := c.SteamRoot()
 	if root == "" {
-		return res, errors.New("no Steam installation found on this device")
+		return res, msg.SteamNotFound.Err()
 	}
 	game, err := c.Library.Get(gameID)
 	if err != nil {
@@ -111,10 +111,10 @@ func (c *Core) AddToSteamFor(gameID, emuID, userID string, mode library.LaunchMo
 	switch {
 	case emuID != "":
 		if _, ok := game.Emulator(emuID); !ok {
-			return res, errors.New("the game is not set up with this emulator")
+			return res, msg.SteamNotWithEmulator.Err()
 		}
 		if _, ok := dev.Emulators[emuID]; !ok {
-			return res, errors.New("set the emulator up for this game on this device first")
+			return res, msg.SteamSetUpEmulator.Err()
 		}
 		emu, err := c.Library.Emulator(emuID)
 		if err != nil {
@@ -126,7 +126,7 @@ func (c *Core) AddToSteamFor(gameID, emuID, userID string, mode library.LaunchMo
 		sc.LaunchOptions = "run " + game.ID + " --emulator " + emuID
 	case mode == library.LaunchSteamWrap:
 		if dev.Exe == "" {
-			return res, errors.New("set the game executable for this device first")
+			return res, msg.SteamSetExecutable.Err()
 		}
 		exe, err := c.PathContext(game).Expand(dev.Exe)
 		if err != nil {
@@ -149,7 +149,7 @@ func (c *Core) AddToSteamFor(gameID, emuID, userID string, mode library.LaunchMo
 		if !throughLauncher(mode) {
 			mode = library.LaunchDirect
 		} else if dev.Exe == "" {
-			return res, errors.New("set the game executable for this device first")
+			return res, msg.SteamSetExecutable.Err()
 		}
 		sc.Exe, sc.StartDir = quote(self), quote(filepath.Dir(self))
 		sc.LaunchOptions = "run " + game.ID
@@ -199,7 +199,7 @@ func (c *Core) RemoveFromSteam(gameID, userID string) (int, error) {
 func (c *Core) RemoveFromSteamFor(gameID, emuID, userID string) (int, error) {
 	root := c.SteamRoot()
 	if root == "" {
-		return 0, errors.New("no Steam installation found on this device")
+		return 0, msg.SteamNotFound.Err()
 	}
 	n, err := steam.RemoveShortcuts(root, userID, shortcutMatcher(gameID, emuID))
 	if err != nil {

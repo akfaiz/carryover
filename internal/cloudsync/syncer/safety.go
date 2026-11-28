@@ -3,7 +3,6 @@ package syncer
 import (
 	"context"
 	"errors"
-	"fmt"
 	"os"
 	"path/filepath"
 	"slices"
@@ -11,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/akfaiz/carryover/internal/app/msg"
 	"github.com/akfaiz/carryover/internal/cloudsync/cloud"
 )
 
@@ -48,7 +48,7 @@ func (e *Engine) safetyCopy(job Job, m *Manifest) error {
 	if e.SafetyDir == "" {
 		return nil
 	}
-	e.emit(job.GameID, "backup", "Keeping a copy of this device's saves", cloud.Progress{})
+	e.emit(job.GameID, "backup", msg.SyncKeepingCopy.Msg(), cloud.Progress{})
 	dst := e.safetyPath(job.GameID, e.backupName(kindSafety))
 	if err := os.MkdirAll(filepath.Dir(dst), 0o755); err != nil {
 		return err
@@ -124,7 +124,7 @@ func LocalChanges(ctx context.Context, slots []Slot, last, prev *Manifest) (bool
 	}
 	local, err := ScanLocal(ctx, slots, prev)
 	if err != nil {
-		return false, nil, fmt.Errorf("scan local saves: %w", err)
+		return false, nil, msg.SyncScanFailed.Wrap(err)
 	}
 	return !SameFiles(local, last), local, nil
 }

@@ -2,11 +2,11 @@ package services
 
 import (
 	"context"
-	"errors"
 	"slices"
 	"strings"
 	"time"
 
+	"github.com/akfaiz/carryover/internal/app/msg"
 	"github.com/akfaiz/carryover/internal/cloudsync/syncer"
 	"github.com/akfaiz/carryover/internal/core"
 	"github.com/akfaiz/carryover/internal/library"
@@ -102,14 +102,14 @@ func (s *EmulatorService) Get(id string) (EmulatorView, error) {
 func (s *EmulatorService) Save(in EmulatorSetup) (EmulatorView, error) {
 	name := strings.TrimSpace(in.Name)
 	if name == "" {
-		return EmulatorView{}, errors.New("emulator name is required")
+		return EmulatorView{}, msg.LibraryEmulatorName.Err()
 	}
 	if _, ok := emumanifest.PresetByID(in.Preset); in.Preset != "" && !ok {
-		return EmulatorView{}, errors.New("unknown emulator type")
+		return EmulatorView{}, msg.LibraryUnknownType.Err()
 	}
 	for _, o := range s.c.Library.Emulators() {
 		if o.ID != in.ID && strings.EqualFold(o.Name, name) {
-			return EmulatorView{}, errors.New("an emulator with this name already exists")
+			return EmulatorView{}, msg.LibraryEmulatorExists.Err()
 		}
 	}
 	dataDir := strings.TrimSpace(in.DataDir)

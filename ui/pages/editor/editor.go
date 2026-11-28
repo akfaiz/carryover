@@ -170,7 +170,7 @@ func (e *Page) suggestSaves(autofill bool) {
 	kit.Async(func() (services.SuggestResult, error) { return e.vm.be.SuggestSaves(in) }, func(res services.SuggestResult, err error) {
 		e.vm.suggesting = false
 		if err != nil {
-			e.u.Toast(i18n.L("Save suggestions: {{.Err}}", map[string]any{"Err": err}), kit.ToastErr)
+			e.u.Toast(i18n.L("Save suggestions: {{.Err}}", map[string]any{"Err": i18n.Err(err)}), kit.ToastErr)
 			return
 		}
 		if e.vm.ApplySuggestions(res, autofill) {
@@ -189,7 +189,7 @@ func (e *Page) searchSteam() {
 	kit.Async(func() ([]services.StoreMatch, error) { return e.vm.be.SearchSteam(term) }, func(res []services.StoreMatch, err error) {
 		e.vm.searching = false
 		if err != nil {
-			e.u.Toast(i18n.L("Steam search failed: {{.Err}}", map[string]any{"Err": err}), kit.ToastErr)
+			e.u.Toast(i18n.L("Steam search failed: {{.Err}}", map[string]any{"Err": i18n.Err(err)}), kit.ToastErr)
 			e.vm.showResults = false
 		} else {
 			e.vm.steamResults, e.vm.showResults = res, true
@@ -328,7 +328,7 @@ func (e *Page) bar(c *ui.Context) {
 			var note ui.Element
 			switch e.vm.BarNote() {
 			case NoteError:
-				note = kit.Danger(c, e.vm.errText)
+				note = kit.Danger(c, i18n.Text(e.vm.errText, e.vm.errMsg))
 			case NoteName:
 				note = kit.Muted(c, i18n.L("Give the game a name to save it."))
 			case NoteEmulator:
@@ -351,7 +351,7 @@ func (e *Page) bar(c *ui.Context) {
 
 func (e *Page) save() {
 	u := e.u
-	e.vm.errText = ""
+	e.vm.errText, e.vm.errMsg = "", nil
 	in, err := e.vm.Input()
 	if err != nil {
 		e.vm.errText = i18n.L("Add at least one emulator, or choose “PC or Steam game”.")
@@ -366,15 +366,15 @@ func (e *Page) save() {
 		g, coverErr, artErr := out.Game, out.CoverErr, out.ArtErr
 		e.vm.saving = false
 		if err != nil {
-			e.vm.errText = err.Error()
+			e.vm.errText, e.vm.errMsg = services.ErrorText(err)
 			return
 		}
 		e.vm.saved = true
 		if coverErr != nil {
-			u.Toast(i18n.L("Cover: {{.Err}}", map[string]any{"Err": coverErr}), kit.ToastErr)
+			u.Toast(i18n.L("Cover: {{.Err}}", map[string]any{"Err": i18n.Err(coverErr)}), kit.ToastErr)
 		}
 		if artErr != nil {
-			u.Toast(i18n.L("Artwork: {{.Err}}", map[string]any{"Err": artErr}), kit.ToastErr)
+			u.Toast(i18n.L("Artwork: {{.Err}}", map[string]any{"Err": i18n.Err(artErr)}), kit.ToastErr)
 		}
 		u.Store().Refresh()
 		u.Toast(i18n.L("Saved"), kit.ToastOK)

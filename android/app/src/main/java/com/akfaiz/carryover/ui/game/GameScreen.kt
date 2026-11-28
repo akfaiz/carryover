@@ -78,6 +78,7 @@ import androidx.compose.ui.platform.LocalWindowInfo
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import com.akfaiz.carryover.ui.components.coreText
 import com.akfaiz.carryover.R
 import com.akfaiz.carryover.core.ArtKind
 import com.akfaiz.carryover.core.GameView
@@ -337,7 +338,7 @@ private fun PlayRow(g: GameView, profiles: List<Profile>, state: UiState, vm: Ap
                 }
             }
         }
-        starting != null -> Busy(state.sessions[starting.key]?.message ?: stringResource(R.string.status_checking))
+        starting != null -> Busy(state.sessions[starting.key]?.let { coreText(it.message, it.msg) } ?: stringResource(R.string.status_checking))
         else -> {
             val playable = profiles.filter { vm.launchSetup(it) != null }
             val only = profiles.singleOrNull()
@@ -468,8 +469,8 @@ private fun ProfileCard(g: GameView, p: Profile, state: UiState, vm: AppViewMode
     ) {
         // What needs a look is a callout (as on the desktop); a quiet state is a line of grey text.
         val line = when {
-            syncing -> state.syncing[p.key]?.message ?: stringResource(R.string.status_syncing)
-            !p.canSync && p.pathErrors.isNotEmpty() -> p.pathErrors.values.first()
+            syncing -> state.syncing[p.key]?.let { coreText(it.message, it.msg) } ?: stringResource(R.string.status_syncing)
+            !p.canSync && p.pathErrors.isNotEmpty() -> p.pathErrors.entries.first().let { coreText(it.value, p.pathErrorMsgs[it.key]) }
             !p.canSync -> stringResource(R.string.status_line_not_set_up)
             else -> statusLine(p.status)
         }
@@ -531,7 +532,7 @@ private fun SaveFolderLine(slot: SaveSlot, p: Profile) {
             maxLines = 2,
             overflow = TextOverflow.Ellipsis,
         )
-        err?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = Tone.Err.color()) }
+        err?.let { Text(coreText(it, p.pathErrorMsgs[slot.key]), style = MaterialTheme.typography.bodySmall, color = Tone.Err.color()) }
         filtersSummary(slot)?.let { Hint(it) }
     }
 }

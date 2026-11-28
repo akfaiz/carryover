@@ -1,11 +1,11 @@
 package core
 
 import (
-	"errors"
 	"path/filepath"
 	"strconv"
 	"strings"
 
+	"github.com/akfaiz/carryover/internal/app/msg"
 	"github.com/akfaiz/carryover/internal/stores/steam"
 )
 
@@ -45,10 +45,10 @@ func (c *Core) AddSelfToSteam(userID string, art map[string][]byte) (AddToSteamR
 	var res AddToSteamResult
 	root := c.SteamRoot()
 	if root == "" {
-		return res, errors.New("no Steam installation found on this device")
+		return res, msg.SteamNotFound.Err()
 	}
 	if userID == "" {
-		return res, errors.New("pick a Steam account")
+		return res, msg.SteamPickAccount.Err()
 	}
 	self, err := SelfExecutable()
 	if err != nil {
@@ -121,7 +121,7 @@ func (c *Core) SelfSteamAppID(userID string) (string, error) {
 func (c *Core) RemoveSelfFromSteam(userID string) (int, error) {
 	root := c.SteamRoot()
 	if root == "" {
-		return 0, errors.New("no Steam installation found on this device")
+		return 0, msg.SteamNotFound.Err()
 	}
 	self, err := SelfExecutable()
 	if err != nil {

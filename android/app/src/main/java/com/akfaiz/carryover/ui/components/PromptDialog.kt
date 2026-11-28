@@ -66,7 +66,7 @@ fun PromptDialog(p: Prompt, onAnswer: (String) -> Unit) {
             title = { Text(stringResource(R.string.prompt_sync_error_title, p.gameName)) },
             text = {
                 Column {
-                    Text(p.error)
+                    Text(coreText(p.error, p.errorMsg))
                     if (p.beforePlay) {
                         Spacer(Modifier.height(12.dp))
                         Text(stringResource(R.string.prompt_sync_error_play))
@@ -90,7 +90,7 @@ fun PromptDialog(p: Prompt, onAnswer: (String) -> Unit) {
             text = {
                 Column {
                     for (c in p.choices) {
-                        AppButton(onClick = { onAnswer(c.id) }, Modifier.fillMaxWidth(), BtnKind.Secondary) { Text(c.name) }
+                        AppButton(onClick = { onAnswer(c.id) }, Modifier.fillMaxWidth(), BtnKind.Secondary) { Text(coreText(c.name, c.nameMsg)) }
                     }
                 }
             },

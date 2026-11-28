@@ -1,10 +1,9 @@
 package core
 
 import (
-	"errors"
-	"fmt"
 	"strings"
 
+	"github.com/akfaiz/carryover/internal/app/msg"
 	"github.com/akfaiz/carryover/internal/cloudsync/cloud"
 	"github.com/akfaiz/carryover/internal/cloudsync/syncer"
 	"github.com/akfaiz/carryover/internal/library"
@@ -94,10 +93,10 @@ func (c *Core) ResolveProfile(g library.Game, want string) (string, error) {
 	if want != "" {
 		e, err := c.Library.FindEmulator(want)
 		if err != nil {
-			return "", fmt.Errorf("unknown emulator %q", want)
+			return "", msg.LibraryUnknownEmulator.Err("Emulator", want)
 		}
 		if _, ok := g.Emulator(e.ID); !ok {
-			return "", fmt.Errorf("%s is not set up with %s", g.Name, e.Name)
+			return "", msg.SetupNotWith.Err("Game", g.Name, "Emulator", e.Name)
 		}
 		return e.ID, nil
 	}
@@ -116,7 +115,7 @@ func (c *Core) ResolveProfile(g library.Game, want string) (string, error) {
 	case profiles[0] == "" || len(profiles) == 1:
 		return profiles[0], nil
 	}
-	return "", fmt.Errorf("%s has several emulators; choose one: %s", g.Name, strings.Join(c.profileNames(profiles), ", "))
+	return "", msg.SetupSeveralEmulators.Err("Game", g.Name, "Names", strings.Join(c.profileNames(profiles), ", "))
 }
 
 // installed reports whether a profile can be started on this device: the
@@ -158,14 +157,14 @@ func (c *Core) ProfileName(emulatorID string) string {
 func (c *Core) profileData(g library.Game, emulatorID string) ([]library.SaveSlot, map[string]string, error) {
 	d, ok := g.Device(c.DeviceID())
 	if !ok {
-		return nil, nil, fmt.Errorf("%s is not set up on this device yet", g.Name)
+		return nil, nil, msg.SetupNotHere.Err("Game", g.Name)
 	}
 	if emulatorID == "" {
 		return g.Slots, d.Paths, nil
 	}
 	ge, ok := g.Emulator(emulatorID)
 	if !ok {
-		return nil, nil, fmt.Errorf("%s is not set up with this emulator", g.Name)
+		return nil, nil, msg.SetupNotWithThis.Err("Game", g.Name)
 	}
 	if ge.ShareWith != "" {
 		if target, ok := g.Emulator(ge.ShareWith); ok {
@@ -174,7 +173,7 @@ func (c *Core) profileData(g library.Game, emulatorID string) ([]library.SaveSlo
 	}
 	ec, ok := d.Emulators[emulatorID]
 	if !ok {
-		return nil, nil, fmt.Errorf("%s is not set up with %s on this device yet", g.Name, c.ProfileName(emulatorID))
+		return nil, nil, msg.SetupNotWithHere.Err("Game", g.Name, "Emulator", c.ProfileName(emulatorID))
 	}
 	return ge.Slots, ec.Paths, nil
 }
@@ -214,11 +213,11 @@ func (c *Core) JobFor(g library.Game, emulatorID string) (syncer.Job, error) {
 	for _, sl := range slots {
 		raw := paths[sl.Key]
 		if strings.TrimSpace(raw) == "" {
-			return syncer.Job{}, fmt.Errorf("save location %q has no path on this device", labelOr(sl))
+			return syncer.Job{}, msg.SyncSlotNoPath.Err("Slot", labelOr(sl))
 		}
 		p, err := pctx.Expand(raw)
 		if err != nil {
-			return syncer.Job{}, fmt.Errorf("save location %q: %w", labelOr(sl), err)
+			return syncer.Job{}, msg.SyncSlot.Wrap(err, "Slot", labelOr(sl))
 		}
 		job.Slots = append(job.Slots, syncer.Slot{
 			Key:       sl.Key,
@@ -227,7 +226,7 @@ func (c *Core) JobFor(g library.Game, emulatorID string) (syncer.Job, error) {
 		})
 	}
 	if len(job.Slots) == 0 {
-		return syncer.Job{}, errors.New("game has no save locations")
+		return syncer.Job{}, msg.SetupNoSlots.Err()
 	}
 	return job, nil
 }

@@ -15,6 +15,7 @@ import (
 
 	"github.com/rclone/rclone/fs/filter"
 
+	"github.com/akfaiz/carryover/internal/app/msg"
 	"github.com/akfaiz/carryover/internal/cloudsync/cloud"
 	"github.com/akfaiz/carryover/internal/cloudsync/localfs"
 )
@@ -123,7 +124,7 @@ func ScanLocal(ctx context.Context, slots []Slot, prev *Manifest) (*Manifest, er
 			return nil, err
 		}
 		if !fi.IsDir() {
-			return nil, errors.New("save path is not a directory: " + root)
+			return nil, msg.SyncNotFolder.Err("Path", root)
 		}
 		// Walk through os.DirFS: it looks at the root with os.Stat, so a root
 		// that is a symbolic link or a Windows junction is entered, where
@@ -179,7 +180,7 @@ func scanFS(ctx context.Context, sl Slot, flt *filter.Filter, prev *Manifest, m 
 		return err
 	}
 	if !fi.Dir {
-		return errors.New("save path is not a directory: " + sl.LocalPath)
+		return msg.SyncNotFolder.Err("Path", sl.LocalPath)
 	}
 	return localfs.Walk(sl.LocalPath, func(rel string, info localfs.Info) error {
 		if err := ctx.Err(); err != nil {

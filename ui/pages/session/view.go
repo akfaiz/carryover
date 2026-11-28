@@ -217,11 +217,11 @@ func (p *Page) transferInfo() string {
 	}
 	ev := p.progress
 	if ev.TotalBytes <= 0 {
-		return ev.Message
+		return i18n.Text(ev.Message, ev.Msg)
 	}
 	info := kit.FormatBytes(ev.Bytes) + " / " + kit.FormatBytes(ev.TotalBytes)
 	if ev.Message != "" {
-		info = ev.Message + " · " + info
+		info = i18n.Text(ev.Message, ev.Msg) + " · " + info
 	}
 	return info
 }
@@ -289,7 +289,7 @@ func (p *Page) StateChanged(store.Topic) {
 		return
 	}
 	up := p.vm.Apply(st, s.Progress[p.w.GameID])
-	p.msg, p.failed, p.ended, p.step = up.Message, up.Failed, up.Ended, up.Step
+	p.msg, p.failed, p.ended, p.step = i18n.Text(up.Message, up.Msg), up.Failed, up.Ended, up.Step
 	p.sync, p.progress = up.Sync, up.Progress
 	if up.HideCancel {
 		p.cancelLabel, p.cancelling = "", false
