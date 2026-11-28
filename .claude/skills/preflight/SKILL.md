@@ -12,7 +12,7 @@ Run from the repo root. Each step's command works in Git Bash on Windows and in 
    - `GOOS=linux CGO_ENABLED=0 golangci-lint run ./...`
    - `GOOS=darwin CGO_ENABLED=0 golangci-lint run ./...`
    - "File is not properly formatted" (gofmt/goimports) on a file you did *not* change is the CRLF artefact, not a finding; on a changed file it is real. Don't filter those lines away wholesale.
-   - `depguard` hits mean a layer rule from CLAUDE.md was broken (toolkit-free view models, `ui/` import order, `internal/` groups): fix the import, don't add an exclusion.
+   - `depguard` hits mean a layer rule from CLAUDE.md or ui/CLAUDE.md was broken (toolkit-free view models, `ui/` import order, `internal/` groups): fix the import, don't add an exclusion.
 4. **Build for every OS.** `CGO_ENABLED=0 go build ./...`, then `GOOS=linux CGO_ENABLED=0 go vet ./...` and `GOOS=darwin CGO_ENABLED=0 go vet ./...` (on Linux/macOS hosts also `GOOS=windows`). Build tags (`_windows.go`, `_darwin.go`, `_other.go`) break here first.
 5. **Tests.** `CGO_ENABLED=0 go test ./...` (run in the background if long; it's the whole suite, `ui/` included, with no network). If a test fails, rerun just that package with `-run <Name> -v` and report its output. Cross-OS runtime behaviour (path separators) is only covered by `scripts/test-docker.sh linux` (Docker); run it when the change touches paths, `localfs`, `pathvar` or launchers, and say if Docker isn't available.
 6. **Android**, only if something under `android/`, `mobile/`, `services/`, `internal/app/msg/` or `ui/i18n/translations/` changed (the last two feed the Android catalog tests):

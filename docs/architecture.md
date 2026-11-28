@@ -307,5 +307,6 @@ when they write it, and each device registers again).
 | The compiled-in rclone backends match the supported list | `TestProvidersMatchSupported` |
 | Every control can be reached with a gamepad | `TestGamepadReachesEveryControl`, `TestGamepadReachesDialogControls` |
 
-[`CLAUDE.md`](../CLAUDE.md) has the detailed notes: threading, rclone behaviour, platform rules and the pitfalls
+[`CLAUDE.md`](../CLAUDE.md), [`ui/CLAUDE.md`](../ui/CLAUDE.md) and
+[`internal/cloudsync/CLAUDE.md`](../internal/cloudsync/CLAUDE.md) have the detailed notes: threading, rclone behaviour, platform rules and the pitfalls
 met so far.

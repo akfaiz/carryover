@@ -9,8 +9,8 @@ Bug reports, ideas and pull requests are welcome.
 - For a bigger change, open an issue first so we can agree on the approach.
 
 Before changing code, read [Architecture](docs/architecture.md): how the packages are layered, the API both apps
-share, the desktop GUI's structure and the cloud layout. [`CLAUDE.md`](CLAUDE.md) has the detailed notes on
-threading, rclone and platform rules.
+share, the desktop GUI's structure and the cloud layout. [`CLAUDE.md`](CLAUDE.md) has the notes on platform rules;
+[`ui/CLAUDE.md`](ui/CLAUDE.md) covers threading and [`internal/cloudsync/CLAUDE.md`](internal/cloudsync/CLAUDE.md) rclone and syncing.
 
 ## Requirements
 
