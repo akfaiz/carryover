@@ -46,6 +46,8 @@ const (
 
 // View draws the page: the game's art behind, faded to the bottom, and over it
 // the game's name, the steps of the session and a card with what happens now.
+// While a dialog is open only the art and the app's name stay: the dialog would
+// cover the rest halfway.
 func (p *Page) View(c *ui.Context) {
 	w, h := c.Size()
 	big := w >= bigWidth && h >= bigHeight
@@ -63,6 +65,9 @@ func (p *Page) View(c *ui.Context) {
 			kit.IconLine(c, kit.IconCloud, "Carryover", c.Theme().TextMuted)
 		})
 		ui.Spacer(c)
+		if p.u.Dialogs().Open() {
+			return
+		}
 		ui.Column(c).Padding(pad).Gap(gap).MaxWidth(860).Children(func() {
 			title := kit.HeroTitle(c, name).Wrap().MaxLines(2)
 			if big {
