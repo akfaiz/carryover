@@ -158,7 +158,7 @@ func TestUsers(t *testing.T) {
 
 func TestUsersErrors(t *testing.T) {
 	_, err := Users("")
-	assert.Error(t, err, "Users without a Steam root")
+	require.Error(t, err, "Users without a Steam root")
 	_, err = Users(t.TempDir())
 	assert.Error(t, err, "Users without a userdata folder")
 }

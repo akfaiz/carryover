@@ -261,7 +261,7 @@ func TestInputNeedsAnEmulatorForAnEmulatedGame(t *testing.T) {
 		vm.name = "Game"
 		vm.kind = k
 		_, err := vm.Input()
-		assert.ErrorIs(t, err, ErrNoEmulator, string(k))
+		require.ErrorIs(t, err, ErrNoEmulator, string(k))
 	}
 	vm := newGame()
 	_, err := vm.Input()
@@ -426,7 +426,7 @@ func TestShareRomOnlyFillsEmptyOnes(t *testing.T) {
 	assert.Equal(t, "/own.nsp", c.rom, "a game file the user set stays")
 	assert.Equal(t, "/zelda.nsp", vm.firstRom())
 
-	assert.Equal(t, "", newGame().firstRom())
+	assert.Empty(t, newGame().firstRom())
 }
 
 func TestApplyEmuSuggestionsFillsPerGameLocationsThatExist(t *testing.T) {

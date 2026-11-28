@@ -110,7 +110,7 @@ func TestWrapperAsksWhichEmulatorAndCancels(t *testing.T) {
 
 	require.True(t, s.Respond(p.ID, "cancel"))
 	out := waitOutcome(t, done)
-	assert.ErrorIs(t, out.Err, core.ErrCancelled)
+	require.ErrorIs(t, out.Err, core.ErrCancelled)
 	assert.Equal(t, "done", s.Wrapper().Status.Phase)
 }
 

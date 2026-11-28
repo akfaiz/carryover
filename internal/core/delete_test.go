@@ -33,7 +33,7 @@ func mkCloudFolder(t *testing.T, cloudDir, key string) {
 
 func TestValidKey(t *testing.T) {
 	for _, k := range []string{"game", "game.emu", "0000-1111"} {
-		assert.NoError(t, validKey(k), k)
+		require.NoError(t, validKey(k), k)
 	}
 	for _, k := range []string{"", ".", "..", "a/b", `a\b`, "../x"} {
 		assert.Error(t, validKey(k), "%q", k)

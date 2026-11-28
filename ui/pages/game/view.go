@@ -96,8 +96,8 @@ func (p *Page) btn(c *ui.Context, key any, kind kit.BtnKind, icon *ui.SVG, label
 }
 
 // iconBtn is a square button with only an icon; label names it.
-func (p *Page) iconBtn(c *ui.Context, key any, kind kit.BtnKind, icon *ui.SVG, label string, disabled bool, action func()) ui.Element {
-	return kit.IconBtn(c, p.u.Navigator(), [2]any{"game", key}, kind, icon, label, action, kit.BtnDisabled(disabled))
+func (p *Page) iconBtn(c *ui.Context, key any, kind kit.BtnKind, icon *ui.SVG, label string, disabled bool, action func()) {
+	kit.IconBtn(c, p.u.Navigator(), [2]any{"game", key}, kind, icon, label, action, kit.BtnDisabled(disabled))
 }
 
 // View draws the page.
@@ -221,5 +221,4 @@ func (p *Page) cancelButton(c *ui.Context, label string, cancel func() bool) {
 			p.vm.cancelling = true
 		}
 	})
-
 }

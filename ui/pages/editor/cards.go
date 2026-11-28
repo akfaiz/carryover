@@ -171,7 +171,6 @@ func (e *Page) launchCard(c *ui.Context) {
 				e.btn(c, "exe-browse", kit.BtnSecondary, nil, i18n.L("Browse…"), false, func() {
 					components.BrowseFrom(e.u, e.vm.id, e.vm.dev.Exe, e.pickExe)
 				})
-
 			})
 		})
 		// Heroic, Lutris and Bottles launch the game with their own settings,

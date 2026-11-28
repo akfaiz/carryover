@@ -834,6 +834,7 @@ func (s *LibraryService) SearchSteam(term string) ([]steamstore.Match, error) {
 // SteamLibraryGame is a game installed through Steam on this device.
 type SteamLibraryGame struct {
 	steam.InstalledApp
+
 	// GameID is set when the library already has a game linked to this app.
 	GameID string `json:"gameId"`
 }
@@ -1042,6 +1043,7 @@ type SuggestInput struct {
 // SaveSuggestion is a suggested save location, checked on this device.
 type SaveSuggestion struct {
 	ludusavi.Suggestion
+
 	Resolved string `json:"resolved"` // absolute path on this device
 	Exists   bool   `json:"exists"`
 	Files    int    `json:"files"`
@@ -1223,6 +1225,7 @@ func (s *LibraryService) LutrisGame(exe string) (string, bool) {
 // LutrisLibraryGame is a game Lutris has installed on this device.
 type LutrisLibraryGame struct {
 	lutris.Game
+
 	// GameID is set when the library already has a game with this executable
 	// on this device.
 	GameID string `json:"gameId"`
@@ -1268,6 +1271,7 @@ func (s *LibraryService) BottlesGame(exe string) (string, bool) {
 // BottlesLibraryGame is a program added to a bottle on this device.
 type BottlesLibraryGame struct {
 	bottles.Game
+
 	// GameID is set when the library already has a game with this executable
 	// on this device.
 	GameID string `json:"gameId"`
@@ -1330,6 +1334,7 @@ func (s *LibraryService) Launchers() Launchers {
 // HeroicLibraryGame is a game Heroic has installed on this device.
 type HeroicLibraryGame struct {
 	heroic.Game
+
 	// Name is the game's title, or Heroic's id for it when it has none.
 	Name string `json:"name"`
 	// GameID is set when the library already has a game with an executable

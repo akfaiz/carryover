@@ -9,6 +9,7 @@ import (
 // BeginOutcome is the result of BeginSession.
 type BeginOutcome struct {
 	core.SessionStart
+
 	// Emulator is the profile played: an emulator id, "" for the game's own.
 	Emulator string `json:"emulator"`
 	// Cancelled: the user chose not to play (a conflict or another device's

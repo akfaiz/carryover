@@ -22,6 +22,7 @@ import (
 // 2 = the upload after playing) as soon as it starts.
 type cancelUI struct {
 	HeadlessUI
+
 	cancelAt int
 	phase    int
 }

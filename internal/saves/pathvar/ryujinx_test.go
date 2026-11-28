@@ -34,9 +34,9 @@ func TestRyujinxToken(t *testing.T) {
 	assert.Equal(t, save("0000000000000004"), got)
 
 	_, err = ctx.Expand("{ryujinx:0100000000000001:account}")
-	assert.ErrorContains(t, err, "start the game once in Ryujinx")
+	require.ErrorContains(t, err, "start the game once in Ryujinx")
 	_, err = ctx.Expand("{ryujinx:bad}")
-	assert.Error(t, err)
+	require.Error(t, err)
 	_, err = (Context{RyujinxDir: t.TempDir()}).Expand("{ryujinx:0100152000022000}")
 	assert.Error(t, err, "no Ryujinx data in that folder")
 }

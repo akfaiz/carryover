@@ -20,7 +20,7 @@ import (
 func TestGameOf(t *testing.T) {
 	assert.Equal(t, "g", GameOf("g"))
 	assert.Equal(t, "g", GameOf("g.emu"))
-	assert.Equal(t, "", GameOf(""))
+	assert.Empty(t, GameOf(""))
 }
 
 // Progress events reach the handler that was set, and nothing breaks without one.

@@ -52,7 +52,7 @@ func TestParseAndFormatEnv(t *testing.T) {
 	env := ParseEnv("B=2\nA = 1\n=skipped\nno equals\nC=x=y\n")
 	assert.Equal(t, map[string]string{"B": "2", "A": " 1", "C": "x=y"}, env, "the key is trimmed, the value kept as typed")
 	assert.Equal(t, "A=1\nB=2", FormatEnv(map[string]string{"B": "2", "A": "1"}), "sorted")
-	assert.Equal(t, "", FormatEnv(nil))
+	assert.Empty(t, FormatEnv(nil))
 	assert.Empty(t, ParseEnv(""))
 }
 

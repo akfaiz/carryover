@@ -16,9 +16,9 @@ import (
 // newSAFDevice is newDevice whose save folder has no file path: it lives in
 // an in-memory localfs registered for ":saf:", as an Android folder granted
 // through the Storage Access Framework does.
-func newSAFDevice(t *testing.T, cloudDir, id string) (*Engine, Job, *localfs.Mem, string) {
+func newSAFDevice(t *testing.T, cloudDir string) (*Engine, Job, *localfs.Mem, string) {
 	t.Helper()
-	e, job := newDevice(t, cloudDir, id)
+	e, job := newDevice(t, cloudDir, "phone")
 	mem := localfs.NewMem()
 	var tick time.Duration
 	mem.Now = func() time.Time { // every write gets a later time, as on a real device
@@ -57,7 +57,7 @@ func readFS(t *testing.T, p string) string {
 func TestSAFSaveFolder(t *testing.T) {
 	cloudDir := setupCloud(t)
 	pc, pcJob := newDevice(t, cloudDir, "pc")
-	phone, phoneJob, mem, saves := newSAFDevice(t, cloudDir, "phone")
+	phone, phoneJob, mem, saves := newSAFDevice(t, cloudDir)
 	pcSaves := pcJob.Slots[0].LocalPath
 	ctx := context.Background()
 
@@ -109,7 +109,7 @@ func TestSAFSaveFolder(t *testing.T) {
 func TestSAFSafetyCopy(t *testing.T) {
 	cloudDir := setupCloud(t)
 	pc, pcJob := newDevice(t, cloudDir, "pc")
-	phone, phoneJob, _, saves := newSAFDevice(t, cloudDir, "phone")
+	phone, phoneJob, _, saves := newSAFDevice(t, cloudDir)
 	pc.Retention, phone.Retention = 0, 0
 	phone.SafetyDir = filepath.Join(t.TempDir(), "safety")
 	pcSaves := pcJob.Slots[0].LocalPath
@@ -132,7 +132,7 @@ func TestSAFSafetyCopy(t *testing.T) {
 // A rescan reuses the hashes of SAF files whose size and time didn't change,
 // and notices the ones that did.
 func TestSAFScanCache(t *testing.T) {
-	_, job, _, saves := newSAFDevice(t, setupCloud(t), "phone")
+	_, job, _, saves := newSAFDevice(t, setupCloud(t))
 	writeFS(t, saves+"/a.sav", "one")
 	writeFS(t, saves+"/b.sav", "two")
 	first, err := ScanLocal(context.Background(), job.Slots, nil)
@@ -149,7 +149,7 @@ func TestSAFScanCache(t *testing.T) {
 // Some providers report no modification time (Android's modTime 0): a cached
 // hash can't be trusted then, or a change that keeps the size is never seen.
 func TestSAFScanWithoutModTime(t *testing.T) {
-	_, job, mem, saves := newSAFDevice(t, setupCloud(t), "phone")
+	_, job, mem, saves := newSAFDevice(t, setupCloud(t))
 	mem.Now = func() time.Time { return time.UnixMilli(0) }
 	writeFS(t, saves+"/a.sav", "one")
 	first, err := ScanLocal(context.Background(), job.Slots, nil)

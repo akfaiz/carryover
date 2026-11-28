@@ -115,7 +115,7 @@ func TestTwoDeviceSync(t *testing.T) {
 			break
 		}
 	}
-	require.NotEqual(t, "", localBackup)
+	require.NotEmpty(t, localBackup)
 	require.Equal(t, "pc-conflict", readZipEntry(t, filepath.Join(cloudDir, "games", "game1", "backups", localBackup+".zip"), "saves/slot1.sav"))
 
 	// Restore that backup: becomes local and cloud version.
@@ -573,6 +573,6 @@ func TestDeleteBackup(t *testing.T) {
 	require.False(t, list[0].Pinned)
 	pins, _ := pc.readPins(ctx, "game1")
 	assert.Empty(t, pins, "pins")
-	assert.Error(t, pc.DeleteBackup(ctx, "game1", pinned), "deleting a missing backup should fail")
+	require.Error(t, pc.DeleteBackup(ctx, "game1", pinned), "deleting a missing backup should fail")
 	assert.Error(t, pc.DeleteBackup(ctx, "game1", "../x"), "invalid name should fail")
 }

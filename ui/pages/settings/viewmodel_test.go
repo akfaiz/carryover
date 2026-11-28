@@ -104,7 +104,7 @@ func TestCollectRejectsABadRetentionOnlyWhileBackupsAreOn(t *testing.T) {
 
 	_, ok, err := vm.Collect(Form{BackupsOn: true, Retention: "0"})
 	assert.False(t, ok)
-	assert.ErrorIs(t, err, ErrRetention)
+	require.ErrorIs(t, err, ErrRetention)
 
 	_, ok, err = vm.Collect(Form{BackupsOn: false, Retention: "0"})
 	assert.True(t, ok)
@@ -219,7 +219,7 @@ func TestChoosingTheSystemThemeIsAChoice(t *testing.T) {
 	vm := newHarness(appdir.Settings{DeviceName: "Deck", Theme: "dark"}).vm
 
 	next, _, _ := vm.Collect(Form{ThemeChosen: true, Theme: ""})
-	assert.Equal(t, "", next.Theme)
+	assert.Empty(t, next.Theme)
 
 	next, _, _ = vm.Collect(Form{})
 	assert.Equal(t, "dark", next.Theme, "no choice leaves it")

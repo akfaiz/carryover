@@ -163,9 +163,9 @@ func TestBusyGameIsRefused(t *testing.T) {
 	e := newSyncEnv(t)
 	e.svc.busy.Store(e.id, struct{}{})
 	_, err := e.svc.Sync(e.id, "")
-	assert.Error(t, err, "Sync while busy")
-	assert.Error(t, e.svc.BackupNow(e.id), "BackupNow while busy")
-	assert.Error(t, e.svc.DeleteBackup(e.id, "x"), "DeleteBackup while busy")
+	require.Error(t, err, "Sync while busy")
+	require.Error(t, e.svc.BackupNow(e.id), "BackupNow while busy")
+	require.Error(t, e.svc.DeleteBackup(e.id, "x"), "DeleteBackup while busy")
 	assert.Error(t, e.svc.RestoreBackup(e.id, "x"), "RestoreBackup while busy")
 }
 

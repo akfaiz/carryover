@@ -88,13 +88,13 @@ func TestAddSelfToSteamErrors(t *testing.T) {
 	c, _, _, _ := newPlayable(t)
 	steamEnv(t)
 	_, err := c.AddSelfToSteam("", nil)
-	assert.Error(t, err, "no Steam account")
+	require.Error(t, err, "no Steam account")
 
 	c2, _, _, _ := newPlayable(t)
 	t.Setenv("CARRYOVER_STEAM_ROOT", "")
 	c2.steamOnce.Do(func() { c2.steamRoot = "" })
 	_, err = c2.AddSelfToSteam("1", nil)
-	assert.Error(t, err, "no Steam")
+	require.Error(t, err, "no Steam")
 	_, err = c2.RemoveSelfFromSteam("1")
 	assert.Error(t, err, "no Steam")
 }

@@ -21,5 +21,5 @@ func TestPrefsStrings(t *testing.T) {
 	p.SetString("sort", "recent")
 	assert.Equal(t, "recent", loadPrefs(dir).StringWithFallback("sort", "name"))
 	p.SetString("sort", "") // an empty value is a value
-	assert.Equal(t, "", loadPrefs(dir).StringWithFallback("sort", "name"))
+	assert.Empty(t, loadPrefs(dir).StringWithFallback("sort", "name"))
 }

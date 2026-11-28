@@ -164,7 +164,7 @@ func TestCompressedSync(t *testing.T) {
 	assert.Less(t, f.StoredSize, f.Size/10)
 	for k := range m.Files {
 		_, err := os.Stat(filepath.Join(cloudDir, "games", "game1", "current", filepath.FromSlash(k)))
-		assert.ErrorIs(t, err, os.ErrNotExist, "an older version must not find %s", k)
+		require.ErrorIs(t, err, os.ErrNotExist, "an older version must not find %s", k)
 	}
 
 	mustSync(t, deck, deckJob, ResolveAuto, ActionPull)
@@ -182,7 +182,7 @@ func TestCompressedSync(t *testing.T) {
 	mustSync(t, pc, pcJob, ResolveAuto, ActionPull)
 	assert.Equal(t, big+"more", read(t, pcSaves, "slot1.sav"))
 	_, err = os.Stat(filepath.Join(pcSaves, "old.zst"))
-	assert.ErrorIs(t, err, os.ErrNotExist)
+	require.ErrorIs(t, err, os.ErrNotExist)
 
 	// The cloud backup taken before deck's push holds the files themselves.
 	backups, err := pc.ListBackups(context.Background(), "game1")
@@ -369,7 +369,7 @@ func TestRestoreBackupOfCompressedObjects(t *testing.T) {
 func TestCompressedSAFSaveFolder(t *testing.T) {
 	cloudDir := setupCloud(t)
 	pc, pcJob := newDevice(t, cloudDir, "pc")
-	phone, phoneJob, _, saves := newSAFDevice(t, cloudDir, "phone")
+	phone, phoneJob, _, saves := newSAFDevice(t, cloudDir)
 	pc.WriteFormat, phone.WriteFormat = FormatZstd, FormatZstd
 	pcSaves := pcJob.Slots[0].LocalPath
 

@@ -8,7 +8,8 @@ import (
 )
 
 // TestSendManual shows a real notification. It only runs when asked:
-// CARRYOVER_TEST_NOTIFY=1 go test ./internal/app/notify -run Manual
+//
+//	CARRYOVER_TEST_NOTIFY=1 go test ./internal/app/notify -run Manual
 func TestSendManual(t *testing.T) {
 	if os.Getenv("CARRYOVER_TEST_NOTIFY") == "" {
 		t.Skip("set CARRYOVER_TEST_NOTIFY=1 to show a real notification")

@@ -34,7 +34,7 @@ func TestProfilesOfAPlainGameIsJustItsOwnSaves(t *testing.T) {
 	profs := vm.profiles(plainGame())
 
 	require.Len(t, profs, 1)
-	assert.Equal(t, "", profs[0].id)
+	assert.Empty(t, profs[0].id)
 	assert.False(t, profs[0].noEmu, "nothing to tell it apart from")
 	assert.True(t, profs[0].ready)
 }
@@ -44,7 +44,7 @@ func TestProfilesOfAGameWithEmulators(t *testing.T) {
 	profs := vm.profiles(emulated(true, emu("eden", "Eden", true), emu("ryu", "Ryujinx", false)))
 
 	require.Len(t, profs, 3)
-	assert.Equal(t, "", profs[0].id)
+	assert.Empty(t, profs[0].id)
 	assert.True(t, profs[0].noEmu, "its own saves are named against the emulators")
 	assert.Equal(t, "eden", profs[1].id)
 	assert.Equal(t, "Eden", profs[1].tag)
@@ -97,7 +97,7 @@ func TestSelectedProfile(t *testing.T) {
 
 	calm := vm.profiles(emulated(true, fine))
 	vm.chosen = false
-	assert.Equal(t, "", vm.selectedProfile(calm).id, "nothing needs attention: the first")
+	assert.Empty(t, vm.selectedProfile(calm).id, "nothing needs attention: the first")
 }
 
 func TestActiveProfileAndKey(t *testing.T) {

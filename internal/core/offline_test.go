@@ -21,6 +21,7 @@ import (
 // while the game runs.
 type recordUI struct {
 	HeadlessUI
+
 	mu        sync.Mutex
 	failures  int
 	conflicts []bool // beforePlay of each conflict prompt

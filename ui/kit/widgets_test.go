@@ -361,9 +361,9 @@ func TestFormatHelpers(t *testing.T) {
 	assert.Equal(t, "É", initial("été"))
 	assert.Equal(t, "?", initial(""))
 
-	assert.Equal(t, 0.0, pct(5, 0))
-	assert.Equal(t, 0.5, pct(1, 2))
-	assert.Equal(t, 1.0, pct(9, 2), "never above full")
+	assert.InDelta(t, 0, pct(5, 0), 0.001)
+	assert.InDelta(t, 0.5, pct(1, 2), 0.001)
+	assert.InDelta(t, 1, pct(9, 2), 0.001, "never above full")
 }
 
 func TestExistingDir(t *testing.T) {
@@ -374,8 +374,8 @@ func TestExistingDir(t *testing.T) {
 	assert.Equal(t, dir, ExistingDir(dir))
 	assert.Equal(t, dir, ExistingDir(file), "a file opens its folder")
 	assert.Equal(t, dir, ExistingDir(filepath.Join(dir, "no", "such", "dir")))
-	assert.Equal(t, "", ExistingDir(""))
-	assert.Equal(t, "", ExistingDir("relative/path"))
+	assert.Empty(t, ExistingDir(""))
+	assert.Empty(t, ExistingDir("relative/path"))
 }
 
 func TestPalettesAndThemes(t *testing.T) {
@@ -399,9 +399,9 @@ func TestChoiceMapsBothWays(t *testing.T) {
 	var c Choice
 	c.Add("x", "Ex")
 	assert.Equal(t, "Ex", c.Label("x"))
-	assert.Equal(t, "", c.Label("nope"))
+	assert.Empty(t, c.Label("nope"))
 	assert.Equal(t, "x", c.Value("Ex"))
-	assert.Equal(t, "", c.Value("nope"))
+	assert.Empty(t, c.Value("nope"))
 }
 
 // A cover that fills its place is decoded once, whatever width it is drawn at:

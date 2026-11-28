@@ -32,11 +32,11 @@ func (s *windowStates) LoadWindowStates() (map[string]mygo.WindowState, error) {
 	defer s.mu.Unlock()
 	data, err := os.ReadFile(s.path)
 	if err != nil {
-		return nil, nil //nolint:nilerr // no saved state is not an error
+		return nil, nil // no saved state is not an error
 	}
 	var states map[string]mygo.WindowState
 	if err := json.Unmarshal(data, &states); err != nil {
-		return nil, nil //nolint:nilerr // a damaged file is as good as none
+		return nil, nil // a damaged file is as good as none
 	}
 	for k, st := range states {
 		st.FullScreen = false

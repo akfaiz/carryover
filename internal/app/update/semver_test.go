@@ -34,7 +34,7 @@ func TestCompareOrdersReleases(t *testing.T) {
 func TestParseRejects(t *testing.T) {
 	for _, s := range []string{"", "dev", "1.2", "v1", "1.2.3-", "1.2.3/../x", "../1.2.3", "1.2.3 x"} {
 		_, err := Parse(s)
-		assert.Error(t, err, "%q", s)
+		require.Error(t, err, "%q", s)
 	}
 	v, err := Parse("v1.2.3+build.5")
 	require.NoError(t, err)

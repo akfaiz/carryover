@@ -87,7 +87,7 @@ func TestAndroidCatalog(t *testing.T) {
 	english := androidTexts(t, "values")
 
 	// resource is the English template written with the resource's %1$s.
-	resource := func(template, text string, names []string) string {
+	resource := func(text string, names []string) string {
 		return positional.ReplaceAllStringFunc(text, func(p string) string {
 			i, _ := strconv.Atoi(positional.FindStringSubmatch(p)[1])
 			if i < 1 || i > len(names) {
@@ -115,7 +115,7 @@ func TestAndroidCatalog(t *testing.T) {
 		for form, template := range forms {
 			text, ok := english[name+form]
 			if assert.True(t, ok, "%s%s is missing from values/strings.xml", name, form) {
-				assert.Equal(t, template, resource(template, unescape(text), names), "English of %s%s", name, form)
+				assert.Equal(t, template, resource(unescape(text), names), "English of %s%s", name, form)
 			}
 		}
 	}
