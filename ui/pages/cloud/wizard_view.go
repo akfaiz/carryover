@@ -77,13 +77,23 @@ func (w *wizardView) pick(c *ui.Context, nav *kit.Navigator) {
 	kit.ChoiceGrid(c, w.d.ContentWidth(c), len(providers), func(i int) {
 		pr := providers[i]
 		choose := func() { w.vm.Choose(pr); w.name = w.vm.Name(); w.stage, w.err = stageForm, "" }
-		icon := kit.IconStorage
-		if pr.OAuth {
-			icon = kit.IconCloud
-		}
-		kit.ChoiceTile(c, nav, pr.Type, pr.Description, icon, false, choose)
+		kit.ChoiceTile(c, nav, pr.Type, pr.Description, providerIcon(pr.Type, pr.OAuth), false, choose)
 	})
 	w.foot = func() { w.button(c, nav, "cancel", i18n.L("Cancel"), kit.BtnSecondary, false, w.close, kit.FocusSafe) }
+}
+
+// providerIcon is the logo of a storage provider, or for one without, the
+// icon of its kind: a cloud service signed in to, or a server.
+func providerIcon(typ string, oauth bool) *ui.SVG {
+	switch {
+	case typ == "drive":
+		return kit.IconGoogleDrive
+	case typ == "dropbox":
+		return kit.IconDropbox
+	case oauth:
+		return kit.IconCloud
+	}
+	return kit.IconStorage
 }
 
 func (w *wizardView) form(c *ui.Context, nav *kit.Navigator) {

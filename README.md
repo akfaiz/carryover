@@ -1,5 +1,8 @@
 <p align="center">
-  <img src="ui/assets/appicon.svg" alt="Carryover logo" width="128" height="128">
+  <picture>
+    <source media="(prefers-color-scheme: light)" srcset="ui/assets/appicon-light.svg">
+    <img src="ui/assets/appicon.svg" alt="Carryover logo" width="128" height="128">
+  </picture>
 </p>
 
 <h1 align="center">Carryover</h1>
@@ -208,6 +211,9 @@ Carryover is free software under the [GNU General Public License v3.0 or later](
 
 ## Credits
 
+- The Steam, Heroic Games Launcher, Lutris, Google Drive and Dropbox logos come from
+  [Simple Icons](https://github.com/simple-icons/simple-icons) (CC0-1.0). They are trademarks of their owners, who
+  do not endorse Carryover.
 - Save locations come from the [Ludusavi manifest](https://github.com/mtkennerly/ludusavi-manifest)
   (MIT), compiled from [PCGamingWiki](https://www.pcgamingwiki.com/).
 - Save locations of emulated games come from

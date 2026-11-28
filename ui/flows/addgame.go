@@ -1,8 +1,6 @@
 package flows
 
 import (
-	"strings"
-
 	"github.com/egoist/mygo/ui"
 
 	"github.com/akfaiz/carryover/services"
@@ -31,14 +29,14 @@ type addTile struct {
 func showAddGame(u env.Env, l services.Launchers) {
 	var d *kit.Dialog
 	heroic, lutris := l.Heroic, l.Lutris
-	tiles := []addTile{{i18n.L("From Steam"), kit.IconDownload, i18n.L("From Steam: a game Steam installed on this device."),
+	tiles := []addTile{{i18n.L("From Steam"), kit.IconSteam, i18n.L("From Steam: a game Steam installed on this device."),
 		func() { ShowSteamImport(u) }}}
 	if heroic {
-		tiles = append(tiles, addTile{i18n.L("From Heroic"), kit.IconStorage, i18n.L("From Heroic: a GOG, Epic or Amazon game Heroic installed."),
+		tiles = append(tiles, addTile{i18n.L("From Heroic"), kit.IconHeroic, i18n.L("From Heroic: a GOG, Epic or Amazon game Heroic installed."),
 			func() { ShowHeroicImport(u) }})
 	}
 	if lutris {
-		tiles = append(tiles, addTile{i18n.L("From Lutris"), kit.IconFolder, i18n.L("From Lutris: a game Lutris installed."),
+		tiles = append(tiles, addTile{i18n.L("From Lutris"), kit.IconLutris, i18n.L("From Lutris: a game Lutris installed."),
 			func() { ShowLutrisImport(u) }})
 	}
 	if l.Bottles {
@@ -61,22 +59,44 @@ func showAddGame(u env.Env, l services.Launchers) {
 		addTile{i18n.L("Emulated game"), kit.IconPlay,
 			i18n.L("Emulated game: a game file you play through an emulator such as Eden or Ryujinx."),
 			func() { u.Navigate("/new/emulator") }})
-	var help []string
-	for _, t := range tiles {
-		help = append(help, t.about)
-	}
 	d = u.Dialogs().Show(&kit.Dialog{
 		Title: i18n.L("Add a game"),
 		Width: float32(len(tiles))*(kit.ChoiceTileSize+16) + 80,
 		Body: func(c *ui.Context, nav *kit.Navigator) {
+			hovered, focused := -1, -1
 			kit.ChoiceGrid(c, d.ContentWidth(c), len(tiles), func(i int) {
 				t := tiles[i]
-				kit.ChoiceTile(c, nav, "add:"+t.name, t.name, t.icon, false, func() { d.Close(); t.do() })
+				tile := kit.ChoiceTile(c, nav, "add:"+t.name, t.name, t.icon, false, func() { d.Close(); t.do() })
+				if tile.Hovered() {
+					hovered = i
+				}
+				if tile.Focused() {
+					focused = i
+				}
 			})
-			kit.Muted(c, strings.Join(help, " "))
+			// With one tile under the pointer and another focused, the pointer wins.
+			about := hovered
+			if about < 0 {
+				about = focused
+			}
+			tileAbout(c, tiles, about)
 			kit.Footer(c, func() {
 				kit.Btn(c, nav, "add-cancel", kit.BtnSecondary, nil, i18n.L("Cancel"), func() { d.Close() }, kit.BtnItem(kit.FocusSafe))
 			})
 		},
+	})
+}
+
+// tileAbout explains the tile at index about, none for -1. Every text is laid
+// out in the same cell, so the room is the longest one's whichever shows: a
+// dialog that changed height would move its tiles from under the pointer.
+func tileAbout(c *ui.Context, tiles []addTile, about int) {
+	ui.Grid(c).Columns(1).Children(func() {
+		for i, t := range tiles {
+			text := kit.Muted(c.Key(t.name), t.about).ColumnStart(1).RowStart(1)
+			if i != about {
+				text.Invisible()
+			}
+		}
 	})
 }

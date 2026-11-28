@@ -63,16 +63,21 @@ func HoverText(c *ui.Context, owner ui.Element, s string, size float32, weight i
 	})
 }
 
+// fitSlack is how far over its box a text may measure and still be whole: the
+// box was laid out from that same measure, and the float32 arithmetic on the
+// way can leave it a fraction of a DIP narrower.
+const fitSlack = 0.5
+
 // fitText cuts s with an ellipsis until it takes no more than width DIPs, as
 // ui.Text's SingleLine does.
 func fitText(p *ui.Painter, span ui.Span, width float32) string {
-	if w, _ := p.MeasureText(0, span); w <= width {
+	if w, _ := p.MeasureText(0, span); w <= width+fitSlack {
 		return span.Text
 	}
 	runes := []rune(span.Text)
 	for n := len(runes) - 1; n > 0; n-- {
 		span.Text = string(runes[:n]) + "…"
-		if w, _ := p.MeasureText(0, span); w <= width {
+		if w, _ := p.MeasureText(0, span); w <= width+fitSlack {
 			return span.Text
 		}
 	}

@@ -51,6 +51,8 @@ func start(c *core.Core) *shell.Shell {
 func appConfig() shell.Config {
 	return shell.Config{
 		Icon:         appIcon,
+		LogoDark:     logoDark,
+		LogoLight:    logoLight,
 		Page:         pageFor,
 		AddGame:      flows.ShowAddGame,
 		SyncProblems: showSyncProblems,

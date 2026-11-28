@@ -23,9 +23,16 @@ All notable changes to Carryover are listed here. The format follows
 - While a notification is showing, Carryover no longer redraws the whole window every frame to count it down.
 - On Android, going back to a page now finds it as you left it: the library keeps its place, your search and your
   filter.
+- On the desktop, "Add a game" now explains only the choice you're pointing at, or have selected with a controller,
+  instead of showing every description at once.
+- On the desktop, "Add a game" shows the Steam, Heroic and Lutris logos, and cloud setup shows the Google Drive and
+  Dropbox logos.
+- On the desktop, Carryover's logo in the sidebar now has a light version for the light theme.
 
 ### Fixed
 
+- On the desktop, short button labels could be cut off for no reason, such as "Dark" showing as "Da…" under
+  Settings → Appearance.
 - On Android, a game's cover or background changed while its page was open now shows right away.
 - In the "how to play" prompt, the last played choice no longer looks focused after you move to another one: it now
   has a tinted background, and only the focused choice has a blue outline. Once the countdown stops, the text no

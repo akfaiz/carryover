@@ -1,6 +1,7 @@
 package flows_test
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/egoist/mygo/ui"
@@ -11,6 +12,7 @@ import (
 	"github.com/akfaiz/carryover/ui/env"
 	"github.com/akfaiz/carryover/ui/flows"
 	"github.com/akfaiz/carryover/ui/internal/uitest"
+	"github.com/akfaiz/carryover/ui/kit"
 	"github.com/akfaiz/carryover/ui/shell"
 )
 
@@ -82,4 +84,55 @@ func TestOpenSteamWithoutLink(t *testing.T) {
 	flows.OpenSteam(h.Shell, services.GameView{Name: "G"})
 	h.Settle()
 	assert.Contains(t, h.Texts(), "Steam can't start this game yet: add it to Steam on the game's page.")
+}
+
+// The dialog explains only the kind of game under the pointer or holding the
+// focus, and keeps the room for it so that nothing moves.
+func TestAddGameExplainsOnlyThePointedOrFocusedKind(t *testing.T) {
+	const pc, emulated = "PC game: any other game", "Emulated game: a game file"
+	h := newHarness(t)
+	flows.ShowAddGame(h.Shell)
+	h.Settle()
+
+	shown := func(prefix string) bool {
+		for _, s := range h.Texts() {
+			if strings.HasPrefix(s, prefix) {
+				return true
+			}
+		}
+		return false
+	}
+	find := func(s string) ui.Rect {
+		r, ok := h.Tester.Find(s)
+		require.True(t, ok, s)
+		return r
+	}
+	assert.False(t, shown("From Steam:"))
+	assert.False(t, shown(pc))
+	assert.False(t, shown(emulated))
+	before := find("Cancel")
+
+	r := find("PC game")
+	h.Tester.Move(r.X+r.W/2, r.Y+r.H/2)
+	h.Settle()
+	assert.True(t, shown(pc))
+	assert.False(t, shown(emulated))
+	assert.Equal(t, before, find("Cancel"), "nothing moves")
+
+	h.Tester.Move(1, 1)
+	h.Settle()
+	assert.False(t, shown(pc))
+
+	// Cancel has the focus as the dialog opens: the D-pad reaches the tiles.
+	for _, step := range []struct {
+		press       kit.PadAction
+		shown, gone string
+	}{{kit.PadLeft, emulated, pc}, {kit.PadLeft, pc, emulated}} {
+		h.Shell.Navigator().Press(step.press)
+		h.Tester.Frame()
+		h.Settle()
+		assert.True(t, shown(step.shown), step.shown)
+		assert.False(t, shown(step.gone), step.gone)
+	}
+	assert.Equal(t, before, find("Cancel"), "nothing moves")
 }

@@ -29,8 +29,11 @@ import (
 
 // Config is what the application plugs into the shell.
 type Config struct {
-	// Icon is the application icon (PNG), shown in the sidebar.
+	// Icon is the application icon (PNG), the window's.
 	Icon []byte
+	// LogoDark and LogoLight are the logo (SVG) the sidebar shows in the dark
+	// and in the light theme.
+	LogoDark, LogoLight []byte
 	// Page builds the page of a route ("/", "/game/<id>", ...).
 	Page func(e env.Env, route string) env.Page
 	// AddGame opens the "add a game" dialog (Ctrl+N).
@@ -73,7 +76,7 @@ type Shell struct {
 	dialogs kit.Dialogs
 	prompts *prompts.Queue
 	prefs   *prefs
-	logo    *ui.Bitmap
+	logos   themeLogos
 	// toastQ holds toasts asked for outside a frame; the view shows them.
 	toastQ []toastReq
 	// themeDirty asks the next frame to apply the palette again.
@@ -115,9 +118,7 @@ func (u *Shell) checkLocalChanges() {
 // New builds the shell around the services of c; bus carries their events.
 func New(c *core.Core, bus *services.Bus, cfg Config) *Shell {
 	u := &Shell{cfg: cfg, c: c, prefs: loadPrefs(c.Dirs.StateDir())}
-	if cfg.Icon != nil {
-		u.logo, _ = ui.DecodeBitmap(cfg.Icon)
-	}
+	u.logos = parseLogos(cfg.LogoDark, cfg.LogoLight)
 	u.sess = services.NewSessionService(c, bus)
 	u.lib = services.NewLibraryService(c, bus, u.sess.IsRunning)
 	u.sync = services.NewSyncService(c, bus)
@@ -367,8 +368,8 @@ func (u *Shell) sidebar(c *ui.Context) {
 	t := c.Theme()
 	ui.Column(c).Width(224).Padding(kit.S3).Gap(kit.S1).Background(t.Surface).Children(func() {
 		ui.Row(c).Gap(kit.S3).AlignItems(ui.Center).Padding(kit.S1, kit.S2, kit.S3, kit.S2).Children(func() {
-			if u.logo != nil {
-				ui.Image(c, u.logo).Size(32, 32)
+			if logo := u.logos.current(); logo != nil {
+				ui.Image(c, logo).Size(32, 32).Label("Carryover logo")
 			}
 			ui.Text(c, "Carryover").FontSize(kit.TextCard).Bold()
 		})

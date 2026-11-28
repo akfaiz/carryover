@@ -136,3 +136,35 @@ func TestShellTheNoCloudButtonGoesToCloud(t *testing.T) {
 	h.Click("No cloud configured")
 	assert.Equal(t, "/cloud", h.Shell.Route())
 }
+
+// The sidebar's logo is the one made for the theme that shows.
+func TestShellLogoFollowsTheTheme(t *testing.T) {
+	square := func(color string) []byte {
+		return []byte(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 8 8"><rect width="8" height="8" fill="` + color + `"/></svg>`)
+	}
+	h := uitest.New(t, shell.Config{
+		LogoDark:     square("#ff0000"),
+		LogoLight:    square("#00ff00"),
+		Page:         func(_ env.Env, route string) env.Page { return stand{route} },
+		AddGame:      func(env.Env) {},
+		SyncProblems: func(env.Env, int, []services.SyncResult) {},
+	})
+	middle := func() (r, g uint32) {
+		box, ok := h.Tester.Find("Carryover logo")
+		require.True(t, ok)
+		r, g, _, _ = h.Tester.Image().At(int(box.X+box.W/2), int(box.Y+box.H/2)).RGBA()
+		return r >> 8, g >> 8
+	}
+	before := kit.LightOn
+	t.Cleanup(func() { h.Shell.ApplyTheme(map[bool]string{true: kit.ThemeLight, false: kit.ThemeDark}[before]) })
+
+	h.Shell.ApplyTheme(kit.ThemeDark)
+	h.Settle()
+	r, g := middle()
+	assert.Equal(t, [2]uint32{255, 0}, [2]uint32{r, g}, "dark")
+
+	h.Shell.ApplyTheme(kit.ThemeLight)
+	h.Settle()
+	r, g = middle()
+	assert.Equal(t, [2]uint32{0, 255}, [2]uint32{r, g}, "light")
+}
