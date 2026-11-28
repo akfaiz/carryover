@@ -24,10 +24,16 @@ func paintFace(p *ui.Painter, r ui.Rect, bg, border ui.Color, width, radius floa
 	}
 }
 
+// Hovered reports whether the pointer is over el. It is how a Draw asks, never
+// el.Hovered() itself: an element on its way out (a dialog closing, a row
+// removed) is painted as a copy, which runs the Draw of a view built earlier.
+// Its element has expired by then, and asking it panics in development builds.
+func Hovered(el ui.Element) bool { return el.Valid() && el.Hovered() }
+
 // HoverColor is hover while the pointer is over owner, normal otherwise. Call it
 // only as the element paints.
 func HoverColor(owner ui.Element, normal, hover ui.Color) ui.Color {
-	if owner.Hovered() {
+	if Hovered(owner) {
 		return hover
 	}
 	return normal

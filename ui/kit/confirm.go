@@ -42,7 +42,7 @@ func (d *Confirm) Close() { d.open = false }
 // cancels, and it starts on Cancel.
 func (d *Confirm) View(c *ui.Context, nav *Navigator) {
 	nav.Overlay("confirm", d.open, d.Close, func() {
-		ui.Modal(c, &d.open, func() {
+		modal(c, "confirm-dialog", &d.open, func() {
 			t := c.Theme()
 			ui.Column(c).Gap(S3).Padding(S6).Width(420).Children(func() {
 				Heading(c, d.opts.Title)

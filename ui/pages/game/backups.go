@@ -1,6 +1,9 @@
 package game
 
 import (
+	"fmt"
+	"strings"
+
 	"github.com/egoist/mygo/ui"
 
 	"github.com/akfaiz/carryover/internal/cloudsync/syncer"
@@ -33,13 +36,13 @@ func (p *Page) backupRow(c *ui.Context, first bool, prof string, b syncer.Backup
 		label = "…"
 	}
 	key := prof + "/" + b.Name
-	kit.ListRow(c, first, components.FmtDate(b.Time), func() { kit.Muted(c, desc) }, func() {
+	p.reflow.Row(kit.ListRow(c, [2]any{b.Local, b.Name}, first, components.FmtDate(b.Time), func() { kit.Muted(c, desc) }, func() {
 		if !b.Local {
 			p.btn(c, "pin:"+key, kit.BtnSecondary, kit.IconPin, pinLabel, !canPin, func() { p.setPinned(prof, b) })
 		}
 		p.iconBtn(c, "del:"+key, kit.BtnDanger, kit.IconTrash, i18n.L("Delete"), !canPin, func() { p.deleteBackup(prof, b) })
 		p.btn(c, "restore:"+key, kit.BtnSecondary, kit.IconRestore, label, !canRestore, func() { p.restore(prof, b) })
-	})
+	}))
 }
 
 // backupsCard lists and takes the backups of one profile's cloud save. The
@@ -59,7 +62,15 @@ func (p *Page) backupsCard(c *ui.Context, pe profileEntry, busy, hasRemote bool)
 			map[string]any{"Count": n})}
 	}
 	details = append(details, i18n.L("Backups you make with “Back up now” are pinned. Pinned backups are never deleted automatically."))
-	kit.Card(c, "", func() {
+	var names strings.Builder
+	names.WriteString(pe.id)
+	for _, b := range st.backups {
+		fmt.Fprintf(&names, "\n%t %s", b.Local, b.Name)
+	}
+	p.reflow.Watch(c, names.String())
+	// A card per profile: switching shows the other's list, with no row of the
+	// one before on its way out.
+	p.reflow.Box(kit.Card(c.Key("backups:"+pe.id), "", func() {
 		kit.CardHead(c, i18n.L("Backups"), func() {
 			label := i18n.L("Back up now")
 			if p.vm.busyFor("backup", pe.id) {
@@ -96,7 +107,7 @@ func (p *Page) backupsCard(c *ui.Context, pe profileEntry, busy, hasRemote bool)
 		for i, b := range st.backups {
 			p.backupRow(c, i == 0, pe.id, b, p.vm.busyFor("restore", pe.id), !busy && g.Ready, !busy)
 		}
-	})
+	}))
 }
 
 // loadBackups reads the backup lists of the profiles in the background: it

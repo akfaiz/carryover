@@ -54,8 +54,11 @@ func ArtBackdrop(c *ui.Context, path string, version int64, height float32) {
 		return
 	}
 	bg := c.Theme().Background
-	ui.Image(c, bm).Absolute().Top(0).Left(0).Right(0).Height(height).Fit(ui.Cover).Opacity(0.35).ZIndex(-1)
-	ui.Box(c).Absolute().Top(0).Left(0).Right(0).Height(height).ZIndex(-1).
+	// Keyed, so that arriving late doesn't hand them the state of what was in
+	// their place; the picture fades in, under its shade.
+	ui.Image(c.Key("art-image"), bm).Absolute().Top(0).Left(0).Right(0).Height(height).Fit(ui.Cover).Opacity(0.35).ZIndex(-1).
+		Transition(imageMotion)
+	ui.Box(c.Key("art-shade")).Absolute().Top(0).Left(0).Right(0).Height(height).ZIndex(-1).
 		LinearGradient(ui.LinearGradient{Angle: 180, Stops: []ui.GradientStop{
 			{Color: bg.Alpha(0.1), At: 0}, {Color: bg.Alpha(0.6), At: 0.55}, {Color: bg, At: 1},
 		}})

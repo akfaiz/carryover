@@ -1,6 +1,9 @@
 package emulators
 
 import (
+	"fmt"
+	"strings"
+
 	"github.com/egoist/mygo/ui"
 
 	"github.com/akfaiz/carryover/internal/saves/pathvar"
@@ -19,6 +22,7 @@ type Page struct {
 	vm      *ViewModel
 	editing *emulatorform.Form // nil: the list is shown
 	scroll  ui.ScrollState
+	reflow  kit.Reflow // emulators added and deleted
 }
 
 // New returns the Emulators page.
@@ -82,11 +86,16 @@ func (p *Page) list(c *ui.Context) {
 		return
 	}
 	kit.Muted(c, intro)
-	kit.Card(c, "", func() {
+	var ids strings.Builder
+	for _, ev := range p.vm.List() {
+		fmt.Fprintln(&ids, ev.ID)
+	}
+	p.reflow.Watch(c, ids.String())
+	p.reflow.Box(kit.Card(c.Key("emu-list"), "", func() {
 		for i, ev := range p.vm.List() {
 			p.row(c, i == 0, ev)
 		}
-	})
+	}))
 }
 
 // closeForm goes back to the list, asking first if the form has changes.
@@ -102,7 +111,7 @@ func (p *Page) closeForm() {
 func (p *Page) row(c *ui.Context, first bool, ev services.EmulatorView) {
 	nav := p.u.Navigator()
 	t := c.Theme()
-	ui.Column(c).Gap(kit.S2).Children(func() {
+	p.reflow.Row(ui.Column(c.Key(ev.ID)).Gap(kit.S2).Children(func() {
 		if !first {
 			ui.Divider(c)
 		}
@@ -130,7 +139,7 @@ func (p *Page) row(c *ui.Context, first bool, ev services.EmulatorView) {
 			}
 			kit.MenuButton(c, nav, [3]any{"emu-row", ev.ID, "more"}, kit.BtnSecondary, kit.IconMore, i18n.L("More"), p.menu(ev))
 		})
-	})
+	}))
 }
 
 // menu is the menu of an emulator's row: clear its setup on this device, or

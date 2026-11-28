@@ -244,7 +244,8 @@ func (p *Page) otherDevices(c *ui.Context, g services.GameView) {
 	}
 	kit.Card(c, i18n.L("Other devices"), func() {
 		for i, d := range g.OtherDevices {
-			kit.ListRow(c, i == 0, d.DeviceName, func() {
+			// By its place too: two devices may have one name.
+			kit.ListRow(c, [2]any{d.DeviceName, i}, i == 0, d.DeviceName, func() {
 				set := false
 				for _, s := range g.Slots {
 					if v := d.Paths[s.Key]; v != "" {

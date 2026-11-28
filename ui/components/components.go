@@ -26,22 +26,26 @@ func StatusBadge(c *ui.Context, g services.GameView) ui.Element {
 // its summary), so a page that is built again doesn't fold it.
 func Help(c *ui.Context, u env.Env, summary string, details ...string) ui.Element {
 	open := u.HelpOpen()
-	return ui.Column(c).Gap(kit.S1).Children(func() {
+	// No gap on the column: the details take no room while folded, so each part
+	// brings the space above it.
+	return ui.Column(c).Children(func() {
 		kit.Muted(c, summary)
 		if len(details) == 0 {
 			return
 		}
-		if open[summary] {
-			for _, d := range details {
-				kit.Muted(c, d)
-			}
-		}
+		kit.Reveal(c, "help-details", open[summary], func() {
+			ui.Column(c).Gap(kit.S1).Padding(kit.S1, 0, 0, 0).Children(func() {
+				for _, d := range details {
+					kit.Muted(c, d)
+				}
+			})
+		})
 		label, icon := i18n.L("More"), kit.IconChevronDown
 		if open[summary] {
 			label, icon = i18n.L("Less"), kit.IconChevronUp
 		}
 		kit.Btn(c, u.Navigator(), [2]any{"help", summary}, kit.BtnGhost, icon, label,
-			func() { open[summary] = !open[summary] }, kit.BtnSmall()).AlignSelf(ui.Start).Margin(0, 0, 0, -kit.S2)
+			func() { open[summary] = !open[summary] }, kit.BtnSmall()).AlignSelf(ui.Start).Margin(kit.S1, 0, 0, -kit.S2)
 	})
 }
 

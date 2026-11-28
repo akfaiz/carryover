@@ -10,8 +10,10 @@ import (
 const (
 	toastTime    = 5 * time.Second
 	toastErrTime = 8 * time.Second
-	toastFade    = 220 * time.Millisecond
 	toastWidth   = 360
+	// toastCountdownFPS is how often the countdown bar is painted: it crosses
+	// a toast in seconds, so it needs no more.
+	toastCountdownFPS = 30
 )
 
 // Toast is the MyGo toast of text, of kind, as Toaster draws it.
@@ -53,7 +55,8 @@ func toastLook(typ string) (ui.Color, *ui.SVG) {
 func Toaster(c *ui.Context, bottom float32, closeLabel string) {
 	ui.ToastViewportBase(c, func(vp ui.Element, toasts []ui.Toast) {
 		vp.Padding(S6, S6, bottom, S6).AlignItems(ui.End).Gap(S2)
-		paused := vp.Hovered()
+		// As MyGo stops the toasts' time.
+		paused := vp.Hovered() || vp.FocusWithin()
 		for _, t := range toasts {
 			toastCard(c, t, closeLabel, paused)
 		}
@@ -67,22 +70,6 @@ func toastCard(c *ui.Context, t ui.Toast, closeLabel string, paused bool) {
 	left := p.Left()
 	life := t.Timeout
 
-	// Slide in from the right and fade in; fade out at the end.
-	opacity, shift := float32(1), float32(0)
-	if left > 0 && life > 0 {
-		age := life - left
-		switch {
-		case age < toastFade:
-			k := float32(age) / float32(toastFade)
-			opacity, shift = k, (1-k)*(1-k)*S6
-		case left < toastFade:
-			opacity = float32(left) / float32(toastFade)
-		}
-		if !paused {
-			c.AnimationFrame() // the countdown bar moves every frame
-		}
-	}
-
 	shadow := ui.RGBA(0, 0, 0, 0.35)
 	if LightOn {
 		shadow = ui.RGBA(0, 0, 0, 0.15)
@@ -90,7 +77,7 @@ func toastCard(c *ui.Context, t ui.Toast, closeLabel string, paused bool) {
 	p.Root.Row().AlignItems(ui.Stretch).Width(toastWidth).MaxWidth(toastWidth).
 		Radius(RadiusLG).Background(col(ColBg3)).Border(1, th.Border).
 		Shadow(0, 10, 28, 0, shadow).
-		Opacity(opacity).Translate(shift, 0).
+		Transition(toastMotion).
 		Children(func() {
 			ui.Row(c).Grow(1).Shrink(1).Gap(S3).AlignItems(ui.Center).Padding(S3, S2, S3, S3).Children(func() {
 				ui.Row(c).Width(32).Height(32).Radius(16).Background(fg.Alpha(0.16)).Center().Children(func() {
@@ -114,9 +101,26 @@ func toastCard(c *ui.Context, t ui.Toast, closeLabel string, paused bool) {
 			})
 			// The countdown along the bottom, between the rounded corners.
 			if left > 0 && life > 0 {
-				frac := float32(left) / float32(life)
-				ui.Box(c).Absolute().Left(RadiusLG).Bottom(0).Height(2).Radius(1).
-					Width((toastWidth - 2*RadiusLG) * frac).Background(fg.Alpha(0.7))
+				countdown(c, left, life, paused, fg.Alpha(0.7))
 			}
+		})
+}
+
+// countdown is the bar of the time a toast has left of its life. It runs down
+// from its Draw: building the window at every frame, for as long as a toast
+// shows, would redo the whole page behind it.
+func countdown(c *ui.Context, left, life time.Duration, paused bool, color ui.Color) {
+	built := c.Now()
+	ui.Box(c).Absolute().Left(RadiusLG).Right(RadiusLG).Bottom(0).Height(2).
+		Draw(func(p *ui.Painter, r ui.Rect) {
+			rest := left
+			if !paused {
+				rest -= p.Now().Sub(built)
+				if rest > 0 {
+					p.AnimationFrameRate(toastCountdownFPS)
+				}
+			}
+			r.W *= max(0, float32(rest)/float32(life))
+			p.Fill(r, color, 1)
 		})
 }

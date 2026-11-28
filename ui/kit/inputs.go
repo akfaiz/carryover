@@ -165,16 +165,10 @@ func CoverView(c *ui.Context, src CoverSource, w, h float32) ui.Element {
 	return box.Children(func() {
 		if bm == nil {
 			if src.Name != "" {
-				ui.Column(c).Absolute().Top(0).Bottom(0).Left(0).Right(0).Center().Children(func() {
-					ui.Text(c, initial(src.Name)).FontSize(h / 5).Bold().TextColor(t.TextMuted)
-				})
+				coverInitial(c, src.Name, h/5)
 			}
 			return
 		}
-		fit := ui.Cover
-		if src.Contain {
-			fit = ui.Contain
-		}
-		ui.Image(c, bm).Width(w).Height(h).Fit(fit)
+		coverImage(c, src, bm).Width(w).Height(h)
 	})
 }

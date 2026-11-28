@@ -234,10 +234,15 @@ func (n *Navigator) Item(h *ui.Handle, el ui.Element, action func(), opts ...Ite
 		}
 	}
 	s.items = append(s.items, navItem{h: h, action: action, text: text})
-	if n.padUsed && n.ctx != nil && h.Focused(n.ctx) && !el.FocusVisible() {
-		n.ringed = h
-		// A shadow with a spread is a ring outside the box: it changes no layout.
-		el = el.Shadow(0, 0, 0, 2, col(ColAccent))
+	if n.padUsed && n.ctx != nil {
+		if h.Focused(n.ctx) && !el.FocusVisible() {
+			n.ringed = h
+			// A shadow with a spread is a ring outside the box: it changes no layout.
+			el = el.Shadow(0, 0, 0, 2, col(ColAccent))
+		}
+		// On every control while the pad is in use, so that the one the ring
+		// leaves fades it out as the next fades it in.
+		el = el.Transition(ringMotion)
 	}
 	return el.Bind(h)
 }

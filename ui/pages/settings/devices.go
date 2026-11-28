@@ -1,6 +1,9 @@
 package settings
 
 import (
+	"fmt"
+	"strings"
+
 	"github.com/egoist/mygo/ui"
 
 	"github.com/akfaiz/carryover/services"
@@ -13,7 +16,12 @@ import (
 // one that is gone, or make this device an earlier install of itself again
 // (reinstalling Carryover or clearing its data gives a device a new ID).
 func (p *Page) devicesCard(c *ui.Context) {
-	kit.Card(c, i18n.L("Other devices"), func() {
+	var ids strings.Builder
+	for _, d := range p.devs {
+		fmt.Fprintln(&ids, d.ID)
+	}
+	p.reflow.Watch(c, ids.String())
+	p.reflow.Box(kit.Card(c.Key("settings-devices"), i18n.L("Other devices"), func() {
 		kit.Muted(c, i18n.L("Devices with games or emulators set up in your library. Reinstalling Carryover or clearing its data makes a device start over as a new one: choose \"This is me\" on its earlier entry to take its settings back, and forget devices you no longer use."))
 		others := 0
 		for _, d := range p.devs {
@@ -26,7 +34,7 @@ func (p *Page) devicesCard(c *ui.Context) {
 		if others == 0 {
 			kit.Muted(c, i18n.L("No other devices."))
 		}
-	})
+	}))
 }
 
 // deviceName is a device's name, or a stand-in when it has none.
@@ -43,7 +51,7 @@ func (p *Page) deviceRow(c *ui.Context, first bool, d services.DeviceView) {
 	button := func(key string, kind kit.BtnKind, label string, action func()) {
 		kit.Btn(c, nav, [3]any{"device", d.ID, key}, kind, nil, label, action)
 	}
-	kit.ListRow(c, first, name, func() {
+	p.reflow.Row(kit.ListRow(c, d.ID, first, name, func() {
 		if d.SameName {
 			kit.Badge(c, i18n.L("Same name as this device"), kit.BadgeInfo)
 		}
@@ -72,7 +80,7 @@ func (p *Page) deviceRow(c *ui.Context, first bool, d services.DeviceView) {
 				},
 			})
 		})
-	})
+	}))
 }
 
 // deviceAction runs a device change off the UI thread, then tells how it went

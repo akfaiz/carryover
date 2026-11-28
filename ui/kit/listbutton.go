@@ -36,12 +36,9 @@ func Disclosure(c *ui.Context, nav *Navigator, key any, label string, open *bool
 		tr = tr.Draw(func(p *ui.Painter, r ui.Rect) {
 			paintFace(p, r, HoverColor(owner, ui.Color{}, t.SurfaceHover), ui.Color{}, 0, Radius)
 		})
-		icon := IconChevronRight
-		if *open {
-			icon = IconChevronDown
-		}
 		tr.Children(func() {
-			ui.Icon(c, icon).FontSize(IconSM).TextColor(t.TextMuted)
+			// The arrow turns down as the panel opens.
+			ui.Icon(c, IconChevronRight).FontSize(IconSM).TextColor(t.TextMuted).Rotate(90 * p.Progress())
 			ui.Text(c, label).SingleLine()
 		})
 		nav.Item(nav.Handle(k), tr, func() { *open = !*open })

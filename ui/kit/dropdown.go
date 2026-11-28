@@ -34,9 +34,12 @@ func showDropdown(c *ui.Context, nav *Navigator, id string, anchor ui.Element, d
 	t := c.Theme()
 	nav.Overlay(id, d.open, closeList, func() {
 		nav.building.unfocused = d.byPointer
-		ui.PopoverBase(c, anchor, &d.open, func(panel ui.Element) {
+		// Keyed: by its place alone, a list opening as another closes would
+		// take its state.
+		ui.PopoverBase(c.Key("dropdown:"+id), anchor, &d.open, func(panel ui.Element) {
 			panel.Margin(S1, 0, 0, 0).Radius(Radius+2).
-				Background(t.Surface).Border(1, t.Border).Shadow(0, 6, 20, 0, ui.RGBA(0, 0, 0, 0.3))
+				Background(t.Surface).Border(1, t.Border).Shadow(0, 6, 20, 0, ui.RGBA(0, 0, 0, 0.3)).
+				Transition(dropdownMotion)
 			place(panel)
 			ui.Scroll(c).MaxHeight(dropdownMaxHeight).Children(func() {
 				// The padding is inside the scroll, which clips what it holds:
@@ -54,7 +57,7 @@ func dropdownRow(c *ui.Context, h *ui.Handle, key any, label string, hover ui.Co
 	row := ui.ButtonBase(c.Key(key)).Label(label)
 	focused, owner := h.Focused(c), row
 	return row.Radius(RadiusSM).Padding(S2, S3).Gap(S2).AlignSelf(ui.Stretch).Justify(ui.Start).Draw(func(p *ui.Painter, r ui.Rect) {
-		if focused || owner.Hovered() {
+		if focused || Hovered(owner) {
 			paintFace(p, r, hover, ui.Color{}, 0, RadiusSM)
 		}
 	}).Children(content)

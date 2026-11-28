@@ -7,6 +7,17 @@ All notable changes to Carryover are listed here. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- Animations on the desktop. Pages, covers, dialogs, lists and notifications fade or slide in, the sidebar's marker
+  moves to the page you open, and rows slide into place when you delete or restore something. With a controller, the
+  focus ring fades from one button to the next and the game you're on in the library grows slightly. If your system
+  asks apps for less motion, Carryover only fades.
+
+### Changed
+
+- While a notification is showing, Carryover no longer redraws the whole window every frame to count it down.
+
 ### Fixed
 
 - In the "how to play" prompt, the last played choice no longer looks focused after you move to another one: it now

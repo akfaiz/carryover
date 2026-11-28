@@ -250,9 +250,9 @@ func (p *Page) tile(c *ui.Context, g services.GameView) {
 		p.probed = true
 		col = col.Bind(&p.tile0)
 	}
+	k := [2]any{"open", g.ID}
 	col.Children(func() {
 		open := func() { u.Navigate("/game/" + g.ID) }
-		k := [2]any{"open", g.ID}
 		t := c.Theme()
 		// Long names get a second line rather than a tooltip: there is no hover
 		// on a Steam Deck.
@@ -261,7 +261,7 @@ func (p *Page) tile(c *ui.Context, g services.GameView) {
 		// crosses a tile.
 		b := ui.ButtonBase(c.Key(k)).Label(g.Name)
 		b = b.Radius(kit.RadiusLG).Padding(kit.S2).Border(2, ui.Color{}).Draw(func(p *ui.Painter, r ui.Rect) {
-			if b.Hovered() {
+			if kit.Hovered(b) {
 				p.Fill(r, t.SurfaceHover, kit.RadiusLG)
 				p.Stroke(r, t.Accent.Alpha(0.6), kit.RadiusLG, 2)
 			}
@@ -286,6 +286,7 @@ func (p *Page) tile(c *ui.Context, g services.GameView) {
 		}
 		p.play(c, g)
 	})
+	nav.PadLift(c, col, nav.Handle(k), kit.BtnHandle(nav, [2]any{"play", g.ID}))
 }
 
 // titleLine is the height of one line of a tile's name.
