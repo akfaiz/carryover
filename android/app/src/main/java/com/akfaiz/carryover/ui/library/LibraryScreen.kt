@@ -1,7 +1,6 @@
 package com.akfaiz.carryover.ui.library
 
 import android.os.Build
-import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
@@ -71,21 +70,25 @@ import com.akfaiz.carryover.core.SyncEvent
 import com.akfaiz.carryover.core.appInfoIntent
 import com.akfaiz.carryover.data.FindProgress
 import com.akfaiz.carryover.ui.components.CoverImage
+import com.akfaiz.carryover.ui.components.CoverStatus
 import com.akfaiz.carryover.ui.components.Permissions
-import com.akfaiz.carryover.ui.components.StatusDot
 import com.akfaiz.carryover.ui.components.color
 import com.akfaiz.carryover.ui.components.label
 import com.akfaiz.carryover.ui.components.relativeTime
 import com.akfaiz.carryover.ui.components.rememberPermissions
 import com.akfaiz.carryover.ui.kit.AppButton
+import com.akfaiz.carryover.ui.kit.AppProgressBar
 import com.akfaiz.carryover.ui.kit.BtnKind
 import com.akfaiz.carryover.ui.kit.EmptyState
 import com.akfaiz.carryover.ui.kit.Hint
 import com.akfaiz.carryover.ui.kit.LocalPageInsets
 import com.akfaiz.carryover.ui.kit.PageTopBar
+import com.akfaiz.carryover.ui.kit.PlacementMotion
 import com.akfaiz.carryover.ui.kit.SectionCard
 import com.akfaiz.carryover.ui.kit.dpadExit
+import com.akfaiz.carryover.ui.kit.focusLift
 import com.akfaiz.carryover.ui.kit.focusRing
+import com.akfaiz.carryover.ui.kit.sharedCover
 import com.akfaiz.carryover.ui.nav.Nav
 import com.akfaiz.carryover.ui.nav.Screen
 import com.akfaiz.carryover.ui.state.AppViewModel
@@ -142,16 +145,22 @@ fun LibraryScreen(state: UiState, vm: AppViewModel, nav: Nav) {
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp),
             ) {
-                item(span = { GridItemSpan(maxLineSpan) }) { SetupCard(state, vm, nav) }
+                // Every item has a key, so that one coming or going moves the rest instead of renumbering them. Every
+                // item under the setup card moves with PlacementMotion, in step with the card as it grows.
+                item(key = "setup", span = { GridItemSpan(maxLineSpan) }) { SetupCard(state, vm, nav) }
                 state.findingCovers?.let { p ->
-                    item(span = { GridItemSpan(maxLineSpan) }) { FindCoversBar(p) }
+                    item(key = "findingCovers", span = { GridItemSpan(maxLineSpan) }) {
+                        Box(Modifier.animateItem(placementSpec = PlacementMotion)) { FindCoversBar(p) }
+                    }
                 }
                 state.syncAll?.let { p ->
-                    item(span = { GridItemSpan(maxLineSpan) }) { SyncAllBar(p, state.syncAllEvent) }
+                    item(key = "syncAll", span = { GridItemSpan(maxLineSpan) }) {
+                        Box(Modifier.animateItem(placementSpec = PlacementMotion)) { SyncAllBar(p, state.syncAllEvent) }
+                    }
                 }
                 if (state.games.isNotEmpty()) {
-                    item(span = { GridItemSpan(maxLineSpan) }) {
-                        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    item(key = "tools", span = { GridItemSpan(maxLineSpan) }) {
+                        Column(Modifier.animateItem(placementSpec = PlacementMotion), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                             SearchField(query) { query = it }
                             // Scrolls sideways when the labels are long (Bahasa Indonesia on a phone).
                             if (list.showFilters) {
@@ -170,11 +179,12 @@ fun LibraryScreen(state: UiState, vm: AppViewModel, nav: Nav) {
                     }
                 }
                 if (state.loaded && state.games.isEmpty()) {
-                    item(span = { GridItemSpan(maxLineSpan) }) {
+                    item(key = "empty", span = { GridItemSpan(maxLineSpan) }) {
                         EmptyState(
                             Icons.Outlined.VideoLibrary,
                             stringResource(R.string.library_empty_title),
                             stringResource(R.string.library_empty_text),
+                            modifier = Modifier.animateItem(placementSpec = PlacementMotion),
                             actions = {
                                 AppButton(onClick = { nav.go(Screen.AddGame) }, icon = Icons.Outlined.Add) {
                                     Text(stringResource(R.string.library_add_first))
@@ -183,9 +193,9 @@ fun LibraryScreen(state: UiState, vm: AppViewModel, nav: Nav) {
                         )
                     }
                 } else if (state.loaded && list.shown.isEmpty()) {
-                    item(span = { GridItemSpan(maxLineSpan) }) {
+                    item(key = "noMatch", span = { GridItemSpan(maxLineSpan) }) {
                         Column(
-                            Modifier.fillMaxWidth().padding(vertical = 24.dp),
+                            Modifier.animateItem(placementSpec = PlacementMotion).fillMaxWidth().padding(vertical = 24.dp),
                             horizontalAlignment = Alignment.CenterHorizontally,
                             verticalArrangement = Arrangement.spacedBy(12.dp),
                         ) {
@@ -206,8 +216,9 @@ fun LibraryScreen(state: UiState, vm: AppViewModel, nav: Nav) {
                         }
                     }
                 }
+                // Searching, filtering and sorting move the tiles to their places.
                 items(list.shown, key = { it.id }) { g ->
-                    GameTile(g, badges[g.id] ?: Badge.NotSetUp) { nav.go(Screen.Game(g.id)) }
+                    GameTile(g, badges[g.id] ?: Badge.NotSetUp, Modifier.animateItem(placementSpec = PlacementMotion)) { nav.go(Screen.Game(g.id)) }
                 }
             }
         }
@@ -242,8 +253,7 @@ private fun SyncAllBar(p: SyncAllProgress, ev: SyncEvent?) {
             ev.phase == "upload" || ev.phase == "download" -> 0.5f
             else -> 0.1f
         }
-        val shown by animateFloatAsState((p.done + inGame) / p.total, label = "syncAll")
-        LinearProgressIndicator(progress = { shown }, modifier = Modifier.fillMaxWidth().padding(top = 6.dp))
+        AppProgressBar((p.done + inGame) / p.total, Modifier.fillMaxWidth().padding(top = 6.dp))
     }
 }
 
@@ -277,18 +287,17 @@ private fun SearchField(query: String, onChange: (String) -> Unit) {
 
 /** A game as a cover with its name and how its saves stand. */
 @Composable
-private fun GameTile(g: GameView, badge: Badge, open: () -> Unit) {
+private fun GameTile(g: GameView, badge: Badge, modifier: Modifier = Modifier, open: () -> Unit) {
     val shape = MaterialTheme.shapes.medium
+    val coverShape = MaterialTheme.shapes.small
     Column(
-        Modifier.fillMaxWidth().focusRing(shape).clip(shape).clickable(onClick = open).padding(4.dp),
+        modifier.fillMaxWidth().focusLift().focusRing(shape).clip(shape).clickable(onClick = open).padding(4.dp),
         verticalArrangement = Arrangement.spacedBy(6.dp),
     ) {
-        Box(Modifier.fillMaxWidth().aspectRatio(2f / 3f).clip(MaterialTheme.shapes.small)) {
-            CoverImage(g, Modifier.fillMaxSize())
+        Box(Modifier.fillMaxWidth().aspectRatio(2f / 3f).clip(coverShape)) {
+            CoverImage(g, Modifier.sharedCover(g.id, coverShape).fillMaxSize())
             // Only states that ask for something; the others are the line below.
-            if (badge < Badge.Synced) {
-                StatusDot(badge, Modifier.align(Alignment.TopStart).padding(6.dp))
-            }
+            CoverStatus(badge, Modifier.align(Alignment.TopStart))
         }
         Text(
             g.name,
@@ -335,7 +344,7 @@ private fun SetupCard(state: UiState, vm: AppViewModel, nav: Nav) {
     var open by rememberSaveable { mutableStateOf(false) }
     val showing = !foldable || open
     val steps = listOf(needCloud, needStorage, needUsage, needNotify).count { it }
-    SectionCard(null) {
+    SectionCard(null, grows = true) {
         val shape = MaterialTheme.shapes.small
         Row(
             Modifier.fillMaxWidth().then(if (foldable) Modifier.focusRing(shape).clip(shape).clickable { open = !open } else Modifier),
@@ -420,6 +429,6 @@ private fun FindCoversBar(p: FindProgress) {
             style = MaterialTheme.typography.bodySmall,
             maxLines = 1,
         )
-        LinearProgressIndicator(progress = { if (p.total == 0) 0f else p.done.toFloat() / p.total }, modifier = Modifier.fillMaxWidth())
+        AppProgressBar(if (p.total == 0) 0f else p.done.toFloat() / p.total, Modifier.fillMaxWidth())
     }
 }

@@ -13,13 +13,20 @@ All notable changes to Carryover are listed here. The format follows
   moves to the page you open, and rows slide into place when you delete or restore something. With a controller, the
   focus ring fades from one button to the next and the game you're on in the library grows slightly. If your system
   asks apps for less motion, Carryover only fades.
+- Animations on Android. A game's cover flies from the library to the game's page and back, pages slide forward and
+  back, library tiles move into place when you search or filter, and the play button, status badges, folding cards,
+  deleted rows and progress bars change smoothly. With a controller, the focus ring fades and the focused game grows
+  slightly. Turning animations off in Android turns these off too.
 
 ### Changed
 
 - While a notification is showing, Carryover no longer redraws the whole window every frame to count it down.
+- On Android, going back to a page now finds it as you left it: the library keeps its place, your search and your
+  filter.
 
 ### Fixed
 
+- On Android, a game's cover or background changed while its page was open now shows right away.
 - In the "how to play" prompt, the last played choice no longer looks focused after you move to another one: it now
   has a tinted background, and only the focused choice has a blue outline. Once the countdown stops, the text no
   longer says that choice will start by itself.

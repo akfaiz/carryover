@@ -113,27 +113,27 @@ fun CloudScreen(nav: Nav, vm: CloudViewModel = viewModel()) {
             SectionCard(stringResource(R.string.cloud_accounts)) {
                 if (state.remotes.isEmpty()) {
                     EmptyState(Icons.Outlined.Cloud, stringResource(R.string.cloud_none), stringResource(R.string.cloud_none_text))
-                } else {
-                    ListRows(state.remotes) { r ->
-                        ChoiceRow(remote == r.name, { remote = r.name }, enabled = !r.incomplete) {
-                            Column(Modifier.weight(1f)) {
-                                Text(r.name, style = MaterialTheme.typography.bodyLarge)
+                }
+                // Drawn when empty too, for the last account to be seen going.
+                ListRows(state.remotes, key = { it.name }) { r ->
+                    ChoiceRow(remote == r.name, { remote = r.name }, enabled = !r.incomplete) {
+                        Column(Modifier.weight(1f)) {
+                            Text(r.name, style = MaterialTheme.typography.bodyLarge)
+                            Text(
+                                if (r.name == active) "${r.type} · ${stringResource(R.string.cloud_in_use)}" else r.type,
+                                style = MaterialTheme.typography.bodySmall,
+                                color = if (r.name == active) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                            if (r.incomplete) {
                                 Text(
-                                    if (r.name == active) "${r.type} · ${stringResource(R.string.cloud_in_use)}" else r.type,
+                                    stringResource(R.string.cloud_signin_unfinished),
                                     style = MaterialTheme.typography.bodySmall,
-                                    color = if (r.name == active) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                                    color = Tone.Err.color(),
                                 )
-                                if (r.incomplete) {
-                                    Text(
-                                        stringResource(R.string.cloud_signin_unfinished),
-                                        style = MaterialTheme.typography.bodySmall,
-                                        color = Tone.Err.color(),
-                                    )
-                                }
                             }
-                            IconButton(onClick = { deleting = r.name }) {
-                                Icon(Icons.Outlined.Delete, contentDescription = stringResource(R.string.action_delete_remote, r.name))
-                            }
+                        }
+                        IconButton(onClick = { deleting = r.name }) {
+                            Icon(Icons.Outlined.Delete, contentDescription = stringResource(R.string.action_delete_remote, r.name))
                         }
                     }
                 }

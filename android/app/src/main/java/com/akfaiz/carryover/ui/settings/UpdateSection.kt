@@ -34,6 +34,7 @@ import com.akfaiz.carryover.data.SettingsState
 import com.akfaiz.carryover.ui.components.SectionHeader
 import com.akfaiz.carryover.ui.components.SettingRow
 import com.akfaiz.carryover.ui.kit.AppButton
+import com.akfaiz.carryover.ui.kit.AppProgressBar
 import com.akfaiz.carryover.ui.kit.BtnKind
 import com.akfaiz.carryover.ui.kit.Hint
 
@@ -126,7 +127,7 @@ private fun UpdateDialog(
                 if (downloading) {
                     Hint(stringResource(R.string.update_downloading))
                     if (update.total > 0) {
-                        LinearProgressIndicator(progress = { update.done.toFloat() / update.total }, modifier = Modifier.fillMaxWidth())
+                        AppProgressBar(update.done.toFloat() / update.total, Modifier.fillMaxWidth())
                     } else {
                         LinearProgressIndicator(Modifier.fillMaxWidth())
                     }

@@ -102,7 +102,7 @@ fun EmulatorsScreen(state: UiState, vm: AppViewModel, nav: Nav) {
                 }
                 if (usable.isNotEmpty() || others.isNotEmpty()) {
                     item {
-                        SectionCard(null, contentPadding = PaddingValues(vertical = 4.dp), gap = 0.dp) {
+                        SectionCard(null, contentPadding = PaddingValues(vertical = 4.dp), gap = 0.dp, grows = true) {
                             for (e in usable) EmulatorRow(e) { nav.go(Screen.Emulator(e.id)) }
                             // Emulators without an Android app (Ryujinx, Cemu, …) stay out of the way,
                             // still reachable in case one has an Android version after all.

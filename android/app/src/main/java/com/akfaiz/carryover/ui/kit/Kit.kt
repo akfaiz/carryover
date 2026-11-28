@@ -1,5 +1,13 @@
 package com.akfaiz.carryover.ui.kit
 
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.animateContentSize
+import androidx.compose.animation.core.MutableTransitionState
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -43,6 +51,12 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -251,7 +265,11 @@ fun EmptyState(
 
 // Cards and rows
 
-/** A titled group of content on a card (the desktop's kit.Card). */
+/**
+ * A titled group of content on a card (the desktop's kit.Card). With [grows], a part
+ * of it that folds open or closed makes the card grow or shrink to it instead of
+ * snapping there.
+ */
 @Composable
 fun SectionCard(
     title: String?,
@@ -259,6 +277,7 @@ fun SectionCard(
     action: (@Composable RowScope.() -> Unit)? = null,
     contentPadding: PaddingValues = PaddingValues(16.dp),
     gap: Dp = 12.dp,
+    grows: Boolean = false,
     content: @Composable ColumnScope.() -> Unit,
 ) {
     Surface(
@@ -267,7 +286,9 @@ fun SectionCard(
         color = MaterialTheme.colorScheme.surfaceContainerLow,
         border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline),
     ) {
-        Column(Modifier.padding(contentPadding), verticalArrangement = Arrangement.spacedBy(gap)) {
+        // Inside the surface, so that its outline follows the size on the way.
+        val size = if (grows) Modifier.animateContentSize(tween(MotionBase)) else Modifier
+        Column(size.padding(contentPadding), verticalArrangement = Arrangement.spacedBy(gap)) {
             if (title != null || action != null) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text(
@@ -300,16 +321,63 @@ fun SubCard(modifier: Modifier = Modifier, content: @Composable ColumnScope.() -
 
 /**
  * [items] one under another with a line between them (the desktop's kit.ListRow),
- * inside a [SectionCard].
+ * inside a [SectionCard]. A row added to the list opens up and one removed folds
+ * away; [key] tells the rows apart, whatever their place. Rows there from the
+ * start just show.
  */
 @Composable
-fun <T> ListRows(items: List<T>, modifier: Modifier = Modifier, row: @Composable ColumnScope.(T) -> Unit) {
+fun <T> ListRows(items: List<T>, key: (T) -> Any, modifier: Modifier = Modifier, row: @Composable ColumnScope.(T) -> Unit) {
+    val atStart = remember { items.mapTo(HashSet(), key) }
+    // What the last composition drew: not state, since drawing it is no change. [gone] is what asks for another one.
+    val drawn = remember { DrawnRows<T>() }
+    var gone by remember { mutableIntStateOf(0) }
+    val rows = remember(items, gone) { mergeRows(drawn.rows, items, key).also { drawn.rows = it } }
+    // Nothing to draw takes no room, and no gap in the card.
+    if (rows.isEmpty()) return
     Column(modifier.fillMaxWidth()) {
-        items.forEachIndexed { i, item ->
-            if (i > 0) HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
-            Column(Modifier.fillMaxWidth().padding(vertical = 10.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) { row(item) }
+        rows.forEachIndexed { i, shown ->
+            key(shown.key) {
+                val visible = remember { MutableTransitionState(shown.key in atStart) }
+                visible.targetState = !shown.leaving
+                AnimatedVisibility(
+                    visible,
+                    enter = expandVertically(tween(MotionBase)) + fadeIn(tween(MotionBase)),
+                    exit = shrinkVertically(tween(MotionBase)) + fadeOut(tween(MotionFast)),
+                ) {
+                    Column(if (shown.leaving) Modifier.inert() else Modifier) {
+                        if (i > 0) HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+                        Column(Modifier.fillMaxWidth().padding(vertical = 10.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                            row(shown.item)
+                        }
+                    }
+                }
+                if (shown.leaving && visible.isIdle && !visible.currentState) {
+                    LaunchedEffect(Unit) {
+                        drawn.rows = drawn.rows.filterNot { it.key == shown.key }
+                        gone++
+                    }
+                }
+            }
         }
     }
+}
+
+private class DrawnRows<T> {
+    var rows: List<ShownRow<T>> = emptyList()
+}
+
+/**
+ * A card that is there while its list has something in it. It folds away as the
+ * list empties, so that the last row is seen going, and opens up when there is
+ * something again. [content] is still drawn on the way out.
+ */
+@Composable
+fun ColumnScope.ListCard(visible: Boolean, content: @Composable () -> Unit) {
+    AnimatedVisibility(
+        visible,
+        enter = expandVertically(tween(MotionBase)) + fadeIn(tween(MotionBase)),
+        exit = shrinkVertically(tween(MotionBase)) + fadeOut(tween(MotionBase)),
+    ) { content() }
 }
 
 /** A selectable row with a radio button. */

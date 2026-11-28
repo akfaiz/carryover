@@ -3,6 +3,7 @@ package com.akfaiz.carryover.ui.components
 import android.icu.text.RelativeDateTimeFormatter
 import android.icu.util.ULocale
 import android.text.format.DateUtils
+import androidx.compose.animation.AnimatedContent
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
@@ -32,6 +33,7 @@ import com.akfaiz.carryover.core.Summary
 import com.akfaiz.carryover.ui.kit.Pill
 import com.akfaiz.carryover.ui.kit.Tone
 import com.akfaiz.carryover.ui.kit.color
+import com.akfaiz.carryover.ui.kit.crossOver
 import com.akfaiz.carryover.ui.state.Badge
 import com.akfaiz.carryover.ui.state.formatBytes
 
@@ -74,10 +76,23 @@ fun Badge.label(): String = stringResource(
     },
 )
 
-/** The status as the desktop's badge: a tinted pill with the icon and the word. */
+/** The status as the desktop's badge: a tinted pill with the icon and the word. One state crosses over to the next. */
 @Composable
 fun StatusBadge(badge: Badge, modifier: Modifier = Modifier) {
-    Pill(badge.label(), badge.tone, modifier, badge.icon)
+    AnimatedContent(badge, modifier, transitionSpec = { crossOver() }, label = "statusBadge") { b ->
+        Pill(b.label(), b.tone, icon = b.icon)
+    }
+}
+
+/**
+ * What a cover wears: a [StatusDot] while the game asks for something, nothing
+ * once it doesn't (the line under the cover says how it stands).
+ */
+@Composable
+fun CoverStatus(badge: Badge, modifier: Modifier = Modifier) {
+    AnimatedContent(badge, modifier, transitionSpec = { crossOver() }, label = "coverStatus") { b ->
+        if (b < Badge.Synced) StatusDot(b, Modifier.padding(6.dp))
+    }
 }
 
 /** The status as an icon alone on an opaque pill, readable over a cover (the words are in the line under it). */

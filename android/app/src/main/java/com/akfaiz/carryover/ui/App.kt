@@ -2,8 +2,14 @@ package com.akfaiz.carryover.ui
 
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.AnimatedContentTransitionScope
+import androidx.compose.animation.ContentTransform
+import androidx.compose.animation.ExperimentalSharedTransitionApi
+import androidx.compose.animation.SharedTransitionLayout
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -42,6 +48,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.saveable.rememberSaveableStateHolder
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -65,9 +72,14 @@ import com.akfaiz.carryover.ui.game.GameScreen
 import com.akfaiz.carryover.ui.kit.AppButton
 import com.akfaiz.carryover.ui.kit.BtnKind
 import com.akfaiz.carryover.ui.kit.LocalPageInsets
+import com.akfaiz.carryover.ui.kit.LocalPageScope
+import com.akfaiz.carryover.ui.kit.LocalSharedTransition
 import com.akfaiz.carryover.ui.library.LibraryScreen
 import com.akfaiz.carryover.ui.nav.Nav
+import com.akfaiz.carryover.ui.nav.PageMove
+import com.akfaiz.carryover.ui.nav.Place
 import com.akfaiz.carryover.ui.nav.Screen
+import com.akfaiz.carryover.ui.nav.pageMove
 import com.akfaiz.carryover.ui.settings.SettingsScreen
 import com.akfaiz.carryover.ui.state.AppViewModel
 import com.akfaiz.carryover.ui.state.UiState
@@ -130,13 +142,7 @@ fun CarryoverApp(vm: AppViewModel) {
                 Column(Modifier.weight(1f)) {
                     Box(Modifier.weight(1f).fillMaxWidth()) {
                         CompositionLocalProvider(LocalPageInsets provides insets) {
-                            AnimatedContent(
-                                targetState = nav.current,
-                                transitionSpec = { fadeIn() togetherWith fadeOut() },
-                                label = "page",
-                            ) { s ->
-                                Page(s, state, vm, nav)
-                            }
+                            Pages(state, vm, nav)
                         }
                     }
                     if (!rail && onTab) {
@@ -185,6 +191,52 @@ fun CarryoverApp(vm: AppViewModel) {
         )
     }
 }
+
+/**
+ * The page where the user is. One gives way to another by the way they went, a
+ * game's cover flying between the pages that both show it. A page keeps what it
+ * saves (its scroll, a search) for as long as it can be returned to, so Back
+ * finds it as it was left, with the cover to fly back to in its place.
+ */
+@OptIn(ExperimentalSharedTransitionApi::class)
+@Composable
+private fun Pages(state: UiState, vm: AppViewModel, nav: Nav) {
+    val saved = rememberSaveableStateHolder()
+    val open = nav.openStateKeys
+    val known = remember { mutableSetOf<String>() }
+    // A page closed for good starts afresh the next time.
+    LaunchedEffect(open) {
+        for (gone in known - open) saved.removeState(gone)
+        known.clear()
+        known.addAll(open)
+    }
+    SharedTransitionLayout {
+        AnimatedContent(
+            targetState = nav.place,
+            transitionSpec = { pageTransition() },
+            label = "page",
+        ) { place ->
+            CompositionLocalProvider(
+                LocalSharedTransition provides this@SharedTransitionLayout,
+                LocalPageScope provides this,
+            ) {
+                saved.SaveableStateProvider(place.stateKey) { Page(place.screen, state, vm, nav) }
+            }
+        }
+    }
+}
+
+/** Tabs cross-fade. A page opening comes in a little from the end it goes forward to, and Back is the way back. */
+private fun AnimatedContentTransitionScope<Place>.pageTransition(): ContentTransform {
+    val move = pageMove(initialState, targetState)
+    if (move == PageMove.Fade) return fadeIn() togetherWith fadeOut()
+    val way = if (move == PageMove.Forward) 1 else -1
+    return (slideInHorizontally { way * it / PageSlidePart } + fadeIn()) togetherWith
+        (slideOutHorizontally { -way * it / PageSlidePart } + fadeOut())
+}
+
+/** How far a page slides: this part of its width. */
+private const val PageSlidePart = 10
 
 @Composable
 private fun Page(s: Screen, state: UiState, vm: AppViewModel, nav: Nav) {
