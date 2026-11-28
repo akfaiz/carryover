@@ -868,4 +868,14 @@
     <string name="core_update_running">pembaruan sedang diunduh</string>
     <string name="core_update_unsupported">pemasangan ini tidak dapat memperbarui sendiri; unduh versi baru dari halaman rilis</string>
     <string name="core_update_unverified">rilis %1$s tidak dapat diverifikasi, jadi tidak dipasang</string>
+    <string name="core_token_appdata">AppData Roaming (Windows) / folder konfigurasi</string>
+    <string name="core_token_documents">Folder Dokumen</string>
+    <string name="core_token_home">Folder beranda pengguna</string>
+    <string name="core_token_localappdata">AppData Local (Windows) / folder data</string>
+    <string name="core_token_localappdatalow">AppData\\LocalLow (game Unity)</string>
+    <string name="core_token_proton_app">Folder pengguna prefix Proton (drive_c/users/steamuser) untuk ID aplikasi Steam</string>
+    <string name="core_token_proton_shortcut">Prefix Proton untuk shortcut non-Steam game ini</string>
+    <string name="core_token_publicdocuments">Dokumen Publik</string>
+    <string name="core_token_savedgames">Folder Saved Games</string>
+    <string name="core_token_steam">Instalasi Steam</string>
 </resources>

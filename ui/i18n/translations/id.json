@@ -863,5 +863,15 @@
   "GitHub refused the update check ({{.Status}}); try again later": "GitHub menolak pemeriksaan pembaruan ({{.Status}}); coba lagi nanti",
   "an update is already being downloaded": "pembaruan sedang diunduh",
   "this install can't update itself; download the new version from the release page": "pemasangan ini tidak dapat memperbarui sendiri; unduh versi baru dari halaman rilis",
-  "release {{.Version}} can't be verified, so it isn't installed": "rilis {{.Version}} tidak dapat diverifikasi, jadi tidak dipasang"
+  "release {{.Version}} can't be verified, so it isn't installed": "rilis {{.Version}} tidak dapat diverifikasi, jadi tidak dipasang",
+  "Roaming AppData (Windows) / config dir": "AppData Roaming (Windows) / folder konfigurasi",
+  "Documents folder": "Folder Dokumen",
+  "User home directory": "Folder beranda pengguna",
+  "Local AppData (Windows) / data dir": "AppData Local (Windows) / folder data",
+  "AppData\\LocalLow (Unity games)": "AppData\\LocalLow (game Unity)",
+  "Proton prefix user folder (drive_c/users/steamuser) for a Steam app id": "Folder pengguna prefix Proton (drive_c/users/steamuser) untuk ID aplikasi Steam",
+  "Proton prefix of this game's non-Steam shortcut": "Prefix Proton untuk shortcut non-Steam game ini",
+  "Public Documents": "Dokumen Publik",
+  "Saved Games folder": "Folder Saved Games",
+  "Steam installation": "Instalasi Steam"
 }
