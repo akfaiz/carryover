@@ -410,7 +410,11 @@ func (e *Page) suggestionList(c *ui.Context) {
 					kit.Badge(c, i18n.L("Microsoft Store version"), kit.BadgeWarn)
 				}
 				ui.Spacer(c)
-				kit.Btn(c, nav, [2]any{"sug-use", i}, kit.BtnSecondary, nil, i18n.L("Use"), func() { e.vm.useSuggestion(s, nil) })
+				kit.Btn(c, nav, [2]any{"sug-use", i}, kit.BtnSecondary, nil, i18n.L("Use"), func() {
+					if !e.vm.useSuggestion(s, nil) {
+						e.u.Toast(noMatchingLocation(), kit.ToastErr)
+					}
+				})
 				kit.Btn(c, nav, [2]any{"sug-add", i}, kit.BtnSecondary, kit.IconPlus, i18n.L("Add"), func() { e.vm.addSuggestion(s) })
 			})
 			if s.Kind == "steamcloud" {

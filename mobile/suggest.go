@@ -143,8 +143,10 @@ func hideSuggestion(g library.Game, emuID string, sg services.EmuSuggestion) boo
 // UseSaveSuggestion makes a suggestion (an services.EmuSuggestion as JSON,
 // as SuggestSaves returned it) this device's save folder of profile key: a
 // suggestion of a kind (account or device save) goes into the slot of that
-// name, which every device shares, and the others into the first slot with no
-// folder here, or into a new one. It returns the saved services.GameView.
+// name, which every device shares, and the others into the slot without a
+// folder here that they match (services.PlaceSuggestion), or into a new one.
+// It fails if only the user can tell which slot it is. It returns the saved
+// services.GameView.
 func UseSaveSuggestion(key, suggestionJSON string) (_ string, err error) {
 	defer wire(&err)
 	s, err := get()
@@ -232,6 +234,11 @@ func autofill(in *services.GameInput, g library.Game, thisDevice, emuID string, 
 			candidates[sg.Kind]++
 		}
 	}
+	// A new slot needs a folder on every device before they sync again, so a
+	// game another device has set up gets none by itself.
+	mayAdd := !slices.ContainsFunc(in.Emulators[idx].Slots, func(sl library.SaveSlot) bool {
+		return slotUsedElsewhere(g, thisDevice, emuID, sl.Key)
+	})
 	applied := 0
 	for _, sg := range res.Suggestions {
 		if sg.Kind != "" {
@@ -244,7 +251,7 @@ func autofill(in *services.GameInput, g library.Game, thisDevice, emuID string, 
 		} else if !sg.Exists {
 			continue
 		}
-		if useSuggestion(in, g, thisDevice, emuID, sg) == nil {
+		if placeInProfile(in, g, thisDevice, emuID, sg, mayAdd) == nil {
 			applied++
 		}
 	}
@@ -260,6 +267,11 @@ var (
 // UseSaveSuggestion); g is the game as stored, which knows what the other
 // devices use.
 func useSuggestion(in *services.GameInput, g library.Game, thisDevice, emuID string, sg services.EmuSuggestion) error {
+	return placeInProfile(in, g, thisDevice, emuID, sg, true)
+}
+
+// placeInProfile is useSuggestion; mayAdd false keeps it from adding a slot.
+func placeInProfile(in *services.GameInput, g library.Game, thisDevice, emuID string, sg services.EmuSuggestion, mayAdd bool) error {
 	idx := slices.IndexFunc(in.Emulators, func(e services.GameEmulatorInput) bool { return e.EmulatorID == emuID })
 	if idx < 0 {
 		return msg.EditNoEmulator.Err("Emulator", emuID)
@@ -278,16 +290,23 @@ func useSuggestion(in *services.GameInput, g library.Game, thisDevice, emuID str
 	if ge.ShareWith != "" {
 		return errSharedSaves
 	}
-	include := slices.Clone(sg.Include)
+	states := make([]services.SlotState, len(ge.Slots))
 	for i, sl := range ge.Slots {
-		if strings.TrimSpace(ge.Paths[sl.Key]) == "" {
-			ge.Slots[i].Include = include
-			ge.Paths[sl.Key] = sg.Path
-			return nil
+		states[i] = services.SlotState{Include: sl.Include, Path: ge.Paths[sl.Key], Elsewhere: foldersElsewhere(g, thisDevice, emuID, sl.Key)}
+	}
+	at, canAdd := services.PlaceSuggestion(states, sg.Path, sg.Include)
+	if at >= 0 {
+		if states[at].TakesFilters() {
+			ge.Slots[at].Include = slices.Clone(sg.Include)
 		}
+		ge.Paths[ge.Slots[at].Key] = sg.Path
+		return nil
+	}
+	if !canAdd || !mayAdd {
+		return msg.SuggestNoMatch.Err()
 	}
 	key := uniqueSlotKey(ge.Slots, len(ge.Slots)+1)
-	ge.Slots = append(ge.Slots, library.SaveSlot{Key: key, Label: fmt.Sprintf("Saves %d", len(ge.Slots)+1), Include: include})
+	ge.Slots = append(ge.Slots, library.SaveSlot{Key: key, Label: fmt.Sprintf("Saves %d", len(ge.Slots)+1), Include: slices.Clone(sg.Include)})
 	ge.Paths[key] = sg.Path
 	return nil
 }
@@ -325,15 +344,22 @@ func kindLabel(kind string) string {
 	return "Account save"
 }
 
+// foldersElsewhere are the folders other devices have for slot key of the
+// emulator profile emuID.
+func foldersElsewhere(g library.Game, thisDevice, emuID, key string) []string {
+	var out []string
+	for id, d := range g.Devices {
+		if p := d.Emulators[emuID].Paths[key]; id != thisDevice && strings.TrimSpace(p) != "" {
+			out = append(out, p)
+		}
+	}
+	return out
+}
+
 // slotUsedElsewhere reports whether another device has a folder for slot key
 // of the emulator profile emuID.
 func slotUsedElsewhere(g library.Game, thisDevice, emuID, key string) bool {
-	for id, d := range g.Devices {
-		if id != thisDevice && strings.TrimSpace(d.Emulators[emuID].Paths[key]) != "" {
-			return true
-		}
-	}
-	return false
+	return len(foldersElsewhere(g, thisDevice, emuID, key)) > 0
 }
 
 // uniqueSlotKey is "saves-<n>", or the next number that no slot has.

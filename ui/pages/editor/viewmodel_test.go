@@ -342,6 +342,46 @@ func TestUseSuggestionGoesToTheTargetThenTheFirstEmptySlotThenANewOne(t *testing
 	assert.Equal(t, "autosaves", vm.slots[2].key)
 }
 
+// A suggestion fills a location another device uses only if it holds the same
+// files there, and never changes the filters that device syncs with.
+func TestSuggestionsKeepToTheLocationsOtherDevicesUse(t *testing.T) {
+	others := []services.DevicePaths{{DeviceName: "PC", Paths: map[string]string{"saves": "C:/PSP/PPSSPP_STATE", "saves-2": "C:/PSP/SAVEDATA"}}}
+	m := &emuForm{id: "ppsspp", others: others, slots: []*slotForm{
+		{key: "saves", include: "ULUS10067_*"}, {key: "saves-2", include: "ULUS10067*"},
+	}}
+	vm := newGame()
+	vm.ApplyEmuSuggestions(m, services.EmuSuggestResult{PerGame: true, Suggestions: []services.EmuSuggestion{
+		{Path: "/deck/PSP/SAVEDATA", Include: []string{"ULUS10067*", "ULES00264*"}, Exists: true},
+		{Path: "/deck/PSP/screenshots", Exists: true},
+	}}, true)
+	require.Len(t, m.slots, 2, "none is added by itself")
+	assert.Empty(t, m.slots[0].path)
+	assert.Equal(t, "/deck/PSP/SAVEDATA", m.slots[1].path)
+	assert.Equal(t, "ULUS10067*", m.slots[1].include)
+
+	assert.False(t, m.useSuggestion(services.EmuSuggestion{Path: "/deck/PSP/screenshots"}), "the save states' location is still empty")
+	require.Len(t, m.slots, 2)
+	assert.True(t, m.useSuggestion(services.EmuSuggestion{Path: "/deck/PSP/PPSSPP_STATE", Include: []string{"ULUS10067_*"}}))
+	assert.Equal(t, "/deck/PSP/PPSSPP_STATE", m.slots[0].path)
+}
+
+func TestAPCGameSuggestionKeepsToTheLocationsOtherDevicesUse(t *testing.T) {
+	vm := newGame()
+	vm.slots = []*slotForm{{key: "saves", include: "*.sav", exclude: "*.log"}}
+	vm.others = []services.DevicePaths{{DeviceName: "PC", Paths: map[string]string{"saves": "{appdata}/Game/Saves"}}}
+
+	other := saveSug("/deck/Game/Config", 3, "*.ini")
+	assert.False(t, vm.ApplySuggestions(services.SuggestResult{Suggestions: []services.SaveSuggestion{other}}, true))
+	assert.False(t, vm.useSuggestion(other, nil))
+	require.Len(t, vm.slots, 1)
+	assert.Empty(t, vm.slots[0].path)
+
+	assert.True(t, vm.ApplySuggestions(services.SuggestResult{Suggestions: []services.SaveSuggestion{saveSug("/deck/Game/saves", 3, "*.sav", "*.bak")}}, true))
+	assert.Equal(t, "/deck/Game/saves", vm.slots[0].path)
+	assert.Equal(t, "*.sav", vm.slots[0].include, "the PC's filters stay")
+	assert.Equal(t, "*.log", vm.slots[0].exclude)
+}
+
 func TestSharingAnEmulatorsSaves(t *testing.T) {
 	eden := &emuForm{id: "eden", slots: []*slotForm{{key: "account", path: "/eden"}}}
 	ryu := &emuForm{id: "ryu", slots: []*slotForm{{key: "saves", path: "/ryu-old", isNew: true}}}

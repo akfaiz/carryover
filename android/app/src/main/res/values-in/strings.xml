@@ -878,4 +878,5 @@
     <string name="core_token_publicdocuments">Dokumen Publik</string>
     <string name="core_token_savedgames">Folder Saved Games</string>
     <string name="core_token_steam">Instalasi Steam</string>
+    <string name="core_suggest_no_match">Tidak ada lokasi save kosong yang cocok dengan folder ini. Ketik sendiri foldernya di lokasi save yang tepat, atau isi lokasi lainnya dulu.</string>
 </resources>

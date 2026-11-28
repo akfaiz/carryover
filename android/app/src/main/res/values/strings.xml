@@ -908,4 +908,5 @@
     <string name="core_token_publicdocuments">Public Documents</string>
     <string name="core_token_savedgames">Saved Games folder</string>
     <string name="core_token_steam">Steam installation</string>
+    <string name="core_suggest_no_match">No empty save location matches this folder. Type the folder into the right save location yourself, or fill the others first.</string>
 </resources>

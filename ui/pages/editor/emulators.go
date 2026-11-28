@@ -272,8 +272,12 @@ func (e *Page) emuSuggestions(c *ui.Context, m *emuForm, ev services.EmulatorVie
 			}
 			use := func() {
 				m.sugErr = ""
-				if !m.useSuggestion(sg) {
+				switch {
+				case m.useSuggestion(sg):
+				case m.share != "":
 					m.sugErr = i18n.L("This emulator shares another emulator's saves, whose locations aren't marked as account or device save. Suggest the locations on that emulator first, or enter the path yourself.")
+				default:
+					m.sugErr = noMatchingLocation()
 				}
 			}
 			label := i18n.Text(sg.Game, sg.GameMsg)
@@ -291,4 +295,9 @@ func (e *Page) emuSuggestions(c *ui.Context, m *emuForm, ev services.EmulatorVie
 		}
 		e.btn(c, [2]any{"emu-sug-close", m}, kit.BtnSecondary, nil, i18n.L("Close"), false, func() { m.sug = nil })
 	})
+}
+
+// noMatchingLocation says why a suggestion wasn't put into a save location.
+func noMatchingLocation() string {
+	return i18n.L("No empty save location matches this folder. Type the folder into the right save location yourself, or fill the others first.")
 }

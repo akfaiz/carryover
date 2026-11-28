@@ -873,5 +873,6 @@
   "Proton prefix of this game's non-Steam shortcut": "Proton prefix of this game's non-Steam shortcut",
   "Public Documents": "Public Documents",
   "Saved Games folder": "Saved Games folder",
-  "Steam installation": "Steam installation"
+  "Steam installation": "Steam installation",
+  "No empty save location matches this folder. Type the folder into the right save location yourself, or fill the others first.": "No empty save location matches this folder. Type the folder into the right save location yourself, or fill the others first."
 }
