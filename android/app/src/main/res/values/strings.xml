@@ -1,9 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
-  Every user-visible text of the Android app. Indonesian: values-in/strings.xml
-  (CatalogTest checks both have the same strings and placeholders). Messages
-  that come from the Go core (sync progress, errors) stay English, as on the
-  desktop.
+  Every user-visible text of the Android app, with the translations in the
+  values-*/strings.xml files (CatalogTest checks each has the same strings and
+  placeholders). The core_* strings are the messages of the Go core (sync
+  progress, errors), listed in data/CoreMessages.kt.
 -->
 <resources>
     <string name="app_name" translatable="false">Carryover</string>
@@ -289,7 +289,9 @@
     <string name="setting_language">Language</string>
     <string name="language_system">System default</string>
     <string name="language_en" translatable="false">English</string>
+    <string name="language_es" translatable="false">Español</string>
     <string name="language_id" translatable="false">Bahasa Indonesia</string>
+    <string name="language_pt_br" translatable="false">Português (Brasil)</string>
     <string name="section_permissions">Permissions</string>
     <string name="section_sessions">Play sessions</string>
     <string name="setting_grace">Upload delay after leaving a game</string>

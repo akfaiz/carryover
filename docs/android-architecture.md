@@ -250,8 +250,9 @@ through `mobile/suggest.go`:
   **Sync covers and artwork** (`Settings.CoversLocalOnly` turned around; only while the library is shared). Turning
   one on merges the library with the cloud at once; a merge that fails is said and does not undo the setting.
 - Settings shared with the desktop live in the core (`Settings.Theme`, covers, the library); the language is the
-  app's own (`AppLanguage`). UI text is in `res/values` with Bahasa Indonesia in `res/values-in`; messages from the
-  Go core stay English, as on the desktop.
+  app's own (`AppLanguage`). UI text is in `res/values`, with Bahasa Indonesia, Spanish and Brazilian Portuguese in
+  `res/values-in`, `res/values-es` and `res/values-pt-rBR`; messages from the Go core are translated too (see
+  "Translating the core's text" in [architecture.md](architecture.md)).
 
 ## Trash
 

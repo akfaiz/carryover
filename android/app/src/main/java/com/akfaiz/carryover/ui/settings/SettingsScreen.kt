@@ -543,7 +543,9 @@ private fun PermissionRow(
 @Composable
 private fun languageName(tag: String): String = when (tag) {
     "en" -> stringResource(R.string.language_en)
+    "es" -> stringResource(R.string.language_es)
     "id" -> stringResource(R.string.language_id)
+    "pt-BR" -> stringResource(R.string.language_pt_br)
     else -> stringResource(R.string.language_system)
 }
 
