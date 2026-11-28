@@ -2,18 +2,18 @@ package mobile
 
 import (
 	"encoding/json"
-	"errors"
-	"fmt"
 	"maps"
 	"strings"
 
+	"github.com/akfaiz/carryover/internal/app/msg"
 	"github.com/akfaiz/carryover/internal/core"
 	"github.com/akfaiz/carryover/internal/library"
 	"github.com/akfaiz/carryover/services"
 )
 
 // Games lists the library ([]services.GameView) as JSON.
-func Games() (string, error) {
+func Games() (_ string, err error) {
+	defer wire(&err)
 	s, err := get()
 	if err != nil {
 		return "", err
@@ -22,7 +22,8 @@ func Games() (string, error) {
 }
 
 // Game returns one game (services.GameView) as JSON.
-func Game(id string) (string, error) {
+func Game(id string) (_ string, err error) {
+	defer wire(&err)
 	s, err := get()
 	if err != nil {
 		return "", err
@@ -32,7 +33,8 @@ func Game(id string) (string, error) {
 
 // SaveGame creates (empty id) or updates a game from a services.GameInput
 // given as JSON, and returns the saved services.GameView.
-func SaveGame(inputJSON string) (string, error) {
+func SaveGame(inputJSON string) (_ string, err error) {
+	defer wire(&err)
 	s, err := get()
 	if err != nil {
 		return "", err
@@ -48,7 +50,8 @@ func SaveGame(inputJSON string) (string, error) {
 // game id (its own saves) or a sync key (an emulator profile), pathsJSON an
 // object of slot key -> path (tokens allowed; "" clears it). Everything else
 // about the game is kept. It returns the saved services.GameView.
-func SetPaths(key, pathsJSON string) (string, error) {
+func SetPaths(key, pathsJSON string) (_ string, err error) {
+	defer wire(&err)
 	s, err := get()
 	if err != nil {
 		return "", err
@@ -72,7 +75,7 @@ func SetPaths(key, pathsJSON string) (string, error) {
 			}
 		}
 		if target == nil {
-			return "", fmt.Errorf("the game has no emulator %q", emuID)
+			return "", msg.EditNoEmulator.Err("Emulator", emuID)
 		}
 	}
 	for k, p := range paths {
@@ -88,14 +91,15 @@ func SetPaths(key, pathsJSON string) (string, error) {
 // SetRom sets the game file an emulator profile starts with on this device
 // (a path or a content:// URI; "" = open the emulator without a game). key is
 // the profile's sync key. It returns the saved services.GameView.
-func SetRom(key, rom string) (string, error) {
+func SetRom(key, rom string) (_ string, err error) {
+	defer wire(&err)
 	s, err := get()
 	if err != nil {
 		return "", err
 	}
 	gameID, emuID := core.ParseKey(key)
 	if emuID == "" {
-		return "", errors.New("only an emulator profile has a game file")
+		return "", msg.EditOnlyEmulatorFile.Err()
 	}
 	v, err := s.library.Get(gameID)
 	if err != nil {
@@ -109,7 +113,7 @@ func SetRom(key, rom string) (string, error) {
 		}
 	}
 	if !found {
-		return "", fmt.Errorf("the game has no emulator %q", emuID)
+		return "", msg.EditNoEmulator.Err("Emulator", emuID)
 	}
 	return encode(s.library.Save(in))
 }
@@ -117,7 +121,8 @@ func SetRom(key, rom string) (string, error) {
 // SetNativeApp sets the Android app a game's own profile starts on this
 // device (its package name; "" = none). It returns the saved
 // services.GameView.
-func SetNativeApp(gameID, pkg string) (string, error) {
+func SetNativeApp(gameID, pkg string) (_ string, err error) {
+	defer wire(&err)
 	s, err := get()
 	if err != nil {
 		return "", err
@@ -137,7 +142,8 @@ func SetNativeApp(gameID, pkg string) (string, error) {
 // services.EmulatorView. On Android, Exe is the emulator's package (or
 // "package/activity") and Args an optional template that starts a game
 // directly, in `am start` syntax with {rom}.
-func SaveEmulator(setupJSON string) (string, error) {
+func SaveEmulator(setupJSON string) (_ string, err error) {
+	defer wire(&err)
 	s, err := get()
 	if err != nil {
 		return "", err
@@ -152,7 +158,8 @@ func SaveEmulator(setupJSON string) (string, error) {
 // SetCover makes the image file at path (PNG, JPEG or WebP) the game's cover;
 // it is copied into Carryover's data and goes to the other devices with the
 // next library sync. It returns the saved services.GameView.
-func SetCover(gameID, path string) (string, error) {
+func SetCover(gameID, path string) (_ string, err error) {
+	defer wire(&err)
 	s, err := get()
 	if err != nil {
 		return "", err
@@ -164,7 +171,8 @@ func SetCover(gameID, path string) (string, error) {
 // template and data folder), for an emulator no longer used here. The
 // emulator, its setup on other devices, the games using it and their cloud
 // saves stay.
-func UnsetEmulator(id string) error {
+func UnsetEmulator(id string) (err error) {
+	defer wire(&err)
 	s, err := get()
 	if err != nil {
 		return err
@@ -198,7 +206,8 @@ func inputOf(v services.GameView) services.GameInput {
 }
 
 // Emulators lists the emulators ([]services.EmulatorView) as JSON.
-func Emulators() (string, error) {
+func Emulators() (_ string, err error) {
+	defer wire(&err)
 	s, err := get()
 	if err != nil {
 		return "", err
@@ -207,7 +216,8 @@ func Emulators() (string, error) {
 }
 
 // PreviewPath expands the path tokens of raw for a game on this device.
-func PreviewPath(gameID, raw string) (string, error) {
+func PreviewPath(gameID, raw string) (_ string, err error) {
+	defer wire(&err)
 	s, err := get()
 	if err != nil {
 		return "", err
@@ -217,7 +227,8 @@ func PreviewPath(gameID, raw string) (string, error) {
 
 // ContractPath replaces the start of an absolute path with a path token
 // where one applies.
-func ContractPath(path string) (string, error) {
+func ContractPath(path string) (_ string, err error) {
+	defer wire(&err)
 	s, err := get()
 	if err != nil {
 		return "", err
@@ -226,7 +237,8 @@ func ContractPath(path string) (string, error) {
 }
 
 // CheckFolder fails unless path is an existing folder.
-func CheckFolder(path string) error {
+func CheckFolder(path string) (err error) {
+	defer wire(&err)
 	s, err := get()
 	if err != nil {
 		return err
@@ -236,7 +248,8 @@ func CheckFolder(path string) error {
 
 // CheckLocalChanges looks for saves changed since their last sync and
 // reports the games it flags through a "library" event.
-func CheckLocalChanges() error {
+func CheckLocalChanges() (err error) {
+	defer wire(&err)
 	s, err := get()
 	if err != nil {
 		return err

@@ -12,6 +12,7 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/akfaiz/carryover/internal/app/msg"
 	"github.com/akfaiz/carryover/internal/saves/ryujinx"
 	"github.com/akfaiz/carryover/internal/stores/steam"
 )
@@ -98,16 +99,16 @@ func expandEnv(s string) string {
 func (c Context) resolve(name, arg string) (string, error) {
 	if name == "proton" {
 		if c.SteamRoot == "" {
-			return "", fmt.Errorf("{proton:%s}: Steam installation not found", arg)
+			return "", msg.PathNoSteam.Err("Token", "{proton:"+arg+"}")
 		}
 		if arg == "shortcut" {
 			if c.ShortcutAppID == "" {
-				return "", fmt.Errorf("{proton:shortcut}: game has not been added to Steam on this device")
+				return "", msg.PathNotInSteam.Err()
 			}
 			arg = c.ShortcutAppID
 		}
 		if arg == "" {
-			return "", fmt.Errorf("{proton}: missing app id, use {proton:<appid>}")
+			return "", msg.PathNoAppID.Err()
 		}
 		return steam.CompatDataPrefix(c.SteamRoot, arg), nil
 	}
@@ -130,13 +131,13 @@ func (c Context) resolve(name, arg string) (string, error) {
 	}
 	if name == "steam" {
 		if c.SteamRoot == "" {
-			return "", fmt.Errorf("{steam}: Steam installation not found")
+			return "", msg.PathNoSteam.Err("Token", "{steam}")
 		}
 		return c.SteamRoot, nil
 	}
 	v := baseTokens()[name]
 	if v == "" {
-		return "", fmt.Errorf("unknown or unavailable path token {%s}", name)
+		return "", msg.PathUnknownToken.Err("Token", "{"+name+"}")
 	}
 	return v, nil
 }

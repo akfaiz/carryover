@@ -208,7 +208,7 @@ func (p *artPicker) search() {
 	kit.Async(func() ([]services.ArtGame, error) { return p.be.SearchGridGames(term) }, func(list []services.ArtGame, err error) {
 		p.searching = false
 		if err != nil {
-			p.errText = err.Error()
+			p.errText = i18n.Err(err)
 		}
 		if list == nil {
 			list = []services.ArtGame{}
@@ -332,7 +332,7 @@ func (p *artPicker) ensure(kind services.ArtKind) {
 			return
 		}
 		if err != nil {
-			p.errText = err.Error()
+			p.errText = i18n.Err(err)
 		}
 		if grids == nil {
 			grids = []services.ArtGrid{}

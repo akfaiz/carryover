@@ -11,6 +11,9 @@ import com.akfaiz.carryover.MainActivity
 import com.akfaiz.carryover.R
 import com.akfaiz.carryover.core.EndOutcome
 import com.akfaiz.carryover.core.NoticeKind
+import com.akfaiz.carryover.data.AndroidTexts
+import com.akfaiz.carryover.data.core
+import com.akfaiz.carryover.data.error
 import com.akfaiz.carryover.launch.LaunchActivity
 
 /**
@@ -72,11 +75,11 @@ class SessionNotifier(private val ctx: Context) : SessionNotices {
         val out = result.getOrNull()
         val n = out?.notice
         val (head, body) = when {
-            result.isFailure -> ctx.getString(R.string.result_failed, title) to (result.exceptionOrNull()?.message ?: "")
+            result.isFailure -> ctx.getString(R.string.result_failed, title) to (result.exceptionOrNull()?.let(AndroidTexts(ctx)::error) ?: "")
             out?.offline == true -> ctx.getString(R.string.result_offline, title) to ctx.getString(R.string.result_offline_text)
             n?.kind == NoticeKind.Uploaded -> ctx.getString(R.string.result_uploaded, title) to ctx.getString(R.string.result_uploaded_text)
             n?.kind == NoticeKind.Conflict -> ctx.getString(R.string.result_conflict, title) to ctx.getString(R.string.result_conflict_text)
-            n?.kind == NoticeKind.Failed -> ctx.getString(R.string.result_failed, title) to n.err
+            n?.kind == NoticeKind.Failed -> ctx.getString(R.string.result_failed, title) to AndroidTexts(ctx).core(n.err, n.errMsg)
             else -> ctx.getString(R.string.result_none, title) to ctx.getString(R.string.result_none_text)
         }
         val notif = NotificationCompat.Builder(ctx, CHANNEL_RESULTS)

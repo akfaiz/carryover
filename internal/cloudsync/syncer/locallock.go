@@ -11,10 +11,12 @@ import (
 	"time"
 
 	"github.com/shirou/gopsutil/v4/process"
+
+	"github.com/akfaiz/carryover/internal/app/msg"
 )
 
 // ErrLocked is returned when another Carryover process is already syncing/running the game.
-var ErrLocked = errors.New("game is already running or syncing in another Carryover process")
+var ErrLocked = msg.SyncLocked.Err()
 
 // held lists the lock files this process holds. The lock file only carries a
 // PID, which can't tell two holders inside one process apart, so without this

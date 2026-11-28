@@ -131,7 +131,7 @@ func New(c *core.Core, bus *services.Bus, cfg Config) *Shell {
 	// (registered next) tells the pages about the new status.
 	bus.OnStatus(func(st services.Status) {
 		if st.Phase == "error" {
-			kit.OnUI(func() { u.toast(st.Message, kit.ToastErr) })
+			kit.OnUI(func() { u.toast(i18n.Text(st.Message, st.Msg), kit.ToastErr) })
 		}
 	})
 	u.store = store.New(store.Loader{Games: u.lib.List, Settings: u.sync.GetSettings, TrashCount: u.lib.TrashCount},
@@ -537,7 +537,7 @@ func (u *Shell) toast(text string, kind kit.ToastKind) {
 
 func (u *Shell) toastErr(err error) {
 	if err != nil {
-		u.toast(err.Error(), kit.ToastErr)
+		u.toast(i18n.Err(err), kit.ToastErr)
 	}
 }
 

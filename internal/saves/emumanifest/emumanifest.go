@@ -25,6 +25,8 @@ import (
 	"unicode"
 
 	"gopkg.in/yaml.v3"
+
+	"github.com/akfaiz/carryover/internal/app/msg"
 )
 
 // BaseURL is where the manifests are downloaded from.
@@ -52,31 +54,34 @@ type Preset struct {
 	// one entry for all saves).
 	PerGame bool
 	// RootHint tells the user which folder the data folder is.
-	RootHint string
+	RootHint msg.Def
 	// Args is a usual command line to start a game: {rom} stands for the game
 	// file (or ID). A suggestion only; emulator versions differ. Empty if
 	// there is no usable default.
 	Args string
-	// ArgsNote says what to check about Args.
-	ArgsNote string
+	// ArgsNote says what to check about Args (the zero Def: nothing).
+	ArgsNote msg.Def
 }
 
 // presetArgs are the suggested command lines, by preset id.
-var presetArgs = map[string]struct{ args, note string }{
-	"switch":      {"-f -g {rom}", ""},
-	"ryujinx":     {"{rom}", "Add -r <folder> to use a separate data folder."},
-	"dolphin":     {"-b -e {rom}", ""},
-	"azahar":      {"{rom}", "Add -f for full screen."},
-	"cemu":        {"-f -g {rom}", ""},
-	"pcsx2":       {"-batch -fullscreen -- {rom}", ""},
-	"duckstation": {"-batch -fullscreen -- {rom}", ""},
-	"rpcs3":       {"--no-gui {rom}", ""},
-	"shadps4":     {"-g {rom}", ""},
-	"ppsspp":      {"{rom}", "Add --fullscreen for full screen."},
-	"vita3k":      {"-r {rom}", "{rom} is the game's title ID (for example PCSA00001), not a file."},
-	"xenia":       {"{rom}", ""},
-	"scummvm":     {"-f {rom}", "{rom} is the game's ID in ScummVM (for example monkey)."},
-	"retroarch":   {"", "RetroArch needs a core: -L <core file> {rom}"},
+var presetArgs = map[string]struct {
+	args string
+	note msg.Def
+}{
+	"switch":      {args: "-f -g {rom}"},
+	"ryujinx":     {args: "{rom}", note: msg.ArgsRyujinx},
+	"dolphin":     {args: "-b -e {rom}"},
+	"azahar":      {args: "{rom}", note: msg.ArgsFullScreen},
+	"cemu":        {args: "-f -g {rom}"},
+	"pcsx2":       {args: "-batch -fullscreen -- {rom}"},
+	"duckstation": {args: "-batch -fullscreen -- {rom}"},
+	"rpcs3":       {args: "--no-gui {rom}"},
+	"shadps4":     {args: "-g {rom}"},
+	"ppsspp":      {args: "{rom}", note: msg.ArgsPPSSPP},
+	"vita3k":      {args: "-r {rom}", note: msg.ArgsVita3K},
+	"xenia":       {args: "{rom}"},
+	"scummvm":     {args: "-f {rom}", note: msg.ArgsScummVM},
+	"retroarch":   {note: msg.ArgsRetroArch},
 }
 
 func withArgs(p Preset) Preset {
@@ -87,29 +92,29 @@ func withArgs(p Preset) Preset {
 
 var presets = []Preset{
 	{ID: "switch", Name: "Switch: Eden, Citron, Suyu, yuzu", File: "switch.yaml", PerGame: true,
-		Windows: "{appdata}/{emu}", Linux: "{xdgdata}/{emu}", Mac: "{appdata}/{emu}", RootHint: "the emulator's user folder (contains nand/)"},
+		Windows: "{appdata}/{emu}", Linux: "{xdgdata}/{emu}", Mac: "{appdata}/{emu}", RootHint: msg.HintSwitch},
 	{ID: "ryujinx", Name: "Switch: Ryujinx", File: "ryujinx.yaml",
-		Windows: "{appdata}/Ryujinx", Linux: "{xdgconfig}/Ryujinx", Mac: "{appdata}/Ryujinx", RootHint: "Ryujinx's data folder (contains bis/)"},
+		Windows: "{appdata}/Ryujinx", Linux: "{xdgconfig}/Ryujinx", Mac: "{appdata}/Ryujinx", RootHint: msg.HintRyujinx},
 	{ID: "dolphin", Name: "GameCube / Wii: Dolphin", File: "dolphin.yaml", PerGame: true,
-		Flatpak: "data/dolphin-emu", RootHint: "Dolphin's user folder (GameCube memory card folders, not raw cards)"},
-	{ID: "azahar", Name: "3DS: Azahar / Citra", File: "azahar.yaml", PerGame: true, Flatpak: "data/{emu}-emu", RootHint: "the emulator's user folder"},
+		Flatpak: "data/dolphin-emu", RootHint: msg.HintDolphin},
+	{ID: "azahar", Name: "3DS: Azahar / Citra", File: "azahar.yaml", PerGame: true, Flatpak: "data/{emu}-emu", RootHint: msg.HintAzahar},
 	{ID: "cemu", Name: "Wii U: Cemu", File: "cemu.yaml", PerGame: true,
-		Windows: "{appdata}/Cemu/mlc01", Linux: "{xdgdata}/Cemu/mlc01", Mac: "{appdata}/Cemu/mlc01", RootHint: "Cemu's mlc01 folder"},
-	{ID: "pcsx2", Name: "PS2: PCSX2", File: "pcsx2.yaml", PerGame: true, Flatpak: "config/PCSX2/memcards", RootHint: "PCSX2's memcards folder (folder memory cards only)"},
+		Windows: "{appdata}/Cemu/mlc01", Linux: "{xdgdata}/Cemu/mlc01", Mac: "{appdata}/Cemu/mlc01", RootHint: msg.HintCemu},
+	{ID: "pcsx2", Name: "PS2: PCSX2", File: "pcsx2.yaml", PerGame: true, Flatpak: "config/PCSX2/memcards", RootHint: msg.HintPCSX2},
 	{ID: "duckstation", Name: "PS1: DuckStation", File: "duckstation.yaml", PerGame: true,
-		Windows: "{documents}/DuckStation", Linux: "{xdgdata}/duckstation", Mac: "{appdata}/DuckStation", RootHint: "DuckStation's data folder (memcards/, savestates/)"},
+		Windows: "{documents}/DuckStation", Linux: "{xdgdata}/duckstation", Mac: "{appdata}/DuckStation", RootHint: msg.HintDuckStation},
 	{ID: "rpcs3", Name: "PS3: RPCS3", File: "rpcs3.yaml", PerGame: true,
-		Linux: "{xdgconfig}/rpcs3", Mac: "{appdata}/rpcs3", RootHint: "RPCS3's config folder (contains dev_hdd0/)"},
+		Linux: "{xdgconfig}/rpcs3", Mac: "{appdata}/rpcs3", RootHint: msg.HintRPCS3},
 	{ID: "shadps4", Name: "PS4: shadPS4", File: "shadps4.yaml", PerGame: true,
-		Windows: "{appdata}/shadPS4", Linux: "{xdgdata}/shadPS4", Mac: "{appdata}/shadPS4", RootHint: "shadPS4's user folder"},
-	{ID: "ppsspp", Name: "PSP: PPSSPP", File: "ppsspp.yaml", PerGame: true, Flatpak: "config/ppsspp/PSP", RootHint: "PPSSPP's PSP folder"},
+		Windows: "{appdata}/shadPS4", Linux: "{xdgdata}/shadPS4", Mac: "{appdata}/shadPS4", RootHint: msg.HintShadPS4},
+	{ID: "ppsspp", Name: "PSP: PPSSPP", File: "ppsspp.yaml", PerGame: true, Flatpak: "config/ppsspp/PSP", RootHint: msg.HintPPSSPP},
 	{ID: "vita3k", Name: "PS Vita: Vita3K", File: "vita3k.yaml", PerGame: true,
-		Windows: "{appdata}/Vita3K/Vita3K", Linux: "{xdgdata}/Vita3K/Vita3K", RootHint: "Vita3K's data folder (contains ux0/)"},
+		Windows: "{appdata}/Vita3K/Vita3K", Linux: "{xdgdata}/Vita3K/Vita3K", RootHint: msg.HintVita3K},
 	{ID: "xenia", Name: "Xbox 360: Xenia", File: "xenia.yaml", PerGame: true,
-		Linux: "{xdgdata}/Xenia/content", RootHint: "Xenia's content folder"},
+		Linux: "{xdgdata}/Xenia/content", RootHint: msg.HintXenia},
 	{ID: "retroarch", Name: "RetroArch (many systems)", File: "retroarch.yaml", PerGame: true,
-		Flatpak: "config/retroarch", RootHint: "the folder containing saves/ and states/"},
-	{ID: "scummvm", Name: "ScummVM", File: "scummvm.yaml", PerGame: true, Flatpak: "data/scummvm/saves", RootHint: "ScummVM's save folder"},
+		Flatpak: "config/retroarch", RootHint: msg.HintRetroArch},
+	{ID: "scummvm", Name: "ScummVM", File: "scummvm.yaml", PerGame: true, Flatpak: "data/scummvm/saves", RootHint: msg.HintScummVM},
 }
 
 // Presets lists the emulator kinds that have a manifest.

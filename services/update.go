@@ -8,6 +8,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/akfaiz/carryover/internal/app/msg"
 	"github.com/akfaiz/carryover/internal/app/update"
 	"github.com/akfaiz/carryover/internal/app/version"
 	"github.com/akfaiz/carryover/internal/core"
@@ -46,7 +47,14 @@ type UpdateState struct {
 	// File is the verified download while Status is ready.
 	File string `json:"file,omitempty"`
 	// Error is why the last check, download or install failed.
-	Error string `json:"error,omitempty"`
+	Error    string       `json:"error,omitempty"`
+	ErrorMsg *msg.Message `json:"errorMsg,omitempty"`
+}
+
+// fail records why a check, download or install failed.
+func (s *UpdateState) fail(err error) {
+	m := msg.Of(err)
+	s.Error, s.ErrorMsg = m.Text, m.Ptr()
 }
 
 // Newer reports whether there is a newer version to tell the user about.
@@ -66,13 +74,13 @@ type UpdateOutcome struct {
 
 var (
 	// ErrUpdateBusy is returned by Install while a game is played or synced.
-	ErrUpdateBusy = errors.New("a game is being played or a sync is running; install the update once it is done")
+	ErrUpdateBusy = msg.UpdateBusy.Err()
 	// ErrUpdateCancelled is returned when the user cancels a download.
-	ErrUpdateCancelled = errors.New("update download cancelled")
+	ErrUpdateCancelled = msg.UpdateCancelled.Err()
 	// ErrNoUpdate is returned when there is nothing to download or install.
-	ErrNoUpdate = errors.New("there is no update to install")
+	ErrNoUpdate = msg.UpdateNone.Err()
 	// ErrUpdateRunning is returned while a check or download is already running.
-	ErrUpdateRunning = errors.New("an update is already being downloaded")
+	ErrUpdateRunning = msg.UpdateRunning.Err()
 )
 
 // updateCheckEvery is how long the result of a check is reused before the
@@ -197,14 +205,14 @@ func (s *UpdateService) Check(ctx context.Context, force bool) (UpdateState, err
 		return s.found(saved.Latest), nil
 	}
 	before := s.State().Status
-	s.set(func(st *UpdateState) { st.Status, st.Error = UpdateChecking, "" })
+	s.set(func(st *UpdateState) { st.Status, st.Error, st.ErrorMsg = UpdateChecking, "", nil })
 	var latest *update.Release
 	rel, err := s.client.Latest(ctx, channel)
 	switch {
 	case errors.Is(err, update.ErrNoRelease):
 	case err != nil:
 		log.Printf("update check: %v", err)
-		return s.set(func(st *UpdateState) { st.Status, st.Error = before, err.Error() }), err
+		return s.set(func(st *UpdateState) { st.Status = before; st.fail(err) }), err
 	default:
 		latest = &rel
 	}
@@ -292,7 +300,7 @@ func (s *UpdateService) Download(ctx context.Context) (string, error) {
 	s.cancel = cancel
 	s.mu.Unlock()
 	s.set(func(st *UpdateState) {
-		st.Status, st.Error, st.File, st.Done, st.Total = UpdateDownloading, "", "", 0, 0
+		st.Status, st.Error, st.ErrorMsg, st.File, st.Done, st.Total = UpdateDownloading, "", nil, "", 0, 0
 	})
 	var last time.Time
 	file, err := s.client.Download(ctx, *rel, name, s.dir, func(done, total int64) {
@@ -311,7 +319,7 @@ func (s *UpdateService) Download(ctx context.Context) (string, error) {
 		s.set(func(st *UpdateState) {
 			st.Status, st.Done, st.Total = UpdateAvailable, 0, 0
 			if !cancelled {
-				st.Error = err.Error()
+				st.fail(err)
 			}
 		})
 		return "", err
@@ -366,7 +374,7 @@ func (s *UpdateService) Install(ctx context.Context) (func(restart bool) error, 
 	failed := func(err error) {
 		installing("")
 		log.Printf("update to %s: %v", st.Latest, err)
-		s.set(func(u *UpdateState) { u.Status, u.Error = UpdateReady, err.Error() })
+		s.set(func(u *UpdateState) { u.Status = UpdateReady; u.fail(err) })
 	}
 	finish, err := update.Apply(ctx, s.target, st.File)
 	if err != nil {
@@ -374,7 +382,7 @@ func (s *UpdateService) Install(ctx context.Context) (func(restart bool) error, 
 		return nil, err
 	}
 	log.Printf("update: installing %s (%s)", st.Latest, s.target.Method)
-	s.set(func(u *UpdateState) { u.Status, u.Error = UpdateInstalled, "" })
+	s.set(func(u *UpdateState) { u.Status, u.Error, u.ErrorMsg = UpdateInstalled, "", nil })
 	return func(restart bool) error {
 		err := finish(restart)
 		// The setup program is what installs: if it didn't start, nothing did.

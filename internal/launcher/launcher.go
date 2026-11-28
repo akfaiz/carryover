@@ -4,7 +4,6 @@ package launcher
 import (
 	"context"
 	"errors"
-	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -12,6 +11,8 @@ import (
 	"time"
 
 	"github.com/shirou/gopsutil/v4/process"
+
+	"github.com/akfaiz/carryover/internal/app/msg"
 )
 
 // Spec describes how to start a game.
@@ -41,7 +42,7 @@ type Result struct {
 // Run starts the game and blocks until it (and WaitProcess, if set) exits.
 func Run(ctx context.Context, spec Spec, onStarted func(pid int)) (Result, error) {
 	if spec.Exe == "" {
-		return Result{}, errors.New("no executable configured for this device")
+		return Result{}, msg.SetupNoProgram.Err()
 	}
 	exe := BundleExe(spec.Exe) // a macOS .app is a folder: start its program
 	cmd := exec.Command(exe, spec.Args...)
@@ -59,7 +60,7 @@ func Run(ctx context.Context, spec Spec, onStarted func(pid int)) (Result, error
 	configureCmd(cmd)
 	start := time.Now()
 	if err := cmd.Start(); err != nil {
-		return Result{}, fmt.Errorf("start %s: %w", spec.Exe, err)
+		return Result{}, msg.SetupStartFailed.Wrap(err, "Program", spec.Exe)
 	}
 	if onStarted != nil {
 		onStarted(cmd.Process.Pid)
@@ -181,7 +182,7 @@ func SplitArgs(s string) ([]string, error) {
 		}
 	}
 	if quote != 0 {
-		return nil, errors.New("unterminated quote in arguments")
+		return nil, msg.SetupOpenQuote.Err()
 	}
 	if inArg {
 		args = append(args, cur.String())

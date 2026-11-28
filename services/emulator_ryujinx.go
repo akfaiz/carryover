@@ -6,6 +6,7 @@ import (
 	"os"
 	"strings"
 
+	"github.com/akfaiz/carryover/internal/app/msg"
 	"github.com/akfaiz/carryover/internal/saves/emumanifest"
 	"github.com/akfaiz/carryover/internal/saves/pathvar"
 	"github.com/akfaiz/carryover/internal/saves/ryujinx"
@@ -61,7 +62,7 @@ func (s *EmulatorService) suggestRyujinx(ctx context.Context, root string, in Em
 	}
 	_, indexErr := ryujinx.ReadIndex(dir)
 	res.PerGame = true
-	kinds := map[ryujinx.Kind]string{ryujinx.Account: "account save", ryujinx.Device: "device save"}
+	kinds := map[ryujinx.Kind]msg.Def{ryujinx.Account: msg.SuggestAccountSave, ryujinx.Device: msg.SuggestDeviceSave}
 	// The same kind names as for Eden, so the two emulators' save locations
 	// match up when they share a cloud save.
 	slotKind := map[ryujinx.Kind]string{ryujinx.Account: kindAccount, ryujinx.Device: kindDevice}
@@ -76,18 +77,20 @@ func (s *EmulatorService) suggestRyujinx(ctx context.Context, root string, in Em
 				exists = true
 			}
 		}
+		label := kinds[k].Msg("Game", title)
 		res.Suggestions = append(res.Suggestions, EmuSuggestion{
-			Game: fmt.Sprintf("%s (%s)", title, kinds[k]), Path: fmt.Sprintf("{ryujinx:%s:%s}", id, k), Exists: exists, Kind: slotKind[k],
+			Game: label.Text, GameMsg: label.Ptr(), Path: fmt.Sprintf("{ryujinx:%s:%s}", id, k), Exists: exists, Kind: slotKind[k],
 		})
 	}
 	if len(res.Suggestions) == 0 {
 		// The index lists no save for the game: it hasn't been played in Ryujinx yet.
 		for _, k := range []ryujinx.Kind{ryujinx.Account, ryujinx.Device} {
+			label := kinds[k].Msg("Game", title)
 			res.Suggestions = append(res.Suggestions, EmuSuggestion{
-				Game: fmt.Sprintf("%s (%s)", title, kinds[k]), Path: fmt.Sprintf("{ryujinx:%s:%s}", id, k), Kind: slotKind[k],
+				Game: label.Text, GameMsg: label.Ptr(), Path: fmt.Sprintf("{ryujinx:%s:%s}", id, k), Kind: slotKind[k],
 			})
 		}
-		res.Note = "Ryujinx has no save for this game on this device yet. Start the game once in Ryujinx; the folder is found when syncing."
+		res.explain(msg.SuggestRyujinxNoSave.Msg())
 	}
 	return res, true
 }

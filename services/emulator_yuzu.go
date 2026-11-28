@@ -1,10 +1,10 @@
 package services
 
 import (
-	"fmt"
 	"slices"
 	"strings"
 
+	"github.com/akfaiz/carryover/internal/app/msg"
 	"github.com/akfaiz/carryover/internal/saves/emumanifest"
 	"github.com/akfaiz/carryover/internal/saves/yuzu"
 )
@@ -28,10 +28,10 @@ const (
 // ok is false if the entry has no title ID (the caller uses the manifest's
 // paths). expanded is the emulator's data folder with path tokens resolved,
 // rootSlash the same as the user wrote it.
-func yuzuSuggestions(e emumanifest.Entry, rootSlash, expanded, emulator string) (sgs []EmuSuggestion, note string, ok bool) {
+func yuzuSuggestions(e emumanifest.Entry, rootSlash, expanded, emulator string) (sgs []EmuSuggestion, note msg.Message, ok bool) {
 	titleID := strings.ToUpper(romTitleID.FindString(strings.Join(e.Files, "\n")))
 	if titleID == "" {
-		return nil, "", false
+		return nil, note, false
 	}
 	onDisk := yuzu.Saves(expanded, titleID)
 
@@ -57,22 +57,23 @@ func yuzuSuggestions(e emumanifest.Entry, rootSlash, expanded, emulator string) 
 		return rootSlash + "/nand/user/save/0000000000000000/" + profile + "/" + titleID
 	}
 	for _, p := range accounts {
-		label := e.Title() + " (account save)"
+		label := msg.SuggestAccountSave.Msg("Game", e.Title())
 		if len(accounts) > 1 {
-			label = fmt.Sprintf("%s (account save, profile %s…)", e.Title(), p[:8])
+			label = msg.SuggestProfileSave.Msg("Game", e.Title(), "Profile", p[:8])
 		}
-		sgs = append(sgs, EmuSuggestion{Game: label, Path: folder(p), Kind: kindAccount, Exists: slices.Contains(onDisk, p)})
+		sgs = append(sgs, EmuSuggestion{Game: label.Text, GameMsg: label.Ptr(), Path: folder(p), Kind: kindAccount, Exists: slices.Contains(onDisk, p)})
 	}
+	label := msg.SuggestDeviceSave.Msg("Game", e.Title())
 	sgs = append(sgs, EmuSuggestion{
-		Game: e.Title() + " (device save)", Path: folder(yuzu.DeviceProfile), Kind: kindDevice,
+		Game: label.Text, GameMsg: label.Ptr(), Path: folder(yuzu.DeviceProfile), Kind: kindDevice,
 		Exists: slices.Contains(onDisk, yuzu.DeviceProfile),
 	})
 
 	switch {
 	case len(accounts) == 0:
-		note = emulator + " has no user profile on this device yet. Start it once, or enter the account save folder yourself."
+		note = msg.SuggestNoProfile.Msg("Emulator", emulator)
 	case len(orphans) > 0:
-		note = fmt.Sprintf("%s has save folders of a profile it doesn't have (%s…), for example from an earlier sync. They are not suggested.", emulator, orphans[0][:8])
+		note = msg.SuggestOrphans.Msg("Emulator", emulator, "Profile", orphans[0][:8])
 	}
 	return sgs, note, true
 }

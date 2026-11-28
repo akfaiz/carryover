@@ -19,7 +19,7 @@ func ShowGridKeyDialog(u env.Env, onSaved func()) {
 	saving := false
 	test := kit.NewTestButton(i18n.L("Test"), i18n.L("Key works."), i18n.L("Testing…"), func() func() error {
 		k := strings.TrimSpace(key)
-		return func() error { return u.Lib().TestSteamGridKey(k) }
+		return func() error { return i18n.Translated(u.Lib().TestSteamGridKey(k)) }
 	})
 	var d *kit.Dialog
 	save := func() {

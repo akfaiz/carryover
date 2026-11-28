@@ -23,10 +23,10 @@ func (p *Page) hero(c *ui.Context, orig, g services.GameView, profs []profileEnt
 	// What needs the user's eye, each in a callout. None repeats a button: the
 	// buttons under them do what they ask.
 	if !g.Ready {
-		kit.Callout(c, kit.BadgeWarn, kit.IconAlert, g.SetupHint, nil)
+		kit.Callout(c, kit.BadgeWarn, kit.IconAlert, i18n.Text(g.SetupHint, g.SetupHintMsg), nil)
 	}
 	if g.Status.LastError != "" && !g.Status.Running {
-		kit.Callout(c, kit.BadgeErr, kit.IconAlert, g.Status.LastError, nil)
+		kit.Callout(c, kit.BadgeErr, kit.IconAlert, i18n.Text(g.Status.LastError, g.Status.LastErrorMsg), nil)
 	}
 	if g.Status.LocalChanges && !g.Status.Running {
 		kit.Callout(c, kit.BadgeWarn, kit.IconUpload, i18n.L("The saves on this device changed after the last sync, so the game was probably played without Carryover. Use “Sync now” to upload them."), nil)
@@ -74,7 +74,7 @@ func (p *Page) session(c *ui.Context, g services.GameView) {
 	switch {
 	case hasSt && (st.Phase != "done" || g.Status.Running) && st.Phase != "error":
 		kit.Card(c, "", func() {
-			ui.Text(c, st.Message).Bold().Wrap()
+			ui.Text(c, i18n.Text(st.Message, st.Msg)).Bold().Wrap()
 			if st.Phase != "playing" && st.Phase != "choose" {
 				kit.ProgressLine(c, "", ev.Bytes, ev.TotalBytes)
 			}

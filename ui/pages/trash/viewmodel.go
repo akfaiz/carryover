@@ -73,6 +73,7 @@ type ViewModel struct {
 	leftLoaded  bool
 	leftLoading bool
 	leftErr     string
+	leftErrMsg  *services.Message
 	busy        bool
 }
 
@@ -107,6 +108,9 @@ func (vm *ViewModel) LeftoverState() LeftoverState {
 
 // LeftoverError is why the leftover folders could not be read.
 func (vm *ViewModel) LeftoverError() string { return vm.leftErr }
+
+// LeftoverErrorMsg is LeftoverError to translate, if it is the core's.
+func (vm *ViewModel) LeftoverErrorMsg() *services.Message { return vm.leftErrMsg }
 
 // Busy reports whether a restore or deletion runs: the buttons wait.
 func (vm *ViewModel) Busy() bool { return vm.busy }
@@ -155,8 +159,9 @@ func (vm *ViewModel) LoadLeftovers() {
 		return err
 	}, func(err error) {
 		vm.left, vm.leftLoaded, vm.leftLoading, vm.leftErr = list, true, false, ""
+		vm.leftErrMsg = nil
 		if err != nil {
-			vm.leftErr = err.Error()
+			vm.leftErr, vm.leftErrMsg = services.ErrorText(err)
 		}
 		vm.d.Changed()
 	})

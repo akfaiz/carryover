@@ -2,6 +2,8 @@ package com.akfaiz.carryover.session
 
 import android.content.Context
 import com.akfaiz.carryover.R
+import com.akfaiz.carryover.data.AndroidTexts
+import com.akfaiz.carryover.data.error
 import android.content.Intent
 import com.akfaiz.carryover.core.Core
 import com.akfaiz.carryover.core.EmulatorView
@@ -53,7 +55,7 @@ object Sessions {
         manager = SessionManager.shared,
         watch = { key, pkg, title -> SessionService.watch(ctx, key, pkg, title) },
         stopWatching = { key -> SessionService.done(ctx, key) },
-        startFailed = { title, cause -> ctx.getString(R.string.session_start_failed, title, cause) },
+        startFailed = { title, cause -> ctx.getString(R.string.session_start_failed, title, AndroidTexts(ctx).error(cause)) },
     )
 
     /**

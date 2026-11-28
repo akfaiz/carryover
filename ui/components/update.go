@@ -108,7 +108,7 @@ func (d *updateDialog) body(c *ui.Context, nav *kit.Navigator) {
 		kit.Btn(c, nav, "update-page", kit.BtnGhost, nil, i18n.L("Open release page"), open, kit.BtnSmall()).AlignSelf(ui.Start)
 	}
 	if st.Error != "" {
-		kit.Callout(c, kit.BadgeErr, kit.IconAlert, st.Error, nil)
+		kit.Callout(c, kit.BadgeErr, kit.IconAlert, i18n.Text(st.Error, st.ErrorMsg), nil)
 	}
 	switch {
 	case st.Status == services.UpdateDownloading:

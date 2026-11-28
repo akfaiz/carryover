@@ -10,6 +10,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/akfaiz/carryover/internal/app/msg"
 	"github.com/akfaiz/carryover/internal/cloudsync/syncer"
 	"github.com/akfaiz/carryover/internal/launcher"
 	"github.com/akfaiz/carryover/internal/library"
@@ -46,9 +47,9 @@ func TestHeadlessUIAnswers(t *testing.T) {
 	h.GameRunning(false)
 	h.SyncCancelable(func() {})
 	h.SyncCancelable(nil)
-	h.Status("sync", "Checking")
+	h.Status("sync", msg.Raw("Checking"))
 	assert.NotEmpty(t, lines, "status is logged")
-	HeadlessUI{}.Status("sync", "no logger is fine")
+	HeadlessUI{}.Status("sync", msg.Raw("no logger is fine"))
 }
 
 // A game that Heroic didn't install can't be started through it.

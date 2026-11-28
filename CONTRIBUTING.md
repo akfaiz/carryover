@@ -100,7 +100,9 @@ scripts/android-build.sh --release --version 0.4.0
 - `cd android && ./gradlew testDebugUnitTest` runs the Kotlin unit tests. Android Studio opens `android/` after
   the first build.
 - UI text goes in `android/app/src/main/res/values/strings.xml`, with Bahasa Indonesia in `values-in/` (use the
-  desktop's terms from `ui/i18n/translations/id.json`). Messages from the Go core stay English.
+  desktop's terms from `ui/i18n/translations/id.json`). Text from the Go core is defined in
+  `internal/app/msg/catalog.go` and translated by both apps (see "Translating the core's text" in
+  [docs/architecture.md](docs/architecture.md)).
 - Install with `adb install -r <apk>`. To test the special permissions without the app's prompts:
   `adb shell appops set com.akfaiz.carryover MANAGE_EXTERNAL_STORAGE allow` (All-files access) and
   `... GET_USAGE_STATS allow` (Usage access). Any installed app can stand in for an emulator.

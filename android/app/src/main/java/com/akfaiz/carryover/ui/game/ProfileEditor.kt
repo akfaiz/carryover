@@ -35,6 +35,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.akfaiz.carryover.ui.components.coreText
 import com.akfaiz.carryover.R
 import com.akfaiz.carryover.core.EmulatorPresets
 import com.akfaiz.carryover.core.GameView
@@ -93,7 +94,7 @@ fun ProfileEditCard(g: GameView, p: Profile, state: UiState, vm: AppViewModel, n
             EmulatorPresets.savesNote(state.emulators.firstOrNull { it.id == p.emulatorId }).takeIf { it != 0 }?.let { Hint(stringResource(it)) }
         }
         for (slot in p.slots) {
-            val err = p.pathErrors[slot.key]
+            val err = p.pathErrors[slot.key]?.let { coreText(it, p.pathErrorMsgs[slot.key]) }
             val resolved = p.resolvedPaths[slot.key]
             FolderField(
                 value = edits[slot.key] ?: "",

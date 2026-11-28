@@ -91,7 +91,8 @@ func closeLog() {
 // listing it once more; later starts keep the ID in the settings. Calling
 // Init again with the same dataDir only replaces the host; the process can't
 // switch to another dataDir (rclone's config is global).
-func Init(dataDir, cacheDir, homeDir, deviceName, deviceKey string, host Host) error {
+func Init(dataDir, cacheDir, homeDir, deviceName, deviceKey string, host Host) (err error) {
+	defer wire(&err)
 	mu.Lock()
 	defer mu.Unlock()
 	if host == nil {
@@ -246,7 +247,8 @@ func versionString() string {
 func Version() string { return versionString() }
 
 // LogFile returns the path of the log file.
-func LogFile() (string, error) {
+func LogFile() (_ string, err error) {
+	defer wire(&err)
 	s, err := get()
 	if err != nil {
 		return "", err
@@ -259,7 +261,8 @@ func LogFile() (string, error) {
 func WaitBackground() { services.WaitBackground() }
 
 // Settings returns this device's settings (appdir.Settings) as JSON.
-func Settings() (string, error) {
+func Settings() (_ string, err error) {
+	defer wire(&err)
 	s, err := get()
 	if err != nil {
 		return "", err
@@ -269,7 +272,8 @@ func Settings() (string, error) {
 
 // SaveSettings stores settings given as JSON and returns them as stored. The
 // device id can't be changed.
-func SaveSettings(settingsJSON string) (string, error) {
+func SaveSettings(settingsJSON string) (_ string, err error) {
+	defer wire(&err)
 	s, err := get()
 	if err != nil {
 		return "", err

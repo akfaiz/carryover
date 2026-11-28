@@ -9,6 +9,8 @@ import (
 	"sort"
 	"strings"
 	"time"
+
+	"github.com/akfaiz/carryover/internal/app/msg"
 )
 
 // NoticeKind says what happened in the background.
@@ -36,6 +38,8 @@ type Notice struct {
 	Title string     `json:"title"` // the game's name, plus the emulator's
 	Kind  NoticeKind `json:"kind"`
 	Err   string     `json:"err,omitempty"`
+	// ErrMsg is Err for the apps to translate.
+	ErrMsg *msg.Message `json:"errMsg,omitempty"`
 }
 
 func (c *Core) noticesDir() string { return filepath.Join(c.Dirs.StateDir(), "notices") }

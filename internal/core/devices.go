@@ -1,23 +1,23 @@
 package core
 
 import (
-	"errors"
 	"log"
 	"os"
 	"runtime"
 	"strings"
 	"time"
 
+	"github.com/akfaiz/carryover/internal/app/msg"
 	"github.com/akfaiz/carryover/internal/cloudsync/syncer"
 	"github.com/akfaiz/carryover/internal/library"
 )
 
 // ErrThisDevice is returned when a device operation names this device itself.
-var ErrThisDevice = errors.New("that is this device")
+var ErrThisDevice = msg.LibraryThisDevice.Err()
 
 // ErrSessionsOpen is returned by ReuseDevice while a play session hasn't
 // finished: the settings it plays with could change under it.
-var ErrSessionsOpen = errors.New("a game is being played, or its saves are not uploaded yet; try again once that is done")
+var ErrSessionsOpen = msg.SessionOpen.Err()
 
 // RegisterDevice writes this device's record in the library (its name and
 // platform), when it doesn't say so already; it reports whether it changed.

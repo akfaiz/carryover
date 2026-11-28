@@ -22,5 +22,5 @@ func noticeBody(n core.Notice) string {
 	case core.NoticeOffline:
 		return i18n.L("{{.Game}}: saves were not uploaded after Steam closed the game: no internet connection. They upload on the next sync.", map[string]any{"Game": n.Title})
 	}
-	return i18n.L("{{.Game}}: saves could not be uploaded after Steam closed the game: {{.Err}}", map[string]any{"Game": n.Title, "Err": n.Err})
+	return i18n.L("{{.Game}}: saves could not be uploaded after Steam closed the game: {{.Err}}", map[string]any{"Game": n.Title, "Err": i18n.Text(n.Err, n.ErrMsg)})
 }

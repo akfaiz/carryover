@@ -98,7 +98,7 @@ func (u *Shell) RestartForUpdate(finish func(restart bool) error) {
 	}
 	if err := finish(true); err != nil {
 		log.Printf("update: restart: %v", err)
-		u.toast(i18n.L("Carryover couldn't restart: {{.Err}}", map[string]any{"Err": err}), kit.ToastErr)
+		u.toast(i18n.L("Carryover couldn't restart: {{.Err}}", map[string]any{"Err": i18n.Err(err)}), kit.ToastErr)
 		return
 	}
 	u.closing = true

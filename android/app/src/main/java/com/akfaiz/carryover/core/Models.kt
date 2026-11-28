@@ -121,6 +121,7 @@ data class UpdateState(
     val file: String = "",
     /** Why the last check or download failed. */
     val error: String = "",
+    val errorMsg: CoreMessage? = null,
 ) {
     /** There is a newer version to tell the user about. */
     val newer: Boolean
@@ -183,6 +184,7 @@ data class Question(
     val isBool: Boolean = false,
     val examples: List<OptionExample> = emptyList(),
     val error: String = "",
+    val errorMsg: CoreMessage? = null,
 )
 
 @Serializable
@@ -201,6 +203,7 @@ data class GameStatus(
     val lastAction: String = "",
     val conflict: Boolean = false,
     val lastError: String = "",
+    val lastErrorMsg: CoreMessage? = null,
     val running: Boolean = false,
     val localChanges: Boolean = false,
 )
@@ -229,6 +232,8 @@ data class ProfileView(
     val paths: Map<String, String> = emptyMap(),
     val resolvedPaths: Map<String, String> = emptyMap(),
     val pathErrors: Map<String, String> = emptyMap(),
+    /** The [pathErrors] the app can translate. */
+    val pathErrorMsgs: Map<String, CoreMessage> = emptyMap(),
     val status: GameStatus = GameStatus(),
 )
 
@@ -242,6 +247,8 @@ data class GameView(
     val hasDevice: Boolean = false,
     val resolvedPaths: Map<String, String> = emptyMap(),
     val pathErrors: Map<String, String> = emptyMap(),
+    /** The [pathErrors] the app can translate. */
+    val pathErrorMsgs: Map<String, CoreMessage> = emptyMap(),
     val otherDevices: List<DevicePaths> = emptyList(),
     val status: GameStatus = GameStatus(),
     val emulators: List<ProfileView> = emptyList(),
@@ -277,13 +284,13 @@ data class GameView(
     val profiles: List<Profile>
         get() = buildList {
             if (slots.isNotEmpty()) {
-                add(Profile(id, null, null, slots, device.paths, resolvedPaths, pathErrors, status, app = device.exe))
+                add(Profile(id, null, null, slots, device.paths, resolvedPaths, pathErrors, status, app = device.exe, pathErrorMsgs = pathErrorMsgs))
             }
             for (e in emulators) {
                 add(
                     Profile(
                         e.key, e.name, e.emulatorId, e.slots, e.paths, e.resolvedPaths, e.pathErrors, e.status,
-                        rom = e.rom, shareWith = e.shareWith,
+                        rom = e.rom, shareWith = e.shareWith, pathErrorMsgs = e.pathErrorMsgs,
                     ),
                 )
             }
@@ -309,6 +316,7 @@ data class Profile(
     val app: String = "",
     /** The emulator whose saves (and save locations) this one uses, "" for its own. */
     val shareWith: String = "",
+    val pathErrorMsgs: Map<String, CoreMessage> = emptyMap(),
 ) {
     val canSync: Boolean
         get() = slots.isNotEmpty() && pathErrors.isEmpty() && slots.all { resolvedPaths.containsKey(it.key) }
@@ -395,6 +403,8 @@ data class SaveSuggestion(
     val include: List<String> = emptyList(),
     /** There are files at this location on this device now. */
     val exists: Boolean = false,
+    /** [game] to translate, when it says more than the title. */
+    val gameMsg: CoreMessage? = null,
     val kind: SaveKind = SaveKind.None,
 )
 
@@ -406,6 +416,7 @@ data class SaveSuggestions(
     val perGame: Boolean = false,
     /** Something to know about the result. */
     val note: String = "",
+    val noteMsg: CoreMessage? = null,
 )
 
 @Serializable
@@ -423,7 +434,13 @@ data class PlanView(
 data class SyncOutcome(val action: SyncAction = SyncAction.None, val offline: Boolean = false, val cancelled: Boolean = false)
 
 @Serializable
-data class SyncResult(val gameId: String = "", val name: String = "", val action: SyncAction = SyncAction.None, val error: String = "")
+data class SyncResult(
+    val gameId: String = "",
+    val name: String = "",
+    val action: SyncAction = SyncAction.None,
+    val error: String = "",
+    val errorMsg: CoreMessage? = null,
+)
 
 @Serializable
 data class SyncAllOutcome(
@@ -437,6 +454,7 @@ data class SyncEvent(
     val gameId: String = "",
     val phase: String = "",
     val message: String = "",
+    val msg: CoreMessage? = null,
     val bytes: Long = 0,
     val totalBytes: Long = 0,
 )
@@ -505,6 +523,7 @@ data class Notice(
     val title: String = "",
     val kind: NoticeKind = NoticeKind.Unknown,
     val err: String = "",
+    val errMsg: CoreMessage? = null,
 )
 
 @Serializable
@@ -525,7 +544,7 @@ data class ConflictInfo(val local: Summary = Summary(), val remote: Summary = Su
 data class Lock(val deviceName: String = "", val since: String = "")
 
 @Serializable
-data class ProfileChoice(val id: String = "", val name: String = "")
+data class ProfileChoice(val id: String = "", val name: String = "", val nameMsg: CoreMessage? = null)
 
 /** A question from a play session; answer with Core.respond. */
 @Serializable
@@ -538,6 +557,7 @@ data class Prompt(
     val conflict: ConflictInfo? = null,
     val lock: Lock? = null,
     val error: String = "",
+    val errorMsg: CoreMessage? = null,
     val choices: List<ProfileChoice> = emptyList(),
     val default: String = "",
 )
@@ -550,6 +570,7 @@ data class SessionStatus(
     /** sync, playing, done, error, offline, choose */
     val phase: String = "",
     val message: String = "",
+    val msg: CoreMessage? = null,
     val running: Boolean = false,
 )
 

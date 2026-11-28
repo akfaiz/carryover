@@ -8,6 +8,8 @@ import com.akfaiz.carryover.core.CoreEvent
 import com.akfaiz.carryover.core.EmulatorView
 import com.akfaiz.carryover.core.Prompt
 import com.akfaiz.carryover.data.Texts
+import com.akfaiz.carryover.data.core
+import com.akfaiz.carryover.data.error
 import com.akfaiz.carryover.session.PlayOutcome
 import com.akfaiz.carryover.session.Sessions
 import kotlinx.coroutines.CancellationException
@@ -54,7 +56,11 @@ class LaunchViewModel(
                     is CoreEvent.PromptOpened -> _prompts.update { it + ev.prompt }
                     is CoreEvent.PromptClosed -> _prompts.update { l -> l.filter { it.id != ev.id } }
                     is CoreEvent.Status -> _state.update { s ->
-                        if (s is LaunchState.Working && ev.status.message.isNotEmpty()) LaunchState.Working(ev.status.message) else s
+                        if (s is LaunchState.Working && ev.status.message.isNotEmpty()) {
+                            LaunchState.Working(texts.core(ev.status.message, ev.status.msg))
+                        } else {
+                            s
+                        }
                     }
                     else -> {}
                 }
@@ -84,7 +90,7 @@ class LaunchViewModel(
             } catch (e: Exception) {
                 if (e is CancellationException) throw e
                 platform.log("launch", e)
-                fail(e.message ?: e.toString())
+                fail(texts.error(e))
             }
         }
     }
@@ -101,7 +107,7 @@ class LaunchViewModel(
                 checking(plan.cand)
                 platform.play(plan.cand, emulators).fold(
                     onSuccess = { finish(plan.cand, it) },
-                    onFailure = { fail(str(R.string.msg_error, plan.cand.title, it.message.orEmpty())) },
+                    onFailure = { fail(str(R.string.msg_error, plan.cand.title, texts.error(it))) },
                 )
             }
             is LaunchPlan.Refused -> fail(str(R.string.launch_not_allowed, platform.appLabel(plan.pkg)))

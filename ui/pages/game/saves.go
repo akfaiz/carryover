@@ -99,17 +99,17 @@ func (p *Page) savesCard(c *ui.Context, pe profileEntry, busy, hasRemote, severa
 				})
 			}
 			if !g.Ready && (whole.Ready || g.SetupHint != whole.SetupHint) {
-				kit.Callout(c, kit.BadgeWarn, kit.IconAlert, g.SetupHint, nil)
+				kit.Callout(c, kit.BadgeWarn, kit.IconAlert, i18n.Text(g.SetupHint, g.SetupHintMsg), nil)
 			}
 			if g.Status.LastError != "" && !g.Status.Running && g.Status.LastError != whole.Status.LastError {
-				kit.Callout(c, kit.BadgeErr, kit.IconAlert, g.Status.LastError, nil)
+				kit.Callout(c, kit.BadgeErr, kit.IconAlert, i18n.Text(g.Status.LastError, g.Status.LastErrorMsg), nil)
 			}
 			if g.Status.LocalChanges && !g.Status.Running { // says which of the profiles changed
 				kit.Callout(c, kit.BadgeWarn, kit.IconUpload, i18n.L("These saves changed on this device after the last sync. Use “Sync now” to upload them."), nil)
 			}
 		}
 		for _, sl := range g.Slots {
-			p.saveLocationRow(c, sl, g.ResolvedPaths[sl.Key], g.PathErrors[sl.Key])
+			p.saveLocationRow(c, sl, g.ResolvedPaths[sl.Key], pathError(g, sl.Key))
 		}
 		if !g.Ready {
 			p.btn(c, "setup:"+pe.id, kit.BtnPrimary, kit.IconPencil, i18n.L("Set up saves for this device"), false,
@@ -259,4 +259,12 @@ func (p *Page) otherDevices(c *ui.Context, g services.GameView) {
 			}, nil)
 		}
 	})
+}
+
+// pathError is why the save folder of a slot can't be resolved, "" if it can.
+func pathError(g services.GameView, slot string) string {
+	if m, ok := g.PathErrorMsgs[slot]; ok {
+		return i18n.Msg(m)
+	}
+	return g.PathErrors[slot]
 }

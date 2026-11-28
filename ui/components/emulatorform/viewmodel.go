@@ -52,6 +52,7 @@ type ViewModel struct {
 	advanced bool
 	saving   bool
 	errText  string
+	errMsg   *services.Message
 	orig     string // what the form started with, to tell whether it changed
 	flatpaks []services.FlatpakEmulator
 }
@@ -202,11 +203,14 @@ func (vm *ViewModel) Saving() bool { return vm.saving }
 // ErrText is why the last save failed, "" if it didn't.
 func (vm *ViewModel) ErrText() string { return vm.errText }
 
+// ErrMsg is ErrText to translate, if it is the core's.
+func (vm *ViewModel) ErrMsg() *services.Message { return vm.errMsg }
+
 // BeginSave marks the form as saving and returns what to save.
 func (vm *ViewModel) BeginSave() services.EmulatorSetup {
 	s := vm.s
 	s.Env = ParseEnv(vm.envText)
-	vm.saving, vm.errText = true, ""
+	vm.saving, vm.errText, vm.errMsg = true, "", nil
 	return s
 }
 
@@ -220,7 +224,7 @@ func (vm *ViewModel) Save(s services.EmulatorSetup) (services.EmulatorView, erro
 func (vm *ViewModel) FinishSave(err error) bool {
 	vm.saving = false
 	if err != nil {
-		vm.errText = err.Error()
+		vm.errText, vm.errMsg = services.ErrorText(err)
 		return false
 	}
 	vm.orig = vm.snapshot()

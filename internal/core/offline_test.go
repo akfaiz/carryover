@@ -12,6 +12,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	"github.com/akfaiz/carryover/internal/app/msg"
 	"github.com/akfaiz/carryover/internal/cloudsync/syncer"
 	"github.com/akfaiz/carryover/internal/library"
 )
@@ -27,7 +28,7 @@ type recordUI struct {
 	onRunning func(bool)
 }
 
-func (u *recordUI) Status(phase, _ string) {
+func (u *recordUI) Status(phase string, _ msg.Message) {
 	u.mu.Lock()
 	u.phases = append(u.phases, phase)
 	u.mu.Unlock()

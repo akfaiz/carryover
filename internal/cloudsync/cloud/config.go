@@ -18,6 +18,8 @@ import (
 	"github.com/rclone/rclone/fs/config/configfile"
 	"github.com/rclone/rclone/fs/operations"
 	"github.com/rclone/rclone/fs/rc"
+
+	"github.com/akfaiz/carryover/internal/app/msg"
 )
 
 var (
@@ -213,6 +215,7 @@ type Question struct {
 	IsBool     bool            `json:"isBool"`
 	Examples   []OptionExample `json:"examples"`
 	Error      string          `json:"error"`
+	ErrorMsg   *msg.Message    `json:"errorMsg,omitempty"`
 }
 
 func toQuestion(out *fs.ConfigOut) *Question {
@@ -242,10 +245,10 @@ func toQuestion(out *fs.ConfigOut) *Question {
 // browser on this machine and block until authorisation completes.
 func CreateRemote(ctx context.Context, name, typ string, params map[string]string) (*Question, error) {
 	if name == "" {
-		return nil, errors.New("remote name is required")
+		return nil, msg.CloudNameRequired.Err()
 	}
 	if !IsSupported(typ) {
-		return nil, fmt.Errorf("unsupported provider %q", typ)
+		return nil, msg.CloudUnsupported.Err("Provider", typ)
 	}
 	kv := rc.Params{}
 	for k, v := range params {
@@ -281,7 +284,8 @@ func ContinueRemote(ctx context.Context, name, state, result string) (*Question,
 	}
 	q := toQuestion(out)
 	if q.Error != "" {
-		q.Error = explainOAuthError(errors.New(q.Error)).Error()
+		explained := msg.Of(explainOAuthError(errors.New(q.Error)))
+		q.Error, q.ErrorMsg = explained.Text, explained.Ptr()
 	}
 	return q, nil
 }
@@ -311,7 +315,7 @@ func ImportConfig(path string) (ImportResult, error) {
 func ImportConfigData(b []byte) (ImportResult, error) {
 	res := ImportResult{Imported: []string{}, Skipped: []string{}, Replaced: []string{}}
 	if strings.HasPrefix(strings.TrimSpace(string(b)), "RCLONE_ENCRYPT_V0") {
-		return res, errors.New("encrypted rclone configs are not supported; decrypt it first (rclone config encryption remove)")
+		return res, msg.CloudEncrypted.Err()
 	}
 	sections := parseINI(string(b))
 	configMu.Lock()

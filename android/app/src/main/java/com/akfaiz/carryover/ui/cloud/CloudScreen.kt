@@ -45,6 +45,9 @@ import com.akfaiz.carryover.core.OptionExample
 import com.akfaiz.carryover.core.Provider
 import com.akfaiz.carryover.core.ProviderOption
 import com.akfaiz.carryover.core.Question
+import com.akfaiz.carryover.data.core
+import com.akfaiz.carryover.data.error
+import com.akfaiz.carryover.ui.components.rememberTexts
 import com.akfaiz.carryover.ui.components.SettingRow
 import com.akfaiz.carryover.ui.components.readLimited
 import com.akfaiz.carryover.ui.kit.AppButton
@@ -194,6 +197,7 @@ fun CloudScreen(nav: Nav, vm: CloudViewModel = viewModel()) {
 @Composable
 fun AddRemoteScreen(nav: Nav, vm: CloudViewModel = viewModel()) {
     val scope = rememberCoroutineScope()
+    val texts = rememberTexts()
     var providers by remember { mutableStateOf<List<Provider>>(emptyList()) }
     var provider by remember { mutableStateOf<Provider?>(null) }
     var name by remember { mutableStateOf("") }
@@ -209,7 +213,7 @@ fun AddRemoteScreen(nav: Nav, vm: CloudViewModel = viewModel()) {
 
     LaunchedEffect(Unit) {
         providers = runCatching { vm.providers() }.getOrElse {
-            error = it.message
+            error = texts.error(it)
             emptyList()
         }
     }
@@ -227,7 +231,7 @@ fun AddRemoteScreen(nav: Nav, vm: CloudViewModel = viewModel()) {
                 } else {
                     question = q
                     answer = q.default
-                    error = q.error.ifEmpty { null }
+                    error = texts.core(q.error, q.errorMsg).ifEmpty { null }
                 }
             } catch (e: Exception) {
                 if (e is CancellationException) throw e
@@ -236,7 +240,7 @@ fun AddRemoteScreen(nav: Nav, vm: CloudViewModel = viewModel()) {
                     question = null
                     vm.refresh()
                 } else {
-                    error = e.message ?: e.toString()
+                    error = texts.error(e)
                 }
             } finally {
                 working = false

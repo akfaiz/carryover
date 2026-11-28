@@ -37,7 +37,8 @@ sealed interface CoreEvent {
 
 /**
  * The Go core (package mobile, bound with gomobile). Calls run on
- * [Dispatchers.IO]; Go errors arrive as exceptions whose message is the error.
+ * [Dispatchers.IO]; Go errors arrive as exceptions whose message is the error,
+ * a [CoreException] when the app can translate it.
  */
 object Core : CoreApi {
     private const val TAG = "Carryover"
@@ -72,7 +73,7 @@ object Core : CoreApi {
             Log.i(TAG, "core init took ${SystemClock.elapsedRealtime() - started} ms")
         } catch (e: Exception) {
             Log.e(TAG, "core init", e)
-            initError = e.message ?: e.toString()
+            initError = coreError(e, Mobile.ErrorPrefix).let { it.message ?: it.toString() }
         }
     }
 
@@ -135,7 +136,14 @@ object Core : CoreApi {
         _authUrl.value = null
     }
 
-    private suspend fun <T> io(block: () -> T): T = withContext(Dispatchers.IO) { block() }
+    private suspend fun <T> io(block: () -> T): T = withContext(Dispatchers.IO) { call(block) }
+
+    /** Runs a call into the Go core, with its error as a [CoreException] where it can be translated. */
+    private inline fun <T> call(block: () -> T): T = try {
+        block()
+    } catch (e: Exception) {
+        throw coreError(e, Mobile.ErrorPrefix)
+    }
 
     private inline fun <reified T> String.decode(): T = json.decodeFromString(this)
 

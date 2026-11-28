@@ -236,7 +236,7 @@ func (e *Page) suggestEmuSaves(m *emuForm, autofill bool) {
 		m.suggesting = false
 		switch {
 		case err != nil && !autofill:
-			m.sugErr = err.Error()
+			m.sugErr = i18n.Err(err)
 		case err == nil:
 			e.vm.ApplyEmuSuggestions(m, res, autofill)
 		}
@@ -264,7 +264,7 @@ func (e *Page) emuSuggestions(c *ui.Context, m *emuForm, ev services.EmulatorVie
 			kit.Muted(c, i18n.L("No save location is known for this game. Check the game's name, or enter the folder yourself."))
 		}
 		if res.Note != "" {
-			kit.Colored(c, res.Note, th.Warning)
+			kit.Colored(c, i18n.Text(res.Note, res.NoteMsg), th.Warning)
 		}
 		for i, sg := range res.Suggestions {
 			if hideSuggestion(m, sg) {
@@ -276,10 +276,11 @@ func (e *Page) emuSuggestions(c *ui.Context, m *emuForm, ev services.EmulatorVie
 					m.sugErr = i18n.L("This emulator shares another emulator's saves, whose locations aren't marked as account or device save. Suggest the locations on that emulator first, or enter the path yourself.")
 				}
 			}
-			kit.ListButton(c, nav, [3]any{"emu-sug", m, i}, sg.Game, use, func() {
+			label := i18n.Text(sg.Game, sg.GameMsg)
+			kit.ListButton(c, nav, [3]any{"emu-sug", m, i}, label, use, func() {
 				ui.Column(c).Gap(2).Padding(6, 8).Children(func() {
 					ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
-						ui.Text(c, sg.Game).Bold()
+						ui.Text(c, label).Bold()
 						if sg.Exists {
 							kit.Badge(c, i18n.L("Found on this device"), kit.BadgeOK)
 						}

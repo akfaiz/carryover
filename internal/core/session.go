@@ -3,7 +3,6 @@ package core
 import (
 	"context"
 	"errors"
-	"fmt"
 	"log"
 	"os"
 	"path/filepath"
@@ -13,6 +12,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/akfaiz/carryover/internal/app/msg"
 	"github.com/akfaiz/carryover/internal/cloudsync/syncer"
 	"github.com/akfaiz/carryover/internal/launcher"
 	"github.com/akfaiz/carryover/internal/library"
@@ -24,7 +24,7 @@ import (
 // SessionUI is how a play session interacts with the user.
 type SessionUI interface {
 	// Status reports progress text.
-	Status(phase, message string)
+	Status(phase string, message msg.Message)
 	// ResolveConflict asks the user which side to keep. Returning ResolveAuto
 	// skips syncing this time (nothing is overwritten).
 	ResolveConflict(ctx context.Context, game library.Game, plan *syncer.Plan, beforePlay bool) syncer.Resolution
@@ -67,7 +67,7 @@ type SessionResult struct {
 
 // ErrCancelled is returned when the user aborts before the game starts, and
 // is the SessionResult.PostError when the user cancels the upload afterwards.
-var ErrCancelled = errors.New("cancelled")
+var ErrCancelled = msg.SessionAborted.Err()
 
 // cancelablePhase gives the UI a way to cancel one sync phase. done must be
 // called when the phase ends; it reports whether the user cancelled it.
@@ -114,7 +114,7 @@ func (c *Core) Play(ctx context.Context, gameID string, opt RunOptions, ui Sessi
 	if emuID != "" {
 		title += " (" + c.ProfileName(emuID) + ")"
 	}
-	ui.Status("playing", "Playing "+title)
+	ui.Status("playing", msg.SessionPlaying.Msg("Name", title))
 	ui.GameRunning(true)
 	log.Printf("play %s: starting %s", key, filepath.Base(spec.Exe))
 	started := time.Now()
@@ -199,7 +199,7 @@ func (c *Core) beginPlay(ctx context.Context, game library.Game, emuID string, o
 		return s, nil
 	}
 	preCtx, preDone := cancelablePhase(ctx, ui)
-	ui.Status("sync", "Checking cloud saves…")
+	ui.Status("sync", msg.SessionChecking.Msg())
 	var (
 		action  syncer.Action
 		other   *syncer.Lock
@@ -225,13 +225,13 @@ func (c *Core) beginPlay(ctx context.Context, game library.Game, emuID string, o
 	if isOffline {
 		log.Printf("play %s: offline, starting without syncing: %v", key, err)
 		s.res.PreOffline = true
-		ui.Status("offline", "Offline — playing without syncing")
+		ui.Status("offline", msg.SessionOfflineNoSync.Msg())
 		pause(ctx, offlineNotice)
 		action, other, err = syncer.ActionNone, nil, nil
 	}
 	s.res.PreAction = action
 	if err != nil {
-		c.States.SetError(key, err.Error())
+		c.States.SetError(key, err)
 		if errors.Is(err, ErrCancelled) || !ui.ConfirmSyncFailure(ctx, s.game, err, true) {
 			log.Printf("play %s: not launched after the sync before playing failed: %v", key, err)
 			return s, ErrCancelled
@@ -288,7 +288,7 @@ func (s *playSession) end(ui SessionUI) (syncer.Action, error) {
 	postCtx, cancel := context.WithTimeout(context.Background(), 30*time.Minute)
 	defer cancel()
 	upCtx, upDone := cancelablePhase(postCtx, ui)
-	ui.Status("sync", "Uploading saves…")
+	ui.Status("sync", msg.SessionUploading.Msg())
 	action := syncer.ActionNone
 	err := c.Online(upCtx)
 	isOffline := offline(upCtx, err)
@@ -306,10 +306,10 @@ func (s *playSession) end(ui SessionUI) (syncer.Action, error) {
 	case isOffline:
 		log.Printf("play %s: offline after playing, saves kept on this device: %v", key, err)
 		action, err = syncer.ActionNone, ErrOffline
-		ui.Status("offline", "Offline — saves kept on this device; they upload on the next sync")
+		ui.Status("offline", msg.SessionOfflineKept.Msg())
 	}
 	if err != nil && !errors.Is(err, ErrCancelled) && !errors.Is(err, ErrOffline) {
-		c.States.SetError(key, err.Error())
+		c.States.SetError(key, err)
 		ui.ConfirmSyncFailure(postCtx, s.game, err, false)
 	}
 	if isOffline {
@@ -340,7 +340,7 @@ func (s *playSession) end(ui SessionUI) (syncer.Action, error) {
 // ErrPlaying is returned for a game being played on this device in a session
 // started with StartSession and not ended yet. It wraps syncer.ErrLocked, so
 // callers that skip a game while it is played or synced skip it too.
-var ErrPlaying = fmt.Errorf("being played on this device: %w", syncer.ErrLocked)
+var ErrPlaying = msg.SessionPlayingHere.Wrap(syncer.ErrLocked)
 
 // SessionStart is what StartSession did.
 type SessionStart struct {
@@ -528,7 +528,7 @@ func (c *Core) waitLocalLock(ctx context.Context, ckey string, ui SessionUI) (*s
 		}
 		if !told {
 			told = true
-			ui.Status("sync", "Waiting for the previous session to finish…")
+			ui.Status("sync", msg.SessionWaiting.Msg())
 		}
 		if !pause(ctx, 500*time.Millisecond) {
 			return nil, ErrCancelled
@@ -611,7 +611,7 @@ const romToken = "{rom}"
 func (c *Core) emulatorSpec(game library.Game, dev library.DeviceConfig, opt RunOptions, emuID string) (launcher.Spec, error) {
 	emu, err := c.Library.Emulator(emuID)
 	if err != nil {
-		return launcher.Spec{}, fmt.Errorf("the emulator of %s no longer exists", game.Name)
+		return launcher.Spec{}, msg.SetupEmulatorGone.Err("Game", game.Name)
 	}
 	ed, ok := emu.Device(c.DeviceID())
 	spec := launcher.Spec{WaitProcess: ed.WaitProcess, Env: ed.Env}
@@ -620,7 +620,7 @@ func (c *Core) emulatorSpec(game library.Game, dev library.DeviceConfig, opt Run
 		return spec, nil
 	}
 	if !ok || ed.Exe == "" {
-		return spec, fmt.Errorf("%s has no executable configured on this device", emu.Name)
+		return spec, msg.SetupNoExecutable.Err("Name", emu.Name)
 	}
 	pctx := c.PathContextFor(game, emuID)
 	if spec.Exe, err = pctx.Expand(ed.Exe); err != nil {
@@ -676,7 +676,7 @@ func (c *Core) launchSpec(game library.Game, dev library.DeviceConfig, opt RunOp
 		return spec, nil
 	}
 	if dev.Exe == "" {
-		return spec, fmt.Errorf("%s has no executable configured on this device", game.Name)
+		return spec, msg.SetupNoExecutable.Err("Name", game.Name)
 	}
 	exe, err := pctx.Expand(dev.Exe)
 	if err != nil {
@@ -714,7 +714,7 @@ func (h HeadlessUI) logf(f string, a ...any) {
 	}
 }
 
-func (h HeadlessUI) Status(phase, message string) { h.logf("%s", message) }
+func (h HeadlessUI) Status(_ string, message msg.Message) { h.logf("%s", message.Text) }
 func (h HeadlessUI) ResolveConflict(_ context.Context, g library.Game, _ *syncer.Plan, _ bool) syncer.Resolution {
 	h.logf("%s: save conflict — skipped; resolve it in Carryover", g.Name)
 	return syncer.ResolveAuto
@@ -740,7 +740,7 @@ func heroicSpec(spec launcher.Spec, exe string) (launcher.Spec, error) {
 	home, _ := os.UserHomeDir()
 	g, ok := heroic.ForExe(home, exe)
 	if !ok {
-		return spec, fmt.Errorf("%s is not in a game folder Heroic has installed on this device", exe)
+		return spec, msg.SetupNotHeroic.Err("Program", exe)
 	}
 	cmd := g.Command()
 	spec.Exe, spec.Args = cmd[0], cmd[1:]
@@ -756,12 +756,12 @@ func heroicSpec(spec launcher.Spec, exe string) (launcher.Spec, error) {
 // waits for the game's process (exe's name unless WaitProcess says otherwise).
 func lutrisSpec(spec launcher.Spec, exe string) (launcher.Spec, error) {
 	if runtime.GOOS != "linux" {
-		return spec, errors.New("starting a game through Lutris is only possible on Linux")
+		return spec, msg.SetupHeroicOS.Err()
 	}
 	home, _ := os.UserHomeDir()
 	g, ok := lutris.ForExe(home, exe)
 	if !ok {
-		return spec, fmt.Errorf("%s is not in a game Lutris has installed on this device", exe)
+		return spec, msg.SetupNotLutris.Err("Program", exe)
 	}
 	cmd := g.Command()
 	spec.Exe, spec.Args = cmd[0], cmd[1:]
@@ -777,12 +777,12 @@ func lutrisSpec(spec launcher.Spec, exe string) (launcher.Spec, error) {
 // waits for exe's process: bottles-cli may return before the game has closed.
 func bottlesSpec(spec launcher.Spec, exe string) (launcher.Spec, error) {
 	if runtime.GOOS != "linux" {
-		return spec, errors.New("starting a game through Bottles is only possible on Linux")
+		return spec, msg.SetupBottlesOS.Err()
 	}
 	home, _ := os.UserHomeDir()
 	g, ok := bottles.ForExe(home, exe)
 	if !ok {
-		return spec, fmt.Errorf("%s is not in a bottle on this device", exe)
+		return spec, msg.SetupNotBottles.Err("Program", exe)
 	}
 	cmd := g.Command()
 	spec.Exe, spec.Args = cmd[0], cmd[1:]

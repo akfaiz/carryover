@@ -2,12 +2,12 @@ package core
 
 import (
 	"context"
-	"fmt"
 	"os"
 	"path/filepath"
 	"sort"
 	"strings"
 
+	"github.com/akfaiz/carryover/internal/app/msg"
 	"github.com/akfaiz/carryover/internal/cloudsync/cloud"
 	"github.com/akfaiz/carryover/internal/library"
 )
@@ -77,15 +77,15 @@ func (c *Core) syncCovers(ctx context.Context, cl *cloud.Client) error {
 	}
 	listed, err := cl.ListFilesInfo(ctx, coversCloudDir)
 	if err != nil {
-		return fmt.Errorf("list cloud images: %w", err)
+		return msg.CloudImagesList.Wrap(err)
 	}
 	dir := c.Dirs.CoversDir()
 	up, down, upBytes, downBytes := coverDelta(names, dir, listed)
 	if err := cl.Upload(ctx, dir, coversCloudDir, up, upBytes, nil); err != nil {
-		return fmt.Errorf("upload images: %w", err)
+		return msg.CloudImagesUpload.Wrap(err)
 	}
 	if err := cl.Download(ctx, coversCloudDir, dir, down, downBytes, nil); err != nil {
-		return fmt.Errorf("download images: %w", err)
+		return msg.CloudImagesDownload.Wrap(err)
 	}
 	return nil
 }

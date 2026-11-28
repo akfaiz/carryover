@@ -10,6 +10,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/akfaiz/carryover/internal/app/msg"
 	"github.com/akfaiz/carryover/internal/cloudsync/syncer"
 	"github.com/akfaiz/carryover/internal/library"
 	"github.com/akfaiz/carryover/internal/stores/steam"
@@ -106,7 +107,7 @@ func TestHeadlessUI(t *testing.T) {
 	g := library.Game{Name: "Game A"}
 	ctx := context.Background()
 
-	ui.Status("sync", "Checking")
+	ui.Status("sync", msg.Raw("Checking"))
 	require.Equal(t, syncer.ResolveAuto, ui.ResolveConflict(ctx, g, nil, true))
 	require.True(t, ui.ConfirmLock(ctx, g, &syncer.Lock{DeviceName: "Deck", Since: time.Now()}), "ConfirmLock refused")
 	require.True(t, ui.ConfirmSyncFailure(ctx, g, context.DeadlineExceeded, false), "ConfirmSyncFailure refused")
@@ -115,7 +116,7 @@ func TestHeadlessUI(t *testing.T) {
 	require.Len(t, logged, 4)
 
 	// Without a logger nothing panics.
-	HeadlessUI{}.Status("x", "y")
+	HeadlessUI{}.Status("x", msg.Raw("y"))
 }
 
 // steamEnv points Carryover at an empty fake Steam installation.

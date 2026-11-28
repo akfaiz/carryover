@@ -39,13 +39,13 @@ func New(u env.Env) *Page {
 		Error:    u.ToastErr,
 		Saved:    func() { u.Toast(i18n.L("Cloud location saved"), kit.ToastOK) },
 		SyncFailed: func(err error) {
-			u.Toast(i18n.L("Library sync: {{.Err}}", map[string]any{"Err": err}), kit.ToastErr)
+			u.Toast(i18n.L("Library sync: {{.Err}}", map[string]any{"Err": i18n.Err(err)}), kit.ToastErr)
 		},
 		Imported: p.reportImport,
 	})
 	p.test = kit.NewTestButton(i18n.L("Test connection"), i18n.L("Connection works."), i18n.L("Testing…"), func() func() error {
 		remote, root := p.vm.Remote(), p.vm.Root()
-		return func() error { return p.u.Cloud().Test(remote, root) }
+		return func() error { return i18n.Translated(p.u.Cloud().Test(remote, root)) }
 	})
 	p.vm.Open()
 	return p

@@ -1,6 +1,7 @@
 package services
 
 import (
+	"github.com/akfaiz/carryover/internal/app/msg"
 	"github.com/akfaiz/carryover/internal/core"
 	"github.com/akfaiz/carryover/internal/launcher"
 	"github.com/akfaiz/carryover/internal/library"
@@ -27,6 +28,9 @@ type (
 	SaveSlot = library.SaveSlot
 	// AddToSteamResult is what adding a shortcut to Steam did.
 	AddToSteamResult = core.AddToSteamResult
+	// Message is a text of the core that the apps translate (see
+	// internal/app/msg); views carry one next to its English text.
+	Message = msg.Message
 )
 
 // Artwork kinds.
@@ -64,6 +68,13 @@ var SelfArtKinds = core.SelfArtKinds
 // AppBundle returns the .app bundle a program picked inside one belongs to
 // (macOS), or the path unchanged.
 func AppBundle(path string) string { return launcher.AppBundle(path) }
+
+// ErrorText is an error as its English text and, when the apps can translate
+// it, its message (nil otherwise).
+func ErrorText(err error) (string, *Message) {
+	m := msg.Of(err)
+	return m.Text, m.Ptr()
+}
 
 // ErrOffline is wrapped by errors meaning the cloud couldn't be reached.
 var ErrOffline = core.ErrOffline

@@ -51,7 +51,7 @@ class SuggestViewModel(private val services: AppServices = AppServices.shared) :
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
-                null to (e.message ?: e.toString()).replaceFirstChar { it.uppercase() }
+                null to m.error(e).replaceFirstChar { it.uppercase() }
             }
             if (mine != generation) return@launch
             _state.update { it.copy(loading = false, result = found.first, error = found.second) }

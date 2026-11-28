@@ -26,6 +26,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.akfaiz.carryover.ui.components.coreText
 import com.akfaiz.carryover.R
 import com.akfaiz.carryover.core.UpdateState
 import com.akfaiz.carryover.core.UpdateStatus
@@ -76,7 +77,7 @@ fun UpdateSection(state: SettingsState, vm: SettingsViewModel) {
             update.newer -> SettingRow(
                 Icons.Outlined.SystemUpdate,
                 stringResource(R.string.update_available, update.latest),
-                update.error.ifEmpty { stringResource(R.string.update_available_hint, update.current) },
+                coreText(update.error, update.errorMsg).ifEmpty { stringResource(R.string.update_available_hint, update.current) },
                 onClick = { dialog = true },
             )
             else -> {
@@ -84,7 +85,7 @@ fun UpdateSection(state: SettingsState, vm: SettingsViewModel) {
                 SettingRow(
                     Icons.Outlined.Refresh,
                     stringResource(if (checking) R.string.update_checking else R.string.update_check),
-                    update.error.ifEmpty {
+                    coreText(update.error, update.errorMsg).ifEmpty {
                         if (update.status == UpdateStatus.Current) stringResource(R.string.update_current) else null
                     },
                     onClick = if (checking) null else vm::checkForUpdate,
@@ -120,7 +121,7 @@ private fun UpdateDialog(
         text = {
             Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 Text(stringResource(R.string.update_available, update.latest))
-                if (update.error.isNotEmpty()) Text(update.error, color = MaterialTheme.colorScheme.error)
+                if (update.error.isNotEmpty()) Text(coreText(update.error, update.errorMsg), color = MaterialTheme.colorScheme.error)
                 if (!update.installable) Hint(stringResource(R.string.update_not_installable))
                 if (downloading) {
                     Hint(stringResource(R.string.update_downloading))

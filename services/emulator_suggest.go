@@ -2,14 +2,13 @@ package services
 
 import (
 	"context"
-	"errors"
-	"fmt"
 	"runtime"
 	"slices"
 	"sort"
 	"strings"
 	"time"
 
+	"github.com/akfaiz/carryover/internal/app/msg"
 	"github.com/akfaiz/carryover/internal/cloudsync/localfs"
 	"github.com/akfaiz/carryover/internal/saves/emumanifest"
 	"github.com/akfaiz/carryover/internal/saves/ludusavi"
@@ -22,16 +21,25 @@ type PresetView struct {
 	Name     string `json:"name"`
 	PerGame  bool   `json:"perGame"`  // false: one location holds every game's saves
 	RootHint string `json:"rootHint"` // which folder the data folder is
+	// RootHintMsg and ArgsNoteMsg are RootHint and ArgsNote to translate.
+	RootHintMsg *msg.Message `json:"rootHintMsg,omitempty"`
 	// Args is a suggested command line ({rom} = the game file); ArgsNote says what to check.
-	Args     string `json:"args"`
-	ArgsNote string `json:"argsNote"`
+	Args        string       `json:"args"`
+	ArgsNote    string       `json:"argsNote"`
+	ArgsNoteMsg *msg.Message `json:"argsNoteMsg,omitempty"`
 }
 
 // Presets lists the emulator types that have save suggestions.
 func (s *EmulatorService) Presets() []PresetView {
 	var out []PresetView
 	for _, p := range emumanifest.Presets() {
-		out = append(out, PresetView{ID: p.ID, Name: p.Name, PerGame: p.PerGame, RootHint: p.RootHint, Args: p.Args, ArgsNote: p.ArgsNote})
+		hint := p.RootHint.Msg()
+		v := PresetView{ID: p.ID, Name: p.Name, PerGame: p.PerGame, RootHint: hint.Text, RootHintMsg: hint.Ptr(), Args: p.Args}
+		if p.ArgsNote.Code != "" {
+			note := p.ArgsNote.Msg()
+			v.ArgsNote, v.ArgsNoteMsg = note.Text, note.Ptr()
+		}
+		out = append(out, v)
 	}
 	return out
 }
@@ -73,10 +81,12 @@ type EmuSuggestInput struct {
 
 // EmuSuggestion is one possible save location of a game in an emulator.
 type EmuSuggestion struct {
-	Game    string   `json:"game"`    // the manifest's title for it
-	Path    string   `json:"path"`    // folder, may contain path tokens
-	Include []string `json:"include"` // filters for what is inside it
-	Exists  bool     `json:"exists"`  // there are files at this location now
+	Game string `json:"game"` // the manifest's title for it
+	// GameMsg is Game to translate, when it says more than the title.
+	GameMsg *msg.Message `json:"gameMsg,omitempty"`
+	Path    string       `json:"path"`    // folder, may contain path tokens
+	Include []string     `json:"include"` // filters for what is inside it
+	Exists  bool         `json:"exists"`  // there are files at this location now
 	// Kind ("account" or "device") says which of the game's save locations this
 	// is, for emulators with several whose folder differs per device. The editor
 	// puts it in the slot of that name on every device, so one cloud layout
@@ -91,8 +101,12 @@ type EmuSuggestResult struct {
 	// this game's; they must not be filled in automatically.
 	PerGame bool `json:"perGame"`
 	// Note explains a result that needs care (e.g. Ryujinx's shared folder).
-	Note string `json:"note"`
+	Note    string       `json:"note"`
+	NoteMsg *msg.Message `json:"noteMsg,omitempty"`
 }
+
+// explain sets the note.
+func (r *EmuSuggestResult) explain(m msg.Message) { r.Note, r.NoteMsg = m.Text, m.Ptr() }
 
 // maxSuggestedGames limits how many games' locations one lookup returns.
 const maxSuggestedGames = 6
@@ -109,7 +123,7 @@ func (s *EmulatorService) SuggestSaves(emulatorID string, in EmuSuggestInput) (E
 	}
 	preset, ok := emumanifest.PresetByID(emu.Preset)
 	if !ok {
-		return res, errors.New("choose the emulator type on the Emulators page first")
+		return res, msg.SuggestChooseType.Err()
 	}
 	dev := emu.Devices[s.c.DeviceID()]
 	root := dev.DataDir
@@ -117,7 +131,7 @@ func (s *EmulatorService) SuggestSaves(emulatorID string, in EmuSuggestInput) (E
 		root = defaultRoot(preset, emu.Name, dev.Exe, dev.Args)
 	}
 	if root == "" {
-		return res, fmt.Errorf("set the data folder of %s on the Emulators page first (%s)", emu.Name, preset.RootHint)
+		return res, msg.SuggestSetDataDir.Err("Emulator", emu.Name, "Hint", msg.List{preset.RootHint.Msg()})
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
 	defer cancel()
@@ -130,7 +144,7 @@ func (s *EmulatorService) SuggestSaves(emulatorID string, in EmuSuggestInput) (E
 	}
 	m, err := s.store.Load(ctx, preset)
 	if err != nil {
-		return res, fmt.Errorf("save locations couldn't be loaded: %w", err)
+		return res, msg.SuggestLoadFailed.Wrap(err)
 	}
 
 	var entries []emumanifest.Entry
@@ -173,7 +187,7 @@ func (s *EmulatorService) SuggestSaves(emulatorID string, in EmuSuggestInput) (E
 			if sgs, note, ok := yuzuSuggestions(e, rootSlash, expanded, emu.Name); ok {
 				res.Suggestions = append(res.Suggestions, sgs...)
 				if res.Note == "" {
-					res.Note = note
+					res.explain(note)
 				}
 				continue
 			}
@@ -189,7 +203,7 @@ func (s *EmulatorService) SuggestSaves(emulatorID string, in EmuSuggestInput) (E
 		}
 	}
 	if !preset.PerGame && len(res.Suggestions) > 0 {
-		res.Note = emu.Name + " keeps the saves of every game together, so these locations hold all games' saves. Choose the ones you want to sync: the user save folders (save and saveMeta) belong together."
+		res.explain(msg.SuggestAllGames.Msg("Emulator", emu.Name))
 	}
 	foundFirst(res.Suggestions)
 	return res, nil

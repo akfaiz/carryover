@@ -2,11 +2,11 @@ package mobile
 
 import (
 	"encoding/json"
-	"errors"
 	"fmt"
 	"slices"
 	"strings"
 
+	"github.com/akfaiz/carryover/internal/app/msg"
 	"github.com/akfaiz/carryover/internal/core"
 	"github.com/akfaiz/carryover/internal/library"
 	"github.com/akfaiz/carryover/services"
@@ -20,14 +20,15 @@ var savesSlot = library.SaveSlot{Key: "saves", Label: "Saves"}
 // id, the game file on this device (a path or a content:// URI, "" = none)
 // and its save folder here ("" = set later). It returns the new
 // services.GameView.
-func AddEmulatorGame(name, emulatorID, rom, savePath string) (string, error) {
+func AddEmulatorGame(name, emulatorID, rom, savePath string) (_ string, err error) {
+	defer wire(&err)
 	s, err := get()
 	if err != nil {
 		return "", err
 	}
 	name = strings.TrimSpace(name)
 	if name == "" {
-		return "", errors.New("the game needs a name")
+		return "", msg.EditNeedName.Err()
 	}
 	if _, err := s.core.Library.Emulator(emulatorID); err != nil {
 		return "", err
@@ -50,13 +51,14 @@ func AddEmulatorGame(name, emulatorID, rom, savePath string) (string, error) {
 
 // RenameGame renames a game on every device. It returns the saved
 // services.GameView.
-func RenameGame(gameID, name string) (string, error) {
+func RenameGame(gameID, name string) (_ string, err error) {
+	defer wire(&err)
 	s, err := get()
 	if err != nil {
 		return "", err
 	}
 	if name = strings.TrimSpace(name); name == "" {
-		return "", errors.New("the game needs a name")
+		return "", msg.EditNeedName.Err()
 	}
 	v, err := s.library.Get(gameID)
 	if err != nil {
@@ -71,7 +73,8 @@ func RenameGame(gameID, name string) (string, error) {
 // another emulator of the game whose cloud saves this one uses (the same
 // saves, such as Lemon next to Eden), or "" for saves of its own, kept in one
 // folder chosen per device. It returns the saved services.GameView.
-func AddGameEmulator(gameID, emulatorID, shareWith string) (string, error) {
+func AddGameEmulator(gameID, emulatorID, shareWith string) (_ string, err error) {
+	defer wire(&err)
 	s, err := get()
 	if err != nil {
 		return "", err
@@ -86,13 +89,13 @@ func AddGameEmulator(gameID, emulatorID, shareWith string) (string, error) {
 	}
 	in := inputOf(v)
 	if slices.ContainsFunc(in.Emulators, func(e services.GameEmulatorInput) bool { return e.EmulatorID == emulatorID }) {
-		return "", fmt.Errorf("%s is already played with %s", v.Name, emu.Name)
+		return "", msg.EditAlreadyPlayed.Err("Game", v.Name, "Emulator", emu.Name)
 	}
 	add := services.GameEmulatorInput{EmulatorID: emulatorID, Paths: map[string]string{}}
 	if shareWith != "" {
 		i := slices.IndexFunc(in.Emulators, func(e services.GameEmulatorInput) bool { return e.EmulatorID == shareWith })
 		if i < 0 {
-			return "", fmt.Errorf("the game has no emulator %q", shareWith)
+			return "", msg.EditNoEmulator.Err("Emulator", shareWith)
 		}
 		// Saves are shared with the emulator that keeps them, never through another sharer.
 		if target := in.Emulators[i].ShareWith; target != "" {
@@ -110,7 +113,8 @@ func AddGameEmulator(gameID, emulatorID, shareWith string) (string, error) {
 // cloud saves stay. It is refused while another emulator of the game uses its
 // saves, while it is being played, and for the game's only way of keeping
 // saves. It returns the saved services.GameView.
-func RemoveGameEmulator(gameID, emulatorID string) (string, error) {
+func RemoveGameEmulator(gameID, emulatorID string) (_ string, err error) {
+	defer wire(&err)
 	s, err := get()
 	if err != nil {
 		return "", err
@@ -122,15 +126,15 @@ func RemoveGameEmulator(gameID, emulatorID string) (string, error) {
 	in := inputOf(v)
 	i := slices.IndexFunc(in.Emulators, func(e services.GameEmulatorInput) bool { return e.EmulatorID == emulatorID })
 	if i < 0 {
-		return "", fmt.Errorf("the game has no emulator %q", emulatorID)
+		return "", msg.EditNoEmulator.Err("Emulator", emulatorID)
 	}
 	for _, e := range in.Emulators {
 		if e.ShareWith == emulatorID {
-			return "", fmt.Errorf("%s uses its saves: remove %s first", s.core.ProfileName(e.EmulatorID), s.core.ProfileName(e.EmulatorID))
+			return "", msg.EditUsesSaves.Err("Emulator", s.core.ProfileName(e.EmulatorID))
 		}
 	}
 	if len(in.Slots) == 0 && len(in.Emulators) == 1 {
-		return "", errors.New("it is the game's only emulator")
+		return "", msg.EditOnlyEmulator.Err()
 	}
 	if g, err := s.core.Library.Get(gameID); err == nil && s.core.SessionOpen(core.CloudKey(g, emulatorID)) {
 		return "", core.ErrPlaying
@@ -148,7 +152,8 @@ func RemoveGameEmulator(gameID, emulatorID string) (string, error) {
 // its cloud files stay. Refused for a profile that uses another emulator's
 // saves (change them there), for an empty list, and while the profile is being
 // played. It returns the saved services.GameView.
-func SetSlots(key, slotsJSON string) (string, error) {
+func SetSlots(key, slotsJSON string) (_ string, err error) {
+	defer wire(&err)
 	s, err := get()
 	if err != nil {
 		return "", err
@@ -168,11 +173,11 @@ func SetSlots(key, slotsJSON string) (string, error) {
 	if emuID != "" {
 		i := slices.IndexFunc(in.Emulators, func(e services.GameEmulatorInput) bool { return e.EmulatorID == emuID })
 		if i < 0 {
-			return "", fmt.Errorf("the game has no emulator %q", emuID)
+			return "", msg.EditNoEmulator.Err("Emulator", emuID)
 		}
 		edited = &in.Emulators[i]
 		if edited.ShareWith != "" {
-			return "", fmt.Errorf("%s uses the saves of %s: change them there", s.core.ProfileName(emuID), s.core.ProfileName(edited.ShareWith))
+			return "", msg.EditSharedSlots.Err("Emulator", s.core.ProfileName(emuID), "Other", s.core.ProfileName(edited.ShareWith))
 		}
 		cur, paths = edited.Slots, edited.Paths
 	}
@@ -201,7 +206,7 @@ func SetSlots(key, slotsJSON string) (string, error) {
 // key) with a key made from its label that no slot has.
 func mergeSlots(cur, want []library.SaveSlot) ([]library.SaveSlot, error) {
 	if len(want) == 0 {
-		return nil, errors.New("a game needs at least one save location")
+		return nil, msg.EditNeedSlot.Err()
 	}
 	out := make([]library.SaveSlot, 0, len(want))
 	for _, sl := range want {
@@ -209,13 +214,13 @@ func mergeSlots(cur, want []library.SaveSlot) ([]library.SaveSlot, error) {
 		sl.Key = strings.TrimSpace(sl.Key)
 		if sl.Key != "" {
 			if !slices.ContainsFunc(cur, func(c library.SaveSlot) bool { return c.Key == sl.Key }) {
-				return nil, fmt.Errorf("unknown save location %q", sl.Key)
+				return nil, msg.EditUnknownSlot.Err("Slot", sl.Key)
 			}
 			if slices.ContainsFunc(out, func(o library.SaveSlot) bool { return o.Key == sl.Key }) {
-				return nil, fmt.Errorf("save location %q is listed twice", sl.Key)
+				return nil, msg.EditSlotTwice.Err("Slot", sl.Key)
 			}
 		} else if sl.Label == "" {
-			return nil, errors.New("a new save location needs a name")
+			return nil, msg.EditSlotName.Err()
 		}
 		out = append(out, sl)
 	}

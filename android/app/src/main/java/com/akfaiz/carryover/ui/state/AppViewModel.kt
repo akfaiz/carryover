@@ -242,7 +242,7 @@ class AppViewModel(private val services: AppServices = AppServices.shared) : Vie
                         }
                     },
                     // The game can't be started on this device: not set up, not installed.
-                    onFailure = { m.say(m.str(R.string.msg_error, title, it.message.orEmpty())) },
+                    onFailure = { m.say(m.str(R.string.msg_error, title, m.error(it))) },
                 )
             } finally {
                 _state.update { it.copy(starting = it.starting - p.key) }
@@ -385,7 +385,7 @@ class AppViewModel(private val services: AppServices = AppServices.shared) : Vie
                         r.failed.size,
                         r.failed.size,
                         r.failed.first().name,
-                        r.failed.first().error,
+                        r.failed.first().let { m.core(it.error, it.errorMsg) },
                     )
                     r.conflicts > 0 -> m.plural(R.plurals.msg_syncall_conflicts, r.conflicts, r.conflicts)
                     else -> m.plural(R.plurals.msg_syncall_done, r.results.size, r.results.size)

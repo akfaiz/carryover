@@ -10,13 +10,14 @@ import (
 	"sync"
 	"time"
 
+	"github.com/akfaiz/carryover/internal/app/msg"
 	"github.com/akfaiz/carryover/internal/cloudsync/cloud"
 	"github.com/akfaiz/carryover/internal/core"
 )
 
 // ErrSignInCancelled is what CreateRemote and ContinueRemote return when
 // CancelSignIn stopped the wait for the browser.
-var ErrSignInCancelled = errors.New("sign-in cancelled")
+var ErrSignInCancelled = msg.CloudSignInCancelled.Err()
 
 // signInTimeout is how long a step waits for the user to sign in in the browser.
 const signInTimeout = 10 * time.Minute
@@ -129,7 +130,7 @@ func (s *CloudService) DeleteRemote(name string) error {
 // Test checks access to remote:root.
 func (s *CloudService) Test(remote, root string) error {
 	if remote == "" {
-		return errors.New("choose a remote")
+		return msg.CloudChooseRemote.Err()
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
 	defer cancel()
@@ -162,7 +163,7 @@ func (s *CloudService) DefaultRcloneConfig() string {
 // an rclone.conf (the Android app has no file path to give).
 func (s *CloudService) ImportConfigData(contents string) (cloud.ImportResult, error) {
 	if strings.TrimSpace(contents) == "" {
-		return cloud.ImportResult{}, errors.New("the file is empty")
+		return cloud.ImportResult{}, msg.CloudEmptyFile.Err()
 	}
 	return cloud.ImportConfigData([]byte(contents))
 }
@@ -170,7 +171,7 @@ func (s *CloudService) ImportConfigData(contents string) (cloud.ImportResult, er
 // ImportConfig imports remotes of supported providers from an rclone.conf.
 func (s *CloudService) ImportConfig(path string) (cloud.ImportResult, error) {
 	if path == "" {
-		return cloud.ImportResult{}, errors.New("choose an rclone.conf file")
+		return cloud.ImportResult{}, msg.CloudChooseConfig.Err()
 	}
 	return cloud.ImportConfig(path)
 }

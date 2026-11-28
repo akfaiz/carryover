@@ -2,7 +2,6 @@
 package library
 
 import (
-	"errors"
 	"fmt"
 	"maps"
 	"slices"
@@ -14,6 +13,7 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/akfaiz/carryover/internal/app/appdir"
+	"github.com/akfaiz/carryover/internal/app/msg"
 )
 
 // SaveSlot is a logical save location shared across devices. Each device maps
@@ -204,7 +204,7 @@ const CatalogVersion = 3
 const catalogVersionBase = 2
 
 // ErrNewerCatalog is returned for a catalog written by a newer Carryover.
-var ErrNewerCatalog = errors.New("the library was written by a newer version of Carryover; update this device")
+var ErrNewerCatalog = msg.LibraryNewer.Err()
 
 // Catalog is the serialized library.
 type Catalog struct {
@@ -230,7 +230,7 @@ func Open(path string) (*Store, error) {
 	s := &Store{path: path, games: map[string]Game{}, emulators: map[string]Emulator{}, devices: map[string]Device{}}
 	var c Catalog
 	if _, err := appdir.ReadJSON(path, &c); err != nil {
-		return nil, fmt.Errorf("load library: %w", err)
+		return nil, msg.LibraryLoadFailed.Wrap(err)
 	}
 	if c.Version > CatalogVersion {
 		return nil, ErrNewerCatalog
@@ -316,7 +316,7 @@ func compactGame(g Game) Game {
 }
 
 // ErrNotFound is returned for unknown game ids.
-var ErrNotFound = errors.New("game not found")
+var ErrNotFound = msg.LibraryGameNotFound.Err()
 
 // List returns non-deleted games sorted by name.
 func (s *Store) List() []Game {
@@ -408,7 +408,7 @@ func (s *Store) Find(idOrName string) (Game, error) {
 // (see sameSharedGame).
 func (s *Store) Save(g Game, deviceID string) (Game, error) {
 	if strings.TrimSpace(g.Name) == "" {
-		return Game{}, errors.New("game name is required")
+		return Game{}, msg.LibraryNameRequired.Err()
 	}
 	if err := validateSlots(g.Slots); err != nil {
 		return Game{}, err
@@ -529,7 +529,7 @@ func gone(g Game) bool {
 func emulatorGone(e Emulator) bool { return e.Deleted && len(e.Devices) == 0 }
 
 // ErrNotRestorable is returned for a deleted item whose settings are gone.
-var ErrNotRestorable = errors.New("its settings were removed, so it can't be restored")
+var ErrNotRestorable = msg.LibraryNotRestorable.Err()
 
 // GetAny returns a game by id, deleted or not.
 func (s *Store) GetAny(id string) (Game, error) {
@@ -839,7 +839,7 @@ func (s *Store) FindEmulator(idOrName string) (Emulator, error) {
 // with the current time and other devices' setups are kept as stored.
 func (s *Store) SaveEmulator(e Emulator, deviceID string) (Emulator, error) {
 	if strings.TrimSpace(e.Name) == "" {
-		return Emulator{}, errors.New("emulator name is required")
+		return Emulator{}, msg.LibraryEmulatorName.Err()
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -994,7 +994,7 @@ func validateEmulators(ems []GameEmulator) error {
 			return fmt.Errorf("invalid emulator id %q", e.EmulatorID)
 		}
 		if seen[e.EmulatorID] {
-			return fmt.Errorf("emulator %q is added twice", e.EmulatorID)
+			return msg.LibraryEmulatorTwice.Err("Emulator", e.EmulatorID)
 		}
 		seen[e.EmulatorID] = true
 		if err := validateSlots(e.Slots); err != nil {
@@ -1012,7 +1012,7 @@ func validateEmulators(ems []GameEmulator) error {
 			}
 		}
 		if target == nil || target.EmulatorID == e.EmulatorID || target.ShareWith != "" {
-			return fmt.Errorf("emulator %q can't share saves with %q", e.EmulatorID, e.ShareWith)
+			return msg.LibraryCantShare.Err("Emulator", e.EmulatorID, "Other", e.ShareWith)
 		}
 	}
 	return nil
@@ -1023,13 +1023,13 @@ func validateSlots(slots []SaveSlot) error {
 	for _, sl := range slots {
 		k := strings.TrimSpace(sl.Key)
 		if k == "" {
-			return errors.New("save slot key is required")
+			return msg.LibrarySlotKeyRequired.Err()
 		}
 		if strings.ContainsAny(k, `/\:*?"<>|`) {
-			return fmt.Errorf("save slot key %q contains invalid characters", k)
+			return msg.LibrarySlotKeyInvalid.Err("Key", k)
 		}
 		if seen[k] {
-			return fmt.Errorf("duplicate save slot key %q", k)
+			return msg.LibrarySlotKeyDuplicate.Err("Key", k)
 		}
 		seen[k] = true
 	}

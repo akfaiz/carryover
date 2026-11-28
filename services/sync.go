@@ -7,12 +7,13 @@ import (
 	"sync"
 
 	"github.com/akfaiz/carryover/internal/app/appdir"
+	"github.com/akfaiz/carryover/internal/app/msg"
 	"github.com/akfaiz/carryover/internal/cloudsync/syncer"
 	"github.com/akfaiz/carryover/internal/core"
 )
 
 // ErrSyncCancelled is returned when the user cancels a sync or restore.
-var ErrSyncCancelled = errors.New("sync cancelled")
+var ErrSyncCancelled = msg.SyncCancelled.Err()
 
 // SyncService runs manual syncs, manages backups and settings.
 type SyncService struct {
@@ -162,7 +163,7 @@ func (s *SyncService) Sync(gameID, resolution string) (string, error) {
 // sync syncs one game; probe first checks that the cloud can be reached.
 func (s *SyncService) sync(parent context.Context, gameID, resolution string, probe bool) (string, error) {
 	if _, loaded := s.busy.LoadOrStore(gameID, struct{}{}); loaded {
-		return "", errors.New("a sync for this game is already running")
+		return "", msg.SyncBusy.Err()
 	}
 	defer s.busy.Delete(gameID)
 	lock, err := s.lockGame(gameID)
@@ -199,7 +200,7 @@ func (s *SyncService) sync(parent context.Context, gameID, resolution string, pr
 		return string(action), fmt.Errorf("%w: %w", core.ErrOffline, err)
 	}
 	if err != nil {
-		s.c.States.SetError(gameID, err.Error())
+		s.c.States.SetError(gameID, err)
 		return string(action), err
 	}
 	return string(action), nil
@@ -211,13 +212,15 @@ type SyncResult struct {
 	Name   string `json:"name"`
 	Action string `json:"action"`
 	Error  string `json:"error"`
+	// ErrorMsg is Error for the apps to translate.
+	ErrorMsg *msg.Message `json:"errorMsg,omitempty"`
 }
 
 // SyncAll syncs the library catalog and every ready game. Cancel("") stops
 // it; the games synced so far are returned along with ErrSyncCancelled.
 func (s *SyncService) SyncAll() ([]SyncResult, error) {
 	if !s.c.CloudConfigured() {
-		return nil, errors.New("no cloud remote configured")
+		return nil, msg.CloudNotConfigured.Err()
 	}
 	ctx, done := s.start(context.Background(), "")
 	defer done()
@@ -260,7 +263,8 @@ func (s *SyncService) SyncAll() ([]SyncResult, error) {
 		}
 		r.Action = a
 		if err != nil {
-			r.Error = err.Error()
+			failure := msg.Of(err)
+			r.Error, r.ErrorMsg = failure.Text, failure.Ptr()
 		}
 		out = append(out, r)
 	}
@@ -291,7 +295,7 @@ func (s *SyncService) Backups(gameID string) ([]syncer.Backup, error) {
 // not automatic backups are on.
 func (s *SyncService) BackupNow(gameID string) error {
 	if _, loaded := s.busy.LoadOrStore(gameID, struct{}{}); loaded {
-		return errors.New("a sync for this game is already running")
+		return msg.SyncBusy.Err()
 	}
 	defer s.busy.Delete(gameID)
 	lock, err := s.lockGame(gameID)
@@ -321,7 +325,7 @@ func (s *SyncService) SetBackupPinned(gameID, name string, pinned bool) error {
 // DeleteBackup permanently deletes a backup, for every device.
 func (s *SyncService) DeleteBackup(gameID, name string) error {
 	if _, loaded := s.busy.LoadOrStore(gameID, struct{}{}); loaded {
-		return errors.New("a sync for this game is already running")
+		return msg.SyncBusy.Err()
 	}
 	defer s.busy.Delete(gameID)
 	eng, err := s.c.Engine()
@@ -334,7 +338,7 @@ func (s *SyncService) DeleteBackup(gameID, name string) error {
 // RestoreBackup restores a backup locally and uploads it as the current cloud version.
 func (s *SyncService) RestoreBackup(gameID, name string) error {
 	if _, loaded := s.busy.LoadOrStore(gameID, struct{}{}); loaded {
-		return errors.New("a sync for this game is already running")
+		return msg.SyncBusy.Err()
 	}
 	defer s.busy.Delete(gameID)
 	lock, err := s.lockGame(gameID)

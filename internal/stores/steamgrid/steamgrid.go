@@ -13,6 +13,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/akfaiz/carryover/internal/app/msg"
 )
 
 // DefaultBase is the SteamGridDB API v2 endpoint.
@@ -28,10 +30,10 @@ const wideDimensions = "460x215,920x430"
 const heroDimensions = "1920x620,3840x1240,1600x650"
 
 // ErrUnauthorized means the API key was missing or rejected.
-var ErrUnauthorized = errors.New("SteamGridDB rejected the API key")
+var ErrUnauthorized = msg.ArtUnauthorized.Err()
 
 // ErrNotFound means SteamGridDB has no such game or no matching art.
-var ErrNotFound = errors.New("not found on SteamGridDB")
+var ErrNotFound = msg.ArtNotFound.Err()
 
 // Client talks to the SteamGridDB API.
 type Client struct {
@@ -294,7 +296,7 @@ func convertImage(data []byte) ([]byte, string, error) {
 	}
 	ext := imageExt(ct)
 	if ext == "" {
-		return nil, "", errors.New("downloaded file is not a PNG, JPEG, WebP or ICO image")
+		return nil, "", msg.ArtBadDownload.Err()
 	}
 	return data, ext, nil
 }

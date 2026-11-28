@@ -2,6 +2,8 @@ package i18n
 
 import (
 	"encoding/json"
+	"errors"
+	"fmt"
 	"go/ast"
 	"go/parser"
 	"go/token"
@@ -15,6 +17,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/akfaiz/carryover/internal/app/msg"
 )
 
 // TestTranslationCatalog checks that every literal passed to i18n.L / i18n.N
@@ -57,6 +61,43 @@ func TestTranslationCatalog(t *testing.T) {
 		return nil
 	})
 	require.NoError(t, err)
+}
+
+// Every message of the core is listed in en.json under its English template,
+// so each language catalog translates it (TestLanguageCatalogsMatchEnglish).
+func TestCoreMessagesAreInTheCatalog(t *testing.T) {
+	data, err := translations.ReadFile("translations/en.json")
+	require.NoError(t, err)
+	var catalog map[string]any
+	require.NoError(t, json.Unmarshal(data, &catalog))
+
+	for _, d := range msg.Defs() {
+		var want any = d.Other
+		if d.One != "" {
+			want = map[string]any{"one": d.One, "other": d.Other}
+		}
+		assert.Equal(t, want, catalog[d.Other], "%s in translations/en.json", d.Code)
+	}
+}
+
+func TestCoreMessagesAreTranslated(t *testing.T) {
+	Init("id")
+	t.Cleanup(func() { Init("en") })
+
+	assert.Equal(t, "Mengunggah save…", Msg(msg.SessionUploading.Msg()))
+	assert.Equal(t, "Mengunggah 2 file (saves)", Msg(msg.SyncUploading.Msg(msg.CountArg, 2, "Slot", "saves")))
+	assert.Equal(t, "Belum ada path save untuk Saves, file eksekusi game",
+		Msg(msg.SetupMissing.Msg("Items", msg.List{msg.NeedSavePath.Msg("Slot", "Saves"), msg.NeedGameExe.Msg()})))
+	// A translated explanation in front of another program's own words.
+	err := msg.SessionUploadFailed.Wrap(msg.SyncUploadFailed.Wrap(errors.New("quota exceeded"), "Slot", "saves"))
+	assert.Equal(t, "Game ditutup, tetapi unggahan gagal: tidak dapat mengunggah saves: quota exceeded", Err(err))
+	// fmt.Errorf around or in front of a message keeps what has a code translated.
+	assert.Equal(t, "step 2: tidak ada koneksi internet", Err(fmt.Errorf("step 2: %w", msg.CloudOffline.Err())))
+	assert.Equal(t, "tidak ada koneksi internet: dial tcp: timeout", Err(fmt.Errorf("%w: %w", msg.CloudOffline.Err(), errors.New("dial tcp: timeout"))))
+	assert.Equal(t, "disk full", Err(errors.New("disk full")))
+	assert.Empty(t, Err(nil))
+	// A newer core's code this catalog doesn't know shows as its English.
+	assert.Equal(t, "Something new", Msg(msg.Message{Code: "new.one", Text: "Something new"}))
 }
 
 func TestPluralForms(t *testing.T) {

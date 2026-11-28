@@ -9,7 +9,8 @@ import (
 
 // UpdateState returns where updating the app stands (services.UpdateState) as
 // JSON. While a download runs, the same arrives as "update" events.
-func UpdateState() (string, error) {
+func UpdateState() (_ string, err error) {
+	defer wire(&err)
 	s, err := get()
 	if err != nil {
 		return "", err
@@ -22,7 +23,8 @@ func UpdateState() (string, error) {
 // even if that was just done; without, it does nothing while the settings turn
 // automatic checks off, and reuses a check of the last 12 hours. A check that
 // fails (offline) is not an error here: the state's "error" says why.
-func CheckUpdate(force bool) (string, error) {
+func CheckUpdate(force bool) (_ string, err error) {
+	defer wire(&err)
 	s, err := get()
 	if err != nil {
 		return "", err
@@ -38,7 +40,8 @@ func CheckUpdate(force bool) (string, error) {
 // folder and returns the state as JSON: with status "ready", "file" is the APK
 // to hand to the system installer. A failed or cancelled download is not an
 // error here: the state says how it ended.
-func DownloadUpdate() (string, error) {
+func DownloadUpdate() (_ string, err error) {
+	defer wire(&err)
 	s, err := get()
 	if err != nil {
 		return "", err

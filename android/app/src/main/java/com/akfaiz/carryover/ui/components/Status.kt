@@ -92,7 +92,7 @@ fun StatusDot(badge: Badge, modifier: Modifier = Modifier) {
 @Composable
 fun statusLine(s: GameStatus): String = when {
     s.conflict -> stringResource(R.string.status_line_conflict)
-    s.lastError.isNotEmpty() -> stringResource(R.string.status_line_error, s.lastError)
+    s.lastError.isNotEmpty() -> stringResource(R.string.status_line_error, coreText(s.lastError, s.lastErrorMsg))
     s.localChanges -> stringResource(R.string.status_line_changed)
     s.lastSyncAt.isNotEmpty() -> stringResource(R.string.status_line_synced, relativeTime(s.lastSyncAt))
     else -> stringResource(R.string.status_line_never)

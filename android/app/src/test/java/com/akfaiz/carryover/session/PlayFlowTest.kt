@@ -28,7 +28,7 @@ class PlayFlowTest {
         manager = manager,
         watch = { key, pkg, title -> events += "watch $key $pkg $title" },
         stopWatching = { key -> events += "stop $key" },
-        startFailed = { title, cause -> "$title: $cause" },
+        startFailed = { title, cause -> "$title: ${cause.message}" },
     )
 
     private val noBegin = emptyList<Pair<String, String>>()

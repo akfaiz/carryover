@@ -127,7 +127,7 @@ func (e *ViewModel) Apply(l Loaded, err error) {
 	e.loading = false
 	e.tokens, e.hasGridKey, e.emuList = l.Tokens, l.HasKey, l.Emulators
 	if err != nil {
-		e.errText = err.Error()
+		e.errText, e.errMsg = services.ErrorText(err)
 	}
 	if e.id == "" {
 		e.slots = []*slotForm{{key: "saves", label: "Saves", isNew: true}}

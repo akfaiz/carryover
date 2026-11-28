@@ -1,11 +1,11 @@
 package services
 
 import (
-	"errors"
 	"sort"
 	"strings"
 	"time"
 
+	"github.com/akfaiz/carryover/internal/app/msg"
 	"github.com/akfaiz/carryover/internal/core"
 	"github.com/akfaiz/carryover/internal/library"
 )
@@ -19,7 +19,7 @@ var (
 	// ErrSessionsOpen: a play session hasn't finished (ReuseDevice).
 	ErrSessionsOpen = core.ErrSessionsOpen
 	// ErrSyncRunning: a sync is running (ReuseDevice).
-	ErrSyncRunning = errors.New("a sync is running; try again once it is done")
+	ErrSyncRunning = msg.SyncRunning.Err()
 )
 
 // DeviceView is a device the library holds settings of.

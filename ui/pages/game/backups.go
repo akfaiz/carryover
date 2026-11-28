@@ -114,7 +114,7 @@ func (p *Page) loadBackups(profs ...string) {
 		kit.Async(func() ([]syncer.Backup, error) { return p.vm.LoadBackups(prof) }, func(list []syncer.Backup, err error) {
 			st.backupsLoading, st.backupsLoaded, st.backupsErr = false, true, ""
 			if err != nil {
-				st.backupsErr = err.Error()
+				st.backupsErr = i18n.Err(err)
 			} else {
 				st.backups = list
 			}

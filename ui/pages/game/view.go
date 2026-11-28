@@ -162,7 +162,7 @@ func (p *Page) game(c *ui.Context, orig services.GameView) {
 func (p *Page) updateProgressText(label string) string {
 	ev := p.u.Store().Progress[p.vm.key()]
 	if ev.Message != "" {
-		return ev.Message
+		return i18n.Text(ev.Message, ev.Msg)
 	}
 	switch p.vm.busy {
 	case "restore":

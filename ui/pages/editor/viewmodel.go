@@ -52,6 +52,7 @@ type ViewModel struct {
 	saving       bool
 	saved        bool // saved: leaving no longer loses anything
 	errText      string
+	errMsg       *services.Message // errText to translate, if it is the core's
 	advanced     bool
 	artOpen      bool
 	loading      bool

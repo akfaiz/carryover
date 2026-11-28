@@ -137,7 +137,7 @@ func (p *Page) leftovers(c *ui.Context) {
 	case LeftoverLoading:
 		kit.Card(c, title, func() { intro(); kit.Muted(c, i18n.L("Looking in the cloud…")) })
 	case LeftoverFailed:
-		kit.Card(c, title, func() { intro(); kit.Danger(c, p.vm.LeftoverError()) })
+		kit.Card(c, title, func() { intro(); kit.Danger(c, i18n.Text(p.vm.LeftoverError(), p.vm.LeftoverErrorMsg())) })
 	case LeftoverNone:
 		kit.Card(c, title, func() { intro(); kit.Muted(c, i18n.L("Nothing left over.")) })
 	default:

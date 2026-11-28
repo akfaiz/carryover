@@ -40,7 +40,7 @@ func (u *Shell) RunMain(inst *singleinstance.Instance) {
 			if services.IsOffline(err) {
 				u.toast(i18n.L("Offline — library not synced"), kit.ToastInfo)
 			} else if err != nil {
-				u.toast(i18n.L("Library sync: {{.Err}}", map[string]any{"Err": err}), kit.ToastErr)
+				u.toast(i18n.L("Library sync: {{.Err}}", map[string]any{"Err": i18n.Err(err)}), kit.ToastErr)
 			}
 		})
 	})
