@@ -3,6 +3,7 @@ package session_test
 import (
 	"testing"
 
+	"github.com/egoist/mygo/ui"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -72,6 +73,22 @@ func TestSessionPageFollowsTheStatus(t *testing.T) {
 	// a failure is shown as one
 	set(services.Status{Phase: "error", Message: "offline"})
 	assert.Contains(t, h.Texts(), "offline")
+}
+
+// A dialog (a prompt) does not share the window with the session's text.
+func TestSessionPageClearsForADialog(t *testing.T) {
+	h, _ := newHarness(t)
+	require.Contains(t, h.Texts(), "Starting…")
+
+	d := h.Shell.Dialogs().Show(&kit.Dialog{Title: "A question", Body: func(*ui.Context, *kit.Navigator) {}})
+	h.Settle()
+	assert.Contains(t, h.Texts(), "A question")
+	assert.NotContains(t, h.Texts(), "Starting…")
+	assert.NotContains(t, h.Texts(), "Sync saves")
+
+	d.Close()
+	h.Settle()
+	assert.Contains(t, h.Texts(), "Starting…")
 }
 
 // The pad reaches Cancel, and the first A only focuses it.

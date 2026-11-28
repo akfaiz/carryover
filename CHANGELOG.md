@@ -7,6 +7,14 @@ All notable changes to Carryover are listed here. The format follows
 
 ## [Unreleased]
 
+### Fixed
+
+- In the "how to play" prompt, the last played choice no longer looks focused after you move to another one: it now
+  has a tinted background, and only the focused choice has a blue outline. Once the countdown stops, the text no
+  longer says that choice will start by itself.
+- The window that opens when you start a game from Steam hides the game's name and sync steps while a question is
+  on screen, instead of showing them half covered by it.
+
 ## [0.7.0] - 2026-11-28
 
 ### Added

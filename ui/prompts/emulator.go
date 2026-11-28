@@ -93,7 +93,7 @@ func choiceName(c services.ProfileChoice) string {
 func (s *emuState) body(c *ui.Context, nav *kit.Navigator) {
 	p := s.p
 	hint := i18n.L("Choose how to play. The highlighted one is the one you played last.")
-	if p.Seconds > 0 {
+	if p.Seconds > 0 && !s.paused {
 		hint = i18n.L("Choose how to play. The highlighted one starts by itself when the countdown ends.")
 	}
 	kit.Muted(c, hint)
