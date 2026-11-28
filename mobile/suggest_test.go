@@ -61,6 +61,52 @@ func TestUseSuggestionAddsASlotWhenAllHaveAFolder(t *testing.T) {
 	assert.Equal(t, "saves-3", in.Emulators[0].Slots[2].Key)
 }
 
+// A PC set up the save states, then the in-game saves. A phone with only
+// in-game saves must not sync them with the save states.
+func TestASuggestionGoesToTheSlotOtherDevicesKeepThoseFilesIn(t *testing.T) {
+	slots := []library.SaveSlot{
+		{Key: "saves", Label: "Saves", Include: []string{"ULUS10067_*"}},
+		{Key: "saves-2", Label: "Saves 2", Include: []string{"ULUS10067*"}},
+	}
+	pc := map[string]string{"saves": "C:/PSP/PPSSPP_STATE", "saves-2": "C:/PSP/SAVEDATA"}
+	data := services.EmuSuggestion{Path: "/phone/PSP/SAVEDATA", Include: []string{"ULUS10067*", "ULES00264*"}, Exists: true}
+	states := services.EmuSuggestion{Path: "/phone/PSP/PPSSPP_STATE", Include: []string{"ULUS10067_*"}}
+
+	in, g := profile(slots, map[string]string{}, pc, "")
+	assert.Equal(t, 1, autofill(&in, g, "phone", "e1", services.EmuSuggestResult{PerGame: true, Suggestions: []services.EmuSuggestion{data, states}}))
+	ge := in.Emulators[0]
+	assert.Equal(t, map[string]string{"saves-2": "/phone/PSP/SAVEDATA"}, ge.Paths)
+	assert.Equal(t, slots, ge.Slots, "the filters the PC uses stay")
+
+	require.NoError(t, useSuggestion(&in, g, "phone", "e1", states))
+	assert.Equal(t, "/phone/PSP/PPSSPP_STATE", in.Emulators[0].Paths["saves"])
+	assert.Equal(t, slots, in.Emulators[0].Slots)
+}
+
+func TestASuggestionThatMatchesNoSlotIsLeftToTheUser(t *testing.T) {
+	slots := []library.SaveSlot{{Key: "saves", Label: "Saves"}}
+	in, g := profile(slots, map[string]string{}, map[string]string{"saves": "/pc/MySaves"}, "")
+	sg := services.EmuSuggestion{Path: "/phone/SAVEDATA", Include: []string{"ULUS10067*"}, Exists: true}
+
+	assert.Zero(t, autofill(&in, g, "phone", "e1", services.EmuSuggestResult{PerGame: true, Suggestions: []services.EmuSuggestion{sg}}))
+	require.ErrorContains(t, useSuggestion(&in, g, "phone", "e1", sg), "No empty save location matches")
+	assert.Empty(t, in.Emulators[0].Paths)
+	assert.Equal(t, slots, in.Emulators[0].Slots)
+}
+
+// A new slot would keep the PC from syncing until it has a folder for it.
+func TestAutofillAddsNoSlotToAGameSetUpElsewhere(t *testing.T) {
+	in, g := profile([]library.SaveSlot{{Key: "saves"}}, map[string]string{}, map[string]string{"saves": "/pc/SAVEDATA"}, "")
+	res := services.EmuSuggestResult{PerGame: true, Suggestions: []services.EmuSuggestion{
+		{Path: "/phone/SAVEDATA", Exists: true}, {Path: "/phone/PPSSPP_STATE", Exists: true},
+	}}
+	assert.Equal(t, 1, autofill(&in, g, "phone", "e1", res))
+	assert.Len(t, in.Emulators[0].Slots, 1)
+
+	require.NoError(t, useSuggestion(&in, g, "phone", "e1", res.Suggestions[1]), "asked for, it is added")
+	assert.Len(t, in.Emulators[0].Slots, 2)
+}
+
 func TestUseSuggestionNeedsAFolderAndAnEmulator(t *testing.T) {
 	in, g := profile([]library.SaveSlot{{Key: "saves"}}, map[string]string{}, nil, "")
 	require.ErrorIs(t, useSuggestion(&in, g, "phone", "e1", services.EmuSuggestion{Path: "  "}), errNoFolder)

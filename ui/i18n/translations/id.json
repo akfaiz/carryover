@@ -873,5 +873,6 @@
   "Proton prefix of this game's non-Steam shortcut": "Prefix Proton untuk shortcut non-Steam game ini",
   "Public Documents": "Dokumen Publik",
   "Saved Games folder": "Folder Saved Games",
-  "Steam installation": "Instalasi Steam"
+  "Steam installation": "Instalasi Steam",
+  "No empty save location matches this folder. Type the folder into the right save location yourself, or fill the others first.": "Tidak ada lokasi save kosong yang cocok dengan folder ini. Ketik sendiri foldernya di lokasi save yang tepat, atau isi lokasi lainnya dulu."
 }

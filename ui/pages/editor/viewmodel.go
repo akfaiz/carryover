@@ -107,22 +107,42 @@ func (e *ViewModel) Dirty() bool {
 	return !e.loading && !e.saved && !e.saving && e.snapshot() != e.orig
 }
 
-func (e *ViewModel) useSuggestion(sg services.SaveSuggestion, target *slotForm) {
+// useSuggestion puts a suggested location of the game into target, or with a
+// nil target into the location it matches or a new one
+// (services.PlaceSuggestion). It reports false when only the user can tell
+// which location it is.
+func (e *ViewModel) useSuggestion(sg services.SaveSuggestion, target *slotForm) bool {
 	if target == nil {
-		for _, s := range e.slots {
-			if s.path == "" {
-				target = s
-				break
-			}
+		at, mayAdd := services.PlaceSuggestion(slotStates(e.slots, e.others), sg.Path, sg.Include)
+		switch {
+		case at >= 0:
+			target = e.slots[at]
+		case !mayAdd:
+			return false
+		default:
+			e.addSuggestion(sg)
+			return true
 		}
 	}
-	if target == nil {
-		e.addSuggestion(sg)
-		return
+	if slotStates([]*slotForm{target}, e.others)[0].TakesFilters() {
+		target.include = strings.Join(sg.Include, "\n")
+		target.exclude = ""
 	}
 	target.path = sg.Path
-	target.include = strings.Join(sg.Include, "\n")
-	target.exclude = ""
+	return true
+}
+
+// slotStates is what services.PlaceSuggestion needs to know of the form's save
+// locations.
+func slotStates(slots []*slotForm, others []services.DevicePaths) []services.SlotState {
+	out := make([]services.SlotState, len(slots))
+	for i, s := range slots {
+		out[i] = services.SlotState{Include: textutil.SplitLines(s.include), Path: s.path}
+		for _, o := range others {
+			out[i].Elsewhere = append(out[i].Elsewhere, o.Paths[s.key])
+		}
+	}
+	return out
 }
 
 func (e *ViewModel) uniqueKey(base string, self *slotForm) string {
@@ -153,27 +173,46 @@ func (m *emuForm) uniqueKey(base string, self *slotForm) string {
 	return k
 }
 
-// useSuggestion puts a suggested location into the first empty slot, or a new
-// one. It reports false if the suggestion has no place: an emulator that shares
-// another's cloud save has that emulator's slots and gets no others.
+// useSuggestion puts a suggested location into the slot it matches, or a new
+// one (services.PlaceSuggestion). It reports false if it has no place: an
+// emulator that shares another's cloud save has that emulator's slots and gets
+// no others, and some folders only the user can place.
 func (m *emuForm) useSuggestion(sg services.EmuSuggestion) bool {
 	if sg.Kind != "" {
 		return m.useKind(sg)
 	}
+	return m.place(sg, true)
+}
+
+// place is useSuggestion of a location without a kind; mayAdd false keeps it
+// from adding a slot.
+func (m *emuForm) place(sg services.EmuSuggestion, mayAdd bool) bool {
 	if m.share != "" {
 		return false
 	}
-	inc := strings.Join(sg.Include, "\n")
-	for _, s := range m.slots {
-		if strings.TrimSpace(s.path) == "" {
-			s.path, s.include = sg.Path, inc
-			return true
+	states := slotStates(m.slots, m.others)
+	at, canAdd := services.PlaceSuggestion(states, sg.Path, sg.Include)
+	if at >= 0 {
+		if states[at].TakesFilters() {
+			m.slots[at].include = strings.Join(sg.Include, "\n")
 		}
+		m.slots[at].path = sg.Path
+		return true
+	}
+	if !canAdd || !mayAdd {
+		return false
 	}
 	n := len(m.slots) + 1
 	key := m.uniqueKey(fmt.Sprintf("saves-%d", n), nil)
-	m.slots = append(m.slots, &slotForm{key: key, label: fmt.Sprintf("Saves %d", n), path: sg.Path, include: inc, isNew: true})
+	m.slots = append(m.slots, &slotForm{key: key, label: fmt.Sprintf("Saves %d", n), path: sg.Path,
+		include: strings.Join(sg.Include, "\n"), isNew: true})
 	return true
+}
+
+// usedElsewhere reports whether another device has a folder for any of the
+// emulator's save locations.
+func (m *emuForm) usedElsewhere() bool {
+	return slices.ContainsFunc(slotStates(m.slots, m.others), services.SlotState.UsedElsewhere)
 }
 
 // nextSlot is a new, empty save location named after the number it gets.
@@ -254,8 +293,9 @@ func (e *ViewModel) BarNote() Note {
 }
 
 // ApplySuggestions takes the save locations found for the game. With autofill,
-// an empty first location is filled when exactly one suggestion has files on
-// disk; autofilled reports that it was (the page then says so).
+// while the first location is empty, the one suggestion that has files on disk
+// is filled into the location it matches, if there is exactly one such
+// suggestion; autofilled reports that it was (the page then says so).
 func (e *ViewModel) ApplySuggestions(res services.SuggestResult, autofill bool) (autofilled bool) {
 	e.suggest = &res
 	var found []services.SaveSuggestion
@@ -265,8 +305,9 @@ func (e *ViewModel) ApplySuggestions(res services.SuggestResult, autofill bool) 
 		}
 	}
 	if autofill && len(found) == 1 && len(e.slots) > 0 && e.slots[0].path == "" {
-		e.useSuggestion(found[0], e.slots[0])
-		return true
+		if at, _ := services.PlaceSuggestion(slotStates(e.slots, e.others), found[0].Path, found[0].Include); at >= 0 {
+			return e.useSuggestion(found[0], e.slots[at])
+		}
 	}
 	return false
 }

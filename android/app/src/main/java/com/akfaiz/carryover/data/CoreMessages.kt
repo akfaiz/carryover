@@ -231,6 +231,7 @@ internal val CORE_TEXTS: Map<String, CoreString> = mapOf(
     "token.publicdocuments" to CoreString.Text(R.string.core_token_publicdocuments),
     "token.savedgames" to CoreString.Text(R.string.core_token_savedgames),
     "token.steam" to CoreString.Text(R.string.core_token_steam),
+    "suggest.no_match" to CoreString.Text(R.string.core_suggest_no_match),
     "update.busy" to CoreString.Text(R.string.core_update_busy),
     "update.cancelled" to CoreString.Text(R.string.core_update_cancelled),
     "update.check_failed" to CoreString.Text(R.string.core_update_check_failed),

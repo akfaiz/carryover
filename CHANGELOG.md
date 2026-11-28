@@ -28,6 +28,12 @@ All notable changes to Carryover are listed here. The format follows
   European, US and Japanese discs): each folder is listed once and covers all of them.
 - Rows in lists of suggestions and search results now start at the left instead of being centred.
 - The Proton path tokens are now offered only on Linux, no longer on Windows.
+- A save suggestion no longer goes into a save location another device uses for other files, and no longer changes
+  that location's file filters (on the desktop and Android). Before, one kind of save could be synced into the folder
+  of another, for example a PSP game's save states into its in-game saves. A suggestion now fills the location whose
+  folder has the same name on your other devices; if none matches, you choose. Filling in by itself no longer adds
+  locations to a game another device has set up. If you set a game up with suggestions on a second device, check each
+  location's folder and filters.
 
 ## [0.6.0] - 2026-11-27
 

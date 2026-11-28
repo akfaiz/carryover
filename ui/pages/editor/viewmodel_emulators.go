@@ -16,6 +16,8 @@ type emuForm struct {
 	id, name, rom string
 	share         string // emulator id whose cloud save this one uses ("" = its own)
 	slots         []*slotForm
+	// others are the other devices' folders for this emulator's locations.
+	others []services.DevicePaths
 
 	// Save location suggestions from the emulator's manifest.
 	sug        *services.EmuSuggestResult
@@ -65,7 +67,7 @@ func (e *ViewModel) setShare(m, target *emuForm) {
 func (e *ViewModel) loadEmulators(g *services.GameView) {
 	e.emus = nil
 	for _, pv := range g.Emulators {
-		m := &emuForm{id: pv.EmulatorID, name: pv.Name, rom: pv.Rom, share: pv.ShareWith}
+		m := &emuForm{id: pv.EmulatorID, name: pv.Name, rom: pv.Rom, share: pv.ShareWith, others: pv.OtherDevices}
 		for _, s := range pv.Slots {
 			m.slots = append(m.slots, &slotForm{
 				key: s.Key, label: textutil.LabelOf(s.Label, s.Key),
@@ -230,9 +232,12 @@ func (e *ViewModel) ApplyEmuSuggestions(m *emuForm, res services.EmuSuggestResul
 	if autofill && res.PerGame { // locations that hold every game's saves are only offered
 		m.autofillKinds(res.Suggestions)
 		if emptyPaths(m) {
+			// A new location needs a folder on every device before they sync
+			// again, so a game another device has set up gets none by itself.
+			mayAdd := !m.usedElsewhere()
 			for _, sg := range res.Suggestions {
 				if sg.Exists && sg.Kind == "" {
-					m.useSuggestion(sg)
+					m.place(sg, mayAdd)
 				}
 			}
 		}

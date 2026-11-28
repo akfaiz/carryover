@@ -232,6 +232,7 @@ var (
 	SuggestAllGames      = define("suggest.all_games", "{{.Emulator}} keeps the saves of every game together, so these locations hold all games' saves. Choose the ones you want to sync: the user save folders (save and saveMeta) belong together.")
 	SuggestOnlyEmulator  = define("suggest.only_emulator", "only an emulator profile has save suggestions")
 	SuggestSharedSaves   = define("suggest.shared_saves", "this emulator shares another emulator's saves, whose locations aren't marked as account or device save: suggest the locations on that emulator first, or enter the folder yourself")
+	SuggestNoMatch       = define("suggest.no_match", "No empty save location matches this folder. Type the folder into the right save location yourself, or fill the others first.")
 	SuggestNoFolder      = define("suggest.no_folder", "this suggestion has no folder")
 
 	HintSwitch      = define("hint.switch", "the emulator's user folder (contains nand/)")
