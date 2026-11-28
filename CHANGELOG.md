@@ -7,6 +7,8 @@ All notable changes to Carryover are listed here. The format follows
 
 ## [Unreleased]
 
+## [0.7.0] - 2026-11-28
+
 ### Added
 
 - Spanish and Brazilian Portuguese, on the desktop and Android. Pick one under Settings → Appearance → Language,
@@ -431,7 +433,8 @@ First stable release.
   `carryover-0.1.0-windows-amd64.exe`). Rename the AppImage to `carryover.AppImage` so Steam shortcuts survive
   updates. The README explains how to download, install, verify and update each release file.
 
-[Unreleased]: https://github.com/akfaiz/carryover/compare/v0.6.0...HEAD
+[Unreleased]: https://github.com/akfaiz/carryover/compare/v0.7.0...HEAD
+[0.7.0]: https://github.com/akfaiz/carryover/compare/v0.6.0...v0.7.0
 [0.6.0]: https://github.com/akfaiz/carryover/compare/v0.5.1...v0.6.0
 [0.5.1]: https://github.com/akfaiz/carryover/compare/v0.5.0...v0.5.1
 [0.5.0]: https://github.com/akfaiz/carryover/compare/v0.4.0...v0.5.0
